@@ -1,5 +1,5 @@
---------------------------- MODULE ReliableNetwork ---------------------------
-EXTENDS FiniteSets, Naturals
+---------------------------- MODULE ReliableNetwork ----------------------------
+EXTENDS Bags, Naturals, Utils
 
 (*****************************************************************************)
 (* RELIABLE NETWORK MODULE                                                   *)
@@ -20,72 +20,69 @@ EXTENDS FiniteSets, Naturals
 (*                        size.                                              *)
 (* - No message creation: Messages are only added through sends.             *)
 (*                                                                           *)
-(* Operators:                                                                *)
-(* - Send(s, r, m):       Adds a message m to the unordered buffer           *)
-(*                        channel[s][r]. Used when a process s sends a       *)
-(*                        message to process r.                              *)
-(* - Deliver(r, s, m):    Removes a message m from the buffer channel[s][r]. *)
-(*                        Used when a process r is done processing a message *)
-(*                        sent by s.                                         *)    
-(* - Reply(s, r, m1, m2): Combination of Send and Deliver. Used when a       *)
-(*                        process r processed a message m1 from s and        *)
-(*                        immediately respond to it with message m2.         *)
-(*                                                                           *)
-(* Invariants:                                                                *)
-(* - NetworkTypeInvariant: Type invariance property for module internal      *)
-(*   variables.                                                              *)
 (*****************************************************************************)
 
--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 (*- CONSTANTS -*)
+
 CONSTANTS
-    ProcSet,    \* The set of process identifiers.
+    Processes,  \* The set of process identifiers.
     Messages    \* The set of messages the network can carry.
 
--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 (*- VARIABLES -*)
 
 VARIABLES
     channel     \* channel[s][r] is the unordered set of messages in the
                 \* channel from sender s to receiver r.
 
-networkVars == <<channel>>
+networkVars == << channel >>
 
--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 (*- INVARIANTS -*)
 
 NetworkTypeInvariant ==
-    /\ channel \in [ProcSet -> [ProcSet -> SUBSET Messages]]
-    /\ \A i \in ProcSet : channel[i][i] = {}
+    \A i \in Processes:
+        \A j \in Processes \ {i}:
+            \E Msgs \in SUBSET Messages:
+                channel[i][j] \in [Msgs -> Nat]
 
--------------------------------------------------------------------------------
-(*- OPERATORS -*)
+--------------------------------------------------------------------------------
+(*- ACTIONS -*)
 
-(* Initializes network with all channels empty. *)
 InitNetwork ==
-    channel = [p \in ProcSet |-> [q \in ProcSet |-> {}]]
+    (*************************************************************************)
+    (* Initializes network with all channels empty.                          *)
+    (*************************************************************************)
+    channel = [p \in Processes |-> [q \in Processes \ {p} |-> EmptyBag]]
 
-(* Adds a message m to the unordered buffer channel[s][r]. Used when a process
-   s sends a message to process r. *)
 Send(s, r, m) ==
-    /\ s \in ProcSet
-    /\ r \in ProcSet
-    /\ s # r
-    /\ channel' = [channel EXCEPT ![s][r] = @ \union {m}]
+    (*************************************************************************)
+    (* Adds a message m to the unordered buffer channel[s][r]. Used when a   *)
+    (* process s sends a message to process r.                               *)
+    (*************************************************************************)
+    /\ s \in Processes
+    /\ r \in Processes
+    /\ s /= r
+    /\ channel' = [channel EXCEPT ![s][r] = BagAdd(@, m)]
 
-(* Removes a message m from the buffer channel[s][r]. Used when a process r is
-   done processing a message sent by s. *)
 Deliver(r, s, m) ==
-    /\ r \in ProcSet
-    /\ s \in ProcSet
-    /\ s # r
-    /\ m \in channel[s][r]
-    /\ channel' = [channel EXCEPT ![s][r] = @ \ {m}]
+    (*************************************************************************)
+    (* Removes a message m from the buffer channel[s][r]. Used when a        *)
+    (* process r is done processing a message sent by s.                     *)
+    (*************************************************************************)
+    /\ r \in Processes
+    /\ s \in Processes
+    /\ s /= r
+    /\ m \in DOMAIN channel[s][r]
+    /\ channel' = [channel EXCEPT ![s][r] = BagRemove(@, m)]
 
-(* Combination of Send and Deliver. Used when a process r processed a message
-   m1 from s and immediately respond to it with message m2. *)
 Reply(s, r, m1, m2) ==
+    (*************************************************************************)
+    (* Combination of Send and Deliver. Used when a process r processed a    *)
+    (* message m1 from s and immediately respond to it with message m2.      *)
+    (*************************************************************************)
     /\ Deliver(s, r, m1)
     /\ Send(r, s, m2)
 
-===============================================================================
+================================================================================

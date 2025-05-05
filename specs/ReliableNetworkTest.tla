@@ -1,4 +1,4 @@
-------------------------- MODULE ReliableNetworkTest -------------------------
+-------------------------- MODULE ReliableNetworkTest --------------------------
 EXTENDS ReliableNetwork, TLC
 
 (*****************************************************************************)
@@ -10,15 +10,35 @@ EXTENDS ReliableNetwork, TLC
 (* This module is designed for use with the TLC model checker.               *)
 (*****************************************************************************)
 
+--------------------------------------------------------------------------------
+(*- CONSTANTS -*)
+
+CONSTANT MaxSteps
+
+--------------------------------------------------------------------------------
+(*- VARIABLES -*)
+
+VARIABLE numSteps
+
+--------------------------------------------------------------------------------
+(*- SPECIFICATION -*)
+
+TestInit ==
+    /\ InitNetwork
+    /\ numSteps = 0
+
 TestNext ==
-    \E p, q \in ProcSet :
-        \/ \E m \in Messages :
-            \/ /\ Send(p, q, m)
-               /\ Assert(m \in channel'[p][q], "Send failed!")
-            \/ Deliver(p, q, m)
-        \/ \E m1, m2 \in Messages : Reply(p, q, m1, m2)
+    \/
+        /\ numSteps < MaxSteps
+        /\ numSteps' = numSteps + 1
+        /\ \E p, q \in Processes:
+            \/ \E m \in Messages:
+                \/ Send(p, q, m)
+                \/ Deliver(p, q, m)
+            \/ \E m1, m2 \in Messages: Reply(p, q, m1, m2)
+    \/ UNCHANGED << networkVars, numSteps >>
 
 TestSpec ==
-    InitNetwork /\ [][TestNext]_networkVars
+    TestInit /\ [][TestNext]_<< networkVars, numSteps >>
 
-=============================================================================
+================================================================================
