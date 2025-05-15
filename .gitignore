@@ -1,3 +1,6 @@
+# Tools dir
+tools/
+
 # TLC generated files
 *.out
 */states
