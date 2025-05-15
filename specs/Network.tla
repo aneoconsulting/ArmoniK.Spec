@@ -42,6 +42,13 @@ Reply(m1, m2) ==
     /\ m1.dst = m2.src
     /\ Deliver(m1) /\ Send(m2)
 
+ReplyOrTimeout(m1, m2) ==
+    /\ m1.src = m2.dst
+    /\ m1.dst = m2.src
+    /\ Deliver(m1)
+    /\ \/ Send(m2)
+       \/ Send([m2 EXCEPT !.type = TimeoutResponse, !.data |-> NULL])
+
 DeleteAllMessagesTo(r) ==
     /\ messages' = {m \in messages : m.dst /= r}
     /\ UNCHANGED messageCount

@@ -1,3 +1,38 @@
+while True {
+    send(PullRequest) to messageQueue
+    taskid := receive(PullResponse | taskId) from messageQueue
+    send(AcquireTaskRequest | taskId, agentId) to stateStore
+    taskData := receive(AcquireTaskResponse, taskData) from stateStore
+    if (taskData /= NULL) {
+        output = ProcessTask() // internal procedure
+        if (output = SUCCESS) {
+            send(UpdateTaskStatusRequest | taskId, COMPLETED) to stateStore
+            receive(UpdateTaskStatusResponse) from stateStore
+        } else {
+            send(UpdateTaskStatusRequest | taskId, FAILED) to stateStore
+            receive(UpdateTaskStatusResponse) from stateStore
+        }
+    } else {
+        send(ReadTaskRequest | taskId) to stateStore
+        taskData := receive(ReadTaskResponse | taskData) from stateStore
+        send(TaskProcessingRequest) to taskData.taskOwner
+        ownerTaskId := receive(TaskProcessingResponse | taskId) from taskData.taskOwner
+        if (taskId = ownerTaskId) {
+            send(PushRequest | taskId) to messageQueue
+            receive(PushResponse) from messageQueue
+        } else {
+            send(ReadTaskRequest | taskId) to stateStore
+            taskData := receive(ReadTaskResponse | taskData) from stateStore
+            if (taskData.status = COMPLETED) {
+                continue // goto loop beginning
+            } else {
+                send(PushRequest | taskId) to messageQueue
+                receive(PushResponse) from messageQueue
+            }
+        }
+    }
+}
+
 ---- MODULE ArmoniK ----
 EXTENDS Network
 
