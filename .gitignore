@@ -11,6 +11,7 @@ modules/dist/
 
 # Ignore TLC generated files
 *.out
+*.dot
 */states
 
 # Ignore PDF, DVI and TEX files
