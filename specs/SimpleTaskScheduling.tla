@@ -7,6 +7,7 @@ CONSTANTS AgentId,  \* Set of task IDs (theoritcally infinite).
     TaskId          \* Set of agent IDs (theoritcally infinite).
 
 CONSTANTS
+    NULL,
     SUBMITTED,  \* Status of a task ready for execution.
     STARTED,    \* Status of a task currently being processed.
     COMPLETED   \* Status of a task that has been successfully processed.
@@ -19,18 +20,24 @@ vars == << alloc, status >>
 
 --------------------------------------------------------------------------------
 
-NULL == \* Arbitrary value to represent the status of a task that is not known of the scheduling system.
-    CHOOSE x: x \notin {SUBMITTED, STARTED, COMPLETED}
-
 TypeInv ==
     /\ alloc \in [AgentId -> SUBSET TaskId]
     /\ status \in [TaskId -> {NULL, SUBMITTED, STARTED, COMPLETED}]
 
-unsubmitted == \* Set of tasks not submitted i.e ready to be submitted.
-{t \in TaskId: status[t] = NULL}
+IsInStatus(S, STATUS) ==
+    \A t \in S: status[t] = STATUS
 
-ready == \* Set of tasks ready to be scheduled.
-{t \in TaskId: status[t] = SUBMITTED}
+IsUnknown(S) ==
+    IsInStatus(S, NULL)
+
+IsSubmitted(S) ==
+    IsInStatus(S, SUBMITTED)
+
+IsStarted(S) ==
+    IsInStatus(S, STARTED)
+
+IsCompleted(S) ==
+    IsInStatus(S, COMPLETED)
 
 --------------------------------------------------------------------------------
 
@@ -39,12 +46,12 @@ Init == \* Initially no task is ready or scheduled.
     /\ status = [t \in TaskId |-> NULL]
 
 Submit(S) == \* Set S of unsubmitted tasks are submitted i.e made ready.
-    /\ S /= {} /\ S \subseteq unsubmitted
+    /\ S /= {} /\ IsUnknown(S)
     /\ status' = [t \in TaskId |-> IF t \in S THEN SUBMITTED ELSE status[t]]
     /\ UNCHANGED alloc
 
 Schedule(a, S) == \* Set S of ready tasks are scheduled on agent a.
-    /\ S /= {} /\ S \subseteq ready
+    /\ S /= {} /\ IsSubmitted(S)
     /\ alloc' = [alloc EXCEPT ![a] = @ \union S]
     /\ status' = [t \in TaskId |-> IF t \in S THEN STARTED ELSE status[t]]
 
@@ -68,23 +75,27 @@ Next == \* The system’s next−state relation.
 
 --------------------------------------------------------------------------------
 
-STSSpec == \* The complete high−level specification
+Spec == \* The complete high−level specification
     /\ Init /\ [][Next]_vars
     /\ \A S \in SUBSET TaskId: WF_vars(\E a \in AgentId: Schedule(a, S))
     /\ \A S \in SUBSET TaskId: SF_vars(\E a \in AgentId: Complete(a, S))
 
 --------------------------------------------------------------------------------
 
-NoConcurrentExec == \* A task cannot be executed simultaneously by several agents.
+NoExecutionConcurrency == \* A task cannot be executed simultaneously by several agents.
     \A a, b \in AgentId: a /= b => alloc[a] \intersect alloc[b] = {}
 
-TaskEventuallyCompleted == \* Any task submitted is eventually processed.
-    \A t \in TaskId: status[t] = SUBMITTED ~> status[t] = COMPLETED
+EventualCompletion == \* Any task submitted is eventually processed.
+    \A S \in SUBSET TaskId: IsSubmitted(S) ~> IsCompleted(S)
+
+Quiescence ==
+    \A S \in SUBSET TaskId: [](IsCompleted(S) => []IsCompleted(S))
 
 --------------------------------------------------------------------------------
 
-THEOREM STSSpec => []TypeInv
-THEOREM STSSpec => []NoConcurrentExec
-THEOREM STSSpec => TaskEventuallyCompleted
+THEOREM Spec => []TypeInv
+THEOREM Spec => []NoExecutionConcurrency
+THEOREM Spec => EventualCompletion
+THEOREM Spec => Quiescence
 
 ================================================================================

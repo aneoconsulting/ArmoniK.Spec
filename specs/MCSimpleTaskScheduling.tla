@@ -7,7 +7,7 @@ ASSUME IsFiniteSet(AgentId)
 --------------------------------------------------------------------------------
 
 Terminating == \* Dummy action to represent the final state of the system when all tasks have been completed.
-    /\ status = [t \in TaskId |-> COMPLETED]
+    /\ IsCompleted(TaskId)
     /\ UNCHANGED vars
 
 MCNext == \* Modified system’s next−state relation to avoid deadlock.
@@ -21,12 +21,12 @@ MCNext == \* Modified system’s next−state relation to avoid deadlock.
 
 --------------------------------------------------------------------------------
 
-ExecutionConsistent ==
+ExecutionConsistency ==
     UNION {alloc[a]: a \in AgentId} \subseteq {t: t \in TaskId}
 
-StatusConsistent ==
+StatusConsistency ==
     \A t \in TaskId:
-        \/ status[t] = STARTED /\ \E a \in AgentId: t \in alloc[a]
-        \/ status[t] /= STARTED /\ \A a \in AgentId: t \notin alloc[a]
+        \/ IsStarted({t}) /\ \E a \in AgentId: t \in alloc[a]
+        \/ ~IsStarted({t}) /\ \A a \in AgentId: t \notin alloc[a]
 
 ================================================================================
