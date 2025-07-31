@@ -1,0 +1,90 @@
+{
+    // Disables the minimap in the editor.
+    "editor.minimap.enabled": false,
+
+    // Sets the number of spaces a tab character is equal to.
+    "editor.tabSize": 4,
+
+    // Inserts spaces when the Tab key is pressed.
+    "editor.insertSpaces": true,
+
+    // Enables formatting as you type.
+    "editor.formatOnType": false,
+
+    // Sets the font family for the editor.
+    "editor.fontFamily": "FireCode",
+
+    // Specifies files and directories to exclude from the workspace.
+    "files.exclude": {
+        "tools": true,
+        "*/states/": true,
+        "_apalache-out/": true
+    },
+
+	// Java options to use when running TLA+ tools. [How it works.](https://github.com/alygin/vscode-tlaplus/wiki/Java-Options)
+	"tlaplus.java.options": "-XX:+UseParallelGC",
+
+	// Command to produce PDFs from .tex files.
+	"tlaplus.pdf.convertCommand": "pdflatex",
+
+	// Send TLC output to .out file.
+	"tlaplus.tlc.modelChecker.createOutFiles": true,
+
+	// Allows you to send the TLC usage statistics to [the publicly available database](https://exec-stats.tlapl.us). You can find more details on what is shared [here](https://github.com/tlaplus/tlaplus/blob/master/tlatools/org.lamport.tlatools/src/util/ExecutionStatisticsCollector.md).
+	//  - share: TLC statistics will be shared along with the installation ID.
+	//  - shareWithoutId: TLC statistics will be shared witout the installation ID.
+	//  - doNotShare: No TLC statistics will be shared.
+	"tlaplus.tlc.statisticsSharing": "share",
+
+    // Configures code actions on save for TLA+ files.
+    "[tlaplus]": {
+        "editor.codeActionsOnSave": {
+            "source": "always"
+        }
+    },
+
+    // Configures styles for comment boxes.
+    "commentBox.styles": {
+        "defaultStyle": {
+            // Token used to start a comment.
+            "commentStartToken": "(**",
+
+            // Token used to end a comment.
+            "commentEndToken": "**)",
+
+            // Token used for the left edge of a comment box.
+            "leftEdgeToken": "(* ",
+
+            // Token used for the right edge of a comment box.
+            "rightEdgeToken": " *)",
+
+            // Token used for the top edge of a comment box.
+            "topEdgeToken": "*",
+
+            // Token used for the bottom edge of a comment box.
+            "bottomEdgeToken": "*",
+
+            // Token used for the top-right corner of a comment box.
+            "topRightToken": "**)",
+
+            // Token used for the bottom-left corner of a comment box.
+            "bottomLeftToken": "(**",
+
+            // Disables capitalization of text within comment boxes.
+            "capitalize": false,
+
+            // Disables ignoring of inner indentation within comment boxes.
+            "ignoreInnerIndentation": false,
+
+            // Disables ignoring of outer indentation within comment boxes.
+            "ignoreOuterIndentation": false,
+
+            // Disables removal of empty lines within comment boxes.
+            "removeEmptyLines": false,
+
+            // Sets the text alignment within comment boxes to left.
+            "textAlignment": "left",
+        }
+    },
+    "tlaplus.tlc.modelChecker.options": "-coverage 1 -dump dot states"
+}
