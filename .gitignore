@@ -1,0 +1,22 @@
+# Ignore directory containing TLA+ tools
+tools/
+
+# Ignore TTrace specs
+*_TTrace_*.tla
+
+# Ignore TLC generated files
+*.out
+*/states
+
+# Ignore PDF, DVI and TEX files
+*.pdf
+*.dvi
+*.tex
+
+## Ignore TLAPS cache folder
+## See https://github.com/tlaplus/tlapm/issues/16
+__tlacache__
+.tlacache
+
+# Ignore directory created by Apalache
+_apalache-out
