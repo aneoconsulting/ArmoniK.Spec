@@ -4,7 +4,7 @@ EXTENDS FiniteSets, SimpleObjectProcessing
 ASSUME IsFiniteSet(ObjectId)
 
 Terminating ==
-    /\ IsCompleted(ObjectId)
+    /\ \A o \in ObjectId: IsCompleted({o}) \/ IsLocked({o})
     /\ UNCHANGED vars
 
 MCNext ==
@@ -12,6 +12,7 @@ MCNext ==
         \/ CreateEmpty(S)
         \/ CreateCompleted(S)
         \/ Complete(S)
+        \/ Lock(S)
     \/ Terminating
 
 ====

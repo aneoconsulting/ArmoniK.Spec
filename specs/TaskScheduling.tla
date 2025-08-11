@@ -9,22 +9,22 @@ CONSTANTS NULL,
           SUBMITTED,
           CREATED,
           STARTED,
-          COMPLETED
+          COMPLETED,
+          LOCKED
 
 VARIABLES alloc,
           objectStatus,
           taskStatus,
           ins,
-          outs,
-          completions
+          outs
 
-vars == << alloc, objectStatus, taskStatus, ins, outs, completions >>
+vars == << alloc, objectStatus, taskStatus, ins, outs >>
 
 ----
 
 TypeInv ==
     /\ alloc \in [AgentId -> SUBSET TaskId]
-    /\ objectStatus \in [ObjectId -> {NULL, CREATED, COMPLETED}]
+    /\ objectStatus \in [ObjectId -> {NULL, CREATED, COMPLETED, LOCKED}]
     /\ taskStatus \in [TaskId -> {NULL, SUBMITTED, STARTED, COMPLETED}]
     /\ ins \in [TaskId -> SUBSET ObjectId]
     /\ outs \in [TaskId -> SUBSET ObjectId]
@@ -51,7 +51,7 @@ Init ==
 
 CreateEmptyObjects(S) ==
     /\ SOP!CreateEmpty(S)
-    /\ UNCHANGED << alloc, taskStatus, ins, outs, completions >>
+    /\ UNCHANGED << alloc, taskStatus, ins, outs >>
 
 CreateCompletedObjects(S) ==
     /\ SOP!CreateCompleted(S)
@@ -70,22 +70,21 @@ SubmitTasks(S) ==
     /\ STS!Submit(DOMAIN S)
     /\ ins' = [t \in TaskId |-> IF t \in DOMAIN S THEN S[t].in ELSE ins[t]]
     /\ outs' = [t \in TaskId |-> IF t \in DOMAIN S THEN S[t].out ELSE outs[t]]
-    /\ UNCHANGED << alloc, objectStatus, completions >>
+    /\ UNCHANGED << alloc, objectStatus >>
 
 ScheduleTasks(a, S) ==
-    /\ SOP!IsCompleted(UNION {ins[t]: t \in S})
+    /\ SOP!Lock(UNION {ins[t]: t \in S})
     /\ STS!Schedule(a, S)
-    \* /\ SOP!Lock(UNION {ins[t]: t \in S})
-    /\ UNCHANGED << objectStatus, ins, outs, completions >>
+    /\ UNCHANGED << ins, outs >>
 
 ReleaseTasks(a, S) ==
     /\ STS!Release(a, S)
-    /\ UNCHANGED << objectStatus, ins, outs, completions >>
+    /\ UNCHANGED << objectStatus, ins, outs >>
 
 CompleteTasks(a, S) ==
     /\ SOP!IsCompleted(UNION {outs[t]: t \in S})
     /\ STS!Complete(a, S)
-    /\ UNCHANGED << objectStatus, ins, outs, completions >>
+    /\ UNCHANGED << objectStatus, ins, outs >>
 
 Next ==
     \/ \E S \in SUBSET ObjectId:
@@ -114,13 +113,17 @@ AllTasksHaveIO ==
 UniqueObjectOwner ==
     \A o \in ObjectId: Cardinality(ObjectTaskOwners(o)) <= 1
 
-NoPrematureCompletion ==
-    \A o \in ObjectId: SOP!IsCompleted({o}) =>
-        \/ STS!IsStarted(ObjectTaskOwners(o))
-        \/ STS!IsCompleted(ObjectTaskOwners(o))
+\* NoPrematureCompletion ==
+\*     \A o \in ObjectId: SOP!IsCompleted({o}) =>
+\*         \/ STS!IsStarted(ObjectTaskOwners(o))
+\*         \/ STS!IsCompleted(ObjectTaskOwners(o))
+
+AllInputsLocked ==
+    \A t \in TaskId: STS!IsStarted({t}) \/ STS!IsCompleted({t}) => SOP!IsLocked(ins[t])
 
 AllOutputsCompleted ==
-    \A t \in TaskId: STS!IsCompleted({t}) => SOP!IsCompleted(outs[t])
+    \A t \in TaskId: STS!IsCompleted({t}) => \/ SOP!IsCompleted(outs[t])
+                                             \/ SOP!IsLocked(outs[t])
 
 ImplementsSimpleTaskScheduling == STS!Spec
 
@@ -130,7 +133,7 @@ ImplementsSimpleObjectProcessing == SOP!Spec
 THEOREM Spec => []TypeInv
 THEOREM Spec => []AllTasksHaveIO
 THEOREM Spec => []UniqueObjectOwner
-THEOREM Spec => []NoPrematureCompletion
+THEOREM Spec => []AllInputsLocked
 THEOREM Spec => []AllOutputsCompleted
 THEOREM Spec => ImplementsSimpleTaskScheduling
 THEOREM Spec => ImplementsSimpleObjectProcessing
