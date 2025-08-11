@@ -38,6 +38,11 @@ CreateEmpty(S) ==
     /\ S /= {} /\ IsUnknown(S)
     /\ status' = [o \in ObjectId |-> IF o \in S THEN CREATED ELSE status[o]]
 
+\* This action corresponds to the composition of CreateEmpty and Complete.
+\* CreateCompleted(S) = CreateEmpty(S).Complete(S)
+\* This action therefore appears to be of little interest and will likely be
+\* removed in future versions of the specification.
+\* This change will have to be reflected in the refinements.
 CreateCompleted(S) ==
     /\ S /= {} /\ IsUnknown(S)
     /\ status' = [o \in ObjectId |-> IF o \in S THEN COMPLETED ELSE status[o]]

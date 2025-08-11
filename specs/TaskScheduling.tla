@@ -63,9 +63,13 @@ CompleteObjects(S) ==
     /\ UNCHANGED << alloc, taskStatus, ins, outs >>
 
 SubmitTasks(S) ==
-    /\ \A t \in DOMAIN S: /\ S[t].in /= {} /\ S[t].out /= {}
-                          /\ S[t].in \cap S[t].out = {}
-                          /\ \A u \in TaskId \ {t}: S[t].out \cap outs[u] = {}
+    /\ \A t \in DOMAIN S:
+        /\ S[t].in /= {} /\ S[t].out /= {}
+        /\ S[t].in \cap S[t].out = {}
+        /\ \A u \in TaskId \ {t}: S[t].out \cap outs[u] = {}
+        /\ \A u \in DOMAIN S \ {t}:
+            /\ S[t].out \cap S[u].out = {}
+            /\ S[t].out \cap 
     /\ SOP!IsCreated(UNION {S[t].in \cup S[t].out: t \in DOMAIN S})
     /\ STS!Submit(DOMAIN S)
     /\ ins' = [t \in TaskId |-> IF t \in DOMAIN S THEN S[t].in ELSE ins[t]]
