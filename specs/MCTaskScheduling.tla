@@ -6,8 +6,8 @@ ASSUME IsFiniteSet(ObjectId)
 ASSUME IsFiniteSet(TaskId)
 
 Terminating ==
-    /\ STS!IsCompleted(TaskId \ {t \in TaskId: STS!IsUnknown({t})})
-    /\ SOP!IsCompleted(ObjectId \ {o \in ObjectId: SOP!IsUnknown({o})})
+    /\ \A t \in TaskId: ~STS!IsUnknown({t}) => STS!IsCompleted({t})
+    /\ \A o \in ObjectId: ~SOP!IsUnknown({o}) => SOP!IsCompleted({o}) \/ SOP!IsLocked({o})
     /\ UNCHANGED vars
 
 MCNext ==

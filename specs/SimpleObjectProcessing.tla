@@ -3,18 +3,16 @@ EXTENDS Naturals
 
 CONSTANT ObjectId
 
-CONSTANTS NULL, CREATED, COMPLETED
+CONSTANTS NULL, CREATED, COMPLETED, LOCKED
 
-VARIABLES status,
-          completions
+VARIABLES status
 
-vars == << status, completions >>
+vars == << status >>
 
 ----
 
 TypeInv ==
-    /\ status \in [ObjectId -> {NULL, CREATED, COMPLETED}]
-    /\ completions \in [ObjectId -> Nat]
+    /\ status \in [ObjectId -> {NULL, CREATED, COMPLETED, LOCKED}]
 
 IsInStatus(S, STATUS) ==
     \A x \in S: status[x] = STATUS
@@ -28,36 +26,36 @@ IsCreated(S) ==
 IsCompleted(S) ==
     IsInStatus(S, COMPLETED)
 
+IsLocked(S) ==
+    IsInStatus(S, LOCKED)
+
 ----
 
 Init ==
-    /\ status = [o \in ObjectId |-> NULL]
-    /\ completions = [o \in ObjectId |-> 0]
+    status = [o \in ObjectId |-> NULL]
 
 CreateEmpty(S) ==
     /\ S /= {} /\ IsUnknown(S)
     /\ status' = [o \in ObjectId |-> IF o \in S THEN CREATED ELSE status[o]]
-    /\ UNCHANGED completions
 
 CreateCompleted(S) ==
     /\ S /= {} /\ IsUnknown(S)
     /\ status' = [o \in ObjectId |-> IF o \in S THEN COMPLETED ELSE status[o]]
-    /\ completions' = [o \in ObjectId |-> IF o \in S
-                                          THEN completions[o] + 1
-                                          ELSE completions[o]]
 
 Complete(S) ==
-    /\ S /= {} /\ IsCreated(S)
+    /\ S /= {} /\ (IsCreated(S) \/ IsCompleted(S))
     /\ status' = [o \in ObjectId |-> IF o \in S THEN COMPLETED ELSE status[o]]
-    /\ completions' = [o \in ObjectId |-> IF o \in S
-                                          THEN completions[o] + 1
-                                          ELSE completions[o]]
+
+Lock(S) ==
+    /\ S /= {} /\ (IsCompleted(S) \/ IsLocked(S))
+    /\ status' = [o \in ObjectId |-> IF o \in S THEN LOCKED ELSE status[o]]
 
 Next ==
     \E S \in SUBSET ObjectId :
         \/ CreateEmpty(S)
         \/ CreateCompleted(S)
         \/ Complete(S)
+        \/ Lock(S)
 
 ----
 
@@ -66,19 +64,15 @@ Spec == /\ Init /\ [][Next]_vars
 
 ----
 
-Immutability ==
-    \A o \in ObjectId: completions[o] <= 1
-
 EventualCompletion ==
-    \A S \in SUBSET ObjectId: IsCreated(S) ~> IsCompleted(S)
+    \A o \in ObjectId: IsCreated({o}) ~> IsCompleted({o})
 
 Quiescence ==
-    \A S \in SUBSET ObjectId: [](IsCompleted(S) => []IsCompleted(S))
+    \A S \in SUBSET ObjectId: [](IsLocked(S) => []IsLocked(S))
 
 ----
 
 THEOREM Spec => []TypeInv
-THEOREM Spec => []Immutability
 THEOREM Spec => EventualCompletion
 THEOREM Spec => Quiescence
 
