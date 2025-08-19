@@ -26,23 +26,11 @@ SOP == INSTANCE SimpleObjectProcessing WITH status <- objectStatus
 
 ----
 
-IsDagOfTasksAndObjects(G) ==
-    /\ IsDag(G)
-    \* /\ Print("Is DAG", IsDag(G))
-    /\ IsBipartiteOf(G, TaskId, ObjectId)
-    \* /\ Print("Is bipartite", IsBipartiteOf(G, TaskId, ObjectId))
-    /\ Roots(G) \subseteq ObjectId
-    \* /\ Print("Roots ok", Roots(G) \subseteq ObjectId)
-    /\ Leaves(G) \subseteq ObjectId
-    \* /\ Print("Leaves ok", Leaves(G) \subseteq ObjectId)
-    /\ \A n \in G.node: n \in ObjectId => Cardinality(Predecessors(n, deps)) <= 1
-    \* /\ Print("single owner check", \A n \in G.node: n \in ObjectId => Cardinality(Predecessors(n, deps)) <= 1)
-
 TypeInv ==
     /\ alloc \in [AgentId -> SUBSET TaskId]
     /\ taskStatus \in [TaskId -> {NULL, CREATED, SUBMITTED, STARTED, COMPLETED}]
     /\ SOP!TypeInv
-    /\ IsDagOfTasksAndObjects(deps)
+    /\ deps \in ACGraphs(TaskId, ObjectId)
 
 ParentTasks(S) ==
     UNION {
@@ -78,7 +66,8 @@ CompleteObjects(S) ==
 
 SubmitTasks(H) ==
     LET newDeps == GraphUnion(deps, H)
-    IN /\ IsDagOfTasksAndObjects(newDeps)
+    IN /\ newDeps /= EmptyGraph
+       /\ newDeps \in ACGraphs(TaskId, ObjectId)
        /\ SOP!IsCreated({v \in H.node: v \in ObjectId})
        /\ taskStatus' = [t \in TaskId |-> IF t \in H.node
                                           THEN IF SOP!IsCompleted(Predecessors(t, newDeps))
@@ -111,17 +100,19 @@ CompleteTasks(a, S) ==
 \* Should complete and deallocate be two distinct steps?
 ResolveTasks(S) ==
     /\ S /= {}
-    /\ \A x \in UNION {Predecessors(t, deps): t \in S}: SOP!IsCompleted({x}) \* \/ SOP!IsLocked({x})
+    /\ \A x \in UNION {Predecessors(t, deps): t \in S}: SOP!IsCompleted({x}) \/ SOP!IsLocked({x})
     /\ STS!IsCompleted(ParentTasks(S)) /\ IsCreated(S)
     /\ taskStatus' = [t \in TaskId |-> IF t \in S THEN SUBMITTED ELSE taskStatus[t]]
     /\ UNCHANGED << alloc, objectStatus, deps >>
+
+UsedTaskId == {id \in TaskId: taskStatus[id] /= NULL}
 
 Next ==
     \/ \E S \in SUBSET ObjectId:
         \/ CreateEmptyObjects(S)
         \/ CreateCompletedObjects(S)
         \/ CompleteObjects(S)
-    \/ \E G \in Graphs(TaskId \cup ObjectId): SubmitTasks(G)
+    \/ \E G \in ACGraphs(TaskId \ UsedTaskId, ObjectId): SubmitTasks(G)
     \/ \E S \in SUBSET TaskId, a \in AgentId:
         \/ ScheduleTasks(a, S)
         \/ ReleaseTasks(a, S)

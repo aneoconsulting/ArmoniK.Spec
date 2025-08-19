@@ -52,7 +52,7 @@ Complete(S) ==
     /\ status' = [o \in ObjectId |-> IF o \in S THEN COMPLETED ELSE status[o]]
 
 Lock(S) ==
-    /\ S /= {} /\ (IsCompleted(S) \/ IsLocked(S))
+    /\ S /= {} /\ (\A o \in S: IsCompleted({o}) \/ IsLocked({o}))
     /\ status' = [o \in ObjectId |-> IF o \in S THEN LOCKED ELSE status[o]]
 
 Next ==

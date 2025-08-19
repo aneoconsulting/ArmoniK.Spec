@@ -1,5 +1,5 @@
 ---- MODULE MCTaskScheduling_future ----
-EXTENDS TaskScheduling_future
+EXTENDS TaskScheduling_future, TLC
 
 ASSUME IsFiniteSet(AgentId)
 ASSUME IsFiniteSet(ObjectId)
@@ -15,12 +15,15 @@ MCNext ==
         \/ CreateEmptyObjects(S)
         \/ CreateCompletedObjects(S)
         \/ CompleteObjects(S)
-    \/ \E G \in Graphs(TaskId \cup ObjectId): SubmitTasks(G)
+    \/ \E G \in ACGraphs(TaskId \ UsedTaskId, ObjectId): SubmitTasks(G)
     \/ \E S \in SUBSET TaskId, a \in AgentId:
         \/ ScheduleTasks(a, S)
         \/ ReleaseTasks(a, S)
         \/ CompleteTasks(a, S)
     \/ \E S \in SUBSET TaskId: ResolveTasks(S)
     \/ Terminating
+
+Symmetry ==
+    Permutations(TaskId) \cup Permutations(ObjectId) \cup Permutations(AgentId)
 
 ====

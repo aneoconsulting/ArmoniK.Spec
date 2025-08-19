@@ -96,12 +96,13 @@ ASSUME AssertEq(IsBipartiteOf(EmptyGraph, {1}, {2}), TRUE)
 \* ACGraphs Tests                                                             *)
 (******************************************************************************)
 ASSUME AssertEq(ACGraphs({"t"}, {"o", "p"}), {
+        [node |-> {}, edge |-> {}],
         [node |-> {"t", "o", "p"}, edge |-> {<<"o", "t">>, <<"t", "p">>}],
         [node |-> {"t", "o", "p"}, edge |-> {<<"p", "t">>, <<"t", "o">>}]
     })
 
-ASSUME AssertEq(Cardinality(ACGraphs({"t", "u"}, {"o", "p", "q"})), 54)
+ASSUME AssertEq(Cardinality(ACGraphs({"t", "u"}, {"o", "p", "q"})), 55)
 
-ASSUME AssertEq(Cardinality(ACGraphs({"t", "u", "v"}, {"o", "p", "q"})), 126)
+ASSUME AssertEq(Cardinality(ACGraphs({"t", "u", "v"}, {"o", "p", "q"})), 127)
 
 ================================================================================
