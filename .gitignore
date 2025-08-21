@@ -1,6 +1,11 @@
 # Ignore directory containing TLA+ tools
 tools/
 
+# Ignore modules build directories
+modules/tlc/
+modules/build/
+modules/dist/
+
 # Ignore TTrace specs
 *_TTrace_*.tla
 
