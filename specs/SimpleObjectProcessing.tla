@@ -1,12 +1,25 @@
 ---- MODULE SimpleObjectProcessing ----
 EXTENDS Naturals
 
-CONSTANT ObjectId
+CONSTANT
+    \* @type: Set(Str);
+    ObjectId
 
-CONSTANTS NULL, CREATED, COMPLETED, LOCKED
+CONSTANTS
+    \* @type: Str;
+    NULL,
+    \* @type: Str;
+    CREATED,
+    \* @type: Str;
+    COMPLETED,
+    \* @type: Str;
+    LOCKED
 
-VARIABLES status
+VARIABLES
+    \* @type: Str -> Str;
+    status
 
+\* @type: () => << Str -> Str >>;
 vars == << status >>
 
 ----

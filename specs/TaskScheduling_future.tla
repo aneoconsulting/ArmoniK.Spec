@@ -1,21 +1,37 @@
 ---- MODULE TaskScheduling_future ----
-EXTENDS FiniteSets, GraphsExt, Naturals, TLC
+EXTENDS FiniteSets, AKGraphs, Naturals, TLC
 
-CONSTANTS AgentId,
-          ObjectId,
-          TaskId
+CONSTANTS
+    \* @type: Set(Str);
+    AgentId,
+    \* @type: Set(Str);
+    ObjectId,
+    \* @type: Set(Str);
+    TaskId
 
-CONSTANTS NULL,
-          SUBMITTED,
-          CREATED,
-          STARTED,
-          COMPLETED,
-          LOCKED
+CONSTANTS
+    \* @type: Str;
+    NULL,
+    \* @type: Str;
+    SUBMITTED,
+    \* @type: Str;
+    CREATED,
+    \* @type: Str;
+    STARTED,
+    \* @type: Str;
+    COMPLETED,
+    \* @type: Str;
+    LOCKED
 
-VARIABLES alloc,
-          objectStatus,
-          taskStatus,
-          deps
+VARIABLES
+    \* @type: Str -> Set(Str);
+    alloc,
+    \* @type: Str -> Str;
+    objectStatus,
+    \* @type: Str -> Str;
+    taskStatus,
+    \* @type: { node: Set(Str), edge: Set(<<Str, Str>>) };
+    deps
 
 vars == << alloc, objectStatus, taskStatus, deps >>
 
@@ -25,6 +41,18 @@ STS == INSTANCE SimpleTaskScheduling WITH status <- taskStatus
 SOP == INSTANCE SimpleObjectProcessing WITH status <- objectStatus
 
 ----
+
+CInit ==
+    /\ AgentId = {"a", "b", "c"}
+    /\ ObjectId = {"o", "p", "q"}
+    /\ TaskId = {"t", "u", "v"}
+    /\ SUBMITTED = "SUBMITTED"
+    /\ CREATED = "CREATED"
+    /\ STARTED = "STARTED"
+    /\ COMPLETED = "COMPLETED"
+    /\ LOCKED = "LOCKED"
+    /\ NULL = "NULL"
+
 
 TypeInv ==
     /\ alloc \in [AgentId -> SUBSET TaskId]
@@ -64,6 +92,7 @@ CompleteObjects(S) ==
     /\ SOP!Complete(S)
     /\ UNCHANGED << alloc, taskStatus, deps >>
 
+\* @type: ({ node: Set(Str), edge: Set(<<Str, Str>>) }) => Bool;
 SubmitTasks(H) ==
     LET newDeps == GraphUnion(deps, H)
     IN /\ newDeps /= EmptyGraph

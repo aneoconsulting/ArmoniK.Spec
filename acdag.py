@@ -89,7 +89,7 @@ def print_graph(g: rx.PyDiGraph, filename: str):
 if __name__ == "__main__":
     from collections import defaultdict
     graphs = defaultdict(lambda: [])
-    for g in labeled_acgraphs(["t", "u", "v"], ["o", "p", "q"]):
+    for g in labeled_acgraphs(["t", "u"], ["o", "p", "q"]):
         graphs[g.num_nodes()].append(g)
 
     for i in range(min(graphs.keys()), max(graphs.keys()) + 1):

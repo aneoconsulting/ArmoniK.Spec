@@ -3,22 +3,39 @@
 (* This specification abstracts a decentralized online task scheduling system *)
 (* where dynamically submitted tasks are processed by a set of agents.        *)
 (******************************************************************************)
-CONSTANTS AgentId,  \* Set of task IDs (theoritcally infinite).
+CONSTANTS
+    \* @type: Set(Str);
+    AgentId,  \* Set of task IDs (theoritcally infinite).
+    \* @type: Set(Str);
     TaskId          \* Set of agent IDs (theoritcally infinite).
 
 CONSTANTS
+    \* @type: Str;
     NULL,
+    \* @type: Str;
     SUBMITTED,  \* Status of a task ready for execution.
+    \* @type: Str;
     STARTED,    \* Status of a task currently being processed.
+    \* @type: Str;
     COMPLETED   \* Status of a task that has been successfully processed.
 
 VARIABLES
+    \* @type: Str -> Set(Str);
     alloc,  \* alloc[a] denotes the tasks scheduled on agent a.
+    \* @type: Str -> Str;
     status  \* status[t] denotes the status of task t.
 
 vars == << alloc, status >>
 
 --------------------------------------------------------------------------------
+
+CInit ==
+    /\ AgentId = {"a", "b"}
+    /\ TaskId = {"t", "u", "v"}
+    /\ NULL = "null"
+    /\ SUBMITTED = "submitted"
+    /\ STARTED = "started"
+    /\ COMPLETED = "completed"
 
 TypeInv ==
     /\ alloc \in [AgentId -> SUBSET TaskId]
