@@ -5,10 +5,14 @@ mkdir -p tools
 
 WORKDIR="$(pwd)/tools"
 
+## Build custom TLA+ modules
+ant -buildfile modules/build.xml dist
+
 ## Install TLA+ Tools (download from GitHub)
 wget -qN https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar -P tools/
+wget -qN https://github.com/tlaplus/CommunityModules/releases/latest/download/CommunityModules-deps.jar -P tools/
 echo "alias tlcrepl='java -cp ${WORKDIR}/tla2tools.jar tlc2.REPL'" >> "$HOME/.bashrc"
-echo "alias tlc='java -XX:+UseParallelGC -cp ${WORKDIR}/tla2tools.jar tlc2.TLC'" >> "$HOME/.bashrc"
+echo "alias tlc='java -XX:+UseParallelGC -cp ${WORKDIR}/tla2tools.jar:${WORKDIR}/ArmoniKSpecModules-deps.jar tlc2.TLC'" >> "$HOME/.bashrc"
 
 ## Install TLAPS (proof system)
 wget -N https://github.com/tlaplus/tlapm/releases/download/v1.4.5/tlaps-1.4.5-x86_64-linux-gnu-inst.bin -P /tmp
