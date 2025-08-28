@@ -69,39 +69,17 @@ ASSUME AssertEq(Leaves([node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<1, 3>>}]), {2,
 
 ASSUME AssertEq(Leaves([node |-> {1, 2}, edge |-> {<<1, 2>>, <<2, 1>>}]), {})
 
-
-(******************************************************************************)
-(* IsBipartiteOf Tests                                                        *)
-(******************************************************************************)
-ASSUME \A g \in Graphs({1, 2, 3}): 
-           \A S, T \in SUBSET {1, 2, 3}: IsBipartiteOf(g, S, T) \in BOOLEAN
-
-ASSUME LET G == [node |-> {1, 2, 3, 4},
-                 edge |-> {<<1, 2>>, <<1, 3>>, <<2, 4>>, <<3, 4>>}]
-       IN AssertEq(IsBipartiteOf(G, {1, 4}, {2, 3}), TRUE)
-
-ASSUME LET G == [node |-> {1, 2, 3, 4},
-                 edge |-> {<<1, 2>>, <<1, 3>>, <<2, 4>>, <<3, 4>>}]
-       IN AssertEq(IsBipartiteOf(G, {1, 2, 4}, {2, 3}), FALSE)
-
-ASSUME LET G == [node |-> {1, 2, 3, 4},
-                 edge |-> {<<1, 2>>, <<1, 3>>, <<2, 4>>, <<3, 4>>}]
-       IN AssertEq(IsBipartiteOf(G, {1, 2, 4}, {3}), FALSE)
-
-ASSUME AssertEq(IsBipartiteOf([node |-> {1}, edge |-> {}], {1}, {}), TRUE)
-
-ASSUME AssertEq(IsBipartiteOf(EmptyGraph, {1}, {2}), TRUE)
-
 (******************************************************************************)
 \* ACGraphs Tests                                                             *)
 (******************************************************************************)
 ASSUME AssertEq(ACGraphs({"t"}, {"o", "p"}), {
+        [node |-> {}, edge |-> {}],
         [node |-> {"t", "o", "p"}, edge |-> {<<"o", "t">>, <<"t", "p">>}],
         [node |-> {"t", "o", "p"}, edge |-> {<<"p", "t">>, <<"t", "o">>}]
     })
 
-ASSUME AssertEq(Cardinality(ACGraphs({"t", "u"}, {"o", "p", "q"})), 54)
+ASSUME AssertEq(Cardinality(ACGraphs({"t", "u"}, {"o", "p", "q"})), 55)
 
-ASSUME AssertEq(Cardinality(ACGraphs({"t", "u", "v"}, {"o", "p", "q"})), 126)
+ASSUME AssertEq(Cardinality(ACGraphs({"t", "u", "v"}, {"o", "p", "q"})), 127)
 
 ================================================================================

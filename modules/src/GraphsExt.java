@@ -63,6 +63,9 @@ public final class GraphsExt {
 
 		List<RecordValue> results = new ArrayList<>();
 
+        // Add empty graph to results
+        results.add(toRecordValue(new DirectedAcyclicGraph<>(DefaultEdge.class)));
+
 		LOGGER.log(Level.FINE, "Starting ACGraphs with {0} tasks and {1} objects",
                 new Object[]{taskIdSet.size(), objectIdSet.size()});
 

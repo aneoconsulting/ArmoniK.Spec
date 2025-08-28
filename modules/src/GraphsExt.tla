@@ -67,17 +67,6 @@ Roots(G) == {n \in G.node: Predecessors(n, G) = {}}
 (* A leaf is a node with no outgoing edges.                                   *)
 (******************************************************************************)
 Leaves(G) == {n \in G.node: Successors(n, G) = {}}
-
-(******************************************************************************)
-(* IsBipartiteOf(G, S, T) checks if G is bipartite with respect to            *)
-(* disjoint node sets S and T.                                                *)
-(******************************************************************************)
-IsBipartiteOf(G, S, T) ==
-    /\ S \intersect T = {}
-    /\ G.node \subseteq S \union T
-    /\ \A e \in G.edge:
-        \/ e[1] \in S /\ e[2] \in T
-        \/ e[1] \in T /\ e[2] \in S
         
 (******************************************************************************)
 (* EmptyGraph is the empty graph, with no nodes and no edges.                 *)
@@ -111,11 +100,12 @@ Graphs(nodes) == [node: {nodes}, edge: SUBSET (nodes \X nodes)]
 (******************************************************************************)
 ACGraphs(T, O) ==
     UNION {
-        { g \in Graphs(t \cup o) :
+        { g \in [node: {t \cup o}, edge: SUBSET ((t \X o) \cup (o \X t))] :
             /\ IsDag(g)
-            /\ IsBipartiteOf(g, t, o)
             /\ Roots(g) \subseteq o
             /\ Leaves(g) \subseteq o
+            /\ \A n \in g.node:
+                  Cardinality(Predecessors(n, g)) > 0 \/ Cardinality(Successors(n, g)) > 0
             /\ \A n \in g.node:
                   n \in o => Cardinality(Predecessors(n, g)) <= 1
         } : t \in SUBSET T, o \in SUBSET O
