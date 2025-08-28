@@ -1,4 +1,6 @@
 ------------------------------ MODULE AKGraphs ------------------------------
+EXTENDS Apalache
+
 LOCAL INSTANCE FiniteSets
 LOCAL INSTANCE Naturals
 LOCAL INSTANCE Sequences
@@ -27,17 +29,11 @@ GraphUnion(G, H) ==
 
 Range(a, b) == { x \in 0..10: a <= x /\ x <= b }
 
-SeqOf(set, n) ==
-    UNION {[Range(1,m) -> set] : m \in Range(0, n)}
-
-\* @type: ($graph) => Set(Int -> n);
-SimplePath(G) ==
-    \* A simple path is a path with no repeated nodes.
-    {p \in SeqOf(G.node, Cardinality(G.node)) :
-        LET len == Cardinality(DOMAIN p) IN
-             /\ len > 0
-             /\ Cardinality({ p[i] : i \in DOMAIN p }) = len
-             /\ \A i \in Range(1,(len-1)) : <<p[i], p[i+1]>> \in G.edge}
+\* @type: ($graph) => (<<n, n>> -> Bool);
+ConnectionsIn(G) == LET \* @type: ((<<n, n>> -> Bool), n) => (<<n, n>> -> Bool);
+                        Op(C, u) == [m,n \in G.node |-> \/ C[m,n]
+                                                        \/ C[m,u] /\ C[u,n]]
+                    IN ApaFoldSet(Op, [m,n \in G.node |-> m = n \/ <<m,n>> \in G.edge], G.node)
 
 (******************************************************************************)
 (* HasCycle(G) checks whether the graph G contains a cycle.                   *)
@@ -46,7 +42,7 @@ SimplePath(G) ==
 (******************************************************************************)
 HasCycle(G) ==
     \E m, n \in G.node:
-        /\ \E p \in SimplePath(G) : p[1] = m /\ p[Cardinality(DOMAIN p)] = n
+        /\ ConnectionsIn(G)[m, n]
         /\ << n, m >> \in G.edge
 
 (******************************************************************************)

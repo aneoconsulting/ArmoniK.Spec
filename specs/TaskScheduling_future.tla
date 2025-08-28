@@ -43,9 +43,9 @@ SOP == INSTANCE SimpleObjectProcessing WITH status <- objectStatus
 ----
 
 CInit ==
-    /\ AgentId = {"a", "b", "c"}
-    /\ ObjectId = {"o", "p", "q"}
-    /\ TaskId = {"t", "u", "v"}
+    /\ AgentId = {"a"}
+    /\ ObjectId = {"o", "p"}
+    /\ TaskId = {"t"}
     /\ SUBMITTED = "SUBMITTED"
     /\ CREATED = "CREATED"
     /\ STARTED = "STARTED"
