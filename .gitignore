@@ -5,12 +5,14 @@ tools/
 modules/tlc/
 modules/build/
 modules/dist/
+modules/lib/
 
 # Ignore TTrace specs
 *_TTrace_*.tla
 
 # Ignore TLC generated files
 *.out
+*.dot
 */states
 
 # Ignore PDF, DVI and TEX files
