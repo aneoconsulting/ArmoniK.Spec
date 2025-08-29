@@ -5,6 +5,7 @@ tools/
 modules/tlc/
 modules/build/
 modules/dist/
+modules/lib/
 
 # Ignore TTrace specs
 *_TTrace_*.tla
