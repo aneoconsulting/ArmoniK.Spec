@@ -11,7 +11,7 @@ CONSTANTS
     AgentId,    \* Set of agent identifiers (theoretically infinite).
     TaskId      \* Set of task identifiers (theoretically infinite).
 
-CONSTANTS
+CONSTANTS \* Describe this block of constants (same above)
     NULL,       \* Status of a task not yet known to the system.
     SUBMITTED,  \* Status of a task ready for execution.
     STARTED,    \* Status of a task currently being processed.

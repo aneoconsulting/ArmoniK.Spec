@@ -4,9 +4,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import java.util.Set;
 
 import org.jgrapht.graph.DefaultEdge;
@@ -22,11 +22,17 @@ public final class GraphsExt {
 
 	private static final Logger LOGGER = Logger.getLogger(GraphsExt.class.getName());
 
+    // Cached values to speed-up execution
+    private static Set<Value> cachedTaskIdSet = Sets.newHashSet();;
+    private static Set<Value> cachedObjectIdSet = Sets.newHashSet();
+    private static List<DirectedAcyclicGraph<Value, DefaultEdge>> graphs = new ArrayList<>();
+
 	private GraphsExt() {
-		// no-instantiation!
+        // no-instantiation!
 	}
 
 	/**
+     * TLA+ ACraphs operator overload.
      * Generates all valid ArmoniK-compliant graphs (ACGraphs) for the given sets of task and object IDs.
      * <p>
      * A valid graph must satisfy the following constraints:
@@ -36,6 +42,10 @@ public final class GraphsExt {
      *   <li>Tasks cannot be root or leaf nodes (must have both predecessors and successors).</li>
      *   <li>Objects cannot have more than one predecessor.</li>
      * </ul>
+     * </p>
+     * <p>
+     * The operator caches the generated graphs to speed up execution when the sets of task and object IDs
+     * correspond to subsets of those of the cached graphs.
      * </p>
      *
      * @param t  A set of task IDs (as a TLA+ SetEnumValue).
@@ -61,13 +71,57 @@ public final class GraphsExt {
 		final Set<Value> taskIdSet = new HashSet<>(Arrays.asList(taskIds.elems.toArray()));
 		final Set<Value> objectIdSet = new HashSet<>(Arrays.asList(objectIds.elems.toArray()));
 
-		List<RecordValue> results = new ArrayList<>();
+        List<RecordValue> results = new ArrayList<>();
+        LOGGER.log(Level.FINE, "Executing ACGraphs.");
+
+        if (cachedTaskIdSet.containsAll(taskIdSet) && cachedObjectIdSet.containsAll(objectIdSet)) {
+            LOGGER.log(Level.FINE, "Using cached graphs.");
+            for (DirectedAcyclicGraph<Value, DefaultEdge> g : graphs) {
+                if (Sets.union(taskIdSet, objectIdSet).containsAll(g.vertexSet())) {
+                    results.add(toRecordValue(g));
+                }
+            }
+        } else {
+            LOGGER.log(Level.FINE, "No cached graphs available");
+
+            // Compute graphs and update cache
+            cachedTaskIdSet = taskIdSet;
+            cachedObjectIdSet = objectIdSet;
+            graphs = generateGraphs(taskIdSet, objectIdSet);
+            
+            results = graphs.stream()
+                .map(GraphsExt::toRecordValue)
+                .collect(Collectors.toList());
+        }
+
+		LOGGER.log(Level.FINE, "Generated {0} valid graphs", results.size());
+		return new SetEnumValue(results.toArray(Value[]::new), false);
+	}
+
+    /**
+     * Generates all valid ArmoniK-compliant graphs (ACGraphs) for the given sets of task and object IDs.
+     * <p>
+     * A valid graph must satisfy the following constraints:
+     * <ul>
+     *   <li>Directed and acyclic..</li>
+     *   <li>No isolated vertices.</li>
+     *   <li>Tasks cannot be root or leaf nodes (must have both predecessors and successors).</li>
+     *   <li>Objects cannot have more than one predecessor.</li>
+     * </ul>
+     * </p>
+     *
+     * @param taskIdSet     A set of task IDs.
+     * @param objectIdSet   A set of object IDs.
+     * @return   A list containing all valid graphs, each represented as a JGraphT DAG.
+     */
+    private static List<DirectedAcyclicGraph<Value, DefaultEdge>> generateGraphs(Set<Value> taskIdSet, Set<Value> objectIdSet) {
+        LOGGER.log(Level.FINE, "Starting ACGraphs with {0} tasks and {1} objects",
+            new Object[]{taskIdSet.size(), objectIdSet.size()});
+
+        List<DirectedAcyclicGraph<Value, DefaultEdge>> results = new ArrayList<>();
 
         // Add empty graph to results
-        results.add(toRecordValue(new DirectedAcyclicGraph<>(DefaultEdge.class)));
-
-		LOGGER.log(Level.FINE, "Starting ACGraphs with {0} tasks and {1} objects",
-                new Object[]{taskIdSet.size(), objectIdSet.size()});
+        results.add(new DirectedAcyclicGraph<>(DefaultEdge.class));
 
 		// Iterate over subsets lazily
 		for (Set<Value> objectIdSubset : Sets.powerSet(objectIdSet)) {
@@ -115,16 +169,14 @@ public final class GraphsExt {
 					}
 
 					// Add valid graph to results
-					results.add(toRecordValue(g));
+					results.add(g);
 				}
 			}
 		}
+        return results;
+    }
 
-		LOGGER.log(Level.FINE, "Generated {0} valid graphs", results.size());
-		return new SetEnumValue(results.toArray(Value[]::new), false);
-	}
-
-	/**
+    /**
      * Validates a graph according to the following rules:
      * <ul>
      *   <li>No isolated vertices (all vertices must have at least one incoming or outgoing edge).</li>
