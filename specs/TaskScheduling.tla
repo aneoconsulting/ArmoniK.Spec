@@ -229,17 +229,24 @@ Spec ==
 
 --------------------------------------------------------------------------------
 
-\* TODO: additional properties to consider / rewrite
+(**
+ * Invariant: Any task that has started execution must have all its input
+ * objects locked.
+ *)
+AllInputsLocked ==
+    \A t \in TaskId :
+        STS!IsStarted({t}) \/ STS!IsCompleted({t})
+            => SOP!IsLocked(Predecessors(t, deps))
 
-\* UniqueObjectOwner ==
-\*     \A o \in ObjectId: Cardinality(ObjectTaskOwners(o)) <= 1
-
-\* AllInputsLocked ==
-\*     \A t \in TaskId: STS!IsStarted({t}) \/ STS!IsCompleted({t}) => SOP!IsLocked(ins[t])
-
-\* AllOutputsCompleted ==
-\*     \A t \in TaskId: STS!IsCompleted({t}) => \/ SOP!IsCompleted(outs[t])
-\*                                              \/ SOP!IsLocked(outs[t])
+(**
+ * Invariant: Any task that has completed must have all its output objects
+ * completed or locked.
+ *)
+AllOutputsCompleted ==
+    \A t \in TaskId :
+        STS!IsCompleted({t})
+            => \A o \in Successors(t, deps) :
+                   SOP!IsCompleted({o}) \/ SOP!IsLocked({o})
 
 (**
  * Refinement mapping to SimpleTaskScheduling. Adding dependencies introduces
