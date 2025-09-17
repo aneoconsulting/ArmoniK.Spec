@@ -121,7 +121,7 @@ CreateObjects(S) ==
  * if this condition is really needed.
  *)
 CompleteObjects(S) ==
-    /\ STS!IsStarted(UNION {Predecessors(o, deps): o \in S})
+    /\ STS!IsStarted(AllPredecessors(S, deps))
     /\ SOP!Complete(S)
     /\ UNCHANGED << alloc, taskStatus, deps >>
 
@@ -155,7 +155,7 @@ SubmitTasks(G) ==
  * locked. Scheduling a task triggers the locking of its input objects.
  *)
 ScheduleTasks(a, S) ==
-    /\ SOP!Lock(UNION {Predecessors(t, deps): t \in S})
+    /\ SOP!Lock()
     /\ STS!Schedule(a, S)
     /\ UNCHANGED << deps >>
 
@@ -174,7 +174,7 @@ ReleaseTasks(a, S) ==
  * output objects have been completed.
  *)
 CompleteTasks(a, S) ==
-    /\ SOP!IsCompleted(UNION {Successors(t, deps): t \in S})
+    /\ SOP!IsCompleted(AllSuccessors(S, deps))
     /\ STS!Complete(a, S)
     /\ UNCHANGED << objectStatus, deps >>
 
@@ -185,7 +185,7 @@ CompleteTasks(a, S) ==
  *)
 ResolveTasks(S) ==
     /\ S /= {}
-    /\ \A x \in UNION {Predecessors(t, deps): t \in S}: SOP!IsCompleted({x}) \/ SOP!IsLocked({x})
+    /\ \A x \in AllPredecessors(S, deps): SOP!IsCompleted({x}) \/ SOP!IsLocked({x})
     /\ STS!IsCompleted(ParentTasks(S)) /\ IsCreated(S)
     /\ taskStatus' = [t \in TaskId |-> IF t \in S THEN SUBMITTED ELSE taskStatus[t]]
     /\ UNCHANGED << alloc, objectStatus, deps >>
