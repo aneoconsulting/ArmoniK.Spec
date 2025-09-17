@@ -1,103 +1,169 @@
 ------------------------------- MODULE GraphsExt -------------------------------
+(******************************************************************************)
+(* This module extends the Graphs module from the community modules with      *)
+(* additional operators for reasoning about directed graphs.                  *)
+(*                                                                            *)
+(* Contents:                                                                  *)
+(* - Operators for graph union, cycle detection, and navigation via           *)
+(*   successors, predecessors, roots, and leaves                              *)
+(* - Definitions of the empty graph and the set of all graphs over a node set *)
+(* - The class of ArmoniK-compliant graphs (ACGraphs), which satisfy          *)
+(*   specific structural constraints                                          *)
+(******************************************************************************)
 LOCAL INSTANCE Graphs
 LOCAL INSTANCE FiniteSets
 LOCAL INSTANCE Naturals
 
-(******************************************************************************)
-(* GraphUnion(G, H) returns the union of two graphs G and H.                  *)
-(*                                                                            *)
-(* It combines the sets of nodes and edges of G and H.                        *)
-(*                                                                            *)
-(* Example:                                                                   *)
-(*   G = [node |-> {1, 2}, edge |-> {<<1, 2>>}]                               *)
-(*   H = [node |-> {2, 3}, edge |-> {<<2, 3>>}]                               *)
-(*   GraphUnion(G, H)                                                         *)
-(*     = [node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<2, 3>>}]                  *)
-(******************************************************************************)
+(**
+ * Returns the union of two graphs.
+ *
+ * @param G: A directed graph as a record.
+ * @param H: A directed graph as a record.
+ * @return: A graph whose set of nodes is the union of the nodes of G and H, and
+ *          whose set of edges is the union of the edges of G and H.
+ *
+ * Example:
+ *   G = [node |-> {1, 2}, edge |-> {<<1, 2>>}]
+ *   H = [node |-> {2, 3}, edge |-> {<<2, 3>>}]
+ *   GraphUnion(G, H)
+ *     = [node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<2, 3>>}]
+ *)
 GraphUnion(G, H) ==
     [node |-> G.node \union H.node, edge |-> G.edge \union H.edge]
 
-(******************************************************************************)
-(* HasCycle(G) checks whether the graph G contains a cycle.                   *)
-(*                                                                            *)
-(* Note: Relies on the definition of ConnectionsIn from the Graphs module.    *)
-(******************************************************************************)
+(**
+ * Checks whether the graph G contains a cycle.
+ *
+ * @param G: A directed graph as a record.
+ * @return: TRUE if G has a cycle, FALSE otherwise.
+ *
+ * Note: Relies on the definition of ConnectionsIn from the Graphs module.
+ * Please note that this operator is defined recursively.
+ *)
 HasCycle(G) ==
     \E m, n \in G.node:
         /\ ConnectionsIn(G)[m, n]
         /\ << n, m >> \in G.edge
-    
-(******************************************************************************)
-(* IsDag(G) checks whether the directed graph G is a directed acyclic graph.  *)
-(******************************************************************************)
+
+(**
+ * Checks whether the directed graph G is a directed Acyclic Graph (DAG).
+ *
+ * @param G: A directed graph as a record.
+ * @return: TRUE if G is a DAG, FALSE otherwise.
+ *)
 IsDag(G) ==
     /\ IsDirectedGraph(G)
     /\ \A n \in G.node: << n, n >> \notin G.edge
     /\ \A n \in G.node: ~HasCycle(G)
 
-(******************************************************************************)
-(* Successors(n, G) returns the set of nodes that are immediate successors    *)
-(* of node n in the directed graph G, i.e., nodes reachable in one step.      *)
-(*                                                                            *)
-(* Example:                                                                   *)
-(*   G = [node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<1, 3>>}]                  *)
-(*   Successors(1, G) = {2, 3}                                                *)
-(******************************************************************************)
+(**
+ * Returns the set of nodes that are immediate successors of node n in G.
+ *
+ * @param n: A node.
+ * @param G: A directed graph as a record.
+ * @return: The set of nodes reachable from n in one step.
+ *
+ * Example:
+ *   G = [node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<1, 3>>}]
+ *   Successors(1, G) = {2, 3}
+ *)
 Successors(n, G) == {m \in G.node: << n, m >> \in G.edge}
 
-(******************************************************************************)
-(* Predecessors(n, G) returns the set of nodes that are immediate             *)
-(* predecessors of node n in the directed graph G, i.e., nodes that have      *)
-(* edges pointing into n.                                                     *)
-(*                                                                            *)
-(* Example:                                                                   *)
-(*   G = [node |-> {1, 2, 3}, edge |-> {<<2, 1>>, <<3, 1>>}]                  *)
-(*   Predecessors(1, G) = {2, 3}                                              *)
-(******************************************************************************)
+(**
+ * Returns the set of nodes that are immediate successors of any node in S.
+ *
+ * @param S: A set of nodes.
+ * @param G: A directed graph as a record.
+ * @return: The union of successors of all nodes in S.
+ *
+ * Example:
+ *   G = [node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<1, 3>>}]
+ *   AllSuccessors({1, 2}, G) = {2, 3}
+ *)
+AllSuccessors(S, G) == UNION {Successors(n, G): n \in S}
+
+(**
+ * Returns the set of nodes that are immediate predecessors of node n in G.
+ *
+ * @param n: A node.
+ * @param G: A directed graph as a record.
+ * @return: The set of nodes with edges pointing into n.
+ *
+ * Example:
+ *   G = [node |-> {1, 2, 3}, edge |-> {<<2, 1>>, <<3, 1>>}]
+ *   Predecessors(1, G) = {2, 3}
+ *)
 Predecessors(n, G) == {m \in G.node: << m, n >> \in G.edge}
 
-(******************************************************************************)
-(* Roots(G) returns the set of root nodes of graph G.                         *)
-(* A root is a node with no incoming edges.                                   *)
-(******************************************************************************)
+(**
+ * Returns the set of nodes that are immediate predecessors of any node in S.
+ *
+ * @param S: A set of nodes.
+ * @param G: A directed graph as a record.
+ * @return: The union of predecessors of all nodes in S.
+ *
+ * Example:
+ *   G = [node |-> {1, 2, 3}, edge |-> {<<2, 1>>, <<3, 1>>}]
+ *   AllPredecessors({1, 2}, G) = {2, 3}
+ *)
+AllPredecessors(S, G) == UNION {Predecessors(n, G): n \in S}
+
+(**
+ * Returns the set of root nodes of G.
+ *
+ * @param G: A directed graph as a record.
+ * @return: The set of nodes with no incoming edges.
+ *)
 Roots(G) == {n \in G.node: Predecessors(n, G) = {}}
 
-(******************************************************************************)
-(* Leaves(G) returns the set of leaf nodes of graph G.                        *)
-(* A leaf is a node with no outgoing edges.                                   *)
-(******************************************************************************)
+(**
+ * Returns the set of leaf nodes of G.
+ *
+ * @param G: A directed graph as a record.
+ * @return: The set of nodes with no outgoing edges.
+ *)
 Leaves(G) == {n \in G.node: Successors(n, G) = {}}
-        
-(******************************************************************************)
-(* EmptyGraph is the empty graph, with no nodes and no edges.                 *)
-(******************************************************************************)
+
+(**
+ * The graph with no nodes and no edges.
+ *
+ * @return: The empty graph as a record.
+ *)
 EmptyGraph == [node |-> {}, edge |-> {}]
 
-(******************************************************************************)
-(* Graphs(nodes) returns the set of all possible directed graphs whose        *)
-(* node set is exactly 'nodes'.                                               *)
-(*                                                                            *)
-(* Example:                                                                   *)
-(*   Graphs({1, 2}) = {                                                       *)
-(*     [node |-> {1, 2}, edge |-> {}],                                        *)
-(*     [node |-> {1, 2}, edge |-> {<<1, 2>>}],                                *)
-(*     [node |-> {1, 2}, edge |-> {<<1, 2>>, <<2, 1>>}],                      *)
-(*     ...                                                                    *)
-(*   }                                                                        *)
-(******************************************************************************)
-Graphs(nodes) == [node: {nodes}, edge: SUBSET (nodes \X nodes)]
+(**
+ * The set of all possible labeled directed graphs whose node set is S.
+ *
+ * @param S: A set of nodes.
+ * @return: The set of all labeled directed graphs over S.
+ *
+ * Example:
+ *   Graphs({1, 2}) = {
+ *     [node |-> {1, 2}, edge |-> {}],
+ *     [node |-> {1, 2}, edge |-> {<<1, 2>>}],
+ *     [node |-> {1, 2}, edge |-> {<<1, 2>>, <<2, 1>>}],
+ *     ...
+ *   }
+ *)
+Graphs(S) == [node: {S}, edge: SUBSET (S \X S)]
 
-(******************************************************************************)
-(* ACGraphs(T, O) returns the set of all ArmoniK-compliant graphs (ACGraphs)  *)
-(* for the given sets of task and object IDs                                  *)
-(*                                                                            *)
-(* A valid graph must satisfy the following constraints:                      *)
-(*   - g is directed and acyclic                                              *)
-(*   - g is bipartite with partition (t, o)                                   *)
-(*   - all roots of g are objects (belong to O)                               *)
-(*   - all leaves of g are objects (belong to O)                              *)
-(*   - every object node has at most one predecessor                          *)
-(******************************************************************************)
+(**
+ * The set of all ArmoniK-compliant graphs (ACGraphs) for the given sets
+ * of task IDs T and object IDs O.
+ *
+ * A valid ACGraph must satisfy:
+ *   - It is directed and acyclic.
+ *   - It is bipartite with partition (t, o).
+ *   - All roots are objects (in O).
+ *   - All leaves are objects (in O).
+ *   - Every object node has at most one predecessor.
+ *
+ * @param T: Set of task IDs
+ * @param O: Set of object IDs
+ * @return: The set of all valid ArmoniK-compliant graphs.
+ *
+ * Note: This operator has a Java overload for better performances.
+ *)
 ACGraphs(T, O) ==
     UNION {
         { g \in [node: {t \cup o}, edge: SUBSET ((t \X o) \cup (o \X t))] :
