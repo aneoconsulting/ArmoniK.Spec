@@ -69,6 +69,12 @@ ASSUME LET G == [node |-> {1, 2, 3}, edge |-> {<<2, 1>>, <<3, 1>>}]
 ASSUME LET G == [node |-> {1, 2, 3}, edge |-> {<<2, 1>>, <<3, 1>>}]
        IN AssertEq(AllPredecessors({2}, G), {})
 
+G == [node |-> {1, 2, 3, 4},
+      edge |-> {<<1, 2>>, <<1, 3>>, <<2, 4>>, <<3, 4>>}]
+ASSUME AssertEq(kLayerAncestors(4, G, 1), {2, 3})
+ASSUME AssertEq(kLayerAncestors(4, G, 2), {1})
+ASSUME AssertEq(kLayerAncestors(4, G, 3), {})
+
 (******************************************************************************)
 (* Roots Tests                                                                *)
 (******************************************************************************)

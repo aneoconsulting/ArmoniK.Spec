@@ -1,4 +1,5 @@
 ------------------------------- MODULE GraphsExt -------------------------------
+EXTENDS TLC
 (******************************************************************************)
 (* This module extends the Graphs module from the community modules with      *)
 (* additional operators for reasoning about directed graphs.                  *)
@@ -13,6 +14,8 @@
 LOCAL INSTANCE Graphs
 LOCAL INSTANCE FiniteSets
 LOCAL INSTANCE Naturals
+LOCAL INSTANCE Sequences
+LOCAL INSTANCE SequencesExt
 
 (**
  * Returns the union of two graphs.
@@ -107,6 +110,18 @@ Predecessors(n, G) == {m \in G.node: << m, n >> \in G.edge}
  *   AllPredecessors({1, 2}, G) = {2, 3}
  *)
 AllPredecessors(S, G) == UNION {Predecessors(n, G): n \in S}
+
+kLayerAncestors(n, G, k) ==
+    {m \in G.node:
+        \E p \in SeqOf(G.node, k + 1) :
+            /\ p # << >>
+            /\ p[1] = m
+            /\ p[Len(p)] = n
+            /\ Cardinality({ p[i] : i \in DOMAIN p }) = k + 1
+            /\ \A i \in 1..(Len(p)-1) : <<p[i], p[i+1]>> \in G.edge
+        }
+
+AllkLayerAncestors(S, G, k) == UNION {kLayerAncestors(n, G, k): n \in S}
 
 (**
  * Returns the set of root nodes of G.

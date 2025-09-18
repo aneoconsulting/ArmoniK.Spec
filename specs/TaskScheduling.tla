@@ -173,9 +173,9 @@ ReleaseTasks(a, S) ==
  * tasks that it currently holds. A task can only be completed if all of its
  * output objects have been completed.
  *)
-CompleteTasks(a, S) ==
-    /\ SOP!IsCompleted(AllSuccessors(S, deps))
-    /\ STS!Complete(a, S)
+CompleteTasks(a, T) ==
+    /\ AreCompleted(AllSuccessors(T, deps), objectStatus)
+    /\ STS!Complete(a, T)
     /\ UNCHANGED << objectStatus, deps >>
 
 (**
