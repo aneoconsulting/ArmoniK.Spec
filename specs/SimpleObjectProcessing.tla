@@ -85,14 +85,20 @@ Next ==
 --------------------------------------------------------------------------------
 
 (**
+ * Fairness properties.
+ *)
+Fairness ==
+    \* Weak fairness property: All objects stored in the system have their data
+    \* eventually completed.
+    /\ \A o \in ObjectId: WF_vars(Complete({o}))
+
+(**
  * Full system specification with fairness properties.
  *)
 Spec ==
     /\ Init
     /\ [][Next]_vars
-    \* Weak fairness property: All objects stored in the system have their data
-    \* eventually completed.
-    /\ \A S \in SUBSET ObjectId: WF_vars(Complete(S))
+    /\ Fairness
 
 --------------------------------------------------------------------------------
 
@@ -107,7 +113,7 @@ EventualCompletion ==
  * locked forever.
  *)
 Quiescence ==
-    \A S \in SUBSET ObjectId: [](IsLocked(S) => []IsLocked(S))
+    \A o \in ObjectId: [](IsLocked({o}) => []IsLocked({o}))
 
 --------------------------------------------------------------------------------
 

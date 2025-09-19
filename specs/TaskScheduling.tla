@@ -14,6 +14,11 @@ CONSTANTS
     ObjectId,   \* Set of object identifiers (theoretically infinite).
     TaskId      \* Set of task identifiers (theoretically infinite).
 
+\* AgentId and TaskId are two disjoint sets
+ASSUME /\ AgentId \cap ObjectId = {}
+       /\ AgentId \cap TaskId = {}
+       /\ ObjectId \cap TaskId = {}
+
 CONSTANTS
     NULL,       \* Status of a task/object not yet known to the system.
     CREATED,    \* Status of a task/object submitted/created.
@@ -62,8 +67,8 @@ TypeInv ==
     /\ taskStatus \in [TaskId -> {NULL, CREATED, SUBMITTED, STARTED, COMPLETED}]
     \* Each object has one of the four possible status.
     /\ SOP!TypeInv
-    \* Dependcy graph is an instance of an ArmoniK-compliant task graph.
-    /\ deps \in ACGraphs(TaskId, ObjectId)
+    \* Dependcy graph is an instance of a graph.
+    /\ deps \in Graphs(TaskId \cup ObjectId)
 
 (**
  * Set of all parent tasks (i.e., the closest predecessor tasks) of the tasks in
@@ -88,6 +93,14 @@ UsedTaskId == {id \in TaskId: taskStatus[id] /= NULL}
  *)
 IsCreated(S) ==
     \A t \in S: taskStatus[t] = CREATED
+
+IsACGraph(G) ==
+    /\ IsDag(G)
+    /\ IsBipartiteWithPartitions(G, TaskId, ObjectId)
+    /\ Roots(G) \subseteq ObjectId
+    /\ Leaves(G) \subseteq ObjectId
+    /\ \A n \in G.node: /\ InDegree(n, G) > 0 \/ OutDegree(n, G) > 0
+                        /\ n \in ObjectId => InDegree(n, G) <= 1
 
 --------------------------------------------------------------------------------
 
@@ -136,7 +149,7 @@ CompleteObjects(S) ==
 SubmitTasks(G) ==
     LET newDeps == GraphUnion(deps, G)
     IN /\ newDeps /= EmptyGraph
-       /\ newDeps \in ACGraphs(TaskId, ObjectId)
+       /\ IsACGraph(newDeps)
        /\ SOP!IsCreated({ v \in G.node : v \in ObjectId })
        /\ taskStatus' =
             [ t \in TaskId |->
@@ -155,7 +168,7 @@ SubmitTasks(G) ==
  * locked. Scheduling a task triggers the locking of its input objects.
  *)
 ScheduleTasks(a, S) ==
-    /\ SOP!Lock()
+    /\ SOP!Lock(AllPredecessors(S, deps))
     /\ STS!Schedule(a, S)
     /\ UNCHANGED << deps >>
 
@@ -173,9 +186,9 @@ ReleaseTasks(a, S) ==
  * tasks that it currently holds. A task can only be completed if all of its
  * output objects have been completed.
  *)
-CompleteTasks(a, T) ==
-    /\ AreCompleted(AllSuccessors(T, deps), objectStatus)
-    /\ STS!Complete(a, T)
+CompleteTasks(a, S) ==
+    /\ SOP!IsCompleted(AllSuccessors(S, deps))
+    /\ STS!Complete(a, S)
     /\ UNCHANGED << objectStatus, deps >>
 
 (**
@@ -199,7 +212,7 @@ Next ==
     \/ \E S \in SUBSET ObjectId:
         \/ CreateObjects(S)
         \/ CompleteObjects(S)
-    \/ \E G \in ACGraphs(TaskId \ UsedTaskId, ObjectId): SubmitTasks(G)
+    \/ \E G \in Graphs((TaskId \ UsedTaskId) \cup ObjectId): SubmitTasks(G)
     \/ \E S \in SUBSET TaskId, a \in AgentId:
         \/ ScheduleTasks(a, S)
         \/ ReleaseTasks(a, S)
@@ -209,25 +222,35 @@ Next ==
 --------------------------------------------------------------------------------
 
 (**
- * Full system specification with fairness properties.
+ * Fairness properties.
  *)
-Spec ==
-    /\ Init /\ [][Next]_vars
+Fairness ==
     \* Weak fairness property: Ready tasks cannot wait indefinitely and end up
     \* being scheduled on an agent.
-    /\ \A S \in SUBSET TaskId: WF_vars(\E a \in AgentId: ScheduleTasks(a, S))
+    /\ \A t \in TaskId: WF_vars(\E a \in AgentId: ScheduleTasks(a, {t}))
     \* Strong fairness property: Objects cannot remain incomplete indefinitely.
     \* In particular, if a task is executed multiple times, it eventually
     \* completes its output objects.
-    /\ \A S \in SUBSET ObjectId: SF_vars(CompleteObjects(S))
+    /\ \A o \in ObjectId: SF_vars(CompleteObjects({o}))
     \* Strong fairness property: Tasks cannot run indefinitely or be
     \* systematically released.
-    /\ \A S \in SUBSET TaskId: SF_vars(\E a \in AgentId: CompleteTasks(a, S))
+    /\ \A t \in TaskId: SF_vars(\E a \in AgentId: CompleteTasks(a, {t}))
     \* Weak fairness property: Tasks whose parents have been completed cannot
     \* remain unavailable indefinitely and eventually become ready.
-    /\ \A S \in SUBSET TaskId: WF_vars(ResolveTasks(S))
+    /\ \A t \in TaskId: WF_vars(ResolveTasks({t}))
+
+(**
+ * Full system specification with fairness properties.
+ *)
+Spec ==
+    /\ Init
+    /\ [][Next]_vars
+    /\ Fairness
 
 --------------------------------------------------------------------------------
+
+GraphCompliance ==
+    IsACGraph(deps)
 
 (**
  * Invariant: Any task that has started execution must have all its input
@@ -273,6 +296,9 @@ ImplementsSimpleObjectProcessing == SOP!Spec
 --------------------------------------------------------------------------------
 
 THEOREM Spec => []TypeInv
+THEOREM Spec => []GraphCompliance
+THEOREM Spec => []AllInputsLocked
+THEOREM Spec => []AllOutputsCompleted
 THEOREM Spec => ImplementsSimpleTaskScheduling
 THEOREM Spec => ImplementsSimpleObjectProcessing
 

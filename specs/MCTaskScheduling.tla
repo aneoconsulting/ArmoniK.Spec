@@ -19,6 +19,10 @@ ASSUME IsFiniteSet(TaskId)
 
 --------------------------------------------------------------------------------
 
+MCGraphs(Nodes) == ACGraphs(Nodes \cap TaskId, Nodes \cap ObjectId)
+
+--------------------------------------------------------------------------------
+
 (**
  * Dummy action representing the terminal state of the system, reached once all
  * tasks and objectshave been completed.
@@ -35,16 +39,16 @@ Terminating ==
  * and object sets.
  *)
 MCNext ==
-    \/ \E S \in SUBSET ObjectId:
-        \/ CreateObjects(S)
-        \/ CompleteObjects(S)
-    \/ \E G \in ACGraphs(TaskId \ UsedTaskId, ObjectId): SubmitTasks(G)
-    \/ \E S \in SUBSET TaskId, a \in AgentId:
-        \/ ScheduleTasks(a, S)
-        \/ ReleaseTasks(a, S)
-        \/ CompleteTasks(a, S)
-    \/ \E S \in SUBSET TaskId: ResolveTasks(S)
+    \/ Next
     \/ Terminating
+
+(**
+ * Modified full system specification.
+ *)
+MCSpec ==
+    /\ Init
+    /\ [][MCNext]_vars
+    /\ Fairness
 
 --------------------------------------------------------------------------------
 

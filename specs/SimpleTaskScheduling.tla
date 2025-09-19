@@ -11,11 +11,22 @@ CONSTANTS
     AgentId,    \* Set of agent identifiers (theoretically infinite).
     TaskId      \* Set of task identifiers (theoretically infinite).
 
+\* AgentId and TaskId are two disjoint sets
+ASSUME AgentId \cap TaskId = {}
+
 CONSTANTS \* Describe this block of constants (same above)
     NULL,       \* Status of a task not yet known to the system.
     SUBMITTED,  \* Status of a task ready for execution.
     STARTED,    \* Status of a task currently being processed.
     COMPLETED   \* Status of a task that has been successfully processed.
+
+TaskStatus == {NULL, SUBMITTED, STARTED, COMPLETED}
+
+\* The statuses are different from one another.
+ASSUME /\ NULL \notin TaskStatus \ {NULL}
+       /\ SUBMITTED \notin TaskStatus \ {SUBMITTED}
+       /\ STARTED \notin TaskStatus \ {STARTED}
+       /\ COMPLETED \notin TaskStatus \ {COMPLETED}
 
 VARIABLES
     alloc,      \* alloc[a] is the set of tasks currently scheduled on agent a.
@@ -107,19 +118,41 @@ Next ==
 --------------------------------------------------------------------------------
 
 (**
- * Full system specification with fairness properties.
+ * Fairness properties.
+ *)
+Fairness ==
+    \* Weak fairness property: Ready tasks cannot wait indefinitely and end up
+    \* being scheduled on an agent.
+    /\ \A t \in TaskId: WF_vars(\E a \in AgentId: Schedule(a, {t}))
+    \* Strong fairness property: Tasks cannot run indefinitely or be
+    \* systematically released.
+    /\ \A t \in TaskId: SF_vars(\E a \in AgentId: Complete(a, {t}))
+
+(**
+ * Full system specification.
  *)
 Spec ==
     /\ Init
     /\ [][Next]_vars
-    \* Weak fairness property: Ready tasks cannot wait indefinitely and end up
-    \* being scheduled on an agent.
-    /\ \A S \in SUBSET TaskId: WF_vars(\E a \in AgentId: Schedule(a, S))
-    \* Strong fairness property: Tasks cannot run indefinitely or be
-    \* systematically released.
-    /\ \A S \in SUBSET TaskId: SF_vars(\E a \in AgentId: Complete(a, S))
+    /\ Fairness
 
 --------------------------------------------------------------------------------
+
+(**
+ * Invariant: The set of all scheduled tasks is always a subset of the
+ * overall task set.
+ *)
+ExecutionConsistency ==
+    UNION {alloc[a]: a \in AgentId} \subseteq {t: t \in TaskId}
+
+(**
+ * Invariant: A task is assigned to some agent if and only if it is in the
+ * STARTED state.
+ *)
+StatusConsistency ==
+    \A t \in TaskId:
+        \/ IsStarted({t}) /\ \E a \in AgentId: t \in alloc[a]
+        \/ ~IsStarted({t}) /\ \A a \in AgentId: t \notin alloc[a]
 
 (**
  * Invariant: A task cannot be executed simultaneously by multiple agents.
@@ -131,13 +164,13 @@ NoExecutionConcurrency ==
  * Liveness property: Any submitted task is eventually completed.
  *)
 EventualCompletion ==
-    \A S \in SUBSET TaskId: IsSubmitted(S) ~> IsCompleted(S)
+    \A t \in TaskId: IsSubmitted({t}) ~> IsCompleted({t})
 
 (**
  * Liveness property: Once a task is completed, it remains completed forever.
  *)
 Quiescence ==
-    \A S \in SUBSET TaskId: [](IsCompleted(S) => []IsCompleted(S))
+    \A t \in TaskId: [](IsCompleted({t}) => []IsCompleted({t}))
 
 --------------------------------------------------------------------------------
 

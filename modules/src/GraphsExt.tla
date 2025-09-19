@@ -111,6 +111,15 @@ Predecessors(n, G) == {m \in G.node: << m, n >> \in G.edge}
  *)
 AllPredecessors(S, G) == UNION {Predecessors(n, G): n \in S}
 
+InDegree(n, G) == Cardinality(Predecessors(n, G))
+
+OutDegree(n, G) == Cardinality(Successors(n, G))
+
+IsBipartiteWithPartitions(G, U, V) ==
+    /\ G.node \subseteq (U \cup V)
+    /\ \A e \in G.edge: \/ e[1] \in U /\ e[2] \in V
+                        \/ e[2] \in U /\ e[1] \in V
+
 kLayerAncestors(n, G, k) ==
     {m \in G.node:
         \E p \in SeqOf(G.node, k + 1) :

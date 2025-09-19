@@ -31,30 +31,15 @@ Terminating ==
  * Terminating action to avoid artificial deadlocks due to the bounded task set.
  *)
 MCNext ==
-    \/ \E S \in SUBSET TaskId:
-        \/ Submit(S)
-        \/ \E a \in AgentId:
-            \/ Schedule(a, S)
-            \/ Release(a, S)
-            \/ Complete(a, S)
+    \/ Next
     \/ Terminating
 
---------------------------------------------------------------------------------
-
 (**
- * Sanity invariant: The set of all scheduled tasks is always a subset of the
- * overall task set.
+ * Modified full system specification.
  *)
-ExecutionConsistency ==
-    UNION {alloc[a]: a \in AgentId} \subseteq {t: t \in TaskId}
-
-(**
- * Sanity invariant: A task is assigned to some agent if and only if it is in the
- * STARTED state.
- *)
-StatusConsistency ==
-    \A t \in TaskId:
-        \/ IsStarted({t}) /\ \E a \in AgentId: t \in alloc[a]
-        \/ ~IsStarted({t}) /\ \A a \in AgentId: t \notin alloc[a]
+MCSpec ==
+    /\ Init
+    /\ [][MCNext]_vars
+    /\ Fairness
 
 ================================================================================

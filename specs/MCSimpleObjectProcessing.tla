@@ -31,10 +31,15 @@ Terminating ==
  * set.
  *)
 MCNext ==
-    \/ \E S \in SUBSET ObjectId:
-        \/ Create(S)
-        \/ Complete(S)
-        \/ Lock(S)
+    \/ Next
     \/ Terminating
+
+(**
+ * Modified full system specification.
+ *)
+MCSpec ==
+    /\ Init
+    /\ [][MCNext]_vars
+    /\ Fairness
 
 ================================================================================
