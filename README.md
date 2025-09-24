@@ -22,6 +22,28 @@ TLA+ is designed to:
 - Check safety and liveness properties;
 - Discover subtle bugs *before* implementation.
 
+## Environment set-up
+
+Prerequisites:
+* Ubuntu 24.04 or higher (because of glibc version).
+* Visual Studio Code
+
+To set-up the environment run the following command:
+
+```bash
+bash install.sh
+```
+
+It will install all the tools required to work with the specifications. It assumes Java is properl installed on your system.
+
+The following tools are installed:
+* TLA2Tools
+* Apalache
+* tlaps
+* tlafmt
+
+To finish the set-up, launch VSCode and install the required extensions.
+
 ## Repository contents
 
 ## How to use this repository?

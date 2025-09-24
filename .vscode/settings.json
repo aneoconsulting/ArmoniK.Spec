@@ -88,6 +88,9 @@
     },
     "tlaplus.tlc.modelChecker.options": "-coverage 1 -dump dot states",
 
+    // Enable TLAPS integration.
+	"tlaplus.tlaps.enabled": true,
+
     "java.project.referencedLibraries": [
         "modules/lib/*.jar",
         "modules/tlc/tla2tools.jar"
