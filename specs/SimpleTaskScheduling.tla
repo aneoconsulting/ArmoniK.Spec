@@ -7,29 +7,36 @@
 (* The specification abstracts away from concrete execution policies,         *)
 (* focusing on the possible behaviors of task assignment and progress.        *)
 (******************************************************************************)
+EXTENDS FiniteSets\*, TLAPS
+
 CONSTANTS
+    \* @type: Set(Str);
     AgentId,    \* Set of agent identifiers (theoretically infinite).
+    \* @type: Set(Str);
     TaskId      \* Set of task identifiers (theoretically infinite).
 
-\* AgentId and TaskId are two disjoint sets
-ASSUME AgentId \cap TaskId = {}
-
 CONSTANTS \* Describe this block of constants (same above)
+    \* @type: Str;
     NULL,       \* Status of a task not yet known to the system.
+    \* @type: Str;
     SUBMITTED,  \* Status of a task ready for execution.
+    \* @type: Str;
     STARTED,    \* Status of a task currently being processed.
+    \* @type: Str;
     COMPLETED   \* Status of a task that has been successfully processed.
 
 TaskStatus == {NULL, SUBMITTED, STARTED, COMPLETED}
 
-\* The statuses are different from one another.
-ASSUME /\ NULL \notin TaskStatus \ {NULL}
-       /\ SUBMITTED \notin TaskStatus \ {SUBMITTED}
-       /\ STARTED \notin TaskStatus \ {STARTED}
-       /\ COMPLETED \notin TaskStatus \ {COMPLETED}
+ASSUME Assumptions ==
+    \* AgentId and TaskId are two disjoint sets
+    /\ AgentId \cap TaskId = {}
+    \* The statuses are different from one another.
+    /\ Cardinality(TaskStatus) = 4
 
 VARIABLES
+    \* @type: Str -> Set(Str);
     alloc,      \* alloc[a] is the set of tasks currently scheduled on agent a.
+    \* @type: Str -> Str;
     status      \* status[t] is the execution status of task t.
 
 (**
@@ -42,7 +49,7 @@ vars == << alloc, status >>
 (**
  * Type invariant property.
  *)
-TypeInv ==
+TypeOk ==
     \* Each agent is associated with a subset of tasks.
     /\ alloc \in [AgentId -> SUBSET TaskId]
     \* Each task has one of the four possible states.
@@ -67,6 +74,14 @@ IsCompleted(S) == IsInStatus(S, COMPLETED)
 Init ==
     /\ alloc = [a \in AgentId |-> {}]
     /\ status = [t \in TaskId |-> NULL]
+
+CInit ==
+    /\ AgentId = {"a", "b", "c"}
+    /\ TaskId = {"t", "u", "v", "w"}
+    /\ NULL = "NULL"
+    /\ SUBMITTED = "SUBMITTED"
+    /\ STARTED = "STARTED"
+    /\ COMPLETED = "COMPLETED"
 
 (**
  * Action predicate: A non-empty set S of previously unknown tasks is submitted,
@@ -174,9 +189,20 @@ Quiescence ==
 
 --------------------------------------------------------------------------------
 
-THEOREM Spec => []TypeInv
-THEOREM Spec => []NoExecutionConcurrency
-THEOREM Spec => EventualCompletion
-THEOREM Spec => Quiescence
+\* THEOREM TypeOkIsInvariant == Spec => []TypeOk
+\* PROOF
+\*   <1>. USE DEF TypeOk
+\*   <1>1. Init => TypeOk
+\*     BY DEF Init
+\*   <1>2. TypeOk /\ [Next]_vars => TypeOk'
+\*     BY DEF Next, vars, Submit, Schedule, Release, Complete
+\*   <1>3. QED
+\*       BY <1>1, <1>2, PTL DEF Spec
+
+\* THEOREM Spec => []NoExecutionConcurrency
+\* THEOREM Spec => EventualCompletion
+\* THEOREM Spec => Quiescence
+
+Inv == NoExecutionConcurrency /\ [Next]_vars => NoExecutionConcurrency'
 
 ================================================================================
