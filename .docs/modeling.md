@@ -109,4 +109,27 @@ The processing of objects is specified in [SimpleObjectProcessing](../specs/Simp
 
 ### Refined Task Scheduling with I/Os
 
+The system now couples task scheduling with object processing, describing the scheduling of dynamic task graphs. This specification refines both [SimpleTaskScheduling](#) and [SimpleObjectProcessing](#).
+
+### Additional Constraints
+
+- The task and object dependencies form a **bipartite directed-acyclic graph** with objects as roots and leaves.
+- Task dependencies cannot be modified after submission.
+- A task can be scheduled only when all its input objects are completed.
+- Objects are locked once consumed.
+- A task cannot complete until all its output objects are completed.
+- Task dependencies are resolved only after completion.
+
+### System Properties
+
+- The task graph is always consistent.
+- The system refines the previous specifications.
+
+> **ℹ️ THOUGHTS**
+> - Tasks and data must be processed in the order defined by the task/data graph.
+> - Consider using automata composition for state diagrams.
+
+> **⚠️ IMPORTANT**
+> In all specifications, tasks, objects, and agents are identified by labels. Swapping these labels does not change system behavior, encouraging the use of symmetry reduction.
+
 ---
