@@ -100,4 +100,35 @@ The processing of objects is specified in [SimpleObjectProcessing](../specs/Simp
 > **ℹ️ NOTE**
 > To enable model checking, the [MCSimpleObjectProcessing](../specs/MCSimpleObjectProcessing.tla) specification extends [SimpleObjectProcessing](../specs/SimpleObjectProcessing.tla).
 
+### Refined Task Scheduling with I/Os
+
+Now that the processing of tasks and objects has been specified, we can describe how they interact in a unified system. In this refined model, tasks have input and output objects, representing the data they consume and produce. Tasks can depend on each other through these data dependencies, making ArmoniK an **online task graph scheduling system**.
+
+The system inherits all previously described constraints and introduces the following additional rules:
+
+- The task and object dependencies form an **unconnected bipartite directed-acyclic graph**, with objects as roots and leaves. Isolated nodes (objects without associated tasks) are permitted in practice but serve no purpose and are ignored in this model.
+- Task data dependencies are immutable after submission.
+- Input objects are locked once consumed by a task to prevent further modifications.
+- A task can only be scheduled when **all its input objects are locked**.
+- A task cannot complete until **all its output objects are completed**.
+- Task dependencies are resolved only after completion.
+
+The system must guarantee the following properties:
+
+- **Refinement**: All properties from *SimpleTaskScheduling* and *SimpleObjectProcessing* are preserved.
+- **Dependency Consistency**: The dependency graph remains consistent, even as new tasks and objects are submitted dynamically.
+- **Lockness**: Any input object of a task that has started execution is locked.
+- **Completion**: Any output object of a completed task is either completed or locked.
+- **Execution Order**: The order of task execution respects the dependency graph (i.e., a topological sort).
+
+Statuses are associated with tasks and objects, with transitions now coupled to reflect their interdependence. A new status, **CREATED**, is introduced for tasks known to the system but not yet ready for execution (due to incomplete input objects).
+
+The coupled processing of tasks and objects is specified in **[TaskScheduling](../specs/TaskScheduling.tla)**, which is both a composition and a refinement of *SimpleTaskScheduling* and *SimpleObjectProcessing*.
+
+> **ℹ️ NOTE**
+> In all specifications, tasks, objects, and agents are identified by labels. The system’s behavior is invariant under label swapping, enabling symmetry reduction during model checking.
+
+> **⚠️ IMPORTANT**
+> Subtasking is not included in this refinement and will be addressed in future iterations.
+
 ---

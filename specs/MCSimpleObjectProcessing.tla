@@ -22,7 +22,7 @@ ASSUME IsFiniteSet(ObjectId)
  * objects have been completed.
  *)
 Terminating ==
-    /\ ObjectId = CompletedObject
+    /\ UnknownObject = ObjectId \ CompletedObject
     /\ UNCHANGED vars
 
 (**
