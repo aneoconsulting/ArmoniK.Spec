@@ -9,16 +9,17 @@ WORKDIR="$(pwd)/tools"
 ant -buildfile modules/build.xml dist
 
 ## Install TLA+ Tools (download from GitHub)
-wget -qN https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar -P tools/
+wget -qN https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar -P tools/
 wget -qN https://github.com/tlaplus/CommunityModules/releases/latest/download/CommunityModules-deps.jar -P tools/
 echo "alias tlcrepl='java -cp ${WORKDIR}/tla2tools.jar tlc2.REPL'" >> "$HOME/.bashrc"
-echo "alias tlc='java -XX:+UseParallelGC -cp ${WORKDIR}/tla2tools.jar:${WORKDIR}/ArmoniKSpecModules-deps.jar tlc2.TLC'" >> "$HOME/.bashrc"
+echo "alias alias tlc='java -XX:+UseParallelGC -cp \"/home/qdelamea/projects/ArmoniK.Spec/tools/*\" tlc2.TLC'"
 
-## Install TLAPS (proof system)
-wget -N https://github.com/tlaplus/tlapm/releases/download/v1.4.5/tlaps-1.4.5-x86_64-linux-gnu-inst.bin -P /tmp
-chmod +x /tmp/tlaps-1.4.5-x86_64-linux-gnu-inst.bin
-/tmp/tlaps-1.4.5-x86_64-linux-gnu-inst.bin -d tools/tlaps
-echo "export PATH=\$PATH:${WORKDIR}/tlaps/bin" >> "$HOME/.bashrc"
+## Install TLAPS (proof system) and its dependencies
+wget -N https://github.com/tlaplus/tlapm/releases/download/1.6.0-pre/tlapm-1.6.0-pre-x86_64-linux-gnu.tar.gz -P /tmp
+tar xvfz /tmp/tlapm-1.6.0-pre-x86_64-linux-gnu.tar.gz --directory tools/
+sudo apt update && sudo apt install -y opam
+opam init -a
+echo "export PATH=\$PATH:${WORKDIR}/tlapm/bin" >> "$HOME/.bashrc"
 
 ## Install Apalache
 wget -qN https://github.com/informalsystems/apalache/releases/latest/download/apalache.tgz -P /tmp
