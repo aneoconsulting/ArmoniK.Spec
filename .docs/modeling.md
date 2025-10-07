@@ -14,6 +14,7 @@ This document discusses and documents the assumptions and modeling choices made 
 ## Table of Contents
 
 * [An Abstract Decentralized Online Scheduling System](#an-abstract-decentralized-online-scheduling-system)
+* [Considering Task Inputs/Outputs](#considering-task-inputsoutputs)
 
 ---
 
@@ -56,5 +57,52 @@ stateDiagram-v2
 ---
 
 Here’s the corrected and expanded section for **Considering Task Inputs/Outputs**, restoring the two-step refinement and clarifying the role of task I/Os:
+
+---
+
+## Considering Task Inputs/Outputs
+
+The previous description omits **task I/Os**, which are central to ArmoniK as they express dependencies between tasks. Tasks consume inputs and produce outputs, which are modeled as *objects*. The refinement of the specification to include I/Os is done in **two steps**:
+
+1. **Abstract Object Processing**: A specification that describes how data (objects) are processed.
+2. **Refined Task Scheduling with I/Os**: A specification that integrates task scheduling with their I/Os.
+
+> **ℹ️ REMARK**
+> Just as a *task* abstracts the notion of computation, we need an abstraction for data: this is called an *object*, which encapsulates all information relating to a particular piece of data.
+
+### Abstract Object Processing
+
+The high-level view of object processing by ArmoniK corresponds to the following constraints:
+- **Object Creation**: An object can be created empty (a container for data that is not yet available) or completed (with its data provided at creation).
+- **Object Completion**: An empty object can be completed by providing its data. In addition, a completed object can be completed again, which means that the previous data is overwritten.
+- **Object Locking**: A completed object can be locked to prevent its data from being overwritten, making the object immutable. Locking an object that is already locked has no effect.
+
+> **ℹ️ NOTE**
+> The creation of a completed object is equivalent to the composition of the creation of the empty object with the completion of that object. This is why the action of creating a completed object does not appear in the specification.
+
+> **ℹ️ NOTE**
+> Early drafts considered objects to be immutable once completed, but this approach was abandoned in order to allow rewriting in the event of a task failure (for example, if a task crashes after writing its first result, it must be able to rewrite it during subsequent executions). However, for consistency reasons, it must be possible to ensure that once consumed, an object's data no longer changes. Locking was introduced for this purpose.
+
+The processing of objects must guarantee the following properties:
+- **Completion**: Every submitted object must eventually be completed.
+- **Persistence**: Once completed, an object remains completed forever.
+
+Like for tasks, a status is associated with each object to track its position in the processing. Based on the previous informal description, it is possible to scheme the life-cycle of an object as shown in the following figure.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Created : Create
+    Created --> Completed : Complete
+    Completed --> Locked : Lock
+    Locked --> Locked : Lock
+    classDef locked fill:#006400
+    class Locked locked
+```
+
+The processing of objects is specified in [SimpleObjectProcessing](../specs/SimpleObjectProcessing.tla). As with tasks, the specification uses an implicit set for object identifiers.
+
+> **ℹ️ NOTE**
+> To enable model checking, the [MCSimpleObjectProcessing](../specs/MCSimpleObjectProcessing.tla) specification extends [SimpleObjectProcessing](../specs/SimpleObjectProcessing.tla).
 
 ---
