@@ -12,6 +12,7 @@ from github import Github
 from rich.console import Console
 from rich.live import Live
 from rich.logging import RichHandler
+from rich.panel import Panel
 from rich.spinner import Spinner
 from rich.text import Text
 
@@ -32,10 +33,27 @@ logging.basicConfig(
 LOGGER = logging.getLogger("rich")
 
 
-class CliError(click.ClickException):
-    """Base command-line error."""
+class BaseCliError(click.ClickException):
+    """Base exception for CLI errors."""
 
-    pass
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+
+    def show(self, file=None):
+        """Override to display errors in a cleaner format."""
+        CONSOLE.print(Panel(self.format_message(), title="Error", style="red"))
+
+
+class InternalCliError(BaseCliError):
+    """Error raised when an unknown internal error occured."""
+
+    exit_code = 3
+
+
+class ToolError(BaseCliError):
+    """Error raised when a TLA+ tool returns an error."""
+
+    exit_code = 4
 
 
 def error_handler(func: Optional[Callable[..., Any]] = None) -> Callable[..., Any]:
@@ -60,7 +78,7 @@ def error_handler(func: Optional[Callable[..., Any]] = None) -> Callable[..., An
         except Exception as e:
             if debug_mode:
                 CONSOLE.print_exception()
-            raise CliError(f"CLI errored with exception:\n{e}") from e
+            raise BaseCliError(f"CLI errored with exception:\n{e}") from e
 
     return wrapper
 
@@ -126,8 +144,6 @@ class ReleaseHandler:
             raise RuntimeError(
                 f"Failed to download {asset.name} (status code: {response.status_code})."
             )
-
-
 class TLA2Tools:
     def __init__(self) -> None:
         self.release_handler = ReleaseHandler(
@@ -142,12 +158,16 @@ class TLA2Tools:
 class TLC:
     default_jvm_params = ["-XX:+UseParallelGC", "-cp", f"{TOOLS_DIR}/*"]
     tlc_exit_codes = {
-        0: "success",
-        10: "assumption failure",
-        11: "deadlock failure",
-        12: "safety failure",
-        13: "liveness failure",
+        0: "Success",
+        10: "Assumption failure",
+        11: "Deadlock failure",
+        12: "Safety failure",
+        13: "Liveness failure",
     }
+
+    @classmethod
+    def resolve_exit_code(cls, code: int) -> str:
+        return cls.tlc_exit_codes[code] if code in cls.tlc_exit_codes else f"Unknown error (code {code})."
 
     @classmethod
     def run(cls, module_path: Path, model_path: Path) -> None:
@@ -161,13 +181,13 @@ class TLC:
         result = subprocess.run(
             ["java"] + cls.default_jvm_params + ["tlc2.TLC"] + tlc_params,
             stdout=sys.stdout,
-            stderr=subprocess.STDOUT,
+            stderr=subprocess.PIPE,
             text=True,
             cwd=WORKDIR,
         )
 
-        if result.stderr:
-            CONSOLE.print(result.stderr)
+        if result.returncode != 0:
+            raise ToolError(cls.resolve_exit_code(result.returncode))
 
 
 class REPL:
