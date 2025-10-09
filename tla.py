@@ -113,19 +113,21 @@ class TLC:
 
     @classmethod
     def run(cls, module_path: Path, model_path: Path) -> None:
+        import sys
         tlc_params = [
             str(module_path),
             '-config', str(model_path),
         ]
         result = subprocess.run(
             ['java'] + cls.default_jvm_params + ['tlc2.TLC'] + tlc_params,
-            stdout=subprocess.PIPE,
+            stdout=sys.stdout,
             stderr=subprocess.STDOUT,
             text=True,
             cwd=WORKDIR
         )
-        CONSOLE.print(result.stdout)
-        CONSOLE.print(result.stderr)
+        
+        if result.stderr:
+            CONSOLE.print(result.stderr)
 
 
 class REPL:
