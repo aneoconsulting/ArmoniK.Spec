@@ -4,15 +4,19 @@ import subprocess
 import requests
 import rich_click as click
 
+from functools import partial, wraps
 from pathlib import Path
+from typing import TYPE_CHECKING, Optional, Callable, Any
 
 from github import Github
-from github.GitRelease import GitRelease
 from rich.console import Console
 from rich.live import Live
 from rich.logging import RichHandler
 from rich.spinner import Spinner
 from rich.text import Text
+
+if TYPE_CHECKING:
+    from github.GitRelease import GitRelease
 
 
 WORKDIR = Path(__file__).parent / ".tla"
@@ -26,6 +30,39 @@ logging.basicConfig(
     handlers=[RichHandler(console=CONSOLE)],
 )
 LOGGER = logging.getLogger("rich")
+
+
+class CliError(click.ClickException):
+    """Base command-line error."""
+
+    pass
+
+
+def error_handler(func: Optional[Callable[..., Any]] = None) -> Callable[..., Any]:
+    """
+    Decorator to handle errors for Click commands and ensure proper error display.
+
+    Args:
+        func: The command function to be decorated. If None, a partial function is returned,
+            allowing the decorator to be used with parentheses.
+
+    Returns:
+        The wrapped function with error handling.
+    """
+    if func is None:
+        return partial(error_handler)
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        debug_mode = kwargs.get("debug", False)
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            if debug_mode:
+                CONSOLE.print_exception()
+            raise CliError(f"CLI errored with exception:\n{e}") from e
+
+    return wrapper
 
 
 class AliasedGroup(click.Group):
@@ -52,7 +89,7 @@ class ReleaseHandler:
         self.tool_asset_name = tool_asset_name
 
     @property
-    def latest_release(self) -> GitRelease:
+    def latest_release(self) -> "GitRelease":
         releases = self.repo.get_releases()
 
         if releases.totalCount == 0:
@@ -174,6 +211,7 @@ class CommunityModules:
 )
 @click.version_option(version="0.1.0", prog_name="tla")
 @click.pass_context
+@error_handler
 def cli(ctx) -> None:
     """
     Command-line tool to simplify working with TLA+.
@@ -185,6 +223,7 @@ def cli(ctx) -> None:
 
 
 @cli.command(name="install")
+@error_handler
 def tla_install() -> None:
     """Install or update TLA+ tools (TLA2Tools, Community Modules, Apalache, TLAPS) and their dependencies."""
     tools = [TLA2Tools(), CommunityModules()]
@@ -212,6 +251,7 @@ def tla_install() -> None:
     type=click.Path(exists=True, dir_okay=False, resolve_path=True, path_type=Path),
     help="File containing the specification.",
 )
+@error_handler
 def tla_model_check(module_path: Path) -> None:
     """Run TLC against a specification."""
     tlc = TLC()
