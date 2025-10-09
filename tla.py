@@ -5,7 +5,6 @@ import requests
 import rich_click as click
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from github import Github
 from github.GitRelease import GitRelease
@@ -14,7 +13,6 @@ from rich.live import Live
 from rich.logging import RichHandler
 from rich.spinner import Spinner
 from rich.text import Text
-from rich.panel import Panel
 
 
 WORKDIR = Path(__file__).parent / ".tla"
@@ -25,7 +23,7 @@ logging.basicConfig(
     level="WARNING",
     format="%(message)s",
     datefmt="[%X]",
-    handlers=[RichHandler(console=CONSOLE)]
+    handlers=[RichHandler(console=CONSOLE)],
 )
 LOGGER = logging.getLogger("rich")
 
@@ -59,22 +57,28 @@ class ReleaseHandler:
 
         if releases.totalCount == 0:
             raise RuntimeError(f"Repository {self.repo.name} has no release.")
-        
+
         return releases[0]
 
     def download_latest_release(self) -> None:
         assets = self.latest_release.get_assets()
         if assets.totalCount == 0:
-            raise RuntimeError("No assets found in the latest release of repository {self.repo.name}.")
+            raise RuntimeError(
+                "No assets found in the latest release of repository {self.repo.name}."
+            )
 
         asset = [asset for asset in assets if asset.name == self.tool_asset_name]
         if len(asset) == 0:
-            raise RuntimeError(f"Repository {self.repo.name} has no assets with name {self.tool_asset_name}.")
+            raise RuntimeError(
+                f"Repository {self.repo.name} has no assets with name {self.tool_asset_name}."
+            )
         elif len(asset) > 1:
-            raise RuntimeError(f"Repository {self.repo.name} has multiple assets with name {self.tool_asset_name}.")
+            raise RuntimeError(
+                f"Repository {self.repo.name} has multiple assets with name {self.tool_asset_name}."
+            )
 
         asset = asset[0]
-        LOGGER.info(f"Downloading: {asset.name} from {asset.browser_download_url}.")        
+        LOGGER.info(f"Downloading: {asset.name} from {asset.browser_download_url}.")
         response = requests.get(asset.browser_download_url, stream=True)
         if response.status_code == 200:
             with (TOOLS_DIR / asset.name).open("wb") as file:
@@ -82,14 +86,15 @@ class ReleaseHandler:
                     file.write(chunk)
             LOGGER.info(f"Successfully donwloaded {self.tool_asset_name}")
         else:
-            raise RuntimeError(f"Failed to download {asset.name} (status code: {response.status_code}).")
+            raise RuntimeError(
+                f"Failed to download {asset.name} (status code: {response.status_code})."
+            )
 
 
 class TLA2Tools:
     def __init__(self) -> None:
         self.release_handler = ReleaseHandler(
-            repo_name="tlaplus/tlaplus",
-            tool_asset_name="tla2tools.jar"
+            repo_name="tlaplus/tlaplus", tool_asset_name="tla2tools.jar"
         )
         self.name = "TLA2 Tools"
 
@@ -98,72 +103,74 @@ class TLA2Tools:
 
 
 class TLC:
-    default_jvm_params = [
-        "-XX:+UseParallelGC",
-        "-cp",
-        f"{TOOLS_DIR}/*"
-    ]
+    default_jvm_params = ["-XX:+UseParallelGC", "-cp", f"{TOOLS_DIR}/*"]
     tlc_exit_codes = {
-        0: 'success',
-        10: 'assumption failure',
-        11: 'deadlock failure',
-        12: 'safety failure',
-        13: 'liveness failure'
+        0: "success",
+        10: "assumption failure",
+        11: "deadlock failure",
+        12: "safety failure",
+        13: "liveness failure",
     }
 
     @classmethod
     def run(cls, module_path: Path, model_path: Path) -> None:
         import sys
+
         tlc_params = [
             str(module_path),
-            '-config', str(model_path),
+            "-config",
+            str(model_path),
         ]
         result = subprocess.run(
-            ['java'] + cls.default_jvm_params + ['tlc2.TLC'] + tlc_params,
+            ["java"] + cls.default_jvm_params + ["tlc2.TLC"] + tlc_params,
             stdout=sys.stdout,
             stderr=subprocess.STDOUT,
             text=True,
-            cwd=WORKDIR
+            cwd=WORKDIR,
         )
-        
+
         if result.stderr:
             CONSOLE.print(result.stderr)
 
 
 class REPL:
-    default_jvm_params = [
-        "-cp",
-        str(TOOLS_DIR / "tla2tools.jar")
-    ]
+    default_jvm_params = ["-cp", str(TOOLS_DIR / "tla2tools.jar")]
 
     @classmethod
     def run(cls) -> None:
         import sys
+
         result = subprocess.run(
-            ['java'] + cls.default_jvm_params + ['tlc2.REPL'],
+            ["java"] + cls.default_jvm_params + ["tlc2.REPL"],
             stdin=sys.stdin,
             stdout=sys.stdout,
-            stderr=sys.stderr,
-            text=True
+            stderr=subprocess.PIPE,
+            text=True,
         )
+
+        if result.stderr:
+            raise RuntimeError(result.stderr)
 
 
 class CommunityModules:
     def __init__(self) -> None:
         self.release_handler = ReleaseHandler(
-            repo_name="tlaplus/CommunityModules",
-            tool_asset_name="CommunityModules.jar"
+            repo_name="tlaplus/CommunityModules", tool_asset_name="CommunityModules.jar"
         )
         self.name = "Community Modules"
 
     def install_or_upgrade(self) -> None:
         self.release_handler.download_latest_release()
 
+
 @click.group(
     name="tla",
     cls=AliasedGroup,
-    context_settings={"help_option_names": ["-h", "--help"],"auto_envvar_prefix": "TLA_"},
-    invoke_without_command=True
+    context_settings={
+        "help_option_names": ["-h", "--help"],
+        "auto_envvar_prefix": "TLA_",
+    },
+    invoke_without_command=True,
 )
 @click.version_option(version="0.1.0", prog_name="tla")
 @click.pass_context
@@ -182,17 +189,29 @@ def tla_install() -> None:
     """Install or update TLA+ tools (TLA2Tools, Community Modules, Apalache, TLAPS) and their dependencies."""
     tools = [TLA2Tools(), CommunityModules()]
     for tool in tools:
-        with Live(Spinner("dots", text=f"Installing latest version of {tool.name}"), console=CONSOLE, refresh_per_second=10) as live:
+        with Live(
+            Spinner("dots", text=f"Installing latest version of {tool.name}"),
+            console=CONSOLE,
+            refresh_per_second=10,
+        ) as live:
             try:
                 tool.install_or_upgrade()
-                live.update(Text(f"✔ Sucessfully upgraded {tool.name}.", style="bold green"))
+                live.update(
+                    Text(f"✔ Sucessfully upgraded {tool.name}.", style="bold green")
+                )
             except RuntimeError as error:
                 LOGGER.exception(error)
-                live.update(Text(f"❌ Failed to upgrade {tool.name}.", style="bold red"))
+                live.update(
+                    Text(f"❌ Failed to upgrade {tool.name}.", style="bold red")
+                )
 
 
 @cli.command(name="model-check")
-@click.argument("module_path", type=click.Path(exists=True, dir_okay=False, resolve_path=True, path_type=Path), help="File containing the specification.")
+@click.argument(
+    "module_path",
+    type=click.Path(exists=True, dir_okay=False, resolve_path=True, path_type=Path),
+    help="File containing the specification.",
+)
 def tla_model_check(module_path: Path) -> None:
     """Run TLC against a specification."""
     tlc = TLC()
