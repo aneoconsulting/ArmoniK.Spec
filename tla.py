@@ -128,6 +128,24 @@ class TLC:
         CONSOLE.print(result.stderr)
 
 
+class REPL:
+    default_jvm_params = [
+        "-cp",
+        str(TOOLS_DIR / "tla2tools.jar")
+    ]
+
+    @classmethod
+    def run(cls) -> None:
+        import sys
+        result = subprocess.run(
+            ['java'] + cls.default_jvm_params + ['tlc2.REPL'],
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+            text=True
+        )
+
+
 class CommunityModules:
     def __init__(self) -> None:
         self.release_handler = ReleaseHandler(
@@ -142,16 +160,19 @@ class CommunityModules:
 @click.group(
     name="tla",
     cls=AliasedGroup,
-    context_settings={"help_option_names": ["-h", "--help"],"auto_envvar_prefix": "TLA_"}
+    context_settings={"help_option_names": ["-h", "--help"],"auto_envvar_prefix": "TLA_"},
+    invoke_without_command=True
 )
 @click.version_option(version="0.1.0", prog_name="tla")
-def cli() -> None:
+@click.pass_context
+def cli(ctx) -> None:
     """
     Command-line tool to simplify working with TLA+.
     """
     WORKDIR.mkdir(exist_ok=True)
     TOOLS_DIR.mkdir(exist_ok=True)
-
+    if ctx.invoked_subcommand is None:
+        REPL.run()
 
 
 @cli.command(name="install")
