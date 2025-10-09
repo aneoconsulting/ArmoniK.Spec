@@ -1,4 +1,5 @@
 import logging
+import subprocess
 
 import requests
 import rich_click as click
@@ -27,6 +28,24 @@ logging.basicConfig(
     handlers=[RichHandler(console=CONSOLE)]
 )
 LOGGER = logging.getLogger("rich")
+
+
+class AliasedGroup(click.Group):
+    def get_command(self, ctx, cmd_name):
+        rv = super().get_command(ctx, cmd_name)
+
+        if rv is not None:
+            return rv
+
+        if cmd_name == "mc":
+            return click.Group.get_command(self, ctx, "model-check")
+
+        return None
+
+    def resolve_command(self, ctx, args):
+        # always return the full command name
+        _, cmd, args = super().resolve_command(ctx, args)
+        return cmd.name, cmd, args
 
 
 class ReleaseHandler:
@@ -77,6 +96,38 @@ class TLA2Tools:
     def install_or_upgrade(self) -> None:
         self.release_handler.download_latest_release()
 
+
+class TLC:
+    default_jvm_params = [
+        "-XX:+UseParallelGC",
+        "-cp",
+        f"{TOOLS_DIR}/*"
+    ]
+    tlc_exit_codes = {
+        0: 'success',
+        10: 'assumption failure',
+        11: 'deadlock failure',
+        12: 'safety failure',
+        13: 'liveness failure'
+    }
+
+    @classmethod
+    def run(cls, module_path: Path, model_path: Path) -> None:
+        tlc_params = [
+            str(module_path),
+            '-config', str(model_path),
+        ]
+        result = subprocess.run(
+            ['java'] + cls.default_jvm_params + ['tlc2.TLC'] + tlc_params,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            cwd=WORKDIR
+        )
+        CONSOLE.print(result.stdout)
+        CONSOLE.print(result.stderr)
+
+
 class CommunityModules:
     def __init__(self) -> None:
         self.release_handler = ReleaseHandler(
@@ -90,6 +141,7 @@ class CommunityModules:
 
 @click.group(
     name="tla",
+    cls=AliasedGroup,
     context_settings={"help_option_names": ["-h", "--help"],"auto_envvar_prefix": "TLA_"}
 )
 @click.version_option(version="0.1.0", prog_name="tla")
@@ -114,6 +166,15 @@ def tla_install() -> None:
             except RuntimeError as error:
                 LOGGER.exception(error)
                 live.update(Text(f"❌ Failed to upgrade {tool.name}.", style="bold red"))
+
+
+@cli.command(name="model-check")
+@click.argument("module_path", type=click.Path(exists=True, dir_okay=False, resolve_path=True, path_type=Path), help="File containing the specification.")
+def tla_model_check(module_path: Path) -> None:
+    """Run TLC against a specification."""
+    tlc = TLC()
+    model_path = module_path.with_suffix(".cfg")
+    tlc.run(module_path, model_path)
 
 
 if __name__ == "__main__":
