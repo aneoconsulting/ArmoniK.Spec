@@ -1,1 +1,3 @@
-from .pkg import TLA2Tools, CommunityModules
+from .github import Package, TLA2Tools, CommunityModules
+
+__all__ = ["Package", "TLA2Tools", "CommunityModules"]

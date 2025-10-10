@@ -25,7 +25,7 @@ def error_handler(func: Optional[Callable[..., Any]] = None) -> Callable[..., An
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except ToolRuntimeError as e:
+        except ToolRuntimeError:
             raise
         except Exception as e:
             CONSOLE.print_exception()
@@ -34,7 +34,7 @@ def error_handler(func: Optional[Callable[..., Any]] = None) -> Callable[..., An
     return wrapper
 
 
-class AliasedGroup(click.Group):
+class AliasedGroup(click.RichGroup):
     """A Click Group subclass that supports command aliases.
 
     This class extends `click.Group` to allow commands to be invoked using
@@ -59,7 +59,9 @@ class AliasedGroup(click.Group):
             return click.Group.get_command(self, ctx, "model-check")
         return None
 
-    def resolve_command(self, ctx: click.Context, args: list[str]) -> tuple[str | None, click.Command | None, list[str]]:
+    def resolve_command(
+        self, ctx: click.Context, args: list[str]
+    ) -> tuple[str | None, click.Command | None, list[str]]:
         """Resolve the command and arguments, ensuring the full command name is returned.
 
         Args:
