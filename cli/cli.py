@@ -46,7 +46,7 @@ def cli(ctx) -> None:
     TOOLS_DIR.mkdir(exist_ok=True)
 
     if ctx.invoked_subcommand is None:
-        REPL.run()
+        pkg_map["TLA2Tools"].tools["REPL"].start()
 
 
 @cli.group(name="package")

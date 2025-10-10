@@ -13,36 +13,22 @@ class Package(ABC):
     Attributes:
         name: The name of the package.
         location: The installation location of the package.
-        tools: The list of tools provided by the package.
     """
 
-    def __init__(self, name: str, location: Path, tools: list[str]) -> None:
+    def __init__(self, name: str, location: Path) -> None:
         """
         Initialize a new Package instance.
 
         Args:
             name: The name of the package.
             location: The installation location of the package.
-            tools: List of tool names provided by the package.
         """
         self.name = name
         self.location = location
-        self.tools = tools
 
+    @property
     @abstractmethod
-    def get_tool(self, name: str) -> Tool:
-        """
-        Retrieve a tool by its name.
-
-        Args:
-            name: The name of the tool to retrieve.
-
-        Returns:
-            An instance of the requested tool.
-
-        Raises:
-            ValueError: If the name doesn't correspond to any tool.
-        """
+    def tools(self) -> dict[str, Tool]:
         pass
 
     @property

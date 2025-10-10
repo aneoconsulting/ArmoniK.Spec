@@ -12,7 +12,7 @@ from github.GithubException import UnknownObjectException
 from packaging.version import parse as parse_version, Version
 
 from .base import Package
-from ..tools import Tool
+from ..tools import Tool, REPL, TLC
 
 
 class GithubReleasePackage(Package, ABC):
@@ -31,7 +31,6 @@ class GithubReleasePackage(Package, ABC):
         location: Path,
         repo_name: str,
         asset_name: str,
-        tools: list[str],
     ) -> None:
         """
         Initialize a new GithubReleasePackage instance.
@@ -41,9 +40,8 @@ class GithubReleasePackage(Package, ABC):
             location: The installation location of the package.
             repo_name: The name of the GitHub repository.
             asset_name: The name of the asset to download.
-            tools: List of tools provided by the package.
         """
-        super().__init__(name, location, tools)
+        super().__init__(name, location)
         self.repo_name = repo_name
         self.asset_name = asset_name
         self.versions = []
@@ -192,17 +190,13 @@ class TLA2Tools(GithubReleasePackage):
             location=(location / asset_name),
             repo_name="tlaplus/tlaplus",
             asset_name=asset_name,
-            tools=["TLC", "REPL", "TLATeX", "PCal"],
         )
 
-    def get_tool(self, name: str) -> Tool:
-        """
-        Retrieve a tool by its name.
-
-        Args:
-            name: The name of the tool to retrieve.
-        """
-        raise NotImplementedError()
+    @property
+    def tools(self) -> dict[str, Tool]:
+        return {
+            "REPL": REPL(name="REPL", class_path=self.location, class_name="tlc2.REPL")
+        }
 
     def version_to_tag(self, version: Version) -> str:
         """
@@ -229,8 +223,11 @@ class CommunityModules(GithubReleasePackage):
             location=(location / asset_name),
             repo_name="tlaplus/CommunityModules",
             asset_name=asset_name,
-            tools=[],
         )
+
+    @property
+    def tools(self) -> dict[str, Tool]:
+        return {}
 
     def version_to_tag(self, version: Version) -> str:
         """
@@ -243,12 +240,3 @@ class CommunityModules(GithubReleasePackage):
             The formatted version string.
         """
         return str(version)
-
-    def get_tool(self, name: str) -> Tool:
-        """
-        Retrieve a tool by its name.
-
-        Args:
-            name: The name of the tool to retrieve.
-        """
-        raise ValueError(f"Package {self.name} doesn't have a tool name {name}.")

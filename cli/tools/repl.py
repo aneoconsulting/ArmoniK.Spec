@@ -1,19 +1,44 @@
-class REPL:
-    # default_jvm_params = ["-cp", str(TOOLS_DIR / "tla2tools.jar")]
+import subprocess
+import sys
 
-    @classmethod
-    def run(cls) -> None:
-        pass
+from pathlib import Path
 
-    #     import sys
 
-    #     result = subprocess.run(
-    #         ["java"] + cls.default_jvm_params + ["tlc2.REPL"],
-    #         stdin=sys.stdin,
-    #         stdout=sys.stdout,
-    #         stderr=subprocess.PIPE,
-    #         text=True,
-    #     )
+import subprocess
 
-    #     if result.stderr:
-    #         raise RuntimeError(result.stderr)
+from abc import ABC
+from pathlib import Path
+
+from .base import Tool
+
+class JavaClassTool(Tool, ABC):
+    
+    def __init__(self, name: str, class_path: Path, class_name: str) -> None:
+        super().__init__(name=name)
+        self.class_path = class_path
+        self.class_name = class_name
+
+    def get_java_command(self):
+         return ["java", "-cp", str(self.class_path), self.class_name]
+
+    def run(self, stdin, stdout, stderr):
+        process = subprocess.Popen(
+             self.get_java_command(),
+             stdin=stdin,
+             stdout=stdout,
+             stderr=stderr,
+        )
+        process.wait()
+
+
+class REPL(JavaClassTool):
+
+    def __init__(self, name: str, class_path: Path, class_name: str) -> None:
+        super().__init__(
+            name=name,
+            class_path=class_path,
+            class_name=class_name
+        )
+
+    def start(self):
+        super().run(stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr)
