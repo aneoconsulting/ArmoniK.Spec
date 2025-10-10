@@ -22,6 +22,10 @@ from .tools import TLC, REPL
 from .utils import AliasedGroup, error_handler
 
 
+# Create a mapping for faster lookup
+pkg_map = {p.name: p for p in ALL_PKGS}
+
+
 @click.group(
     name="tla",
     cls=AliasedGroup,
@@ -40,19 +44,22 @@ def cli(ctx) -> None:
     """
     WORKDIR.mkdir(exist_ok=True)
     TOOLS_DIR.mkdir(exist_ok=True)
+
     if ctx.invoked_subcommand is None:
         REPL.run()
 
 
 @cli.group(name="package")
 def tla_package() -> None:
-    "Manage packages."
+    """Commands for managing TLA+ tool packages."""
     pass
 
 
 @tla_package.command(name="list")
 def tla_package_list() -> None:
-    """List package installation."""
+    """
+    Display the installation status of TLA+ tool packages.
+    """
     table = Table(title="Package Installation Summary")
     table.add_column("Name", no_wrap=True, justify="center")
     table.add_column("Installed", justify="center")
@@ -83,126 +90,128 @@ def tla_package_list() -> None:
 )
 @error_handler
 def tla_package_install(pkg_specs: list[str]) -> None:
-    """Install TLA+ tools (TLA2Tools, Community Modules, Apalache, TLAPS) and their dependencies."""
-    pkg_to_install = []
-    spec_pattern = r"^([a-zA-Z0-9_-]+)(?:==(v?\d+\.\d+\.\d+))?$"
-    for pkg_spec in pkg_specs:
-        # Parse the package specifier
-        match = re.match(spec_pattern, pkg_spec)
+    """
+    Install one or more TLA+ tool packages and their dependencies.
+
+    PACKAGE_SPEC format: name or name==version (e.g. tla2tools==1.5.7)
+    """
+    spec_pattern = r"^([a-zA-Z0-9_-]+)(?:==([vV]?\d+\.\d+\.\d+))?$"
+    pkgs_to_install = []
+
+    for spec in pkg_specs:
+        match = re.match(spec_pattern, spec)
         if not match:
-            raise click.BadArgumentUsage(
-                f"Invalid package specifier format: {pkg_spec}."
-            )
+            raise click.BadArgumentUsage(f"Invalid package specifier format: '{spec}'.")
 
-        pkg_name = match.group(1)
-        pkg_version = match.group(3) if match.group(2) else None
+        pkg_name, version_str = match.groups()
+        pkg = pkg_map.get(pkg_name)
 
-        pkg = next((p for p in ALL_PKGS if p.name == pkg_name), None)
         if pkg is None:
-            raise click.BadArgumentUsage(f"Package {pkg_name} doesn't exist.")
-        if pkg_version is not None and pkg.version_exists(parse_version(pkg_version)):
-            raise click.BadArgumentUsage(
-                f"Invalid version package for {pkg_name}: {pkg_version}."
-            )
-        if pkg_version is None:
-            pkg_version = pkg.latest_version
-        pkg_to_install.append((pkg, pkg_version))
+            raise click.BadArgumentUsage(f"Unknown package: '{pkg_name}'")
 
-    for pkg, pkg_version in pkg_to_install:
+        # Determine version to install
+        version = parse_version(version_str) if version_str else pkg.latest_version
+        if not pkg.version_exists(version):
+            raise click.BadArgumentUsage(
+                f"Invalid version for package '{pkg_name}': '{version}'."
+            )
+
+        pkgs_to_install.append((pkg, version))
+
+    for pkg, version in pkgs_to_install:
         with Live(
-            Spinner("dots", text=f"Installing version {pkg_version} of {pkg.name}"),
+            Spinner("dots", text=f"Installing {pkg.name} (version {version})..."),
             console=CONSOLE,
             refresh_per_second=10,
         ) as live:
             if pkg.is_installed:
-                live.update(f"{UNCHANGED} Package {pkg.name} is already installed.")
+                live.update(f"{UNCHANGED} {pkg.name} is already installed.")
                 continue
             try:
-                pkg.install(pkg_version)
-                live.update(
-                    f"{VALID} Sucessfully installed {pkg.name} version {pkg_version}."
-                )
+                pkg.install(version)
+                live.update(f"{VALID} Installed {pkg.name} (version {version}).")
             except RuntimeError:
-                live.update(
-                    f"{CROSS} Failed to install {pkg.name} version {pkg_version}."
-                )
+                live.update(f"{CROSS} Failed to install {pkg.name}.")
                 raise
 
 
 @tla_package.command(name="upgrade")
 @click.argument(
     "pkg_names",
-    metavar="PACKAGE NAME",
+    metavar="PACKAGE_NAME",
     nargs=-1,
     type=str,
     default=[p.name for p in ALL_PKGS],
 )
 @error_handler
 def tla_package_upgrade(pkg_names: list[str]) -> None:
-    """Uninstall packages."""
-    pkg_to_upgrade = []
-    for pkg_name in pkg_names:
-        pkg = next((p for p in ALL_PKGS if p.name == pkg_name), None)
-        if pkg is None:
-            raise click.BadArgumentUsage(f"Invalid package name: {name}.")
-        pkg_to_upgrade.append(pkg)
+    """
+    Upgrade specified TLA+ tool packages to their latest versions.
+    """
+    pkgs_to_upgrade = []
 
-    for pkg in pkg_to_upgrade:
+    for pkg_name in pkg_names:
+        pkg = pkg_map.get(pkg_name)
+        if pkg is None:
+            raise click.BadArgumentUsage(f"Unknown package: '{pkg_name}'")
+        pkgs_to_upgrade.append(pkg)
+
+    for pkg in pkgs_to_upgrade:
         with Live(
             Spinner(
-                "dots",
-                text=f"Upgrading package {pkg.name} to version {pkg.latest_version}.",
+                "dots", text=f"Upgrading {pkg.name} to version {pkg.latest_version}..."
             ),
             console=CONSOLE,
             refresh_per_second=10,
         ) as live:
             if pkg.is_up_to_date:
-                live.update(f"{UNCHANGED} Package {pkg.name} is already up to date.")
+                live.update(f"{UNCHANGED} {pkg.name} is already up to date.")
                 continue
             try:
                 pkg.upgrade()
                 live.update(
-                    f"{VALID} Sucessfully upgraded {pkg.name} to version {pkg.latest_version}."
+                    f"{VALID} Upgraded {pkg.name} to version {pkg.latest_version}."
                 )
             except RuntimeError:
-                live.update(
-                    f"{CROSS} Failed to upgrade {pkg.name} to version {pkg.latest_version}."
-                )
+                live.update(f"{CROSS} Failed to upgrade {pkg.name}.")
                 raise
 
 
 @tla_package.command(name="uninstall")
 @click.argument(
     "pkg_names",
-    metavar="PACKAGE NAME",
+    metavar="PACKAGE_NAME",
     nargs=-1,
     type=str,
     default=[p.name for p in ALL_PKGS],
 )
 @error_handler
 def tla_package_uninstall(pkg_names: list[str]) -> None:
-    """Uninstall packages."""
-    pkg_to_uninstall = []
-    for pkg_name in pkg_names:
-        pkg = next((p for p in ALL_PKGS if p.name == pkg_name), None)
-        if pkg is None:
-            raise click.BadArgumentUsage(f"Invalid package name: {name}.")
-        pkg_to_uninstall.append(pkg)
+    """
+    Uninstall one or more installed TLA+ tool packages.
+    """
+    pkgs_to_uninstall = []
 
-    for pkg in pkg_to_uninstall:
+    for pkg_name in pkg_names:
+        pkg = pkg_map.get(pkg_name)
+        if pkg is None:
+            raise click.BadArgumentUsage(f"Unknown package: '{pkg_name}'")
+        pkgs_to_uninstall.append(pkg)
+
+    for pkg in pkgs_to_uninstall:
         with Live(
-            Spinner("dots", text=f"Uninstalling package {pkg.name}."),
+            Spinner("dots", text=f"Uninstalling {pkg.name}..."),
             console=CONSOLE,
             refresh_per_second=10,
         ) as live:
             if not pkg.is_installed:
-                live.update(f"{UNCHANGED} Package {pkg.name} is not installed.")
+                live.update(f"{UNCHANGED} {pkg.name} is not currently installed.")
                 continue
             try:
                 pkg.uninstall()
-                live.update(f"{VALID} Sucessfully uninstalled package {pkg.name}.")
+                live.update(f"{VALID} Uninstalled {pkg.name}.")
             except RuntimeError:
-                live.update(f"{CROSS} Failed to uninstall package {pkg.name}.")
+                live.update(f"{CROSS} Failed to uninstall {pkg.name}.")
                 raise
 
 
@@ -210,11 +219,13 @@ def tla_package_uninstall(pkg_names: list[str]) -> None:
 @click.argument(
     "module_path",
     type=click.Path(exists=True, dir_okay=False, resolve_path=True, path_type=Path),
-    help="File containing the specification.",
+    help="Path to the TLA+ module file (.tla) to check.",
 )
 @error_handler
 def tla_model_check(module_path: Path) -> None:
-    """Run TLC against a specification."""
+    """
+    Run the TLC model checker on a given TLA+ module file.
+    """
     tlc = TLC()
     model_path = module_path.with_suffix(".cfg")
     tlc.run(module_path, model_path)
