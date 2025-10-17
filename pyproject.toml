@@ -1,0 +1,37 @@
+[project]
+name = "tla-cli"
+dynamic = ["version"]
+description = "Command line tool to simplify working with TLA+"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache v2.0 LICENSE"}
+dependencies = [
+    "click>=8.3.0",
+    "packaging>=25.0",
+    "pydantic>=2.12.1",
+    "pygithub>=2.8.1",
+    "requests>=2.32.5",
+    "rich-click>=1.9.2",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.18.2",
+    "ruff>=0.14.0",
+]
+
+[project.scripts]
+tla = "cli.cli:cli"
+
+[build-system]
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.hatch.version.raw-options]
+local_scheme = "no-local-version"
+
+[tool.hatch.build.targets.wheel]
+packages = ["cli"]
