@@ -44,11 +44,11 @@ class Configuration(BaseModel):
 
     Attributes:
         max_heap_size: Maximum heap size allocated for the JVM in Mio.
-        cores: Number of CPU cores allocated for model checking.
+        workers: Number workers used for model checking.
     """
 
     max_heap_size: Optional[str] = "1G"
-    cores: int = 1
+    workers: int = 1
 
 
 class Model(BaseModel):
@@ -152,7 +152,7 @@ class Manifest(BaseModel):
                         external_modules=module.dependencies.additional_modules,
                         # timeout=model.runtime,
                         # mode=model.mode,
-                        workers=model.configuration.cores,
+                        workers=model.configuration.workers,
                         max_heap_size=model.configuration.max_heap_size,
                         show_log=True,
                     )
