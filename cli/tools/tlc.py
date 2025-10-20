@@ -103,6 +103,7 @@ class TLC(JavaClassTool):
         max_heap_size: str,
         community_modules: bool,
         external_modules: list[Path],
+        save_states: bool = False,
         show_log: bool = True,
     ) -> TLCRun:
         """Runs TLC and returns the results.
@@ -114,6 +115,7 @@ class TLC(JavaClassTool):
             max_heap_size: Maximum heap size for the JVM.
             community_modules: Whether to include community modules.
             external_modules: list of paths to external modules.
+            save_states: Weither to save the state space graph in a Graphviz .dot file.
             show_log: Whether to print TLC output to the console.
 
         Returns:
@@ -133,6 +135,10 @@ class TLC(JavaClassTool):
         cmd = self.get_java_command(
             ["-workers", str(workers), "-config", str(model_path), str(module_path)]
         )
+
+        if save_states:
+            cmd.extend(["-dump", "dot", 'states'])
+            tlc_run.states_file = run_dir / "states.dot"
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,

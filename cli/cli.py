@@ -283,6 +283,12 @@ def tla_package_uninstall(pkg_names: list[str]) -> None:
     type=click.Path(exists=True, dir_okay=False, resolve_path=True, path_type=Path),
     help="Path to the TLC configuration file (.cfg). If not provided, it is assumed to be alongside the module file with a .cfg extension.",
 )
+@click.option(
+    "--save-states",
+    "-s",
+    is_flag=True,
+    help="Wheither to save the state graph."
+)
 @error_handler
 def tla_model_check(
     module_path: Path,
@@ -291,6 +297,7 @@ def tla_model_check(
     max_heap_size: str,
     community_modules: bool,
     external_module: list[Path],
+    save_states: bool
 ) -> None:
     """
     Run the TLC model checker on a given TLA+ module file.
@@ -310,6 +317,7 @@ def tla_model_check(
         max_heap_size=max_heap_size,
         community_modules=community_modules,
         external_modules=external_module,
+        save_states=save_states,
     )
 
 
