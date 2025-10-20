@@ -2,9 +2,10 @@ import json
 
 from datetime import timedelta
 from pathlib import Path
-from typing import List, Optional, Literal
+from typing import Optional, Literal
+from typing_extensions import Self
 
-from pydantic import BaseModel, FilePath, Field
+from pydantic import BaseModel, DirectoryPath, Field, model_validator
 
 from .constants import ALL_PKGS, CONSOLE
 
@@ -46,7 +47,7 @@ class Configuration(BaseModel):
         cores: Number of CPU cores allocated for model checking.
     """
 
-    max_heap_size: Optional[str] = None
+    max_heap_size: Optional[str] = "1G"
     cores: int = 1
 
 
@@ -65,11 +66,11 @@ class Model(BaseModel):
     """
 
     name: str
-    path: FilePath
+    path: Path
     runtime: Optional[timedelta] = None
     type: Literal["explicit", "symbolic"]
     mode: Literal["exhaustive", "simulation"]
-    configuration: Optional[Configuration] = None
+    configuration: Configuration = Configuration()
     checks: Checks
 
 
@@ -83,7 +84,7 @@ class Dependencies(BaseModel):
     """
 
     community_modules: bool = False
-    additional_modules: List[FilePath] = Field(default_factory=list)
+    additional_modules: list[Path] = Field(default_factory=list)
 
 
 class Module(BaseModel):
@@ -97,9 +98,9 @@ class Module(BaseModel):
         models: List of models associated with the module.
     """
 
-    path: FilePath
-    dependencies: Dependencies
-    models: List[Model] = []
+    path: Path
+    dependencies: Dependencies = Dependencies()
+    models: list[Model] = []
 
 
 class Manifest(BaseModel):
@@ -112,12 +113,13 @@ class Manifest(BaseModel):
         modules: List of TLA+ modules to be processed.
     """
 
+    base_path: DirectoryPath
     tlc_version: Optional[str] = None
     total_duration: Optional[timedelta] = None
-    modules: List[Module]
+    modules: list[Module]
 
     @classmethod
-    def load_manifest(cls, path: FilePath) -> "Manifest":
+    def load_manifest(cls, path: Path) -> "Manifest":
         """Load a manifest from a JSON file.
 
         Args:
@@ -127,8 +129,7 @@ class Manifest(BaseModel):
             An instance of the Manifest class populated with data from the file.
         """
         with path.open("r") as f:
-            data = replace_paths(json.loads(f.read()), path.parent)
-            return cls(**data)
+            return cls(base_path=path.parent, **json.loads(f.read()))
 
     def process(self) -> dict[Path, bool]:
         """Process all modules and their models as specified in the manifest.
@@ -153,7 +154,7 @@ class Manifest(BaseModel):
                         # mode=model.mode,
                         workers=model.configuration.cores,
                         max_heap_size=model.configuration.max_heap_size,
-                        show_log=False,
+                        show_log=True,
                     )
                     if tlc_run.success == model.checks.success:
                         assertions = (
@@ -198,23 +199,19 @@ class Manifest(BaseModel):
                     )
         return processing_results
 
+    def _check_modify_relative_path(self, path: Path) -> Path:
+        full_path = path
+        if not full_path.is_absolute():
+            full_path = self.base_path / full_path
+        if not full_path.is_file():
+            raise ValueError(f"File not found: {path}.")
+        return full_path
 
-def replace_paths(data, base_path: Path):
-    """Recursively replace 'path' fields in a nested data structure with absolute paths.
-
-    Args:
-        data: The nested data structure (dicts and lists).
-        base_path: The base path to prepend to relative paths.
-
-    Returns:
-        The modified data structure with updated paths.
-    """
-    if isinstance(data, dict):
-        return {
-            k: replace_paths(base_path / v if k == "path" else v, base_path)
-            for k, v in data.items()
-        }
-    elif isinstance(data, list):
-        return [replace_paths(item, base_path) for item in data]
-    else:
-        return data
+    @model_validator(mode="after")
+    def check_relative_paths(self) -> Self:
+        for module in self.modules:
+            module.path = self._check_modify_relative_path(module.path)
+            module.dependencies.additional_modules = [self._check_modify_relative_path(additional_module) for additional_module in module.dependencies.additional_modules]
+            for model in module.models:
+                model.path = self._check_modify_relative_path(model.path)
+        return self
