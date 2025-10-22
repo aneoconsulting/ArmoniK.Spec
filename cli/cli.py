@@ -12,18 +12,21 @@ from rich.spinner import Spinner
 
 from .constants import (
     CONSOLE,
-    ALL_PKGS,
     VALID,
     CROSS,
     WORKDIR,
     TOOLS_DIR,
     UNCHANGED,
+    tla2tools,
+    community_modules,
+    tlc,
+    repl,
 )
 from .utils import AliasedGroup, error_handler
 
 
 # Create a mapping for faster lookup
-pkg_map = {p.name: p for p in ALL_PKGS}
+pkg_map = {p.name: p for p in [tla2tools, community_modules]}
 
 
 @click.group(
@@ -52,8 +55,8 @@ def cli(ctx: click.Context, manifest: Path) -> None:
     TOOLS_DIR.mkdir(exist_ok=True)
 
     if ctx.invoked_subcommand is None:
-        if manifest is None:
-            pkg_map["TLA2Tools"].tools["REPL"].start()
+        if manifest is None and repl.is_available():
+            repl.start()
         else:
             from .models import Manifest
 
@@ -90,7 +93,7 @@ def tla_package_list() -> None:
     table.add_column("Version", justify="center")
     table.add_column("Up-to-date", justify="center")
 
-    for pkg in ALL_PKGS:
+    for pkg in pkg_map.values():
         if pkg.is_installed:
             table.add_row(
                 pkg.name,
@@ -110,7 +113,7 @@ def tla_package_list() -> None:
     metavar="PACKAGE_SPEC",
     nargs=-1,
     type=str,
-    default=[p.name for p in ALL_PKGS],
+    default=[p.name for p in pkg_map.values()],
 )
 @error_handler
 def tla_package_install(pkg_specs: list[str]) -> None:
@@ -165,7 +168,7 @@ def tla_package_install(pkg_specs: list[str]) -> None:
     metavar="PACKAGE_NAME",
     nargs=-1,
     type=str,
-    default=[p.name for p in ALL_PKGS],
+    default=[p.name for p in pkg_map.values()],
 )
 @error_handler
 def tla_package_upgrade(pkg_names: list[str]) -> None:
@@ -207,7 +210,7 @@ def tla_package_upgrade(pkg_names: list[str]) -> None:
     metavar="PACKAGE_NAME",
     nargs=-1,
     type=str,
-    default=[p.name for p in ALL_PKGS],
+    default=[p.name for p in pkg_map.values()],
 )
 @error_handler
 def tla_package_uninstall(pkg_names: list[str]) -> None:
@@ -284,10 +287,7 @@ def tla_package_uninstall(pkg_names: list[str]) -> None:
     help="Path to the TLC configuration file (.cfg). If not provided, it is assumed to be alongside the module file with a .cfg extension.",
 )
 @click.option(
-    "--save-states",
-    "-s",
-    is_flag=True,
-    help="Wheither to save the state graph."
+    "--save-states", "-s", is_flag=True, help="Wheither to save the state graph."
 )
 @error_handler
 def tla_model_check(
@@ -297,7 +297,7 @@ def tla_model_check(
     max_heap_size: str,
     community_modules: bool,
     external_module: list[Path],
-    save_states: bool
+    save_states: bool,
 ) -> None:
     """
     Run the TLC model checker on a given TLA+ module file.
@@ -308,7 +308,6 @@ def tla_model_check(
                 f"External module '{ext_module}' must be a .jar file."
             )
 
-    tlc = pkg_map["TLA2Tools"].tools["TLC"]
     model_path = model_path if model_path else module_path.with_suffix(".cfg")
     tlc.start(
         module_path,

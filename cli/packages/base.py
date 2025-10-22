@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
+from logging import Logger
 from pathlib import Path
 
+from rich.console import Console
 from packaging.version import Version
-
-from ..tools import Tool
 
 
 class Package(ABC):
@@ -15,7 +15,9 @@ class Package(ABC):
         location: The installation location of the package.
     """
 
-    def __init__(self, name: str, location: Path) -> None:
+    def __init__(
+        self, name: str, location: Path, logger: Logger, console: Console
+    ) -> None:
         """
         Initialize a new Package instance.
 
@@ -25,11 +27,8 @@ class Package(ABC):
         """
         self.name = name
         self.location = location
-
-    @property
-    @abstractmethod
-    def tools(self) -> dict[str, Tool]:
-        pass
+        self.logger = logger
+        self.console = console
 
     @property
     @abstractmethod

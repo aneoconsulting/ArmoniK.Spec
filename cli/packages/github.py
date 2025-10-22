@@ -4,15 +4,16 @@ import shutil
 import requests
 
 from abc import ABC, abstractmethod
+from logging import Logger
 from pathlib import Path
 
 from github import Github
 from github.Repository import Repository
 from github.GithubException import UnknownObjectException
+from rich.console import Console
 from packaging.version import parse as parse_version, Version
 
 from .base import Package
-from ..tools import Tool, REPL, TLC
 
 
 class GithubReleasePackage(Package, ABC):
@@ -32,6 +33,8 @@ class GithubReleasePackage(Package, ABC):
         location: Path,
         repo_name: str,
         asset_name: str,
+        logger: Logger,
+        console: Console,
         prerelease: bool = False,
     ) -> None:
         """
@@ -44,7 +47,7 @@ class GithubReleasePackage(Package, ABC):
             asset_name: The name of the asset to download.
             prerelease: Whether or not to consider pre-releases when searching for the latest version.
         """
-        super().__init__(name, location)
+        super().__init__(name=name, location=location, logger=logger, console=console)
         self.repo_name = repo_name
         self.asset_name = asset_name
         self.versions = []
@@ -189,32 +192,17 @@ class TLA2Tools(GithubReleasePackage):
     Concrete class for the TLA2Tools package.
     """
 
-    def __init__(self, location: Path) -> None:
+    def __init__(self, location: Path, logger: Logger, console: Console) -> None:
         asset_name = "tla2tools.jar"
         super().__init__(
             name="TLA2Tools",
             location=(location / asset_name),
             repo_name="tlaplus/tlaplus",
             asset_name=asset_name,
+            logger=logger,
+            console=console,
             prerelease=True,
         )
-
-    @property
-    def tools(self) -> dict[str, Tool]:
-        return {
-            "REPL": REPL(
-                classpath=self.location,
-                main_class="tlc2.REPL",
-                tla2tools_version=self.current_version,
-            ),
-            "TLC": TLC(
-                classpath=self.location,
-                main_class="tlc2.TLC",
-                run_path=self.location.parent,
-                community_modules_classpath=self.location.parent
-                / "CommunityModules-deps.jar",
-            ),
-        }
 
     def version_to_tag(self, version: Version) -> str:
         """
@@ -234,18 +222,16 @@ class CommunityModules(GithubReleasePackage):
     Concrete class for the CommunityModules package.
     """
 
-    def __init__(self, location: Path) -> None:
+    def __init__(self, location: Path, logger: Logger, console: Console) -> None:
         asset_name = "CommunityModules-deps.jar"
         super().__init__(
             name="CommunityModules",
             location=(location / asset_name),
             repo_name="tlaplus/CommunityModules",
             asset_name=asset_name,
+            logger=logger,
+            console=console,
         )
-
-    @property
-    def tools(self) -> dict[str, Tool]:
-        return {}
 
     def version_to_tag(self, version: Version) -> str:
         """
