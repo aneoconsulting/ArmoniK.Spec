@@ -17,15 +17,14 @@ CONSTANTS
     \* @type: Str;
     CREATED,   \* Status of a known object whose data is empty.
     \* @type: Str;
-    COMPLETED, \* Status of an object whose data has been completed.
-    \* @type: Str;
-    LOCKED     \* Status of an object whose data can no longer be overwritten.
+    COMPLETED \* Status of an object whose data has been written and can never
+              \* be overwritten..
 
-ObjectStatus == {NULL, CREATED, COMPLETED, LOCKED}
+ObjectStatus == {NULL, CREATED, COMPLETED}
 
 ASSUME Assumptions ==
     \* The statuses are different from one another.
-    Cardinality(ObjectStatus) = 4
+    Cardinality(ObjectStatus) = 3
 
 VARIABLES
     \* @type: Str -> Str;
@@ -55,7 +54,6 @@ IsInStatus(S, STATUS) ==
 IsUnknown(S)   == IsInStatus(S, NULL)
 IsCreated(S)   == IsInStatus(S, CREATED)
 IsCompleted(S) == IsInStatus(S, COMPLETED)
-IsLocked(S)    == IsInStatus(S, LOCKED)
 
 --------------------------------------------------------------------------------
 
@@ -73,20 +71,15 @@ Create(S) ==
     /\ status' = [o \in ObjectId |-> IF o \in S THEN CREATED ELSE status[o]]
 
 (**
- * Action predicate: A non-empty set S of objects is completed, i.e., their data
- * is written. For objects whose data already exists, it is overwritten.
+ * Action predicate: A non-empty set S of objects is completed.
+ *   - For created objects, their data is written and becomes immutable — it
+ *     will never be overwritten.
+ *   - For objects that are already completed, this action has no effect.
+ * Completing an object is an idempotent operation.
  *)
 Complete(S) ==
-    /\ S /= {} /\ (\A o \in S: IsCreated({o}) \/ IsCompleted({o}))
+    /\ S /= {} /\ \A o \in S: IsCreated({o}) \/ IsCompleted({o})
     /\ status' = [o \in ObjectId |-> IF o \in S THEN COMPLETED ELSE status[o]]
-
-(**
- * Action predicate: A non-empty set S of objects are locked, preventing the
- * associated data from being overwritten.
- *)
-Lock(S) ==
-    /\ S /= {} /\ (\A o \in S: IsCompleted({o}) \/ IsLocked({o}))
-    /\ status' = [o \in ObjectId |-> IF o \in S THEN LOCKED ELSE status[o]]
 
 (**
  * Next-state relation.
@@ -95,7 +88,6 @@ Next ==
     \E S \in SUBSET ObjectId:
         \/ Create(S)
         \/ Complete(S)
-        \/ Lock(S)
 
 --------------------------------------------------------------------------------
 
@@ -128,7 +120,7 @@ EventualCompletion ==
  * locked forever.
  *)
 Quiescence ==
-    \A o \in ObjectId: [](IsLocked({o}) => []IsLocked({o}))
+    \A o \in ObjectId: [](IsCompleted({o}) => []IsCompleted({o}))
 
 --------------------------------------------------------------------------------
 

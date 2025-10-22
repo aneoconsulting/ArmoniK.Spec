@@ -74,17 +74,13 @@ The previous description omits **task I/Os**, which are central to ArmoniK as th
 
 The high-level view of object processing by ArmoniK corresponds to the following constraints:
 - **Object Creation**: An object can be created empty (a container for data that is not yet available) or completed (with its data provided at creation).
-- **Object Completion**: An empty object can be completed by providing its data. In addition, a completed object can be completed again, which means that the previous data is overwritten.
-- **Object Locking**: A completed object can be locked to prevent its data from being overwritten, making the object immutable. Locking an object that is already locked has no effect.
+- **Object Completion**: An empty object can be completed by providing its data. Once completed, objects become immutable preventing their data from being overwritten. Completing an object is an idempotent operation. Therefore, completing an already completed object has not effect.
 
 > **ℹ️ NOTE**
 > The creation of a completed object is equivalent to the composition of the creation of the empty object with the completion of that object. This is why the action of creating a completed object does not appear in the specification.
 
-> **ℹ️ NOTE**
-> Early drafts considered objects to be immutable once completed, but this approach was abandoned in order to allow rewriting in the event of a task failure (for example, if a task crashes after writing its first result, it must be able to rewrite it during subsequent executions). However, for consistency reasons, it must be possible to ensure that once consumed, an object's data no longer changes. Locking was introduced for this purpose.
-
 The processing of objects must guarantee the following properties:
-- **Completion**: Every submitted object must eventually be completed.
+- **Completion**: Every created object must eventually be completed.
 - **Persistence**: Once completed, an object remains completed forever.
 
 Like for tasks, a status is associated with each object to track its position in the processing. Based on the previous informal description, it is possible to scheme the life-cycle of an object as shown in the following figure.
@@ -94,8 +90,7 @@ stateDiagram-v2
     direction LR
     [*] --> Created : Create
     Created --> Completed : Complete
-    Completed --> Locked : Lock
-    Locked --> Locked : Lock
+    Completed --> Completed : Complete
     classDef locked fill:#006400
     class Locked locked
 ```

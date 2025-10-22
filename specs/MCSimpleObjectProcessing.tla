@@ -22,7 +22,7 @@ ASSUME IsFiniteSet(ObjectId)
  * objects have been completed.
  *)
 Terminating ==
-    /\ \A o \in ObjectId: IsCompleted({o}) \/ IsLocked({o})
+    /\ IsCompleted(ObjectId)
     /\ UNCHANGED vars
 
 (**
