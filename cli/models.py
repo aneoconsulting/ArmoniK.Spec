@@ -7,7 +7,7 @@ from typing_extensions import Self
 
 from pydantic import BaseModel, DirectoryPath, Field, model_validator
 
-from .constants import ALL_PKGS, CONSOLE
+from .constants import tlc, CONSOLE
 
 
 class Checks(BaseModel):
@@ -140,8 +140,6 @@ class Manifest(BaseModel):
         """
         processing_results = {}
 
-        tlc = [p for p in ALL_PKGS if p.name == "TLA2Tools"][0].tools["TLC"]
-
         for module in self.modules:
             for model in module.models:
                 if model.type == "explicit":
@@ -211,7 +209,10 @@ class Manifest(BaseModel):
     def check_relative_paths(self) -> Self:
         for module in self.modules:
             module.path = self._check_modify_relative_path(module.path)
-            module.dependencies.additional_modules = [self._check_modify_relative_path(additional_module) for additional_module in module.dependencies.additional_modules]
+            module.dependencies.additional_modules = [
+                self._check_modify_relative_path(additional_module)
+                for additional_module in module.dependencies.additional_modules
+            ]
             for model in module.models:
                 model.path = self._check_modify_relative_path(model.path)
         return self

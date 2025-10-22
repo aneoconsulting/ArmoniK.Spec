@@ -4,9 +4,13 @@ import subprocess
 
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
+from logging import Logger
 from pathlib import Path
 from typing import Optional, Any
 
+from rich.console import Console
+
+from ..packages import GithubReleasePackage
 from .java import JavaClassTool
 
 
@@ -77,14 +81,23 @@ class TLC(JavaClassTool):
 
     def __init__(
         self,
-        classpath: Path,
         main_class: str,
-        run_path: Path,
-        community_modules_classpath: Path,
+        data_path: Path,
+        community_modules: GithubReleasePackage,
+        pkg: GithubReleasePackage,
+        logger: Logger,
+        console: Console,
     ) -> None:
-        super().__init__(name="TLC", classpath=classpath, main_class=main_class)
-        self.base_path = run_path
-        self.community_modules_classpath = community_modules_classpath
+        super().__init__(
+            name="TLC",
+            classpath=pkg.location,
+            main_class=main_class,
+            pkg=pkg,
+            logger=logger,
+            console=console,
+        )
+        self.base_path = data_path
+        self.community_modules = community_modules
 
     def create_run_dir(self) -> Path:
         """Creates a new directory for the TLC run."""
@@ -128,7 +141,7 @@ class TLC(JavaClassTool):
         self.parallel_gc = True
         self.max_heap_size = max_heap_size
         if community_modules:
-            self.classpath.append(self.community_modules_classpath)
+            self.classpath.append(self.community_modules.location)
         if external_modules:
             self.classpath.extend(external_modules)
 
@@ -137,7 +150,7 @@ class TLC(JavaClassTool):
         )
 
         if save_states:
-            cmd.extend(["-dump", "dot", 'states'])
+            cmd.extend(["-dump", "dot", "states"])
             tlc_run.states_file = run_dir / "states.dot"
         process = subprocess.Popen(
             cmd,
@@ -153,7 +166,7 @@ class TLC(JavaClassTool):
         tlc_output = []
         for line in process.stdout:
             if show_log:
-                print(line.strip())
+                print(line.replace("\n", ""))
             tlc_output.append(line)
         process.wait()
 
