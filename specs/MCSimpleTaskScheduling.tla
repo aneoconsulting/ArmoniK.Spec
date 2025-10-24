@@ -23,7 +23,7 @@ ASSUME IsFiniteSet(AgentId)
  * tasks have been completed.
  *)
 Terminating ==
-    /\ IsCompleted(TaskId)
+    /\ CompletedTask = TaskId
     /\ UNCHANGED vars
 
 (**
