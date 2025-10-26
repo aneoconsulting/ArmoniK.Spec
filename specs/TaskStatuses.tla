@@ -1,6 +1,6 @@
 ----------------------------- MODULE TaskStatuses -----------------------------
 (*****************************************************************************)
-(* This module defines the possible statuses of a task within a ArmoniK.     *)
+(* This module defines the possible statuses of a task within   ArmoniK.     *)
 (* A status represents a specific phase in the lifecycle of a task — from    *)
 (* its creation to its successful completion. These statuses are used to     *)
 (* describe the current state of a task as it progresses through the         *)
@@ -44,21 +44,12 @@ AllTaskStatuses ==
     }
 
 (**
- * The values associated with statuses must be distinct from one another.
- *)
-ASSUME Cardinality(AllTaskStatuses) = 5
-
-(**
  * SetOfTasksIn operator must take a task status as an argument and return the
  * finite set of tasks with that status.
- *
- * Note: The validity of the SetOfTasksIn operator implementation cannot be
- * checked using an ASSUME clause. The following disjunction always evaluates
- * to TRUE but is left to indicate how the SetOfTasksIn operator should be
- * implemented.
  *)
-ASSUME TRUE \/ \A TASK_STATUS \in AllTaskStatuses:
-                    IsFiniteSet(SetOfTasksIn(TASK_STATUS))
+AXIOM
+    \A TASK_STATUS \in AllTaskStatuses:
+        IsFiniteSet(SetOfTasksIn(TASK_STATUS))
 
 UnknownTask   == SetOfTasksIn(TASK_UNKNOWN)
 CreatedTask   == SetOfTasksIn(TASK_CREATED)

@@ -5,26 +5,11 @@
 (* from the internal contents of objects and focuses solely on their          *)
 (* lifecycle and processing.                                                  *)
 (******************************************************************************)
-EXTENDS FiniteSets
+EXTENDS ObjectStatuses
 
 CONSTANT
     \* @type: Set(Str);
     ObjectId    \* Set of object identifiers (theoretically infinite).
-
-CONSTANTS
-    \* @type: Str;
-    NULL,      \* Status of an object not yet known to the system.
-    \* @type: Str;
-    CREATED,   \* Status of a known object whose data is empty.
-    \* @type: Str;
-    COMPLETED \* Status of an object whose data has been written and can never
-              \* be overwritten..
-
-ObjectStatus == {NULL, CREATED, COMPLETED}
-
-ASSUME Assumptions ==
-    \* The statuses are different from one another.
-    Cardinality(ObjectStatus) = 3
 
 VARIABLES
     \* @type: Str -> Str;
@@ -43,17 +28,13 @@ vars == << status >>
  *)
 TypeInv ==
     \* Each object is always in one of the four possible states.
-    status \in [ObjectId -> ObjectStatus]
+    status \in [ObjectId -> {OBJECT_UNKNOWN, OBJECT_CREATED, OBJECT_COMPLETED}]
 
 (**
- * Helpers to check the uniform status of a set of objects.
+ * Implementation of SetOfObjectsIn operator from ObjectStatuses module.
  *)
-IsInStatus(S, STATUS) ==
-    \A x \in S: status[x] = STATUS
-
-IsUnknown(S)   == IsInStatus(S, NULL)
-IsCreated(S)   == IsInStatus(S, CREATED)
-IsCompleted(S) == IsInStatus(S, COMPLETED)
+SetOfObjectsInImpl(OBJECT_STATUS) ==
+    {o \in ObjectId: status[o] = OBJECT_STATUS}
 
 --------------------------------------------------------------------------------
 
@@ -61,33 +42,33 @@ IsCompleted(S) == IsInStatus(S, COMPLETED)
  * Initial state predicate: No objects are stored in the system.
  *)
 Init ==
-    status = [o \in ObjectId |-> NULL]
+    status = [o \in ObjectId |-> OBJECT_UNKNOWN]
 
 (**
- * Action predicate: A non-empty set S of new objects is created.
+ * Action predicate: A non-empty set O of new objects is created.
  *)
-Create(S) ==
-    /\ S /= {} /\ IsUnknown(S)
-    /\ status' = [o \in ObjectId |-> IF o \in S THEN CREATED ELSE status[o]]
+Create(O) ==
+    /\ O /= {} /\ O \subseteq UnknownObject
+    /\ status' = [o \in ObjectId |-> IF o \in O THEN OBJECT_CREATED ELSE status[o]]
 
 (**
- * Action predicate: A non-empty set S of objects is completed.
+ * Action predicate: A non-empty set O of objects is completed.
  *   - For created objects, their data is written and becomes immutable — it
  *     will never be overwritten.
  *   - For objects that are already completed, this action has no effect.
  * Completing an object is an idempotent operation.
  *)
-Complete(S) ==
-    /\ S /= {} /\ \A o \in S: IsCreated({o}) \/ IsCompleted({o})
-    /\ status' = [o \in ObjectId |-> IF o \in S THEN COMPLETED ELSE status[o]]
+Complete(O) ==
+    /\ O /= {} /\ O \subseteq (CreatedObject \cup CompletedObject)
+    /\ status' = [o \in ObjectId |-> IF o \in O THEN OBJECT_COMPLETED ELSE status[o]]
 
 (**
  * Next-state relation.
  *)
 Next ==
-    \E S \in SUBSET ObjectId:
-        \/ Create(S)
-        \/ Complete(S)
+    \E O \in SUBSET ObjectId:
+        \/ Create(O)
+        \/ Complete(O)
 
 --------------------------------------------------------------------------------
 
@@ -113,14 +94,13 @@ Spec ==
  * Liveness property: Every created object is eventually completed.
  *)
 EventualCompletion ==
-    \A o \in ObjectId: IsCreated({o}) ~> IsCompleted({o})
+    \A o \in ObjectId: o \in CreatedObject ~> o \in CompletedObject
 
 (**
- * Liveness property: Once an object (or set of objects) is locked, it stays
- * locked forever.
+ * Liveness property: Once an object is completed, it remains completed forever.
  *)
 Quiescence ==
-    \A o \in ObjectId: [](IsCompleted({o}) => []IsCompleted({o}))
+    \A o \in ObjectId: [](o \in CompletedObject => [](o \in CompletedObject))
 
 --------------------------------------------------------------------------------
 
