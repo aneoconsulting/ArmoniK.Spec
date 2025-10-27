@@ -132,3 +132,13 @@ The coupled processing of tasks and objects is specified in **[TaskScheduling](.
 > Subtasking is not included in this refinement and will be addressed in future iterations.
 
 ---
+
+
+Step 1: Describe the high-level task lifecycle => a few states arround allocation on a agent + all task eventually completed
+Step 2: To talk about dependencies between tasks we need to use their I/Os => objects are the counterpats of tasks
+Step 3: Describe high-level life-cycle of objects => create/completion + all eventually completed
+Step 4: Describe constraints arround the graph (ACGraph) arise questions:
+    - which objects can be completed by the user
+    - is it relevant for an object to have multiple parents => yes because this some way it done when retrying a task or it performs subtasking.
+Step 5: The two previous questions leads naturally to ask: Do we need all tasks and objects to be completed. Surely not!
+Step 6: Introduce the notion of targetted objects and implies that some tasks may remain submitted forever and it is not required for a task to success if tried once. => Targetted objects only eventually completed. No constraints on tasks ?

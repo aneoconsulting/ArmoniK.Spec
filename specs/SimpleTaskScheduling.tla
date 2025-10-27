@@ -17,7 +17,7 @@ CONSTANTS
 
 ASSUME Assumptions ==
     \* AgentId and TaskId are two disjoint sets
-    /\ AgentId \cap TaskId = {}
+    /\ AgentId \intersect TaskId = {}
 
 VARIABLES
     \* @type: Str -> Set(Str);
@@ -39,7 +39,7 @@ TypeOk ==
     \* Each agent is associated with a subset of tasks.
     /\ alloc \in [AgentId -> SUBSET TaskId]
     \* Each task has one of the four possible states.
-    /\ status \in [TaskId -> {TASK_UNKNOWN, TASK_SUBMITTED, TASK_STARTED, TASK_COMPLETED}]
+    /\ status \in [TaskId -> {TASK_UNKNOWN, TASK_SUBMITTED, TASK_STARTED, TASK_PROCESSED, TASK_ENDED}]
 
 (**
  * Implementation of SetOfTasksIn operator from TaskStatuses module.
@@ -87,10 +87,15 @@ Release(a, T) ==
  * Action predicate: Agent a completes the execution of a non-empty set T of
  * tasks that it currently holds.
  *)
-Complete(a, T) == 
+Finalize(a, T) == 
     /\ T /= {} /\ T \subseteq alloc[a]
     /\ alloc' = [alloc EXCEPT ![a] = @ \ T]
-    /\ status' = [t \in TaskId |-> IF t \in T THEN TASK_COMPLETED ELSE status[t]]
+    /\ status' = [t \in TaskId |-> IF t \in T THEN TASK_PROCESSED ELSE status[t]]
+
+PostProcess(T) ==
+    /\ T /= {} /\ T \subseteq ProcessedTask
+    /\ status' = [t \in TaskId |-> IF t \in T THEN TASK_ENDED ELSE status[t]]
+    /\ UNCHANGED alloc
 
 (**
  * Next-state relation.
@@ -101,7 +106,8 @@ Next ==
         \/ \E a \in AgentId:
             \/ Schedule(a, T)
             \/ Release(a, T)
-            \/ Complete(a, T)
+            \/ Finalize(a, T)
+        \/ PostProcess(T)
 
 --------------------------------------------------------------------------------
 
@@ -114,7 +120,8 @@ Fairness ==
     /\ \A t \in TaskId: WF_vars(\E a \in AgentId: Schedule(a, {t}))
     \* Strong fairness property: Tasks cannot run indefinitely or be
     \* systematically released.
-    /\ \A t \in TaskId: SF_vars(\E a \in AgentId: Complete(a, {t}))
+    /\ \A t \in TaskId: SF_vars(\E a \in AgentId: Finalize(a, {t}))
+    /\ \A t \in TaskId: WF_vars(PostProcess({t}))
 
 (**
  * Full system specification.
@@ -153,13 +160,13 @@ NoExecutionConcurrency ==
  * Liveness property: Any submitted task is eventually completed.
  *)
 EventualCompletion ==
-    \A t \in TaskId: t \in SubmittedTask ~> t \in CompletedTask
+    \A t \in TaskId: t \in SubmittedTask ~> t \in EndedTask
 
 (**
  * Liveness property: Once a task is completed, it remains completed forever.
  *)
 Quiescence ==
-    \A t \in TaskId: [](t \in CompletedTask => [](t \in CompletedTask))
+    \A t \in TaskId: [](t \in EndedTask => [](t \in EndedTask))
 
 --------------------------------------------------------------------------------
 

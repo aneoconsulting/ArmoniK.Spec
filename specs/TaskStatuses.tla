@@ -29,7 +29,8 @@ TASK_UNKNOWN   == "TASK_UNKNOWN"   \* Refers to a task that does not exist.
 TASK_CREATED   == "TASK_CREATED"   \* Refers to a task that is registered.
 TASK_SUBMITTED == "TASK_SUBMITTED" \* Refers to a task that is ready to be processed.
 TASK_STARTED   == "TASK_STARTED"   \* Refers to a task that is being processed.
-TASK_COMPLETED == "TASK_COMPLETED" \* Refers to a task that has been successfully processed.
+TASK_PROCESSED == "TASK_PROCESSED" \*
+TASK_ENDED     == "TASK_ENDED"     \* Refers to a task that has been successfully processed.
 
 (**
  * Define the set of all task statuses.
@@ -40,7 +41,8 @@ AllTaskStatuses ==
         TASK_CREATED,
         TASK_SUBMITTED,
         TASK_STARTED,
-        TASK_COMPLETED
+        TASK_PROCESSED,
+        TASK_ENDED
     }
 
 (**
@@ -55,6 +57,7 @@ UnknownTask   == SetOfTasksIn(TASK_UNKNOWN)
 CreatedTask   == SetOfTasksIn(TASK_CREATED)
 SubmittedTask == SetOfTasksIn(TASK_SUBMITTED)
 StartedTask   == SetOfTasksIn(TASK_STARTED)
-CompletedTask == SetOfTasksIn(TASK_COMPLETED)
+ProcessedTask == SetOfTasksIn(TASK_PROCESSED)
+EndedTask     == SetOfTasksIn(TASK_ENDED)
 
 ===============================================================================

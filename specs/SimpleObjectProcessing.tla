@@ -13,13 +13,13 @@ CONSTANT
 
 VARIABLES
     \* @type: Str -> Str;
-    status     \* status[o] is the status of object o.
+    status, \* status[o] is the status of object o.
+    targets \* Set of identifiers for targeted objects.
 
 (**
- * @type: <<Str -> Str>>;
  * Tuple of all variables.
  *)
-vars == << status >>
+vars == << status, targets >>
 
 --------------------------------------------------------------------------------
 
@@ -28,7 +28,9 @@ vars == << status >>
  *)
 TypeInv ==
     \* Each object is always in one of the four possible states.
-    status \in [ObjectId -> {OBJECT_UNKNOWN, OBJECT_CREATED, OBJECT_COMPLETED}]
+    /\ status \in [ObjectId -> {OBJECT_UNKNOWN, OBJECT_CREATED, OBJECT_ENDED}]
+    \* The set of targeted objects is a subset of the set of objects.
+    /\ targets \in SUBSET ObjectId
 
 (**
  * Implementation of SetOfObjectsIn operator from ObjectStatuses module.
@@ -42,7 +44,8 @@ SetOfObjectsInImpl(OBJECT_STATUS) ==
  * Initial state predicate: No objects are stored in the system.
  *)
 Init ==
-    status = [o \in ObjectId |-> OBJECT_UNKNOWN]
+    /\ status = [o \in ObjectId |-> OBJECT_UNKNOWN]
+    /\ targets = {}
 
 (**
  * Action predicate: A non-empty set O of new objects is created.
@@ -50,6 +53,12 @@ Init ==
 Create(O) ==
     /\ O /= {} /\ O \subseteq UnknownObject
     /\ status' = [o \in ObjectId |-> IF o \in O THEN OBJECT_CREATED ELSE status[o]]
+    /\ UNCHANGED targets
+
+Target(O) ==
+    /\ O /= {} /\ O \subseteq (CreatedObject \union EndedObject)
+    /\ targets' = targets \union O
+    /\ UNCHANGED status
 
 (**
  * Action predicate: A non-empty set O of objects is completed.
@@ -58,9 +67,10 @@ Create(O) ==
  *   - For objects that are already completed, this action has no effect.
  * Completing an object is an idempotent operation.
  *)
-Complete(O) ==
-    /\ O /= {} /\ O \subseteq (CreatedObject \cup CompletedObject)
-    /\ status' = [o \in ObjectId |-> IF o \in O THEN OBJECT_COMPLETED ELSE status[o]]
+Finalize(O) ==
+    /\ O /= {} /\ O \subseteq (CreatedObject \union EndedObject)
+    /\ status' = [o \in ObjectId |-> IF o \in O THEN OBJECT_ENDED ELSE status[o]]
+    /\ UNCHANGED targets
 
 (**
  * Next-state relation.
@@ -68,7 +78,8 @@ Complete(O) ==
 Next ==
     \E O \in SUBSET ObjectId:
         \/ Create(O)
-        \/ Complete(O)
+        \/ Target(O)
+        \/ Finalize(O)
 
 --------------------------------------------------------------------------------
 
@@ -78,7 +89,7 @@ Next ==
 Fairness ==
     \* Weak fairness property: All objects stored in the system have their data
     \* eventually completed.
-    /\ \A o \in ObjectId: WF_vars(Complete({o}))
+    /\ \A o \in ObjectId: WF_vars(o \in targets /\ Finalize({o}))
 
 (**
  * Full system specification with fairness properties.
@@ -93,19 +104,20 @@ Spec ==
 (**
  * Liveness property: Every created object is eventually completed.
  *)
-EventualCompletion ==
-    \A o \in ObjectId: o \in CreatedObject ~> o \in CompletedObject
+TargetsEventualCompletion ==
+    \* []<>(targets \subseteq EndedObject)
+    \A o \in ObjectId: o \in targets ~> o \in EndedObject
 
 (**
  * Liveness property: Once an object is completed, it remains completed forever.
  *)
 Quiescence ==
-    \A o \in ObjectId: [](o \in CompletedObject => [](o \in CompletedObject))
+    \A o \in ObjectId: [](o \in EndedObject => [](o \in EndedObject))
 
 --------------------------------------------------------------------------------
 
 THEOREM Spec => []TypeInv
-THEOREM Spec => EventualCompletion
+THEOREM Spec => TargetsEventualCompletion
 THEOREM Spec => Quiescence
 
 ================================================================================

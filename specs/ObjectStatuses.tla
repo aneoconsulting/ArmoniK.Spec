@@ -25,7 +25,7 @@ CONSTANT
 *)
 OBJECT_UNKNOWN   == "OBJECT_UNKNOWN"   \* Refers to an object that does not exist.
 OBJECT_CREATED   == "OBJECT_CREATED"   \* Refers to an existing object with empty data.
-OBJECT_COMPLETED == "OBJECT_COMPLETED" \* Refers to an immutable object that has been successfully processed.
+OBJECT_ENDED == "OBJECT_ENDED" \* Refers to an object that has been successfully generated.
 
 (**
  * Define the set of all object statuses.
@@ -34,7 +34,7 @@ AllObjectStatuses ==
     {
         OBJECT_UNKNOWN,
         OBJECT_CREATED,
-        OBJECT_COMPLETED
+        OBJECT_ENDED
     }
 
 (**
@@ -45,8 +45,8 @@ AXIOM
     \A OBJECT_STATUS \in AllObjectStatuses:
         IsFiniteSet(SetOfObjectsIn(OBJECT_STATUS))
 
-UnknownObject   == SetOfObjectsIn(OBJECT_UNKNOWN)
-CreatedObject   == SetOfObjectsIn(OBJECT_CREATED)
-CompletedObject == SetOfObjectsIn(OBJECT_COMPLETED)
+UnknownObject == SetOfObjectsIn(OBJECT_UNKNOWN)
+CreatedObject == SetOfObjectsIn(OBJECT_CREATED)
+EndedObject   == SetOfObjectsIn(OBJECT_ENDED)
 
 ===============================================================================

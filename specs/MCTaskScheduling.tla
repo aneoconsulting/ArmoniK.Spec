@@ -39,7 +39,7 @@ MCSOP == INSTANCE MCSimpleObjectProcessing WITH status <- objectStatus
  *)
 UnusedTaskId == {id \in TaskId: taskStatus[id] = TASK_UNKNOWN}
 
-MCGraphs(Nodes) == ACGraphs(Nodes \cap TaskId, Nodes \cap ObjectId)
+MCGraphs(Nodes) == ACGraphs(Nodes \intersect TaskId, Nodes \intersect ObjectId)
 
 --------------------------------------------------------------------------------
 

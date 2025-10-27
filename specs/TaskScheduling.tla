@@ -7,7 +7,7 @@
 (*   - Agents (workers) execute tasks.                                      *)
 (*   - Tasks and objects are dynamically submitted over time.               *)
 (****************************************************************************)
-EXTENDS FiniteSets, Graphs, Naturals, ObjectStatuses, TaskStatuses
+EXTENDS FiniteSets, Graphs, Naturals, ObjectStatuses, TaskStatuses, TLC
 
 CONSTANTS
     AgentId,    \* Set of agent identifiers (theoretically infinite).
@@ -16,14 +16,15 @@ CONSTANTS
 
 ASSUME Assumptions ==
     \* AgentId, TaskId and ObjectId are three disjoint sets
-    /\ AgentId \cap ObjectId = {}
-    /\ AgentId \cap TaskId = {}
-    /\ ObjectId \cap TaskId = {}
+    /\ AgentId \intersect ObjectId = {}
+    /\ AgentId \intersect TaskId = {}
+    /\ ObjectId \intersect TaskId = {}
 
 VARIABLES
     alloc,        \* alloc[a] is the set of tasks currently scheduled on agent a.
-    objectStatus, \* objectStatus[o] is the status of object o.
     taskStatus,   \* taskStatus[t] is the execution status of task t.
+    targets,
+    objectStatus, \* objectStatus[o] is the status of object o.
     deps          \* dependencies between tasks and objects as a directed graph
                   \* whose nodes deps.node are task or object identifiers, and
                   \* whose edges deps.edge represent the data dependencies between
@@ -32,7 +33,7 @@ VARIABLES
 (**
  * Tuple of all variables.
  *)
-vars == << alloc, objectStatus, taskStatus, deps >>
+vars == << alloc, taskStatus, targets, objectStatus, deps >>
 
 --------------------------------------------------------------------------------
 
@@ -57,12 +58,12 @@ TypeInv ==
     \* Each agent is associated with a subset of tasks.
     /\ alloc \in [AgentId -> SUBSET TaskId]
     \* Each task has one of the five possible status.
-    /\ taskStatus \in [TaskId -> {TASK_UNKNOWN, TASK_CREATED, TASK_SUBMITTED, TASK_STARTED, TASK_COMPLETED}]
+    /\ taskStatus \in [TaskId -> {TASK_UNKNOWN, TASK_CREATED, TASK_SUBMITTED, TASK_STARTED, TASK_ENDED}]
     \* Each object has one of the four possible status.
-    /\ objectStatus \in [ObjectId -> {OBJECT_UNKNOWN, OBJECT_CREATED, OBJECT_COMPLETED}]
+    /\ SOP!TypeInv
     \* Dependencies between tasks and objects form a graph whose nodes are
     \* labeled by task and object IDs.
-    /\ deps \in Graphs(TaskId \cup ObjectId)
+    /\ deps \in Graphs(TaskId \union ObjectId)
 
 (**
  * Implementation of SetOfTasksIn operator from TaskStatuses module.
@@ -95,7 +96,20 @@ IsACGraph(G) ==
     /\ IsBipartiteWithPartitions(G, TaskId, ObjectId)
     /\ Roots(G) \subseteq ObjectId
     /\ Leaves(G) \subseteq ObjectId
-    /\ \A n \in G.node: InDegree(G, n) > 0 \/ OutDegree(G, n) > 0
+    /\ \A n \in G.node \intersect TaskId: InDegree(G, n) > 0 /\ OutDegree(G, n) > 0
+
+(**
+ * Returns the set of outputs of task t in graph G that are delegated.
+ * An output o of t is considered delegated if there exists some predecessor u of t
+ * such that u ≠ t and t is an ancestor of o in the task/IO dependency graph.
+ * In other words, these are outputs that will actually be produced by
+ * dynamically spawned (child) tasks rather than by t itself.
+ *)
+DelegatedOutputs(G, t) ==
+    { o \in Successors(G, t) :
+        \E u \in Predecessors(G, t) :
+            u /= t /\ t \in Ancestors(G, o)
+    }
 
 --------------------------------------------------------------------------------
 
@@ -111,11 +125,49 @@ Init ==
     /\ deps = EmptyGraph
 
 (**
- * Action predicate: A non-empty set S of new objects is created.
+ * Action predicate: A new graph of tasks is submitted to the system. This graph
+ * can extend the existing one or be fully disconnected. In any case, it must
+ * preserve the integrity of the dependency graph, i.e., the union must remain
+  * ArmoniK-compliant. In addition, extending the dependency graph is only
+  * permitted if it does not modify the upstream dependencies of objects that
+  * have already been completed.
  *)
-CreateObjects(O) ==
-    /\ SOP!Create(O)
-    /\ UNCHANGED << alloc, taskStatus, deps >>
+ \* Note: Can a task use subtasking to submit new leaves (that it completes or not)
+CreateGraph(G) ==
+    LET
+        newDeps == GraphUnion(deps, G)
+        SubmittingTasks == Roots(G) \intersect TaskId
+    IN
+        \* /\ PrintT(G)
+        /\ G /= EmptyGraph
+        /\ Cardinality(SubmittingTasks) <= 1
+        /\ SubmittingTasks \subseteq StartedTask
+        /\ (G.node \intersect TaskId) \ SubmittingTasks \subseteq UnknownTask
+        /\ IF SubmittingTasks /= {}
+               THEN /\ (Roots(G) \intersect ObjectId) \subseteq (
+                            Roots(newDeps)
+                            \union AllSuccessors(deps, SubmittingTasks)
+                            \union AllPredecessors(deps, SubmittingTasks))
+                    /\ Leaves(deps) = Leaves(newDeps)
+                ELSE TRUE
+        /\ IsACGraph(newDeps)
+        /\ taskStatus' =
+            [t \in TaskId |->
+                IF t \in G.node \intersect UnknownTask
+                    THEN TASK_CREATED
+                    ELSE taskStatus[t]]
+        /\ objectStatus' =
+            [o \in ObjectId |->
+                IF o \in G.node \intersect UnknownObject
+                    THEN OBJECT_CREATED
+                    ELSE objectStatus[o]]
+        /\ deps' = newDeps
+        /\ UNCHANGED << alloc, targets >>
+
+TargetObjects(O) ==
+    /\ O \intersect Roots(deps) = {}
+    /\ SOP!Target(O)
+    /\ UNCHANGED << alloc, taskStatus, objectStatus, deps >>
 
 (**
  * Action predicate: A non-empty set S of objects is completed, i.e., their data
@@ -128,36 +180,22 @@ CreateObjects(O) ==
  * TODO: Currently execution on the same agent is not checked. It is so as it not clear
  * if this condition is really needed for this high-level specification.
  *)
-CompleteObjects(O) ==
-    /\ SOP!Complete(O)
-    /\ UNCHANGED << alloc, taskStatus, deps >>
+FinalizeObject(O) ==
+    /\ \/ O \subseteq Roots(deps)
+       \/ \E t \in StartedTask:
+            O \subseteq (Successors(deps, t) \ DelegatedOutputs(deps, t))
+    /\ SOP!Finalize(O)
+    /\ UNCHANGED << alloc, taskStatus, targets, deps >>
 
-(**
- * Action predicate: A new graph of tasks is submitted to the system. This graph
- * can extend the existing one or be fully disconnected. In any case, it must
- * preserve the integrity of the dependency graph, i.e., the union must remain
-  * ArmoniK-compliant. In addition, extending the dependency graph is only
-  * permitted if it does not modify the upstream dependencies of objects that
-  * have already been completed.
- *)
-SubmitTasks(G) ==
-    LET
-        newDeps == GraphUnion(deps, G)
-        SubmittingTasks == Roots(G) \cap TaskId
-    IN
-        /\ G /= EmptyGraph
-        /\ Cardinality(SubmittingTasks) <= 1
-        /\ SubmittingTasks \subseteq StartedTask
-        /\ (G.node \cap TaskId) \ SubmittingTasks \subseteq UnknownTask
-        /\ (G.node \cap ObjectId) \subseteq (CreatedObject \cap CompletedObject)
-        /\ IsACGraph(newDeps)
-        /\ taskStatus' =
-            [t \in TaskId |->
-                IF t \in G.node \ SubmittingTasks
-                    THEN TASK_CREATED
-                    ELSE taskStatus[t]]
-        /\ deps' = newDeps
-        /\ UNCHANGED << alloc, objectStatus >>
+SubmitTasks(T) ==
+    /\ T /= {} /\ T \subseteq CreatedTask
+    /\ AllPredecessors(deps, T) \subseteq EndedObject
+    /\ taskStatus' =
+        [t \in TaskId |->
+            IF t \in T
+                THEN TASK_SUBMITTED
+                ELSE taskStatus[t]]
+    /\ UNCHANGED << alloc, targets, objectStatus, deps >>
 
 (**
  * Action predicate: A non-empty set S of submitted tasks are scheduled on
@@ -165,7 +203,7 @@ SubmitTasks(G) ==
  *)
 ScheduleTasks(a, T) ==
     /\ STS!Schedule(a, T)
-    /\ UNCHANGED << objectStatus, deps >>
+    /\ UNCHANGED << targets, objectStatus, deps >>
 
 (**
  * Action predicate: Agent a releases a non-empty set S of tasks that it
@@ -174,27 +212,31 @@ ScheduleTasks(a, T) ==
  *)
 ReleaseTasks(a, T) ==
     /\ STS!Release(a, T)
-    /\ UNCHANGED << objectStatus, deps >>
+    /\ UNCHANGED << targets, objectStatus, deps >>
 
 (**
  * Action predicate: Agent a completes the execution of a non-empty set S of
  * tasks that it currently holds. A task can only be completed if all of its
  * output objects have been completed.
  *)
-CompleteTasks(a, T) ==
-    /\ STS!Complete(a, T)
-    /\ UNCHANGED << objectStatus, deps >>
+FinalizeTasks(a, T) ==
+    /\ STS!Finalize(a, T)
+    /\ UNCHANGED << targets, objectStatus, deps >>
 
 (**
  * Action predicate: A non-empty set S of tasks are made ready (CREATED ->
  * SUBMITTED) provided that they are known and all their input objects and
  * parent tasks are completed.
  *)
-ResolveTasks(T) ==
-    /\ T /= {} /\ T \subseteq CreatedTask
-    /\ AllPredecessors(deps, T) \subseteq CompletedObject
-    /\ taskStatus' = [t \in TaskId |-> IF t \in T THEN TASK_SUBMITTED ELSE taskStatus[t]]
-    /\ UNCHANGED << alloc, objectStatus, deps >>
+PostProcessTasks(T) ==
+    /\ T /= {} /\ T \subseteq ProcessedTask
+    /\ AllPredecessors(deps, T) \subseteq EndedObject
+    /\ taskStatus' =
+        [t \in TaskId |->
+            IF t \in T
+                THEN TASK_ENDED
+                ELSE taskStatus[t]]
+    /\ UNCHANGED << alloc, targets, objectStatus, deps >>
 
 --------------------------------------------------------------------------------
 
@@ -202,15 +244,17 @@ ResolveTasks(T) ==
  * Next-state relation.
  *)
 Next ==
+    \/ \E G \in Graphs(TaskId \union ObjectId): CreateGraph(G)
     \/ \E O \in SUBSET ObjectId:
-        \/ CreateObjects(O)
-        \/ CompleteObjects(O)
-    \/ \E G \in Graphs(TaskId \cup ObjectId): SubmitTasks(G)
-    \/ \E T \in SUBSET TaskId, a \in AgentId:
-        \/ ScheduleTasks(a, T)
-        \/ ReleaseTasks(a, T)
-        \/ CompleteTasks(a, T)
-    \/ \E T \in SUBSET TaskId: ResolveTasks(T)
+        \/ TargetObjects(O)
+        \/ FinalizeObject(O)
+    \/ \E T \in SUBSET TaskId:
+        \/ SubmitTasks(T)
+        \/ \E a \in AgentId:
+            \/ ScheduleTasks(a, T)
+            \/ ReleaseTasks(a, T)
+            \/ FinalizeTasks(a, T)
+        \/ PostProcessTasks(T)
 
 --------------------------------------------------------------------------------
 
@@ -221,22 +265,17 @@ Fairness ==
     \* Strong fairness property: Objects cannot remain incomplete indefinitely.
     \* In particular, if a task is executed multiple times, it eventually
     \* completes its output objects.
-    /\ \A o \in ObjectId:
-        WF_vars(
-            \/ o \in Roots(deps)
-            \/ /\ \E t \in Predecessors(deps, o): t \in CompletedTask
-               /\ CompleteObjects({o})
-        )
+    /\ \A o \in ObjectId: WF_vars(FinalizeObject({o}))
     \* Weak fairness property: Ready tasks cannot wait indefinitely and end up
     \* being scheduled on an agent.
     /\ \A t \in TaskId: WF_vars(\E a \in AgentId: ScheduleTasks(a, {t}))
     \* Strong fairness property: Tasks cannot run indefinitely or be
     \* systematically released.
-    /\ \A t \in TaskId: SF_vars(\E a \in AgentId: CompleteTasks(a, {t}))
+    /\ \A t \in TaskId: SF_vars(\E a \in AgentId: FinalizeTasks(a, {t}))
     \* Weak fairness property: Tasks whose parent tasks are completed and whose
     \* input objects are completed or locked cannot remain unavailable
     \* indefinitely and eventually become available.
-    /\ \A t \in TaskId: WF_vars(ResolveTasks({t}))
+    /\ \A t \in TaskId: WF_vars(SubmitTasks({t}))
 
 (**
  * Full system specification with fairness properties.
@@ -252,20 +291,11 @@ Spec ==
  * Invariant: The dependency graph is always ArmoniK-compliant as defined by the
  * IsACGraph operator.
  *)
-GraphCompliance ==
+GraphStructureCompliance ==
     IsACGraph(deps)
 
-(**
- * Action property: 
- *)
-\* TaskIOConsistency ==
-\*     \A t \in TaskNode:
-\*         /\ Predecessors(deps, t) = Predecessors(deps', t)
-\*         /\ Successors(deps, t) \subseteq  Sucessors(deps', t)
-
-
-NoUknownInDeps ==
-    deps.node \cap (UnknownTask \cup UnknownObject) = {}
+NoUnknownNodes ==
+    deps.node = (TaskId \ UnknownTask) \union (ObjectId \ UnknownObject)
 
 (**
  * Invariant: Any task that has started execution must have all its input
@@ -273,8 +303,48 @@ NoUknownInDeps ==
  *)
 AllInputsCompleted ==
     \A t \in TaskId :
-        t \in StartedTask \cup CompletedTask
-            => Predecessors(deps, t) \subseteq CompletedObject
+        t \in StartedTask \union EndedTask
+            => Predecessors(deps, t) \subseteq EndedObject
+
+(**
+ * Action property: 
+ *)
+TaskIOConsistency ==
+        [][ /\ deps' /= deps
+            /\ \A t \in TaskId \intersect deps.node:
+                /\ Predecessors(deps, t) = Predecessors(deps', t)
+                /\ Successors(deps, t) \subseteq  Successors(deps', t)
+        ]_deps
+
+NoPrematureCompletion ==
+    \A t \in TaskId:
+        t \in (CreatedTask \union SubmittedTask) =>
+            \A o \in Successors(deps, t):
+                Predecessors(deps, o) = {t} => o \in CreatedObject
+
+\* \A t \in deps.edge \cap TaskId:
+\*     LET
+\*         preds == Predecessors(deps, t)
+\*         succs == Successors(deps, t)
+\*     IN
+\*         /\ t \in CreatedTask =>
+\*             /\ preds \subseteq (CreatedObject \union CompletedObject)
+\*             /\ succs \subseteq (CreatedObject \union CompletedObjects)
+\*         /\ t \in (SubmittedTask \union StartedTask \union ProcessedTask) =>
+\*             /\ preds \subseteq CompletedObject
+\*             /\ succs \subseteq (CreatedObject \union CompletedObjects)
+\*         /\ t \in CompletedTask =>
+\*             /\ Predecessors(deps, t) \subseteq CompletedObject
+\*             /\ Successors(deps, t) \ delegations[t] \subseteq CompletedObject
+
+\* TargetProductionGraphConsistency ==
+\*     \A o \in targets:
+\*         o \in EndedObject =>
+\*             \E subDeps \in DirectedSubGraph(deps):
+\*                 /\ Roots(subDeps) \subseteq Roots(deps)
+\*                 /\ Leaves(subDeps) = {o}
+\*                 /\ IsConnectedGraphs(subDeps)
+\*                 /\ subDeps.node \subseteq (CompletedTask \union CompletedObject)
 
 (**
  * Invariant: Any task that has completed must have all its output objects
@@ -282,8 +352,8 @@ AllInputsCompleted ==
  *)
 AllOutputsEventuallyCompleted ==
     \A t \in TaskId :
-        t \in CompletedTask
-            ~> Successors(deps, t) \subseteq CompletedObject
+        t \in EndedTask
+            ~> Successors(deps, t) \subseteq EndedObject
 
 (**
  * Refinement mapping to SimpleTaskScheduling. Adding dependencies introduces
@@ -310,10 +380,15 @@ ImplementsSimpleObjectProcessing == SOP!Spec
 --------------------------------------------------------------------------------
 
 THEOREM Spec => []TypeInv
-THEOREM Spec => []GraphCompliance
+THEOREM Spec => []GraphStructureCompliance
 THEOREM Spec => []AllInputsCompleted
+THEOREM Spec => []NoUnknownNodes
+THEOREM Spec => TaskIOConsistency
 THEOREM Spec => AllOutputsEventuallyCompleted
 THEOREM Spec => ImplementsSimpleTaskScheduling
 THEOREM Spec => ImplementsSimpleObjectProcessing
 
 ================================================================================
+
+Doit-on s'assurer que les sorties d'une tâche ne sont jamais modifiées autrement
+que par subtasking ? => Cela nécessite d'introduire une nouvelle variable d'état.
