@@ -105,10 +105,10 @@ IsACGraph(G) ==
  * In other words, these are outputs that will actually be produced by
  * dynamically spawned (child) tasks rather than by t itself.
  *)
-DelegatedOutputs(G, t) ==
+DelegableOutputs(G, t) ==
     { o \in Successors(G, t) :
         \E u \in Predecessors(G, t) :
-            u /= t /\ t \in Ancestors(G, o)
+            u /= t /\ t \in Ancestors(G, u)
     }
 
 --------------------------------------------------------------------------------
@@ -133,23 +133,43 @@ Init ==
   * have already been completed.
  *)
  \* Note: Can a task use subtasking to submit new leaves (that it completes or not)
+\* CreateGraph(G) ==
+\*     LET
+\*         newDeps == GraphUnion(deps, G)
+\*         SubmittingTasks == Roots(G) \intersect TaskId
+\*     IN
+\*         \* /\ PrintT(G)
+\*         /\ G /= EmptyGraph
+\*         /\ Cardinality(SubmittingTasks) <= 1
+\*         /\ SubmittingTasks \subseteq StartedTask
+\*         /\ (G.node \intersect TaskId) \ SubmittingTasks \subseteq UnknownTask
+\*         /\ IF SubmittingTasks /= {}
+\*                THEN /\ (Roots(G) \intersect ObjectId) \subseteq (
+\*                             Roots(newDeps)
+\*                             \union AllSuccessors(deps, SubmittingTasks)
+\*                             \union AllPredecessors(deps, SubmittingTasks))
+\*                     /\ Leaves(deps) = Leaves(newDeps)
+\*                 ELSE TRUE
+\*         /\ IsACGraph(newDeps)
+\*         /\ taskStatus' =
+\*             [t \in TaskId |->
+\*                 IF t \in G.node \intersect UnknownTask
+\*                     THEN TASK_CREATED
+\*                     ELSE taskStatus[t]]
+\*         /\ objectStatus' =
+\*             [o \in ObjectId |->
+\*                 IF o \in G.node \intersect UnknownObject
+\*                     THEN OBJECT_CREATED
+\*                     ELSE objectStatus[o]]
+\*         /\ deps' = newDeps
+\*         /\ UNCHANGED << alloc, targets >>
+
 CreateGraph(G) ==
     LET
         newDeps == GraphUnion(deps, G)
-        SubmittingTasks == Roots(G) \intersect TaskId
     IN
-        \* /\ PrintT(G)
         /\ G /= EmptyGraph
-        /\ Cardinality(SubmittingTasks) <= 1
-        /\ SubmittingTasks \subseteq StartedTask
-        /\ (G.node \intersect TaskId) \ SubmittingTasks \subseteq UnknownTask
-        /\ IF SubmittingTasks /= {}
-               THEN /\ (Roots(G) \intersect ObjectId) \subseteq (
-                            Roots(newDeps)
-                            \union AllSuccessors(deps, SubmittingTasks)
-                            \union AllPredecessors(deps, SubmittingTasks))
-                    /\ Leaves(deps) = Leaves(newDeps)
-                ELSE TRUE
+        /\ (G.node \intersect TaskId) \subseteq UnknownTask
         /\ IsACGraph(newDeps)
         /\ taskStatus' =
             [t \in TaskId |->
@@ -180,10 +200,15 @@ TargetObjects(O) ==
  * TODO: Currently execution on the same agent is not checked. It is so as it not clear
  * if this condition is really needed for this high-level specification.
  *)
+\* FinalizeObject(O) ==
+\*     /\ \/ O \subseteq Roots(deps)
+\*        \/ \E t \in StartedTask:
+\*             O \subseteq (Successors(deps, t) \ DelegatedOutputs(deps, t))
+\*     /\ SOP!Finalize(O)
+\*     /\ UNCHANGED << alloc, taskStatus, targets, deps >>
+
 FinalizeObject(O) ==
-    /\ \/ O \subseteq Roots(deps)
-       \/ \E t \in StartedTask:
-            O \subseteq (Successors(deps, t) \ DelegatedOutputs(deps, t))
+    /\ AllPredecessors(deps, O) \subseteq ProcessedTask
     /\ SOP!Finalize(O)
     /\ UNCHANGED << alloc, taskStatus, targets, deps >>
 
@@ -230,7 +255,9 @@ FinalizeTasks(a, T) ==
  *)
 PostProcessTasks(T) ==
     /\ T /= {} /\ T \subseteq ProcessedTask
-    /\ AllPredecessors(deps, T) \subseteq EndedObject
+    /\ { o \in AllSuccessors(deps, T) :
+           Predecessors(deps, o) \ {t} \subseteq EndedTask } 
+       \subseteq EndedObject
     /\ taskStatus' =
         [t \in TaskId |->
             IF t \in T
