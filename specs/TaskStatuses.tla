@@ -1,6 +1,6 @@
 ----------------------------- MODULE TaskStatuses -----------------------------
 (*****************************************************************************)
-(* This module defines the possible statuses of a task within   ArmoniK.     *)
+(* This module defines the possible statuses of a task within ArmoniK.       *)
 (* A status represents a specific phase in the lifecycle of a task — from    *)
 (* its creation to its successful completion. These statuses are used to     *)
 (* describe the current state of a task as it progresses through the         *)
@@ -29,8 +29,8 @@ TASK_UNKNOWN   == "TASK_UNKNOWN"   \* Refers to a task that does not exist.
 TASK_CREATED   == "TASK_CREATED"   \* Refers to a task that is registered.
 TASK_SUBMITTED == "TASK_SUBMITTED" \* Refers to a task that is ready to be processed.
 TASK_STARTED   == "TASK_STARTED"   \* Refers to a task that is being processed.
-TASK_PROCESSED == "TASK_PROCESSED" \*
-TASK_ENDED     == "TASK_ENDED"     \* Refers to a task that has been successfully processed.
+TASK_PROCESSED == "TASK_PROCESSED" \* Refers to a task that has been successfully processed.
+TASK_ENDED     == "TASK_ENDED"     \* Refers to a task that has been successfully post-processed.
 
 (**
  * Define the set of all task statuses.

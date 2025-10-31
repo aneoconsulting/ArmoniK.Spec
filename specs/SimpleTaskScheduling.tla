@@ -1,6 +1,6 @@
 ------------------------- MODULE SimpleTaskScheduling --------------------------
 (******************************************************************************)
-(* This specification models a decentralized online task scheduling system**  *)
+(* This specification models a decentralized online task scheduling system    *)
 (* in which dynamically submitted tasks are executed by a varying unknown     *)
 (* number of agents.                                                          *)
 (*                                                                            *)
@@ -10,9 +10,7 @@
 EXTENDS TaskStatuses
 
 CONSTANTS
-    \* @type: Set(Str);
     AgentId,    \* Set of agent identifiers (theoretically infinite).
-    \* @type: Set(Str);
     TaskId      \* Set of task identifiers (theoretically infinite).
 
 ASSUME Assumptions ==
@@ -20,10 +18,8 @@ ASSUME Assumptions ==
     /\ AgentId \intersect TaskId = {}
 
 VARIABLES
-    \* @type: Str -> Set(Str);
     alloc,      \* alloc[a] is the set of tasks currently scheduled on agent a.
-    \* @type: Str -> Str;
-    status      \* status[t] is the execution status of task t.
+    status      \* status[t] is the status of task t.
 
 (**
  * Tuple of all variables.
@@ -35,11 +31,17 @@ vars == << alloc, status >>
 (**
  * Type invariant property.
  *)
-TypeOk ==
+TypeInv ==
     \* Each agent is associated with a subset of tasks.
     /\ alloc \in [AgentId -> SUBSET TaskId]
-    \* Each task has one of the four possible states.
-    /\ status \in [TaskId -> {TASK_UNKNOWN, TASK_SUBMITTED, TASK_STARTED, TASK_PROCESSED, TASK_ENDED}]
+    \* Each task has one of the five possible states.
+    /\ status \in [TaskId -> {
+            TASK_UNKNOWN,
+            TASK_SUBMITTED,
+            TASK_STARTED,
+            TASK_PROCESSED,
+            TASK_ENDED
+        }]
 
 (**
  * Implementation of SetOfTasksIn operator from TaskStatuses module.
@@ -62,7 +64,11 @@ Init ==
  *)
 Submit(T) ==
     /\ T /= {} /\ T \subseteq UnknownTask
-    /\ status' = [t \in TaskId |-> IF t \in T THEN TASK_SUBMITTED ELSE status[t]]
+    /\ status' =
+        [t \in TaskId |->
+            IF t \in T
+                THEN TASK_SUBMITTED
+                ELSE status[t]]
     /\ UNCHANGED alloc
 
 (**
@@ -81,17 +87,28 @@ Schedule(a, T) ==
 Release(a, T) ==
     /\ T /= {} /\ T \subseteq alloc[a]
     /\ alloc' = [alloc EXCEPT ![a] = @ \ T]
-    /\ status' = [t \in TaskId |-> IF t \in T THEN TASK_SUBMITTED ELSE status[t]]
+    /\ status' =
+        [t \in TaskId |->
+            IF t \in T
+                THEN TASK_SUBMITTED
+                ELSE status[t]]
 
 (**
- * Action predicate: Agent a completes the execution of a non-empty set T of
+ * Action predicate: Agent a finalize the execution of a non-empty set T of
  * tasks that it currently holds.
  *)
 Finalize(a, T) == 
     /\ T /= {} /\ T \subseteq alloc[a]
     /\ alloc' = [alloc EXCEPT ![a] = @ \ T]
-    /\ status' = [t \in TaskId |-> IF t \in T THEN TASK_PROCESSED ELSE status[t]]
+    /\ status' =
+        [t \in TaskId |->
+            IF t \in T
+                THEN TASK_PROCESSED
+                ELSE status[t]]
 
+(**
+ * Action predicate: A non-empty set T of processed tasks are post-processed.
+ *)
 PostProcess(T) ==
     /\ T /= {} /\ T \subseteq ProcessedTask
     /\ status' = [t \in TaskId |-> IF t \in T THEN TASK_ENDED ELSE status[t]]
@@ -115,12 +132,11 @@ Next ==
  * Fairness properties.
  *)
 Fairness ==
-    \* Weak fairness property: Ready tasks cannot wait indefinitely and end up
-    \* being scheduled on an agent.
-    /\ \A t \in TaskId: WF_vars(\E a \in AgentId: Schedule(a, {t}))
-    \* Strong fairness property: Tasks cannot run indefinitely or be
-    \* systematically released.
+    \* Strong fairness property: A task cannot be processed by an agent
+    \* indefinitely or be systematically released.
     /\ \A t \in TaskId: SF_vars(\E a \in AgentId: Finalize(a, {t}))
+    \* Weak fairness property: A task cannot remain processed indefinitely
+    \* without being post-processed.
     /\ \A t \in TaskId: WF_vars(PostProcess({t}))
 
 (**
@@ -145,10 +161,10 @@ ExecutionConsistency ==
  * STARTED state.
  *)
 StatusConsistency ==
-    \A t \in TaskId:
-        IF t \in StartedTask
-            THEN \E a \in AgentId: t \in alloc[a]
-            ELSE \A a \in AgentId: t \notin alloc[a]
+    \A t \in TaskId: t \in StartedTask <=> \E a \in AgentId: t \in alloc[a]
+        \* IF t \in StartedTask
+        \*     THEN \E a \in AgentId: t \in alloc[a]
+        \*     ELSE \A a \in AgentId: t \notin alloc[a]
 
 (**
  * Invariant: A task cannot be executed simultaneously by multiple agents.
@@ -157,10 +173,13 @@ NoExecutionConcurrency ==
     \A a, b \in AgentId: a /= b => alloc[a] \intersect alloc[b] = {}
 
 (**
- * Liveness property: Any submitted task is eventually completed.
+ * Liveness property: Any scheduled task is eventually processed and
+ * post-processed.
  *)
-EventualCompletion ==
-    \A t \in TaskId: t \in SubmittedTask ~> t \in EndedTask
+EventualStability ==
+    \A t \in TaskId :
+        \E s \in {TASK_UNKNOWN, TASK_SUBMITTED, TASK_ENDED} :
+            <>[](status[t] = s)
 
 (**
  * Liveness property: Once a task is completed, it remains completed forever.
@@ -170,11 +189,11 @@ Quiescence ==
 
 --------------------------------------------------------------------------------
 
-THEOREM Spec => []TypeOk
+THEOREM Spec => []TypeInv
 THEOREM Spec => []ExecutionConsistency
 THEOREM Spec => []StatusConsistency
 THEOREM Spec => []NoExecutionConcurrency
-THEOREM Spec => EventualCompletion
+THEOREM Spec => EventualStability
 THEOREM Spec => Quiescence
 
 ================================================================================

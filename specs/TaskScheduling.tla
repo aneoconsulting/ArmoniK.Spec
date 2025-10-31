@@ -7,7 +7,7 @@
 (*   - Agents (workers) execute tasks.                                      *)
 (*   - Tasks and objects are dynamically submitted over time.               *)
 (****************************************************************************)
-EXTENDS FiniteSets, Graphs, Naturals, ObjectStatuses, TaskStatuses, TLC
+EXTENDS FiniteSets, Graphs, Naturals, ObjectStatuses, TaskStatuses
 
 CONSTANTS
     AgentId,    \* Set of agent identifiers (theoretically infinite).
@@ -23,8 +23,8 @@ ASSUME Assumptions ==
 VARIABLES
     alloc,        \* alloc[a] is the set of tasks currently scheduled on agent a.
     taskStatus,   \* taskStatus[t] is the execution status of task t.
-    targets,
     objectStatus, \* objectStatus[o] is the status of object o.
+    targets,      \* Set of identifiers of targeted objects.
     deps          \* dependencies between tasks and objects as a directed graph
                   \* whose nodes deps.node are task or object identifiers, and
                   \* whose edges deps.edge represent the data dependencies between
@@ -33,7 +33,7 @@ VARIABLES
 (**
  * Tuple of all variables.
  *)
-vars == << alloc, taskStatus, targets, objectStatus, deps >>
+vars == << alloc, taskStatus, objectStatus, targets, deps >>
 
 --------------------------------------------------------------------------------
 
@@ -53,6 +53,8 @@ SOP == INSTANCE SimpleObjectProcessing WITH status <- objectStatus
 
 (**
  * Type invariant property.
+ * The type invariant of SimpleTaskScheduling is not reused because the status
+ * TASK_CREATED is now available for tasks.
  *)
 TypeInv ==
     \* Each agent is associated with a subset of tasks.
@@ -77,6 +79,9 @@ SetOfTasksInImpl(TASK_STATUS) ==
 SetOfObjectsInImpl(OBJECT_STATUS) ==
     {o \in ObjectId: objectStatus[o] = OBJECT_STATUS}
 
+TaskNode(G) == G.node \intersect TaskId
+ObjectNode(G) == G.node \intersect ObjectId
+
 (**
  * Helper to check if a graph is ArmoniK-compliant for the given sets of task
  * and object IDs. A valid graph must satisfy the following constraints:
@@ -84,10 +89,8 @@ SetOfObjectsInImpl(OBJECT_STATUS) ==
  *   - It is bipartite with TaskId and ObjectId subsets as partitions.
  *   - All its roots are objects (are labeled by elements of ObjectId).
  *   - All its leaves are objects (are labeled by elements of ObjectId).
- *   - No node is isolated (this condition could be removed for object nodes,
-       but related cases are not of great interest).
- *   - Every object node has at most one predecessor, that is, an object can be
- *     written at most by one task
+ *   - No task node is isolated (i.e., a task must have at least one input
+ *     and one output).
  *
  * Note: Note: There is no requirement for the graph to be connected.
  *)
@@ -96,27 +99,14 @@ IsACGraph(G) ==
     /\ IsBipartiteWithPartitions(G, TaskId, ObjectId)
     /\ Roots(G) \subseteq ObjectId
     /\ Leaves(G) \subseteq ObjectId
-    /\ \A n \in G.node \intersect TaskId: InDegree(G, n) > 0 /\ OutDegree(G, n) > 0
-
-(**
- * Returns the set of outputs of task t in graph G that are delegated.
- * An output o of t is considered delegated if there exists some predecessor u of t
- * such that u ≠ t and t is an ancestor of o in the task/IO dependency graph.
- * In other words, these are outputs that will actually be produced by
- * dynamically spawned (child) tasks rather than by t itself.
- *)
-DelegatedOutputs(G, t) ==
-    { o \in Successors(G, t) :
-        \E u \in Predecessors(G, t) :
-            u /= t /\ t \in Ancestors(G, o)
-    }
+    /\ \A t \in TaskNode(G): InDegree(G, t) > 0 /\ OutDegree(G, t) > 0
 
 --------------------------------------------------------------------------------
 
 (**
  * Initial state predicate:
  *  - No tasks are submitted or scheduled.
- *  - No object created or completed.
+ *  - No object created, ended or targeted.
  *  - Dependency graph is empty.
  *)
 Init ==
@@ -133,23 +123,73 @@ Init ==
   * have already been completed.
  *)
  \* Note: Can a task use subtasking to submit new leaves (that it completes or not)
+\* CreateGraph(G) ==
+\*     LET
+\*         newDeps == GraphUnion(deps, G)
+\*         SubmittingTasks == Roots(G) \intersect TaskId
+\*     IN
+\*         \* /\ PrintT(G)
+\*         /\ G /= EmptyGraph
+\*         /\ Cardinality(SubmittingTasks) <= 1
+\*         /\ SubmittingTasks \subseteq StartedTask
+\*         /\ (G.node \intersect TaskId) \ SubmittingTasks \subseteq UnknownTask
+\*         /\ IF SubmittingTasks /= {}
+\*                THEN /\ (Roots(G) \intersect ObjectId) \subseteq (
+\*                             Roots(newDeps)
+\*                             \union AllSuccessors(deps, SubmittingTasks)
+\*                             \union AllPredecessors(deps, SubmittingTasks))
+\*                     /\ Leaves(deps) = Leaves(newDeps)
+\*                 ELSE TRUE
+\*         /\ IsACGraph(newDeps)
+\*         /\ taskStatus' =
+\*             [t \in TaskId |->
+\*                 IF t \in G.node \intersect UnknownTask
+\*                     THEN TASK_CREATED
+\*                     ELSE taskStatus[t]]
+\*         /\ objectStatus' =
+\*             [o \in ObjectId |->
+\*                 IF o \in G.node \intersect UnknownObject
+\*                     THEN OBJECT_CREATED
+\*                     ELSE objectStatus[o]]
+\*         /\ deps' = newDeps
+\*         /\ UNCHANGED << alloc, targets >>
+
+
+CreateGraph(G) ==
+    LET
+        newDeps = GraphUnion(deps, G)
+    IN
+        /\ G /= EmptyGraph
+        /\ TaskNode(G) \subseteq UnknownTask
+        /\ \A t \in TaskNode(G): Successors(G, t) \intersect CreatedObject /= {}
+        /\ IsACGraph(newDeps)
+        /\ taskStatus' =
+            [t \in TaskId:
+                IF t \in TaskNode(G)
+                    THEN TASK_CREATED
+                    ELSE taskStatus[t]]
+        /\ objectStatus' =
+            [o \in ObjectId:
+                IF o \in ObjectNode(G) \intersect UnknownObject
+                    THEN OBJECT_CREATED
+                    ELSE taskStatus[t]]
+        /\ deps' = newDeps
+        /\ delegations' =
+            IF \E t \in StartedTask: (ObjectNode(G) \ UnknownObject) \subseteq (Predecessors(deps, u) \union Successors(deps, u))
+                THEN \/ [delegations EXCEPT ![u] = @ \union Successors(deps, u) \intersect (ObjectNode(G) \ Roots(G))]
+                    \/ delegations
+                ELSE delegations
+        /\ UNCHANGED << alloc, targets >>
+
+
+----
+
 CreateGraph(G) ==
     LET
         newDeps == GraphUnion(deps, G)
-        SubmittingTasks == Roots(G) \intersect TaskId
     IN
-        \* /\ PrintT(G)
         /\ G /= EmptyGraph
-        /\ Cardinality(SubmittingTasks) <= 1
-        /\ SubmittingTasks \subseteq StartedTask
-        /\ (G.node \intersect TaskId) \ SubmittingTasks \subseteq UnknownTask
-        /\ IF SubmittingTasks /= {}
-               THEN /\ (Roots(G) \intersect ObjectId) \subseteq (
-                            Roots(newDeps)
-                            \union AllSuccessors(deps, SubmittingTasks)
-                            \union AllPredecessors(deps, SubmittingTasks))
-                    /\ Leaves(deps) = Leaves(newDeps)
-                ELSE TRUE
+        /\ (G.node \intersect TaskId) \subseteq UnknownTask
         /\ IsACGraph(newDeps)
         /\ taskStatus' =
             [t \in TaskId |->
@@ -169,6 +209,10 @@ TargetObjects(O) ==
     /\ SOP!Target(O)
     /\ UNCHANGED << alloc, taskStatus, objectStatus, deps >>
 
+UntargetObjects(O) ==
+    /\ SOP!Untarget(O)
+    /\ UNCHANGED << alloc, taskStatus, objectStatus, deps >>
+
 (**
  * Action predicate: A non-empty set S of objects is completed, i.e., their data
  * is written. For objects whose data already exists, it is overwritten.
@@ -180,10 +224,15 @@ TargetObjects(O) ==
  * TODO: Currently execution on the same agent is not checked. It is so as it not clear
  * if this condition is really needed for this high-level specification.
  *)
-FinalizeObject(O) ==
-    /\ \/ O \subseteq Roots(deps)
-       \/ \E t \in StartedTask:
-            O \subseteq (Successors(deps, t) \ DelegatedOutputs(deps, t))
+\* FinalizeObject(O) ==
+\*     /\ \/ O \subseteq Roots(deps)
+\*        \/ \E t \in StartedTask:
+\*             O \subseteq (Successors(deps, t) \ DelegatedOutputs(deps, t))
+\*     /\ SOP!Finalize(O)
+\*     /\ UNCHANGED << alloc, taskStatus, targets, deps >>
+
+FinalizeObjects(O) ==
+    /\ AllPredecessors(deps, O) \subseteq ProcessedTask
     /\ SOP!Finalize(O)
     /\ UNCHANGED << alloc, taskStatus, targets, deps >>
 
@@ -230,7 +279,9 @@ FinalizeTasks(a, T) ==
  *)
 PostProcessTasks(T) ==
     /\ T /= {} /\ T \subseteq ProcessedTask
-    /\ AllPredecessors(deps, T) \subseteq EndedObject
+    /\ { o \in AllSuccessors(deps, T) :
+           Predecessors(deps, o) \ {t} \subseteq EndedTask } 
+       \subseteq EndedObject
     /\ taskStatus' =
         [t \in TaskId |->
             IF t \in T
@@ -247,7 +298,8 @@ Next ==
     \/ \E G \in Graphs(TaskId \union ObjectId): CreateGraph(G)
     \/ \E O \in SUBSET ObjectId:
         \/ TargetObjects(O)
-        \/ FinalizeObject(O)
+        \/ UntargetObjects(O)
+        \/ FinalizeObjects(O)
     \/ \E T \in SUBSET TaskId:
         \/ SubmitTasks(T)
         \/ \E a \in AgentId:
@@ -294,6 +346,16 @@ Spec ==
 GraphStructureCompliance ==
     IsACGraph(deps)
 
+(**
+ * Action property: 
+ *)
+TaskIOConsistency ==
+        [][ /\ deps' /= deps
+            /\ \A t \in TaskId \intersect deps.node:
+                /\ Predecessors(deps, t) = Predecessors(deps', t)
+                /\ Successors(deps, t) = Successors(deps', t)
+        ]_deps
+
 NoUnknownNodes ==
     deps.node = (TaskId \ UnknownTask) \union (ObjectId \ UnknownObject)
 
@@ -305,16 +367,6 @@ AllInputsCompleted ==
     \A t \in TaskId :
         t \in StartedTask \union EndedTask
             => Predecessors(deps, t) \subseteq EndedObject
-
-(**
- * Action property: 
- *)
-TaskIOConsistency ==
-        [][ /\ deps' /= deps
-            /\ \A t \in TaskId \intersect deps.node:
-                /\ Predecessors(deps, t) = Predecessors(deps', t)
-                /\ Successors(deps, t) \subseteq  Successors(deps', t)
-        ]_deps
 
 NoPrematureCompletion ==
     \A t \in TaskId:

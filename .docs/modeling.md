@@ -142,3 +142,13 @@ Step 4: Describe constraints arround the graph (ACGraph) arise questions:
     - is it relevant for an object to have multiple parents => yes because this some way it done when retrying a task or it performs subtasking.
 Step 5: The two previous questions leads naturally to ask: Do we need all tasks and objects to be completed. Surely not!
 Step 6: Introduce the notion of targetted objects and implies that some tasks may remain submitted forever and it is not required for a task to success if tried once. => Targetted objects only eventually completed. No constraints on tasks ?
+
+A task performing subtasking doesn't need to be the parent of the root objets of its subgraph (they become roots of the whole graph). Does this imply that a new state variable is required for handling task object completion?
+=> A completed task may have no output object completed.
+=> A task must at least complete its output object for which there is no other way to produce them.
+
+Lorsqu'on soumet une nouvelle tâche (au sein d'un graph) elle doit avoir au moins un de ses objets de sortie non complété.
+
+On peut imaginer deux types de liens avec des données optionnelles (cf futurs raffinements).
+
+Comment conserver la structure du graphe en faisant des checks uniquement à l'échelle locale.

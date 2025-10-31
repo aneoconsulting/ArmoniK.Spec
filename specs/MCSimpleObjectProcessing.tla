@@ -1,6 +1,6 @@
------------------------ MODULE MCSimpleObjectProcessing ------------------------
+é&----------------------- MODULE MCSimpleObjectProcessing ------------------------
 (******************************************************************************)
-(* Bounded model-checking extension of SimpleObjectScheduling.                *)
+(* Bounded model-checking extension of SimpleObjectProcessing.                *)
 (*                                                                            *)
 (* For model checking, the set of object identifiers must be finite and       *)
 (* explicitly materialized. Since the number of objects is finite, the system *)
@@ -19,10 +19,10 @@ ASSUME IsFiniteSet(ObjectId)
 
 (**
  * Dummy action representing the terminal state of the system, reached once all
- * objects have been completed.
+ * targeted objects have been finalized.
  *)
 Terminating ==
-    /\ EndedObject = ObjectId \ UnknownObject
+    /\ targets \subseteq EndedObject
     /\ UNCHANGED vars
 
 (**

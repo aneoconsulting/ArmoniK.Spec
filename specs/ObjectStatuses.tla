@@ -23,9 +23,9 @@ CONSTANT
 (**
  * A status identifies a distinct phase in an object's lifecycle.
 *)
-OBJECT_UNKNOWN   == "OBJECT_UNKNOWN"   \* Refers to an object that does not exist.
-OBJECT_CREATED   == "OBJECT_CREATED"   \* Refers to an existing object with empty data.
-OBJECT_ENDED == "OBJECT_ENDED" \* Refers to an object that has been successfully generated.
+OBJECT_UNKNOWN == "OBJECT_UNKNOWN" \* Refers to an object that does not exist.
+OBJECT_CREATED == "OBJECT_CREATED" \* Refers to an existing object with empty data.
+OBJECT_ENDED   == "OBJECT_ENDED"   \* Refers to an object that has been successfully generated.
 
 (**
  * Define the set of all object statuses.
@@ -38,8 +38,8 @@ AllObjectStatuses ==
     }
 
 (**
- * SetOfObjectsIn operator must take an object status as an argument and return the
- * finite set of tasks with that status.
+ * SetOfObjectsIn operator must take an object status as an argument and return
+ * the finite set of tasks with that status.
  *)
 AXIOM
     \A OBJECT_STATUS \in AllObjectStatuses:
