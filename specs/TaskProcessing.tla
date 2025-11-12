@@ -29,8 +29,8 @@ vars == << agentTaskAlloc, taskState >>
 (**
  * TYPE INVARIANT
  * Claims that all state variables always take values of the expected form.
- *   - agentTaskAlloc is a function that maps each agent to a subset of tasks.
- *   - taskState is a function that maps each task to an appropriate state.
+ *   - agentTaskAlloc is a function mapping each agent to a subset of tasks.
+ *   - taskState is a function mapping each task to one of the defined states.
  *)
 TypeInv ==
     /\ agentTaskAlloc \in [AgentId -> SUBSET TaskId]
@@ -63,7 +63,7 @@ Init ==
     /\ taskState = [t \in TaskId |-> TASK_UNKNOWN]
 
 (**
- * TASK REGISTRATION
+ * TASK STAGING
  * A new set 'T' of tasks is staged i.e., made available to the system for processing.
  *)
 StageTasks(T) ==

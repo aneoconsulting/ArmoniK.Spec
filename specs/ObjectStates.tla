@@ -1,5 +1,4 @@
 ----------------------------- MODULE ObjectStates -----------------------------
------------------------------- MODULE TaskStates ------------------------------
 (*****************************************************************************)
 (* This module defines the possible states of an object in the scheduling    *)
 (* system. A state represents a phase in the object lifecycle, from          *)

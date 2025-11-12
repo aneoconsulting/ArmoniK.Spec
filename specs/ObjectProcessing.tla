@@ -1,152 +1,173 @@
 --------------------------- MODULE ObjectProcessing ---------------------------
 (*****************************************************************************)
-(* This module specifies an abstract data management system. Objects         *)
-(* represent data along with its metadata. The specification abstracts away  *)
-(* from object contents and focuses solely on object lifecycle and           *)
-(* processing behaviors. It also defines associated key safety and liveness  *)
-(* properties.                                                               *)
+(* This module specifies an abstract data management system.                 *)
+(* Objects represent data units with associated metadata and lifecycle       *)
+(* states. The specification abstracts away from object contents and focuses *)
+(* solely on the allowed transitions between lifecycle states and targeting  *)
+(* behaviors. It also defines and asserts key safety and liveness properties *)
+(* of the system.                                                            *)
 (*****************************************************************************)
 
 EXTENDS ObjectStates
 
-CONSTANT
-    ObjectId    \* Set of object identifiers (theoretically infinite)
+CONSTANTS
+    ObjectId   \* Set of object identifiers (theoretically infinite)
 
 VARIABLES
-    objectState,  \* objectState[o] is the current lifecycle state of object o
-    markedObjects \* Set of objects flagged as important.
+    objectState,  \* objectState[o] records the current lifecycle state of object o
+    objectTargets \* objectTargets is the set of objects currently marked as targets
 
-vars == << status, targets >>
+vars == << objectState, objectTargets >>
 
---------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 
 (**
  * TYPE INVARIANT
  * Claims that all state variables always take values of the expected form.
- *   - taskAlloc is a function that maps each agent to a subset of tasks.
- *   - taskState is a function that maps each task to a well-defined state.
+ *   - objectState is a function mapping each object to one of the defined states.
+ *   - objectTargets is a subset of valid object identifiers.
  *)
 TypeInv ==
-    /\ status \in [ObjectId -> {
+    /\ objectState \in [ObjectId -> {
             OBJECT_UNKNOWN,
-            OBJECT_CREATED,
-            OBJECT_PROCESSED,
+            OBJECT_REGISTERED,
             OBJECT_FINALIZED
-        }]  \* Each object has one of the defined states
-    /\ targets \in SUBSET ObjectId   \* Target set contains only valid object IDs
+        }]
+    /\ objectTargets \in SUBSET ObjectId
 
 (**
- * Implementation of SetOfObjectsIn from ObjectStates
+ * Implementation of SetOfObjectsIn operator from ObjectStates module.
  *)
-SetOfObjectsInImpl(OBJECT_STATE) ==
-    {o \in ObjectId: status[o] = OBJECT_STATE}
+SetOfObjectsInImpl(s) ==
+    {o \in ObjectId: objectState[o] = s}
 
---------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+
+(*****************************************************************************)
+(* SYSTEM INITIAL STATE AND TRANSITIONS                                      *)
+(*****************************************************************************)
+
 (**
- * Initial state: no objects exist or are targeted
+ * INITIAL STATE
+ * Initially, all objects are unknown and none are marked as targets.
  *)
 Init ==
-    /\ status = [o \in ObjectId |-> OBJECT_UNKNOWN]
-    /\ targets = {}
+    /\ objectState = [o \in ObjectId |-> OBJECT_UNKNOWN]
+    /\ objectTargets = {}
 
---------------------------------------------------------------------------------
 (**
- * Object creation: new objects are made available in the system
+ * OBJECT REGISTRATION
+ * A new set 'O' of objects is registered in the system, i.e., it is created
+ * with the metadata provided and empty data.
  *)
-Create(O) ==
+RegisterObjects(O) ==
     /\ O /= {} /\ O \subseteq UnknownObject
-    /\ status' = [o \in ObjectId |-> IF o \in O THEN OBJECT_CREATED ELSE status[o]]
-    /\ UNCHANGED targets
+    /\ objectState' =
+        [o \in ObjectId |-> IF o \in O THEN OBJECT_REGISTERED ELSE objectState[o]]
+    /\ UNCHANGED objectTargets
 
 (**
- * Targeting: mark existing objects as being referenced or selected
+ * OBJECT TARGETING
+ * A set 'O' of existing objects is marked as targeted, meaning that the user
+ * wants these objects to be finalized.
  *)
-Target(O) ==
-    /\ O /= {} /\ O \subseteq (CreatedObject \union ProcessedObject \union FinalizedObject)
-    /\ targets' = targets \union O
-    /\ UNCHANGED status
+TargetObjects(O) ==
+    /\ O /= {} /\ O \subseteq (RegisteredObject \union FinalizedObject)
+    /\ objectTargets' = objectTargets \union O
+    /\ UNCHANGED objectState
 
 (**
- * Untargeting: remove objects from the targeted set
+ * OBJECT UNTARGETING
+ * A set 'O' of currently targeted objects is unmarked.
  *)
-Untarget(O) ==
-    /\ O /= {} /\ O \subseteq targets
-    /\ targets' = targets \ O
-    /\ UNCHANGED status
+UntargetObjects(O) ==
+    /\ O /= {} /\ O \subseteq objectTargets
+    /\ objectTargets' = objectTargets \ O
+    /\ UNCHANGED objectState
 
 (**
- * Processing: represents completion of object processing
+ * OBJECT FINALIZATION
+ * A set 'O' of objects is finalized, meaning that these objects are now
+ * immutable (will never be modified).
  *)
-Process(O) ==
-    /\ O /= {} /\ O \subseteq (CreatedObject \union ProcessedObject)
-    /\ status' = [o \in ObjectId |-> IF o \in O THEN OBJECT_PROCESSED ELSE status[o]]
-    /\ UNCHANGED targets
+FinalizeObjects(O) ==
+    /\ O /= {} /\ O \subseteq RegisteredObject
+    /\ objectState' =
+        [o \in ObjectId |-> IF o \in O THEN OBJECT_FINALIZED ELSE objectState[o]]
+    /\ UNCHANGED objectTargets
+
+-------------------------------------------------------------------------------
+
+(*****************************************************************************)
+(* FULL SYSTEM SPECIFICATION                                                 *)
+(*****************************************************************************)
 
 (**
- * Finalization: represents post-processing or cleanup of objects
- *)
-Finalize(O) ==
-    /\ O /= {} /\ O \subseteq (ProcessedObject \union FinalizedObject)
-    /\ status' = [o \in ObjectId |-> IF o \in O THEN OBJECT_FINALIZED ELSE status[o]]
-    /\ UNCHANGED targets
-
---------------------------------------------------------------------------------
-(**
- * Next-state relation
+ * NEXT-STATE RELATION
+ * Defines all possible atomic transitions of the system.
  *)
 Next ==
     \E O \in SUBSET ObjectId:
-        \/ Create(O)
-        \/ Target(O)
-        \/ Untarget(O)
-        \/ Process(O)
-        \/ Finalize(O)
+        \/ RegisterObjects(O)
+        \/ TargetObjects(O)
+        \/ UntargetObjects(O)
+        \/ FinalizeObjects(O)
 
---------------------------------------------------------------------------------
 (**
- * Fairness constraints
+ * FAIRNESS CONDITIONS
+ * Ensure that progress is eventually made for actionable objects.
+ *   - A targeted object cannot remain indefinitely registered without being
+ *     eventually finalized.
  *)
 Fairness ==
-    \* A targeted object cannot remain indefinitely processable without being processed
-    /\ \A o \in ObjectId: WF_vars(o \in targets /\ Process({o}))
-    \* A processed object cannot remain indefinitely finalizable without being finalized
-    /\ \A o \in ObjectId: WF_vars(Finalize({o}))
+    /\ \A o \in ObjectId: WF_vars(o \in objectTargets /\ FinalizeObjects({o}))
 
---------------------------------------------------------------------------------
 (**
- * Full system specification
+ * Full system specification.
  *)
 Spec ==
     /\ Init
     /\ [][Next]_vars
     /\ Fairness
 
---------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+
+(*****************************************************************************)
+(* SAFETY AND LIVENESS PROPERTIES                                            *)
+(*****************************************************************************)
+
 (**
- * Safety and liveness properties
+ * SAFETY
+ * An object can only be targeted if it is known to the system.
  *)
+TargetStateConsistent ==
+    objectTargets \intersect UnknownObject = {}
 
-\* No targeted object can be in an unknown state
-NoUnknownTarget ==
-    targets \intersect UnknownObject = {}
+(**
+ * LIVENESS
+ * Every targeted object is eventually either finalized or untargeted.
+ *)
+EventualTargetFinalization ==
+    \A o \in ObjectId:
+        o \in objectTargets ~> (o \in FinalizedObject \/ o \notin objectTargets)
 
-\* Every targeted object is eventually processed or untargeted
-TargetsEventualProcessing ==
-    \A o \in ObjectId: o \in targets ~> o \in ProcessedObject \/ o \notin targets
+(**
+ * LIVENESS
+ * Once an object reaches the FINALIZED state, it remains there permanently.
+ *)
+PermanentFinalization ==
+    \A o \in ObjectId:
+        [](o \in FinalizedObject => [](o \in FinalizedObject))
 
-\* Every processed object is eventually finalized
-EventualFinalization ==
-    \A o \in ObjectId: o \in ProcessedObject ~> o \in FinalizedObject
+-------------------------------------------------------------------------------
 
-\* Once finalized, an object remains finalized forever
-StableFinalization ==
-    \A o \in ObjectId: [](o \in FinalizedObject => [](o \in FinalizedObject))
+(*****************************************************************************)
+(* THEOREMS                                                                  *)
+(*****************************************************************************)
 
---------------------------------------------------------------------------------
 THEOREM Spec => []TypeInv
-THEOREM Spec => []NoUnknownTarget
-THEOREM Spec => TargetsEventualProcessing
-THEOREM Spec => EventualFinalization
-THEOREM Spec => StableFinalization
+THEOREM Spec => []TargetStateConsistent
+THEOREM Spec => EventualTargetFinalization
+THEOREM Spec => PermanentFinalization
 
-================================================================================
+===============================================================================
