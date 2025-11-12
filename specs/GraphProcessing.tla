@@ -1,98 +1,116 @@
-------------------------- MODULE TaskScheduling -------------------------
-(***********************************************************************)
-(* This specification models an online decentralized distributed task  *)
-(* graph scheduling system where:                                      *)
-(*   - Tasks have input/output data abstracted by objects.             *)
-(*   - Tasks can depend on each other via their input/output data.     *)
-(*   - Agents (workers) execute tasks.                                      *)
-(*   - Tasks and objects are dynamically submitted over time.               *)
-(****************************************************************************)
-EXTENDS FiniteSets, Graphs, Naturals, ObjectStatuses, TaskStatuses
+---------------------------- MODULE GraphProcessing ----------------------------
+(*****************************************************************************)
+(* This module specifies an abstract decentralized distributed task graph    *)
+(* processing system.                                                        *)
+(*                                                                           *)
+(*   - Tasks produce and consume data objects.                               *)
+(*   - Task and object dependencies form a directed acyclic bipartite graph. *)
+(*   - Agents (workers) dynamically process tasks.                           *)
+(*   - Tasks and objects may be dynamically registred over time.             *)
+(*                                                                           *)
+(* The specification defines the allowable transitions of the system,        *)
+(* together with its key safety and liveness properties.                     *)
+(*****************************************************************************)
+
+EXTENDS FiniteSets, Graphs, Naturals, ObjectStates, TaskStates
 
 CONSTANTS
-    AgentId,    \* Set of agent identifiers (theoretically infinite).
-    ObjectId,   \* Set of object identifiers (theoretically infinite).
-    TaskId      \* Set of task identifiers (theoretically infinite).
+    AgentId,   \* Set of agent identifiers (theoretically infinite)
+    ObjectId,  \* Set of object identifiers (theoretically infinite)
+    TaskId     \* Set of task identifiers (theoretically infinite)
 
-ASSUME Assumptions ==
-    \* AgentId, TaskId and ObjectId are three disjoint sets
+ASSUME
+    \* Agent, task, and object identifiers are pairwise disjoint.
     /\ AgentId \intersect ObjectId = {}
     /\ AgentId \intersect TaskId = {}
     /\ ObjectId \intersect TaskId = {}
 
 VARIABLES
-    alloc,        \* alloc[a] is the set of tasks currently scheduled on agent a.
-    taskStatus,   \* taskStatus[t] is the execution status of task t.
-    objectStatus, \* objectStatus[o] is the status of object o.
-    targets,      \* Set of identifiers of targeted objects.
-    deps          \* dependencies between tasks and objects as a directed graph
-                  \* whose nodes deps.node are task or object identifiers, and
-                  \* whose edges deps.edge represent the data dependencies between
-                  \* tasks.
+    agentTaskAlloc, \* agentTaskAlloc[a] is the set of tasks currently assigned to agent a
+    deps,           \* deps is the directed dependency graph over task and object identifiers
+    objectState,    \* objectState[o] records the current lifecycle state of object o
+    objectTargets,  \* objectTargets is the set of objects currently marked as targets
+    taskState       \* taskState[t] records the current lifecycle state of task t
+
+vars == << agentTaskAlloc, deps, objectState, objectTargets, taskState >>
+
+-------------------------------------------------------------------------------
+
+(*****************************************************************************)
+(* SPECIFICATION INSTANCES                                                   *)
+(*****************************************************************************)
 
 (**
- * Tuple of all variables.
+ * Instance of the TaskProcessing specification.
  *)
-vars == << alloc, taskStatus, objectStatus, targets, deps >>
-
---------------------------------------------------------------------------------
+TP == INSTANCE TaskProcessing
 
 (**
- * Instances of the specifications handling scheduling lifecycle of tasks.
- * State variable `status` is mapped to 'taskStatus'.
+ * Instance of the ObjectProcessing specification.
  *)
-STS == INSTANCE SimpleTaskScheduling WITH status <- taskStatus
+OP == INSTANCE ObjectProcessing
+
+-------------------------------------------------------------------------------
 
 (**
- * Instance of the specfication handling object processing.
- * State variable `status` is mapped to 'objectStatus'.
- *)
-SOP == INSTANCE SimpleObjectProcessing WITH status <- objectStatus
-
---------------------------------------------------------------------------------
-
-(**
- * Type invariant property.
- * The type invariant of SimpleTaskScheduling is not reused because the status
- * TASK_CREATED is now available for tasks.
+ * TYPE INVARIANT
+ * Claims that all state variables always take values of the expected form.
+ *   - Each agent is associated with a subset of tasks.
+ *   - Each object has one of the defined object lifecycle states.
+ *   - Targeted objects are valid object identifiers.
+ *   - Each task has one of the defined task lifecycle states.
+ *   - The dependency graph links only valid task and object identifiers
+ *     and is a proper graph object (i.e., a record with 'node' and 'edge'
+ *     as fields).
  *)
 TypeInv ==
-    \* Each agent is associated with a subset of tasks.
-    /\ alloc \in [AgentId -> SUBSET TaskId]
-    \* Each task has one of the five possible status.
-    /\ taskStatus \in [TaskId -> {TASK_UNKNOWN, TASK_CREATED, TASK_SUBMITTED, TASK_STARTED, TASK_ENDED}]
-    \* Each object has one of the four possible status.
-    /\ SOP!TypeInv
-    \* Dependencies between tasks and objects form a graph whose nodes are
-    \* labeled by task and object IDs.
-    /\ deps \in Graphs(TaskId \union ObjectId)
+    /\ agentTaskAlloc \in [AgentId -> SUBSET TaskId]
+    /\ objectState \in [ObjectId -> {
+            OBJECT_UNKNOWN,
+            OBJECT_REGISTERED,
+            OBJECT_FINALIZED
+        }]
+    /\ objectTargets \subseteq ObjectId
+    /\ taskState \in [TaskId -> {
+            TASK_UNKNOWN,
+            TASK_REGISTERED,
+            TASK_STAGED,
+            TASK_ASSIGNED,
+            TASK_PROCESSED,
+            TASK_FINALIZED
+        }]
+    /\ LET Nodes == TaskId \union ObjectId IN deps \in [node: SUBSET Nodes, edge: SUBSET (Nodes \X Nodes)]
 
 (**
- * Implementation of SetOfTasksIn operator from TaskStatuses module.
+ * Implementation of SetOfTasksIn operator from TaskStates module.
  *)
-SetOfTasksInImpl(TASK_STATUS) ==
-    {t \in TaskId: taskStatus[t] = TASK_STATUS}
+SetOfTasksInImpl(s) ==
+    {t \in TaskId: taskState[t] = s}
 
 (**
- * Implementation of SetOfObjectsIn operator from ObjectStatuses module.
+ * Implementation of SetOfObjectsIn operator from ObjectStates module.
  *)
-SetOfObjectsInImpl(OBJECT_STATUS) ==
-    {o \in ObjectId: objectStatus[o] = OBJECT_STATUS}
+SetOfObjectsInImpl(s) ==
+    {o \in ObjectId: objectState[o] = s}
 
+(**
+ * Returns all nodes in graph 'G' labeled with task IDs.
+ *)
 TaskNode(G) == G.node \intersect TaskId
+
+(**
+ * Returns all nodes in graph 'G' labeled with object IDs.
+ *)
 ObjectNode(G) == G.node \intersect ObjectId
 
 (**
- * Helper to check if a graph is ArmoniK-compliant for the given sets of task
- * and object IDs. A valid graph must satisfy the following constraints:
- *   - it is directed and acyclic.
- *   - It is bipartite with TaskId and ObjectId subsets as partitions.
- *   - All its roots are objects (are labeled by elements of ObjectId).
- *   - All its leaves are objects (are labeled by elements of ObjectId).
- *   - No task node is isolated (i.e., a task must have at least one input
- *     and one output).
- *
- * Note: Note: There is no requirement for the graph to be connected.
+ * Checks whether a graph is ArmoniK-compliant for the given task/object sets.
+ * A valid dependency graph must:
+ *   - Be directed and acyclic.
+ *   - Be bipartite with partitions (TaskId, ObjectId).
+ *   - Have roots and leaves labeled by object identifiers.
+ *   - Contain no isolated task nodes.
+ *   - Not necessarily be connected.
  *)
 IsACGraph(G) ==
     /\ IsDag(G)
@@ -101,346 +119,307 @@ IsACGraph(G) ==
     /\ Leaves(G) \subseteq ObjectId
     /\ \A t \in TaskNode(G): InDegree(G, t) > 0 /\ OutDegree(G, t) > 0
 
---------------------------------------------------------------------------------
+LOCAL INSTANCE Relation
 
 (**
- * Initial state predicate:
- *  - No tasks are submitted or scheduled.
- *  - No object created, ended or targeted.
- *  - Dependency graph is empty.
+ * A directed graph is unilaterally connected if, for every pair of vertices u
+ * and v, there is a directed path from u to v or a directed path from v to u
+ * (but not necessarily both).
+ *)
+IsUnilaterallyConnectedGraph(G) ==
+    \A u, v \in G.node :
+        u /= v =>
+            \/ ConnectionsIn(G)[u, v]
+            \/ ConnectionsIn(G)[v, u]
+
+-------------------------------------------------------------------------------
+
+(*****************************************************************************)
+(* SYSTEM INITIAL STATE AND TRANSITIONS                                      *)
+(*****************************************************************************)
+
+(**
+ * INITIAL STATE
+ * Initially, no tasks, objects, or dependencies exist.
  *)
 Init ==
-    /\ STS!Init
-    /\ SOP!Init
+    /\ TP!Init
+    /\ OP!Init
     /\ deps = EmptyGraph
 
 (**
- * Action predicate: A new graph of tasks is submitted to the system. This graph
- * can extend the existing one or be fully disconnected. In any case, it must
- * preserve the integrity of the dependency graph, i.e., the union must remain
-  * ArmoniK-compliant. In addition, extending the dependency graph is only
-  * permitted if it does not modify the upstream dependencies of objects that
-  * have already been completed.
+ * GRAPH REGISTRATION
+ * A new graph 'G' of tasks and objects is submitted to the system. This
+ * registration must not affect the compliance of the dependency graph.
+ * In addition, it is not possible to modify the dependencies of tasks that have
+ * already been submitted, nor to submit tasks for which all output objects have
+ * already been finalized.
  *)
- \* Note: Can a task use subtasking to submit new leaves (that it completes or not)
-\* CreateGraph(G) ==
-\*     LET
-\*         newDeps == GraphUnion(deps, G)
-\*         SubmittingTasks == Roots(G) \intersect TaskId
-\*     IN
-\*         \* /\ PrintT(G)
-\*         /\ G /= EmptyGraph
-\*         /\ Cardinality(SubmittingTasks) <= 1
-\*         /\ SubmittingTasks \subseteq StartedTask
-\*         /\ (G.node \intersect TaskId) \ SubmittingTasks \subseteq UnknownTask
-\*         /\ IF SubmittingTasks /= {}
-\*                THEN /\ (Roots(G) \intersect ObjectId) \subseteq (
-\*                             Roots(newDeps)
-\*                             \union AllSuccessors(deps, SubmittingTasks)
-\*                             \union AllPredecessors(deps, SubmittingTasks))
-\*                     /\ Leaves(deps) = Leaves(newDeps)
-\*                 ELSE TRUE
-\*         /\ IsACGraph(newDeps)
-\*         /\ taskStatus' =
-\*             [t \in TaskId |->
-\*                 IF t \in G.node \intersect UnknownTask
-\*                     THEN TASK_CREATED
-\*                     ELSE taskStatus[t]]
-\*         /\ objectStatus' =
-\*             [o \in ObjectId |->
-\*                 IF o \in G.node \intersect UnknownObject
-\*                     THEN OBJECT_CREATED
-\*                     ELSE objectStatus[o]]
-\*         /\ deps' = newDeps
-\*         /\ UNCHANGED << alloc, targets >>
-
-
-CreateGraph(G) ==
-    LET
-        newDeps = GraphUnion(deps, G)
-    IN
-        /\ G /= EmptyGraph
-        /\ TaskNode(G) \subseteq UnknownTask
-        /\ \A t \in TaskNode(G): Successors(G, t) \intersect CreatedObject /= {}
-        /\ IsACGraph(newDeps)
-        /\ taskStatus' =
-            [t \in TaskId:
-                IF t \in TaskNode(G)
-                    THEN TASK_CREATED
-                    ELSE taskStatus[t]]
-        /\ objectStatus' =
-            [o \in ObjectId:
-                IF o \in ObjectNode(G) \intersect UnknownObject
-                    THEN OBJECT_CREATED
-                    ELSE taskStatus[t]]
-        /\ deps' = newDeps
-        /\ delegations' =
-            IF \E t \in StartedTask: (ObjectNode(G) \ UnknownObject) \subseteq (Predecessors(deps, u) \union Successors(deps, u))
-                THEN \/ [delegations EXCEPT ![u] = @ \union Successors(deps, u) \intersect (ObjectNode(G) \ Roots(G))]
-                    \/ delegations
-                ELSE delegations
-        /\ UNCHANGED << alloc, targets >>
-
-
-----
-
-CreateGraph(G) ==
+RegisterGraph(G) ==
     LET
         newDeps == GraphUnion(deps, G)
     IN
         /\ G /= EmptyGraph
-        /\ (G.node \intersect TaskId) \subseteq UnknownTask
+        /\ TaskNode(G) \subseteq UnknownTask
+        /\ \A t \in TaskNode(G):
+            ~(Successors(newDeps, t) \subseteq FinalizedObject)
         /\ IsACGraph(newDeps)
-        /\ taskStatus' =
-            [t \in TaskId |->
-                IF t \in G.node \intersect UnknownTask
-                    THEN TASK_CREATED
-                    ELSE taskStatus[t]]
-        /\ objectStatus' =
+        /\ deps' = newDeps
+        /\ objectState' =
             [o \in ObjectId |->
                 IF o \in G.node \intersect UnknownObject
-                    THEN OBJECT_CREATED
-                    ELSE objectStatus[o]]
-        /\ deps' = newDeps
-        /\ UNCHANGED << alloc, targets >>
+                    THEN OBJECT_REGISTERED
+                    ELSE objectState[o]]
+        /\ taskState' =
+            [t \in TaskId |->
+                IF t \in G.node
+                    THEN TASK_REGISTERED
+                    ELSE taskState[t]]
+        /\ UNCHANGED << agentTaskAlloc, objectTargets >>
 
+(**
+ * OBJECT TARGETING
+ * A set 'O' of existing objects is marked as being targeted. Root objects
+ * cannot be targeted.
+ *)
 TargetObjects(O) ==
     /\ O \intersect Roots(deps) = {}
-    /\ SOP!Target(O)
-    /\ UNCHANGED << alloc, taskStatus, objectStatus, deps >>
+    /\ OP!TargetObjects(O)
+    /\ UNCHANGED << agentTaskAlloc, deps, objectState, taskState >>
 
+(**
+ * OBJECT UNTARGETING
+ * A set 'O' of targeted objects is unmarked.
+ *)
 UntargetObjects(O) ==
-    /\ SOP!Untarget(O)
-    /\ UNCHANGED << alloc, taskStatus, objectStatus, deps >>
+    /\ OP!UntargetObjects(O)
+    /\ UNCHANGED << agentTaskAlloc, deps, objectState, taskState >>
 
 (**
- * Action predicate: A non-empty set S of objects is completed, i.e., their data
- * is written. For objects whose data already exists, it is overwritten.
- * Objects can be completed when:
- *   - they are not the outputs of any task (the set of predecessors is empty),
- *     which corresponds to external completion by the user.
- *   - they are the outputs of tasks currently being executed on the same agent,
- *     which corresponds to writing the result of these tasks.
- * TODO: Currently execution on the same agent is not checked. It is so as it not clear
- * if this condition is really needed for this high-level specification.
+ * OBJECT FINALIZATION
+ * A set 'O' of objects is finalized. Objects can be finalized if:
+ *   - They have no producing tasks (external completion), or
+ *   - At least one of their producing tasks has been processed.
  *)
-\* FinalizeObject(O) ==
-\*     /\ \/ O \subseteq Roots(deps)
-\*        \/ \E t \in StartedTask:
-\*             O \subseteq (Successors(deps, t) \ DelegatedOutputs(deps, t))
-\*     /\ SOP!Finalize(O)
-\*     /\ UNCHANGED << alloc, taskStatus, targets, deps >>
-
 FinalizeObjects(O) ==
-    /\ AllPredecessors(deps, O) \subseteq ProcessedTask
-    /\ SOP!Finalize(O)
-    /\ UNCHANGED << alloc, taskStatus, targets, deps >>
-
-SubmitTasks(T) ==
-    /\ T /= {} /\ T \subseteq CreatedTask
-    /\ AllPredecessors(deps, T) \subseteq EndedObject
-    /\ taskStatus' =
-        [t \in TaskId |->
-            IF t \in T
-                THEN TASK_SUBMITTED
-                ELSE taskStatus[t]]
-    /\ UNCHANGED << alloc, targets, objectStatus, deps >>
+    /\ \/ O \subseteq Roots(deps)
+    \*    \/ \A o \in O: \E t \in Predecessors(deps, o): t \in ProcessedTask
+       \/ \A o \in O: Predecessors(deps, o) \intersect ProcessedTask /= {}
+    /\ OP!FinalizeObjects(O)
+    /\ UNCHANGED << agentTaskAlloc, deps, objectTargets, taskState >>
 
 (**
- * Action predicate: A non-empty set S of submitted tasks are scheduled on
- * agent a. Scheduling is only permitted if all input objects are locked.
+ * TASK STAGING
+ * A set 'T' of registered tasks becomes staged once all input objects
+ * are finalized.
  *)
-ScheduleTasks(a, T) ==
-    /\ STS!Schedule(a, T)
-    /\ UNCHANGED << targets, objectStatus, deps >>
+StageTasks(T) ==
+    /\ T /= {} /\ T \subseteq RegisteredTask
+    /\ AllPredecessors(deps, T) \subseteq FinalizedObject
+    /\ taskState' =
+        [t \in TaskId |->
+            IF t \in T THEN TASK_STAGED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, deps, objectState, objectTargets >>
 
 (**
- * Action predicate: Agent a releases a non-empty set S of tasks that it
- * currently holds. This can occur regardless of whether a task has
- * completed all or part of its output objects.
+ * TASK ASSIGNMENT
+ * An agent 'a' takes responsibility for processing a set 'T' of staged tasks.
+ *)
+AssignTasks(a, T) ==
+    /\ TP!AssignTasks(a, T)
+    /\ UNCHANGED << deps, objectState, objectTargets >>
+
+(**
+ * TASK RELEASE
+ * An agent 'a' postpones a set 'T' of tasks it currently holds.
  *)
 ReleaseTasks(a, T) ==
-    /\ STS!Release(a, T)
-    /\ UNCHANGED << targets, objectStatus, deps >>
+    /\ TP!ReleaseTasks(a, T)
+    /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
- * Action predicate: Agent a completes the execution of a non-empty set S of
- * tasks that it currently holds. A task can only be completed if all of its
- * output objects have been completed.
+ * TASK PROCESSING
+ * An agent 'a' completes the processing of a set 'T' of tasks it currently
+ * holds.
  *)
-FinalizeTasks(a, T) ==
-    /\ STS!Finalize(a, T)
-    /\ UNCHANGED << targets, objectStatus, deps >>
+ProcessTasks(a, T) ==
+    /\ TP!ProcessTasks(a, T)
+    /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
- * Action predicate: A non-empty set S of tasks are made ready (CREATED ->
- * SUBMITTED) provided that they are known and all their input objects and
- * parent tasks are completed.
+ * TASK FINALIZATION
+ * A set 'T' of processed tasks is finalized (i.e., post-processed) when all
+ * their output objects that can now only be produced by them are finalized.
+ * Indeed, an output object may have multiple parent task. So as long as there
+ * is at least one parent that has not been finalized, the others can ignore the
+ * object and finalize.
  *)
-PostProcessTasks(T) ==
+FinalizeTasks(T) ==
     /\ T /= {} /\ T \subseteq ProcessedTask
-    /\ { o \in AllSuccessors(deps, T) :
-           Predecessors(deps, o) \ {t} \subseteq EndedTask } 
-       \subseteq EndedObject
-    /\ taskStatus' =
+    /\ \A t \in T:
+        \A o \in Successors(deps, t):
+            \E u \in Predecessors(deps, o) \ {t}: u \notin FinalizedTask
+    /\ taskState' =
         [t \in TaskId |->
-            IF t \in T
-                THEN TASK_ENDED
-                ELSE taskStatus[t]]
-    /\ UNCHANGED << alloc, targets, objectStatus, deps >>
+            IF t \in T THEN TASK_FINALIZED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, deps, objectState, objectTargets >>
 
---------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+
+(*****************************************************************************)
+(* FULL SYSTEM SPECIFICATION                                                 *)
+(*****************************************************************************)
 
 (**
- * Next-state relation.
+ * NEXT-STATE RELATION
+ * Defines all atomic transitions of the system.
  *)
 Next ==
-    \/ \E G \in Graphs(TaskId \union ObjectId): CreateGraph(G)
+    \/ \E G \in Graphs(TaskId \union ObjectId): RegisterGraph(G)
     \/ \E O \in SUBSET ObjectId:
         \/ TargetObjects(O)
         \/ UntargetObjects(O)
         \/ FinalizeObjects(O)
     \/ \E T \in SUBSET TaskId:
-        \/ SubmitTasks(T)
+        \/ StageTasks(T)
         \/ \E a \in AgentId:
-            \/ ScheduleTasks(a, T)
+            \/ AssignTasks(a, T)
             \/ ReleaseTasks(a, T)
-            \/ FinalizeTasks(a, T)
-        \/ PostProcessTasks(T)
-
---------------------------------------------------------------------------------
+            \/ ProcessTasks(a, T)
+        \/ FinalizeTasks(T)
 
 (**
- * Fairness properties.
+ * Returns TRUE iff task 't' is upstream on an open (i.e., fully unexecuted)
+ * production path toward an unfinalized target object 'o'.
+ *
+ * In other words, 't' can still produce (directly or indirectly) an output that
+ * may contribute to producing the target object 'o'.
+ *)
+IsUpstreamOnOpenPathToTarget(t, o) ==
+    /\ o \in objectTargets
+    /\ o \in RegisteredObject
+    /\ LET outs == Successors(deps, t) IN
+         \/ o \in outs
+         \/ (outs \intersect Ancestors(deps, o)) \notin SUBSET FinalizedObject
+
+(**
+ * FAIRNESS CONDITIONS
+ * These conditions guarantee eventual progress for all eligible objects
+ * and tasks in the system:
+ *   - Every object that becomes eligible for finalization is eventually finalized.
+ *   - Every registered task whose input objects are finalized is eventually staged.
+ *   - Every task that lies upstream on an open path toward some unfinalized
+ *     target object is eventually assigned to an agent.
+ *   - Every assigned task is eventually processed by some agent.
+ *   - Every processed task whose outputs become eligible for finalization is
+ *     eventually finalized.
  *)
 Fairness ==
-    \* Strong fairness property: Objects cannot remain incomplete indefinitely.
-    \* In particular, if a task is executed multiple times, it eventually
-    \* completes its output objects.
-    /\ \A o \in ObjectId: WF_vars(FinalizeObject({o}))
-    \* Weak fairness property: Ready tasks cannot wait indefinitely and end up
-    \* being scheduled on an agent.
-    /\ \A t \in TaskId: WF_vars(\E a \in AgentId: ScheduleTasks(a, {t}))
-    \* Strong fairness property: Tasks cannot run indefinitely or be
-    \* systematically released.
-    /\ \A t \in TaskId: SF_vars(\E a \in AgentId: FinalizeTasks(a, {t}))
-    \* Weak fairness property: Tasks whose parent tasks are completed and whose
-    \* input objects are completed or locked cannot remain unavailable
-    \* indefinitely and eventually become available.
-    /\ \A t \in TaskId: WF_vars(SubmitTasks({t}))
+    /\ \A o \in ObjectId: WF_vars(FinalizeObjects({o}))
+    /\ \A t \in TaskId: WF_vars(StageTasks({t}))
+    /\ \A t \in TaskId: WF_vars(/\ \E o \in ObjectId: IsUpstreamOnOpenPathToTarget(t, o)
+                                /\ \E a \in AgentId: AssignTasks(a, {t}))
+    /\ \A t \in TaskId: SF_vars(\E a \in AgentId: ProcessTasks(a, {t}))
+    /\ \A t \in TaskId: WF_vars(FinalizeTasks({t}))
 
 (**
- * Full system specification with fairness properties.
+ * Full system specification.
  *)
 Spec ==
     /\ Init
     /\ [][Next]_vars
     /\ Fairness
 
---------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+
+(*****************************************************************************)
+(* SAFETY AND LIVENESS PROPERTIES                                            *)
+(*****************************************************************************)
 
 (**
- * Invariant: The dependency graph is always ArmoniK-compliant as defined by the
- * IsACGraph operator.
+ * SAFETY
+ * The dependency graph is always ArmoniK-compliant.
  *)
-GraphStructureCompliance ==
+DependencyGraphCompliant ==
     IsACGraph(deps)
 
 (**
- * Action property: 
+ * SAFETY
+ * Ensures consistent relationships between graph structure and task/object
+ * states.
  *)
-TaskIOConsistency ==
-        [][ /\ deps' /= deps
-            /\ \A t \in TaskId \intersect deps.node:
-                /\ Predecessors(deps, t) = Predecessors(deps', t)
-                /\ Successors(deps, t) = Successors(deps', t)
-        ]_deps
-
-NoUnknownNodes ==
-    deps.node = (TaskId \ UnknownTask) \union (ObjectId \ UnknownObject)
+GraphStateConsistent ==
+    /\ TaskNode(deps) \intersect UnknownTask = {}
+    /\ ObjectNode(deps) \intersect UnknownObject = {}
+    /\ \A t \in TaskNode(deps):
+        t \notin RegisteredTask
+            => Predecessors(deps, t) \subseteq FinalizedObject
+    /\ \A o \in ObjectNode(deps) \ Roots(deps):
+        o \in FinalizedObject
+            => \E t \in Predecessors(deps, o):
+                t \in (ProcessedTask \union FinalizedTask)
 
 (**
- * Invariant: Any task that has started execution must have all its input
- * objects locked.
+ * SAFETY
+ * Ensures that all targeted objects derive from root objects through a
+ * connected finalized subgraph.
  *)
-AllInputsCompleted ==
-    \A t \in TaskId :
-        t \in StartedTask \union EndedTask
-            => Predecessors(deps, t) \subseteq EndedObject
-
-NoPrematureCompletion ==
-    \A t \in TaskId:
-        t \in (CreatedTask \union SubmittedTask) =>
-            \A o \in Successors(deps, t):
-                Predecessors(deps, o) = {t} => o \in CreatedObject
-
-\* \A t \in deps.edge \cap TaskId:
-\*     LET
-\*         preds == Predecessors(deps, t)
-\*         succs == Successors(deps, t)
-\*     IN
-\*         /\ t \in CreatedTask =>
-\*             /\ preds \subseteq (CreatedObject \union CompletedObject)
-\*             /\ succs \subseteq (CreatedObject \union CompletedObjects)
-\*         /\ t \in (SubmittedTask \union StartedTask \union ProcessedTask) =>
-\*             /\ preds \subseteq CompletedObject
-\*             /\ succs \subseteq (CreatedObject \union CompletedObjects)
-\*         /\ t \in CompletedTask =>
-\*             /\ Predecessors(deps, t) \subseteq CompletedObject
-\*             /\ Successors(deps, t) \ delegations[t] \subseteq CompletedObject
-
-\* TargetProductionGraphConsistency ==
-\*     \A o \in targets:
-\*         o \in EndedObject =>
-\*             \E subDeps \in DirectedSubGraph(deps):
-\*                 /\ Roots(subDeps) \subseteq Roots(deps)
-\*                 /\ Leaves(subDeps) = {o}
-\*                 /\ IsConnectedGraphs(subDeps)
-\*                 /\ subDeps.node \subseteq (CompletedTask \union CompletedObject)
+TargetsDerivedFromRoots ==
+    \A o \in objectTargets:
+        o \in FinalizedObject =>
+            \E subDeps \in DirectedSubgraph(deps):
+                /\ Roots(subDeps) \subseteq Roots(deps)
+                /\ Leaves(subDeps) = {o}
+                /\ IsUnilaterallyConnectedGraph(subDeps)
+                /\ (TaskNode(subDeps) \ Predecessors(subDeps, o)) \subseteq FinalizedTask
+                /\ Predecessors(subDeps, o) \subseteq (ProcessedTask \union FinalizedTask)
+                /\ ObjectNode(subDeps) \subseteq FinalizedObject
 
 (**
- * Invariant: Any task that has completed must have all its output objects
- * completed or locked.
+ * SAFETY
+ * The data dependencies of each task remain immutable throughout execution.
  *)
-AllOutputsEventuallyCompleted ==
-    \A t \in TaskId :
-        t \in EndedTask
-            ~> Successors(deps, t) \subseteq EndedObject
+TaskDataDependenciesInvariant ==
+    [][
+        /\ deps' /= deps
+        /\ \A t \in TaskNode(deps):
+            /\ Predecessors(deps, t) = Predecessors(deps', t)
+            /\ Successors(deps, t) = Successors(deps', t)
+    ]_deps
 
 (**
- * Refinement mapping to SimpleTaskScheduling. Adding dependencies introduces
- * the CREATED status for a task that is known but not yet ready to be
- * executed. For the higher-level specification, this is equivalent to
- * considering the task as unknown to the system (NULL status).
+ * LIVENESS
+ * This specification refines the TaskProcessing specification.
  *)
 Mapping ==
-    INSTANCE SimpleTaskScheduling WITH
-        status <- [t \in TaskId |-> IF taskStatus[t] = TASK_CREATED THEN TASK_UNKNOWN ELSE taskStatus[t]]
+    INSTANCE TaskProcessing WITH
+        taskState <- [t \in TaskId |->
+            IF taskState[t] = TASK_REGISTERED
+                THEN TASK_UNKNOWN
+                ELSE taskState[t]]
+
+TaskProcessingRefined ==
+    Mapping!Spec
 
 (**
- * Liveness property: This specification refines the SimpleTaskScheduling
- * specification.
+ * LIVENESS
+ * This specification refines the ObjectProcessing specification.
  *)
-ImplementsSimpleTaskScheduling == Mapping!Spec
+ObjectProcessingRefined ==
+    OP!Spec
 
-(**
- * Liveness property: This specification refines the SimpleObjectProcessing
- * specification.
- *)
-ImplementsSimpleObjectProcessing == SOP!Spec
+-------------------------------------------------------------------------------
 
---------------------------------------------------------------------------------
+(*****************************************************************************)
+(* THEOREMS                                                                  *)
+(*****************************************************************************)
 
 THEOREM Spec => []TypeInv
-THEOREM Spec => []GraphStructureCompliance
-THEOREM Spec => []AllInputsCompleted
-THEOREM Spec => []NoUnknownNodes
-THEOREM Spec => TaskIOConsistency
-THEOREM Spec => AllOutputsEventuallyCompleted
-THEOREM Spec => ImplementsSimpleTaskScheduling
-THEOREM Spec => ImplementsSimpleObjectProcessing
+THEOREM Spec => []DependencyGraphCompliant
+THEOREM Spec => []GraphStateConsistent
+THEOREM Spec => []TargetsDerivedFromRoots
+THEOREM Spec => TaskDataDependenciesInvariant
+THEOREM Spec => TaskProcessingRefined
+THEOREM Spec => ObjectProcessingRefined
 
 ================================================================================
-
-Doit-on s'assurer que les sorties d'une tâche ne sont jamais modifiées autrement
-que par subtasking ? => Cela nécessite d'introduire une nouvelle variable d'état.
