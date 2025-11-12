@@ -1,17 +1,20 @@
---------------------------- MODULE MCTaskScheduling ----------------------------
-(******************************************************************************)
-(* Bounded model-checking extension of TaskScheduling.                        *)
-(*                                                                            *)
-(* For model checking, the sets of task, objects and agent identifiers  must  *)
-(* be finite and explicitly materialized. Since the number of tasks and       *)
-(* objects are finite, the system eventually reaches a state where all tasks  *)
-(* and objects are completed, which leads to an artificial deadlock.          *)
-(*                                                                            *)
-(* To avoid this spurious deadlock, the next-state action is overridden to    *)
-(* include a dummy terminal state, allowing the model checker to terminate    *)
-(* exploration gracefully.                                                    *)
-(******************************************************************************)
-EXTENDS GraphsExt, TaskScheduling
+--------------------------- MODULE MCGraphProcessing ---------------------------
+(*******************************************************************************)
+(* Bounded model-checking extension of GraphProcessing.                        *)
+(*                                                                             *)
+(* For model checking, the sets of task, objects and agent identifiers  must   *)
+(* be finite and explicitly materialized. Since the number of tasks and        *)
+(* objects are finite, the system eventually reaches a state where no new      *)
+(* graph can be registered, which leads to an artificial deadlock.             *)
+(*                                                                             *)
+(* To avoid this spurious deadlock, the next-state action is overridden to     *)
+(* include a dummy terminal state, allowing the model checker to terminate     *)
+(* exploration gracefully.                                                     *)
+(*                                                                             *)
+(* In addition, optimizations are provided to speed up model checking.         *)
+(*******************************************************************************)
+
+EXTENDS GraphsExt, GraphProcessing
 
 ASSUME IsFiniteSet(AgentId)
 ASSUME IsFiniteSet(ObjectId)
@@ -20,36 +23,26 @@ ASSUME IsFiniteSet(TaskId)
 --------------------------------------------------------------------------------
 
 (**
- * Instances of the specifications handling scheduling lifecycle of tasks.
- * State variable `status` is mapped to 'taskStatus'.
+ * Returns the set of ArmoniK-compliant graphs on the set of object IDs and
+ * unused task IDs. This set is used with the 'RegisterGraph' action to avoid
+ * enumerating the set of all graphs for a given set of nodes that grows
+ * super-exponentially. By using this restricted set, only relevant cases are
+ * enumerated; indeed, if the subgraph is not ArmoniK-compliant, then it cannot
+ * be registered.
+ *
+ * Note: The ACGraphs operator is provided by the GraphsExt module.
  *)
-MCSTS == INSTANCE MCSimpleTaskScheduling WITH status <- taskStatus
-
-(**
- * Instance of the specfication handling object processing.
- * State variable `status` is mapped to 'objectStatus'.
- *)
-MCSOP == INSTANCE MCSimpleObjectProcessing WITH status <- objectStatus
-
---------------------------------------------------------------------------------
-
-(**
- * Set of task identifiers that havn't already been used, i.e., not associated with a
- * task already known to the system.
- *)
-UnusedTaskId == {id \in TaskId: taskStatus[id] = TASK_UNKNOWN}
-
-MCGraphs(Nodes) == ACGraphs(Nodes \intersect TaskId, Nodes \intersect ObjectId)
+MCGraphs(Nodes) ==
+    ACGraphs(Nodes \intersect UnknownTask, Nodes \intersect ObjectId)
 
 --------------------------------------------------------------------------------
 
 (**
  * Dummy action representing the terminal state of the system, reached once all
- * tasks and objectshave been completed.
+ * targeted objects have been finalized.
  *)
 Terminating ==
-    /\ MCSTS!Terminating
-    /\ MCSOP!Terminating
+    /\ objectTargets \subseteq FinalizedObject
     /\ UNCHANGED vars
 
 (**
