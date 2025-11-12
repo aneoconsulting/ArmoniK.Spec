@@ -19,24 +19,24 @@ ASSUME
     AgentId \intersect TaskId = {}
 
 VARIABLES
-    taskAlloc, \* taskAlloc[a] is the set of tasks currently assigned to agent a
-    taskState  \* taskState[t] records the current lifecycle state of task t
+    agentTaskAlloc, \* agentTaskAlloc[a] is the set of tasks currently assigned to agent a
+    taskState       \* taskState[t] records the current lifecycle state of task t
 
-vars == << taskAlloc, taskState >>
+vars == << agentTaskAlloc, taskState >>
 
 -------------------------------------------------------------------------------
 
 (**
  * TYPE INVARIANT
  * Claims that all state variables always take values of the expected form.
- *   - taskAlloc is a function that maps each agent to a subset of tasks.
- *   - taskState is a function that maps each task to a well-defined state.
+ *   - agentTaskAlloc is a function that maps each agent to a subset of tasks.
+ *   - taskState is a function that maps each task to an appropriate state.
  *)
 TypeInv ==
-    /\ taskAlloc \in [AgentId -> SUBSET TaskId]
+    /\ agentTaskAlloc \in [AgentId -> SUBSET TaskId]
     /\ taskState \in [TaskId -> {
             TASK_UNKNOWN,
-            TASK_SUBMITTED,
+            TASK_STAGED,
             TASK_ASSIGNED,
             TASK_PROCESSED,
             TASK_FINALIZED
@@ -56,30 +56,30 @@ SetOfTasksInImpl(s) ==
 
 (**
  * INITIAL STATE
- * Initially, no task has been submitted and no agent holds any task.
+ * Initially, no task has been registered and no agent holds any task.
  *)
 Init ==
-    /\ taskAlloc = [a \in AgentId |-> {}]
+    /\ agentTaskAlloc = [a \in AgentId |-> {}]
     /\ taskState = [t \in TaskId |-> TASK_UNKNOWN]
 
 (**
- * TASK SUBMISSION
- * A new set 'T' of tasks is made available to the system.
+ * TASK REGISTRATION
+ * A new set 'T' of tasks is staged i.e., made available to the system for processing.
  *)
-Submit(T) ==
+StageTasks(T) ==
     /\ T /= {} /\ T \subseteq UnknownTask
     /\ taskState' =
-        [t \in TaskId |-> IF t \in T THEN TASK_SUBMITTED ELSE taskState[t]]
-    /\ UNCHANGED taskAlloc
+        [t \in TaskId |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
+    /\ UNCHANGED agentTaskAlloc
 
 (**
  * TASK ASSIGNMENT
- * An agent 'a' takes responsibility for processing a set 'T' of submitted
+ * An agent 'a' takes responsibility for processing a set 'T' of staged
  * tasks.
  *)
-Assign(a, T) ==
-    /\ T /= {} /\ T \subseteq SubmittedTask
-    /\ taskAlloc' = [taskAlloc EXCEPT ![a] = @ \union T]
+AssignTasks(a, T) ==
+    /\ T /= {} /\ T \subseteq StagedTask
+    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \union T]
     /\ taskState' =
         [t \in TaskId |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
 
@@ -87,20 +87,20 @@ Assign(a, T) ==
  * TASK RELEASE
  * An agent 'a' postpones a set 'T' of tasks it currently holds.
  *)
-Release(a, T) ==
-    /\ T /= {} /\ T \subseteq taskAlloc[a]
-    /\ taskAlloc' = [taskAlloc EXCEPT ![a] = @ \ T]
+ReleaseTasks(a, T) ==
+    /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
+    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
     /\ taskState' =
-        [t \in TaskId |-> IF t \in T THEN TASK_SUBMITTED ELSE taskState[t]]
+        [t \in TaskId |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
 
 (**
  * TASK PROCESSING
  * An agent 'a' completes the processing of a set 'T' of tasks it currently
  * holds.
  *)
-Process(a, T) ==
-    /\ T /= {} /\ T \subseteq taskAlloc[a]
-    /\ taskAlloc' = [taskAlloc EXCEPT ![a] = @ \ T]
+ProcessTasks(a, T) ==
+    /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
+    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
     /\ taskState' =
         [t \in TaskId |-> IF t \in T THEN TASK_PROCESSED ELSE taskState[t]]
 
@@ -108,11 +108,11 @@ Process(a, T) ==
  * TASK POST-PROCESSING
  * A set 'T' of tasks is post-processed.
  *)
-Finalize(T) ==
+FinalizeTasks(T) ==
     /\ T /= {} /\ T \subseteq ProcessedTask
     /\ taskState' =
         [t \in TaskId |-> IF t \in T THEN TASK_FINALIZED ELSE taskState[t]]
-    /\ UNCHANGED taskAlloc
+    /\ UNCHANGED agentTaskAlloc
 
 -------------------------------------------------------------------------------
 
@@ -126,12 +126,12 @@ Finalize(T) ==
  *)
 Next ==
     \E T \in SUBSET TaskId:
-        \/ Submit(T)
+        \/ StageTasks(T)
         \/ \E a \in AgentId:
-            \/ Assign(a, T)
-            \/ Release(a, T)
-            \/ Process(a, T)
-        \/ Finalize(T)
+            \/ AssignTasks(a, T)
+            \/ ReleaseTasks(a, T)
+            \/ ProcessTasks(a, T)
+        \/ FinalizeTasks(T)
 
 (**
  * FAIRNESS CONDITIONS
@@ -142,8 +142,8 @@ Next ==
  *     finalized.
  *)
 Fairness ==
-    /\ \A t \in TaskId: SF_vars(\E a \in AgentId : Process(a, {t}))
-    /\ \A t \in TaskId: WF_vars(Finalize({t}))
+    /\ \A t \in TaskId: SF_vars(\E a \in AgentId : ProcessTasks(a, {t}))
+    /\ \A t \in TaskId: WF_vars(FinalizeTasks({t}))
 
 (**
  * Full system specification.
@@ -160,34 +160,40 @@ Spec ==
 (*****************************************************************************)
 
 (**
+ * SAFETY
  * The set of all allocated tasks always belongs to the universe of tasks.
  *)
 AllocConsistent ==
-    UNION {taskAlloc[a] : a \in AgentId} \subseteq TaskId
+    UNION {agentTaskAlloc[a] : a \in AgentId} \subseteq TaskId
 
 (**
+ * SAFETY
  * A task is assigned to an agent if and only if it is in the ASISGNED state.
  *)
 AllocStateConsistent ==
-    \A t \in TaskId: t \in AssignedTask <=> \E a \in AgentId: t \in taskAlloc[a]
+    \A t \in TaskId:
+        t \in AssignedTask <=> \E a \in AgentId: t \in agentTaskAlloc[a]
 
 (**
+ * SAFETY
  * No task is held by multiple agents at the same time*
  *)
 ExclusiveAssignment ==
     \A a, b \in AgentId :
-        a /= b => taskAlloc[a] \intersect taskAlloc[b] = {}
+        a /= b => agentTaskAlloc[a] \intersect agentTaskAlloc[b] = {}
 
 (**
- * Any submitted task ultimately remains in the SUBMITTED or FINALIZED state.
+ * LIVENESS
+ * Any staged task ultimately remains in the STAGED or FINALIZED state.
  *)
 EventualQuiescence ==
     \A t \in TaskId :
         t \notin UnknownTask ~>
-            \/ [](t \in SubmittedTask)
+            \/ [](t \in StagedTask)
             \/ [](t \in FinalizedTask)
 
 (**
+ * LIVENESS
  * Once a task reaches the FINALIZED state, it remains there permanently.
  *)
 PermanentFinalization ==

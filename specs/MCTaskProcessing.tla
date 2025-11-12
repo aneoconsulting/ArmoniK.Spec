@@ -22,10 +22,10 @@ ASSUME IsFiniteSet(AgentId)
 (**
  * Dummy action representing the terminal state of the system, reached when
  * there are no more tasks being processed (i.e., assigned to an agent or not
- * >yet finalized).
+ * yet finalized).
  *)
 Terminating ==
-    /\ TaskId = UnknownTask \union SubmittedTask \union FinalizedTask
+    /\ TaskId = UnknownTask \union StagedTask \union FinalizedTask
     /\ UNCHANGED vars
 
 (**

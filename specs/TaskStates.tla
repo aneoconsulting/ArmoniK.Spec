@@ -21,8 +21,9 @@ CONSTANT
 (**
  * Task states in their lifecycle.
  *)
-TASK_UNKNOWN    == "TASK_UNKNOWN"    \* Task is virtual, not yet submitted
-TASK_SUBMITTED  == "TASK_SUBMITTED"  \* Task is available for scheduling
+TASK_UNKNOWN    == "TASK_UNKNOWN"    \* Task is virtual, not yet known to the system
+TASK_REGISTERED == "TASK_REGISTERED" \* Task is known to the system and pending readiness for processing
+TASK_STAGED     == "TASK_STAGED"     \* Task is ready for processing
 TASK_ASSIGNED   == "TASK_ASSIGNED"   \* Task is assigned to an agent for processing
 TASK_PROCESSED  == "TASK_PROCESSED"  \* Task processing completed
 TASK_FINALIZED  == "TASK_FINALIZED"  \* Task post-processing is completed
@@ -31,7 +32,14 @@ TASK_FINALIZED  == "TASK_FINALIZED"  \* Task post-processing is completed
  * Set of all task states.
  *)
 TaskState ==
-    {TASK_UNKNOWN, TASK_SUBMITTED, TASK_ASSIGNED, TASK_PROCESSED, TASK_FINALIZED}
+    {
+        TASK_UNKNOWN,
+        TASK_REGISTERED,
+        TASK_STAGED,
+        TASK_ASSIGNED,
+        TASK_PROCESSED,
+        TASK_FINALIZED
+    }
 
 (**
  * SetOfTasksIn must return a finite set for each task state.
@@ -44,7 +52,8 @@ AXIOM
  * Sets of tasks by state.
  *)
 UnknownTask    == SetOfTasksIn(TASK_UNKNOWN)
-SubmittedTask  == SetOfTasksIn(TASK_SUBMITTED)
+RegisteredTask == SetOfTasksIn(TASK_REGISTERED)
+StagedTask     == SetOfTasksIn(TASK_STAGED)
 AssignedTask   == SetOfTasksIn(TASK_ASSIGNED)
 ProcessedTask  == SetOfTasksIn(TASK_PROCESSED)
 FinalizedTask  == SetOfTasksIn(TASK_FINALIZED)
