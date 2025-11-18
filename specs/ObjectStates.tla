@@ -24,17 +24,27 @@ CONSTANT
 OBJECT_UNKNOWN == "OBJECT_UNKNOWN"       \* Object is virtual, not yet known to the system
 OBJECT_REGISTERED == "OBJECT_REGISTERED" \* Object created with only its metadata and empty data.
 OBJECT_FINALIZED  == "OBJECT_FINALIZED"  \* Object has been successfully generated
+OBJECT_COMPLETED  == "OBJECT_COMPLETED"  \* Object has been generated with a non-empty data
+OBJECT_ABORTED    == "OBJECT_ABORTED"    \* Object has been genereted without any data
+OBJECT_DELETED    == "OBJECT_DELETED"    \* Object has been deleted from the system
 
 (**
  * Set of all object states.
  *)
 ObjectState ==
-    {OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_FINALIZED}
+    {
+        OBJECT_UNKNOWN,
+        OBJECT_REGISTERED,
+        OBJECT_FINALIZED,
+        OBJECT_COMPLETED,
+        OBJECT_ABORTED,
+        OBJECT_DELETED
+    }
 
 (**
  * SetOfObjectsIn must return a finite set for each object state.
  *)
-AXIOM
+ASSUME
     \A s \in ObjectState:
         IsFiniteSet(SetOfObjectsIn(s))
 
@@ -44,5 +54,8 @@ AXIOM
 UnknownObject    == SetOfObjectsIn(OBJECT_UNKNOWN)
 RegisteredObject == SetOfObjectsIn(OBJECT_REGISTERED)
 FinalizedObject  == SetOfObjectsIn(OBJECT_FINALIZED)
+CompletedObject  == SetOfObjectsIn(OBJECT_COMPLETED)
+AbortedObject    == SetOfObjectsIn(OBJECT_ABORTED)
+DeletedObject    == SetOfObjectsIn(OBJECT_DELETED)
 
 ===============================================================================
