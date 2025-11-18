@@ -1,12 +1,16 @@
---------------------------- MODULE ObjectProcessing ---------------------------
+-------------------------- MODULE ObjectProcessingExt --------------------------
 (*****************************************************************************)
-(* This module specifies an abstract data management system.                 *)
-(* Objects represent data units with associated metadata and lifecycle       *)
-(* states. The specification abstracts away from object contents and focuses *)
-(* solely on the allowed transitions between lifecycle states and targeting  *)
-(* behaviors. It also defines and asserts key safety and liveness properties *)
-(* of the system.                                                            *)
+(* This module specifies an extended object lifecycle system that refines    *)
+(* the 'ObjectProcessing' specification. It provides a more granular         *)
+(* implementation of the finalization process by decomposing the abstract    *)
+(* FINALIZED state into two concrete outcomes: COMPLETED and ABORTED.        *)
+(*                                                                           *)
+(* The specification defines a refinement mapping that projects these        *)
+(* detailed states back onto the abstract states of 'ObjectProcessing',      *)
+(* while asserting that the system's targeting behaviors and safety          *)
+(* invariants remain consistent across this refinement.                      *)
 (*****************************************************************************)
+EXTENDS Utils
 
 CONSTANTS
     ObjectId   \* Set of object identifiers (theoretically infinite)
@@ -26,6 +30,11 @@ INSTANCE ObjectStates
     WITH SetOfObjectsIn <- LAMBDA s : {o \in ObjectId: objectState[o] = s}
 
 (**
+ * Instance of the ObjectProcessing specification.
+ *)
+OP == INSTANCE ObjectProcessing
+
+(**
  * TYPE INVARIANT
  * Claims that all state variables always take values of the expected form.
  *   - objectState is a function mapping each object to one of the defined states.
@@ -35,72 +44,54 @@ TypeInv ==
     /\ objectState \in [ObjectId -> {
             OBJECT_UNKNOWN,
             OBJECT_REGISTERED,
-            OBJECT_FINALIZED
+            OBJECT_COMPLETED,
+            OBJECT_ABORTED
         }]
     /\ objectTargets \in SUBSET ObjectId
 
 -------------------------------------------------------------------------------
 
 (*****************************************************************************)
-(* SYSTEM INITIAL STATE AND TRANSITIONS                                      *)
+(* SYSTEM TRANSITIONS                                                        *)
 (*****************************************************************************)
-
-(**
- * INITIAL STATE
- * Initially, all objects are unknown and none are marked as targets.
- *)
-Init ==
-    /\ objectState = [o \in ObjectId |-> OBJECT_UNKNOWN]
-    /\ objectTargets = {}
-
-(**
- * OBJECT REGISTRATION
- * A new set 'O' of objects is registered in the system, i.e., it is created
- * with the metadata provided and empty data.
- *)
-RegisterObjects(O) ==
-    /\ O /= {} /\ O \subseteq UnknownObject
-    /\ objectState' =
-        [o \in ObjectId |-> IF o \in O THEN OBJECT_REGISTERED ELSE objectState[o]]
-    /\ UNCHANGED objectTargets
 
 (**
  * OBJECT TARGETING
  * A set 'O' of existing objects is marked as targeted, meaning that the user
- * wants these objects to be finalized.
+ * wants these objects to be finalized (completed or aborted).
  *)
 TargetObjects(O) ==
-    /\ O /= {} /\ O \subseteq (RegisteredObject \union FinalizedObject)
+    /\ O # {} /\ O \subseteq RegisteredObject \union CompletedObject \union AbortedObject
     /\ objectTargets' = objectTargets \union O
-    /\ UNCHANGED objectState
-
-(**
- * OBJECT UNTARGETING
- * A set 'O' of currently targeted objects is unmarked.
- *)
-UntargetObjects(O) ==
-    /\ O /= {} /\ O \subseteq objectTargets
-    /\ objectTargets' = objectTargets \ O
     /\ UNCHANGED objectState
 
 (**
  * OBJECT FINALIZATION
  * A set 'O' of objects is finalized, meaning that these objects are now
- * immutable (will never be modified).
+ * immutable (will never be modified). Two scenarios are possible:
+ *   - objects are completed, meaning that their data has been written and
+ *     will never be overwritten
+ *   - objects are aborted, meaning that their data cannot be written and never
+ *     will be.
  *)
 FinalizeObjects(O) ==
     /\ O /= {} /\ O \subseteq RegisteredObject
-    /\ objectState' =
-        [o \in ObjectId |-> IF o \in O THEN OBJECT_FINALIZED ELSE objectState[o]]
-    /\ UNCHANGED objectTargets
+    /\ \E C, A \in SUBSET O :
+        /\ C \union A = O
+        /\ C \intersect  A = {}
+        /\ objectState' =
+            [o \in ObjectId |-> CASE o \in C -> OBJECT_COMPLETED
+                                  [] o \in A -> OBJECT_ABORTED
+                                  [] OTHER   -> objectState[o]]
+        /\ UNCHANGED objectTargets
 
 (**
  * TERMINAL STATE
  * Action representing the terminal state of the system, reached once all
- * targeted objects have been finalized.
+ * targeted objects have been completed or aborted.
  *)
 Terminating ==
-    /\ objectTargets \subseteq FinalizedObject
+    /\ objectTargets \subseteq (CompletedObject \union AbortedObject)
     /\ UNCHANGED vars
 
 -------------------------------------------------------------------------------
@@ -114,27 +105,28 @@ Terminating ==
  * Defines all possible atomic transitions of the system.
  *)
 Next ==
-    \/ \E O \in SUBSET ObjectId:
-        \/ RegisterObjects(O)
+    \E O \in SUBSET ObjectId:
         \/ TargetObjects(O)
-        \/ UntargetObjects(O)
+        \/ OP!UntargetObjects(O)
+        \/ OP!RegisterObjects(O)
         \/ FinalizeObjects(O)
-    \/ Terminating
+        \/ Terminating
 
 (**
  * FAIRNESS CONDITIONS
  * Ensure that progress is eventually made for actionable objects.
  *   - A targeted object cannot remain indefinitely registered without being
- *     eventually finalized.
+ *     eventually finalized (completed or aborted).
  *)
 Fairness ==
-    /\ \A o \in ObjectId: WF_vars(o \in objectTargets /\ FinalizeObjects({o}))
+    \A o \in ObjectId :
+        WF_vars(o \in objectTargets /\ FinalizeObjects({o}))
 
 (**
  * Full system specification.
  *)
 Spec ==
-    /\ Init
+    /\ OP!Init
     /\ [][Next]_vars
     /\ Fairness
 
@@ -146,26 +138,27 @@ Spec ==
 
 (**
  * SAFETY
- * An object can only be targeted if it is known to the system.
- *)
-TargetStateConsistent ==
-    objectTargets \intersect UnknownObject = {}
-
-(**
- * LIVENESS
- * Every targeted object is eventually either finalized or untargeted.
- *)
-EventualTargetFinalization ==
-    \A o \in ObjectId:
-        o \in objectTargets ~> (o \in FinalizedObject \/ o \notin objectTargets)
-
-(**
- * LIVENESS
- * Once an object reaches the FINALIZED state, it remains there permanently.
+ * Once an object reaches the completed or aborted state, it remains there
+ * permanently.
  *)
 PermanentFinalization ==
     \A o \in ObjectId:
-        [](o \in FinalizedObject => [](o \in FinalizedObject))
+        /\ [](o \in CompletedObject => [](o \in CompletedObject))
+        /\ [](o \in AbortedObject => [](o \in AbortedObject))
+
+(**
+ * LIVENESS
+ * This specification refines the ObjectProcessing specification.
+ *)
+OPAbs ==
+    INSTANCE ObjectProcessing
+        WITH objectState <- [
+            o \in ObjectId |->
+                CASE objectState[o] = OBJECT_COMPLETED -> OBJECT_FINALIZED
+                  [] objectState[o] = OBJECT_ABORTED   -> OBJECT_FINALIZED
+                  [] OTHER                             -> objectState[o]
+        ]
+RefineObjectProcessing == OPAbs!Spec
 
 -------------------------------------------------------------------------------
 
@@ -175,8 +168,7 @@ PermanentFinalization ==
 
 THEOREM Spec => []TypeInv
 THEOREM Spec => []DistinctObjectStates
-THEOREM Spec => []TargetStateConsistent
-THEOREM Spec => EventualTargetFinalization
 THEOREM Spec => PermanentFinalization
+THEOREM Spec => RefineObjectProcessing
 
-===============================================================================
+================================================================================
