@@ -179,4 +179,38 @@ THEOREM Spec => []TypeInv
 THEOREM Spec => EventualQuiescence
 THEOREM Spec => PermanentPurgation
 
+ObjectsEventualDeletion ==
+    \A s \in SessionId:
+        s \in PurgedSession ~> SessionObject(s) \subseteq DeletedObject
+
+TasksEventualPause ==
+    \A s \in SessionId :
+        s \in PausedSession ~> \/ SessionTasks(s) \intersect StagedTask = {}
+                               \/ s \in OpenedSession
+
+EventualCancelation ==
+    \A s \in CanceledSession
+        \A t \in TaskId: t \in (RegisteredTask \union StagedTask)
+                ~> CanceledTask
+
+RegistrationDisabled ==
+    \A s \in SessionId:
+        s \in (CanceledSession \union ClosedSession)
+            => \A G \in Graphs \ SubGraphs :
+                ~ENABLED RegisterGraph(G)
+
+AssignmentDisabled ==
+    \A s \in SessionId :
+        s \in (PausedSession \union CanceledSession)
+            => \A T \in SUBSET SessionTask(s), a \in AgentId :
+                ~ENABLED AssignTasks(a, T)
+
+SessionsEventualQuiescence ==
+    \A s \in SessionId :
+        /\ s \in PausedSession
+            ~> /\ SessionTask(s) \subseteq (RegisteredTask \union PausedTask \union FinalizedTask)
+        /\ s \in CanceledSession
+            ~> /\ SessionTask(s) \subseteq (CompletedTask \union CanceledTask)
+               /\ SessionObject(s) \subseteq (CompletedObject \union AbortedObject)
+
 ===============================================================================
