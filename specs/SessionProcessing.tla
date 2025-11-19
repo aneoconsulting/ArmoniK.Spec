@@ -179,8 +179,4 @@ THEOREM Spec => []TypeInv
 THEOREM Spec => EventualQuiescence
 THEOREM Spec => PermanentPurgation
 
-<<<<<<< Updated upstream
-====
-=======
 ===============================================================================
->>>>>>> Stashed changes
