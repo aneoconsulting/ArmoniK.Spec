@@ -24,6 +24,20 @@ TLA+ is designed to:
 
 ## Repository contents
 
+```mermaid
+stateDiagram-v2
+    TaskProcessing --> TaskProcessingExt
+    TaskProcessing --> GraphProcessing
+    ObjectProcessing --> GraphProcessing
+    ObjectProcessing --> ObjectProcessingExt
+    TaskProcessingExt --> GraphProcessingExt
+    ObjectProcessingExt --> GraphProcessingExt
+    GraphProcessing --> GraphProcessingExt
+    SessionProcessing --> ArmoniK
+    GraphProcessingExt --> ArmoniK
+```
+Arrows on the figure illustrate the "is refined by" relation.
+
 ## How to use this repository?
 
 ## References

@@ -74,17 +74,13 @@ The previous description omits **task I/Os**, which are central to ArmoniK as th
 
 The high-level view of object processing by ArmoniK corresponds to the following constraints:
 - **Object Creation**: An object can be created empty (a container for data that is not yet available) or completed (with its data provided at creation).
-- **Object Completion**: An empty object can be completed by providing its data. In addition, a completed object can be completed again, which means that the previous data is overwritten.
-- **Object Locking**: A completed object can be locked to prevent its data from being overwritten, making the object immutable. Locking an object that is already locked has no effect.
+- **Object Completion**: An empty object can be completed by providing its data. Once completed, objects become immutable preventing their data from being overwritten. Completing an object is an idempotent operation. Therefore, completing an already completed object has not effect.
 
 > **ℹ️ NOTE**
 > The creation of a completed object is equivalent to the composition of the creation of the empty object with the completion of that object. This is why the action of creating a completed object does not appear in the specification.
 
-> **ℹ️ NOTE**
-> Early drafts considered objects to be immutable once completed, but this approach was abandoned in order to allow rewriting in the event of a task failure (for example, if a task crashes after writing its first result, it must be able to rewrite it during subsequent executions). However, for consistency reasons, it must be possible to ensure that once consumed, an object's data no longer changes. Locking was introduced for this purpose.
-
 The processing of objects must guarantee the following properties:
-- **Completion**: Every submitted object must eventually be completed.
+- **Completion**: Every created object must eventually be completed.
 - **Persistence**: Once completed, an object remains completed forever.
 
 Like for tasks, a status is associated with each object to track its position in the processing. Based on the previous informal description, it is possible to scheme the life-cycle of an object as shown in the following figure.
@@ -94,8 +90,7 @@ stateDiagram-v2
     direction LR
     [*] --> Created : Create
     Created --> Completed : Complete
-    Completed --> Locked : Lock
-    Locked --> Locked : Lock
+    Completed --> Completed : Complete
     classDef locked fill:#006400
     class Locked locked
 ```
@@ -105,4 +100,55 @@ The processing of objects is specified in [SimpleObjectProcessing](../specs/Simp
 > **ℹ️ NOTE**
 > To enable model checking, the [MCSimpleObjectProcessing](../specs/MCSimpleObjectProcessing.tla) specification extends [SimpleObjectProcessing](../specs/SimpleObjectProcessing.tla).
 
+### Refined Task Scheduling with I/Os
+
+Now that the processing of tasks and objects has been specified, we can describe how they interact in a unified system. In this refined model, tasks have input and output objects, representing the data they consume and produce. Tasks can depend on each other through these data dependencies, making ArmoniK an **online task graph scheduling system**.
+
+The system inherits all previously described constraints and introduces the following additional rules:
+
+- The task and object dependencies form an **unconnected bipartite directed-acyclic graph**, with objects as roots and leaves. Isolated nodes (objects without associated tasks) are permitted in practice but serve no purpose and are ignored in this model.
+- Task data dependencies are immutable after submission.
+- Input objects are locked once consumed by a task to prevent further modifications.
+- A task can only be scheduled when **all its input objects are locked**.
+- A task cannot complete until **all its output objects are completed**.
+- Task dependencies are resolved only after completion.
+
+The system must guarantee the following properties:
+
+- **Refinement**: All properties from *SimpleTaskScheduling* and *SimpleObjectProcessing* are preserved.
+- **Dependency Consistency**: The dependency graph remains consistent, even as new tasks and objects are submitted dynamically.
+- **Lockness**: Any input object of a task that has started execution is locked.
+- **Completion**: Any output object of a completed task is either completed or locked.
+- **Execution Order**: The order of task execution respects the dependency graph (i.e., a topological sort).
+
+Statuses are associated with tasks and objects, with transitions now coupled to reflect their interdependence. A new status, **CREATED**, is introduced for tasks known to the system but not yet ready for execution (due to incomplete input objects).
+
+The coupled processing of tasks and objects is specified in **[TaskScheduling](../specs/TaskScheduling.tla)**, which is both a composition and a refinement of *SimpleTaskScheduling* and *SimpleObjectProcessing*.
+
+> **ℹ️ NOTE**
+> In all specifications, tasks, objects, and agents are identified by labels. The system’s behavior is invariant under label swapping, enabling symmetry reduction during model checking.
+
+> **⚠️ IMPORTANT**
+> Subtasking is not included in this refinement and will be addressed in future iterations.
+
 ---
+
+
+Step 1: Describe the high-level task lifecycle => a few states arround allocation on a agent + all task eventually completed
+Step 2: To talk about dependencies between tasks we need to use their I/Os => objects are the counterpats of tasks
+Step 3: Describe high-level life-cycle of objects => create/completion + all eventually completed
+Step 4: Describe constraints arround the graph (ACGraph) arise questions:
+    - which objects can be completed by the user
+    - is it relevant for an object to have multiple parents => yes because this some way it done when retrying a task or it performs subtasking.
+Step 5: The two previous questions leads naturally to ask: Do we need all tasks and objects to be completed. Surely not!
+Step 6: Introduce the notion of targetted objects and implies that some tasks may remain submitted forever and it is not required for a task to success if tried once. => Targetted objects only eventually completed. No constraints on tasks ?
+
+A task performing subtasking doesn't need to be the parent of the root objets of its subgraph (they become roots of the whole graph). Does this imply that a new state variable is required for handling task object completion?
+=> A completed task may have no output object completed.
+=> A task must at least complete its output object for which there is no other way to produce them.
+
+Lorsqu'on soumet une nouvelle tâche (au sein d'un graph) elle doit avoir au moins un de ses objets de sortie non complété.
+
+On peut imaginer deux types de liens avec des données optionnelles (cf futurs raffinements).
+
+Comment conserver la structure du graphe en faisant des checks uniquement à l'échelle locale.
