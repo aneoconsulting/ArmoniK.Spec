@@ -1,4 +1,4 @@
---------------------------- MODULE MCGraphProcessing ---------------------------
+-------------------------- MODULE GraphProcessing_mc --------------------------
 (*******************************************************************************)
 (* Bounded model-checking extension of GraphProcessing.                        *)
 (*                                                                             *)
