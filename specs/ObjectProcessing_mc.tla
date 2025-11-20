@@ -1,4 +1,4 @@
--------------------------- MODULE MCObjectProcessing --------------------------
+-------------------------- MODULE ObjectProcessing_mc --------------------------
 (******************************************************************************)
 (* Bounded model-checking extension of ObjectProcessing.                      *)
 (*                                                                            *)
