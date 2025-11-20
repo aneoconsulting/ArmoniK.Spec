@@ -1,17 +1,18 @@
------------------------ MODULE MCSimpleObjectProcessing ------------------------
+-------------------------- MODULE MCObjectProcessing --------------------------
 (******************************************************************************)
-(* Bounded model-checking extension of SimpleObjectScheduling.                *)
+(* Bounded model-checking extension of ObjectProcessing.                      *)
 (*                                                                            *)
 (* For model checking, the set of object identifiers must be finite and       *)
 (* explicitly materialized. Since the number of objects is finite, the system *)
-(* eventually reaches a state where all objects are completed, which leads to *)
-(* an artificial deadlock.                                                    *)
+(* eventually reaches a state where no new objects can be registered which,   *)
+(* leads to an artificial deadlock.                                           *)
 (*                                                                            *)
 (* To avoid this spurious deadlock, the next-state action is overridden to    *)
 (* include a dummy terminal state, allowing the model checker to terminate    *)
 (* exploration gracefully.                                                    *)
 (******************************************************************************)
-EXTENDS FiniteSets, SimpleObjectProcessing
+
+EXTENDS FiniteSets, ObjectProcessing
 
 ASSUME IsFiniteSet(ObjectId)
 
@@ -19,10 +20,10 @@ ASSUME IsFiniteSet(ObjectId)
 
 (**
  * Dummy action representing the terminal state of the system, reached once all
- * objects have been completed.
+ * targeted objects have been finalized.
  *)
 Terminating ==
-    /\ \A o \in ObjectId: IsCompleted({o}) \/ IsLocked({o})
+    /\ objectTargets \subseteq FinalizedObject
     /\ UNCHANGED vars
 
 (**
