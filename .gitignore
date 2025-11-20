@@ -2,12 +2,14 @@
 .tla
 
 # Ignore modules build directories
-modules/tlc/
 modules/build/
 modules/dist/
+modules/lib/
+modules/tlc/
 
 # Ignore TTrace specs
 *_TTrace_*.tla
+*_TTrace_*.bin
 
 # Ignore TLC generated files
 *.out

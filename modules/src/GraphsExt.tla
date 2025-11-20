@@ -15,7 +15,7 @@ LOCAL INSTANCE Naturals
 (******************************************************************************)
 ACGraphs(T, O) ==
     UNION {
-        { g \in [node: {t \cup o}, edge: SUBSET ((t \X o) \cup (o \X t))] :
+        { g \in [node: {t \union o}, edge: SUBSET ((t \X o) \union (o \X t))] :
             /\ IsDag(g)
             /\ Roots(g) \subseteq o
             /\ Leaves(g) \subseteq o
