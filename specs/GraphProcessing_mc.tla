@@ -14,7 +14,7 @@
 (* In addition, optimizations are provided to speed up model checking.         *)
 (*******************************************************************************)
 
-EXTENDS GraphsExt, GraphProcessing, TLC
+EXTENDS GraphsExt, GraphProcessing, Randomization, TLC
 
 ASSUME IsFiniteSet(AgentId)
 ASSUME IsFiniteSet(ObjectId)
@@ -34,6 +34,16 @@ ASSUME IsFiniteSet(TaskId)
  *)
 MCGraphs(Nodes) ==
     ACGraphs(Nodes \intersect UnknownTask, Nodes \intersect ObjectId)
+
+\* MCGraphsRand(Nodes) ==
+\*     UNION {
+\*         {
+\*             g \in [
+\*                 node : {t \union o},
+\*                 edge : SUBSET ((t \X o) \union (o \X t))
+\*             ] : IsACGraph(g)
+\*         } : t \in SUBSET T, o \in SUBSET O
+\*     }
 
 --------------------------------------------------------------------------------
 

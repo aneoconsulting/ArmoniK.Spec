@@ -1,8 +1,22 @@
 ---- MODULE ObjectProcessingExt ----
 
-EXTENDS ObjectProcessing
+CONSTANTS
+    ObjectId   \* Set of object identifiers (theoretically infinite)
 
-TypeInvExt ==
+VARIABLES
+    objectState,  \* objectState[o] records the current lifecycle state of object o
+    objectTargets \* objectTargets is the set of objects currently marked as targets
+
+vars == << objectState, objectTargets >>
+
+-------------------------------------------------------------------------------
+
+(**
+ * Instance of the ObjectStates module with SetOfObjectsIn operator provided.
+ *)
+OP = INSTANCE ObjectProcessing
+
+TypeInv ==
     /\ objectState \in [ObjectId -> {
             OBJECT_UNKNOWN,
             OBJECT_REGISTERED,
@@ -23,41 +37,50 @@ AbortObjects(O) ==
         [o \in ObjectId |-> IF o \in O THEN OBJECT_ABORTED ELSE objectState[o]]
     /\ UNCHANGED objectTargets
 
-NextExt ==
+DeleteObjects(O) ==
+    /\ O /= {} /\ O \subseteq (CompletedObject \union AbortedObject)
+    /\ objectState' =
+        [o \in ObjectId |-> IF o \in O THEN OBJECT_DELETED ELSE objectState[o]]
+    /\ UNCHANGED objectTargets
+
+Next ==
     \E O \in SUBSET ObjectId:
-        \/ RegisterObjects(O)
-        \/ TargetObjects(O)
-        \/ UntargetObjects(O)
+        \/ OP!RegisterObjects(O)
+        \/ OP!TargetObjects(O)
+        \/ OP!UntargetObjects(O)
         \/ CompleteObjects(O)
         \/ AbortObjects(O)
+        \/ DeleteObjects(O)
 
-FairnessExt ==
+Fairness ==
     /\ \A o \in ObjectId: WF_vars(o \in objectTargets /\ CompleteObjects({o}))
     /\ \A o \in ObjectId: WF_vars(o \in objectTargets /\ AbortObjects({o}))
 
-SpecExt ==
+Spec ==
     /\ Init
-    /\ [][NextExt]_vars
-    /\ FairnessExt
+    /\ [][Next]_vars
+    /\ Fairness
 
-PermanentCompletion ==
+EventualQuiescence ==
     \A o \in ObjectId:
-        [](o \in CompletedObject => [](o \in CompletedObject))
+        /\ o \in CompletedObject
+            ~> \/ [](o \in CompletedObject))
+               \/ [](o \in DeletedObject)
+        /\ o \in AbortedObject
+            ~> \/ [](o \in AbortedObject))
+               \/ [](o \in DeletedObject))
 
-PermanentAbortion ==
+PermanentDeletion ==
     \A o \in ObjectId:
-        [](o \in AbortedObject => [](o \in AbortedObject))
+        [](o \in DeletedObject => [](o \in DeletedObject))
 
 RefinementMapping ==
-    INSTANCE ObjectProcessing WITH objectState <- [o \in ObjectId |-> IF objectState[o] \in {OBJECT_COMPLETED, OBJECT_ABORTED} THEN OBJECT_FINALIZED ELSE objectState[o]]
-
-
+    INSTANCE ObjectProcessing WITH objectState <- [o \in ObjectId |-> IF objectState[o] \in {OBJECT_COMPLETED, OBJECT_ABORTED, OBJECT_DELETED} THEN OBJECT_FINALIZED ELSE objectState[o]]
 RefineObjectProcessing == RefinementMapping!Spec
 
-
 THEOREM SpecExt => []TypeInvExt
-THEOREM SpecExt => PermanentAbortion
-THEOREM SpecExt => PermanentCompletion
+THEOREM SpecExt => EventualQuiescence
+THEOREM SpecExt => PermanentDeletion
 THEOREM SpecExt => RefineObjectProcessing
 
 ====

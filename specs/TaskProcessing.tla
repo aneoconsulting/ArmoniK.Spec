@@ -186,16 +186,18 @@ ExclusiveAssignment ==
  *)
 EventualQuiescence ==
     \A t \in TaskId :
-        t \notin UnknownTask ~>
-            \/ [](t \in StagedTask)
-            \/ [](t \in FinalizedTask)
+        Quiescence(t) ::
+            t \notin UnknownTask ~>
+                \/ [](t \in StagedTask)
+                \/ [](t \in FinalizedTask)
 
 (**
  * LIVENESS
  * Once a task reaches the FINALIZED state, it remains there permanently.
  *)
 PermanentFinalization ==
-    \A t \in TaskId: [](t \in FinalizedTask => [](t \in FinalizedTask))
+    \A t \in TaskId:
+        Finalization(t) :: [](t \in FinalizedTask => [](t \in FinalizedTask))
 
 -------------------------------------------------------------------------------
 

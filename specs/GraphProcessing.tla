@@ -12,7 +12,7 @@
 (* together with its key safety and liveness properties.                     *)
 (*****************************************************************************)
 
-EXTENDS FiniteSets, Graphs, Naturals, Relation
+EXTENDS FiniteSets, Graphs, Naturals, Sequences, TLC
 
 CONSTANTS
     AgentId,   \* Set of agent identifiers (theoretically infinite)
@@ -118,7 +118,6 @@ IsACGraph(G) ==
     /\ IsBipartiteWithPartitions(G, TaskId, ObjectId)
     /\ Roots(G) \subseteq ObjectId
     /\ Leaves(G) \subseteq ObjectId
-    /\ \A t \in TaskNode(G): InDegree(G, t) > 0 /\ OutDegree(G, t) > 0
 
 (**
  * A directed graph is unilaterally connected if, for every pair of vertices u
@@ -161,7 +160,7 @@ RegisterGraph(G) ==
         /\ G /= EmptyGraph
         /\ TaskNode(G) \subseteq UnknownTask
         /\ \A t \in TaskNode(G):
-            ~(Successors(newDeps, t) \subseteq FinalizedObject)
+            ~(Successors(G, t) \subseteq FinalizedObject)
         /\ IsACGraph(newDeps)
         /\ deps' = newDeps
         /\ objectState' =
@@ -182,7 +181,6 @@ RegisterGraph(G) ==
  * cannot be targeted.
  *)
 TargetObjects(O) ==
-    /\ O \intersect Roots(deps) = {}
     /\ OP!TargetObjects(O)
     /\ UNCHANGED << agentTaskAlloc, deps, objectState, taskState >>
 
@@ -202,8 +200,7 @@ UntargetObjects(O) ==
  *)
 FinalizeObjects(O) ==
     /\ \/ O \subseteq Roots(deps)
-    \*    \/ \A o \in O: \E t \in Predecessors(deps, o): t \in ProcessedTask
-       \/ \A o \in O: Predecessors(deps, o) \intersect ProcessedTask /= {}
+       \/ \A o \in O: \E t \in Predecessors(deps, o): t \in ProcessedTask
     /\ OP!FinalizeObjects(O)
     /\ UNCHANGED << agentTaskAlloc, deps, objectTargets, taskState >>
 
@@ -294,12 +291,16 @@ Next ==
  * In other words, 't' can still produce (directly or indirectly) an output that
  * may contribute to producing the target object 'o'.
  *)
-IsUpstreamOnOpenPathToTarget(t, o) ==
+IsTaskUpstreamOnOpenPathToTarget(t, o) ==
     /\ o \in objectTargets
     /\ o \in RegisteredObject
-    /\ LET outs == Successors(deps, t) IN
-         \/ o \in outs
-         \/ (outs \intersect Ancestors(deps, o)) \notin SUBSET FinalizedObject
+    /\ t \in StagedTask
+    /\ \E p \in SimplePath(deps) :
+        /\ p[1] = t
+        /\ p[Len(p)] = o
+        /\ \A i \in 2..(Len(p) - 1) :
+            \/ (p[i] \in TaskId /\ p[i] \in RegisteredTask)
+            \/ (p[i] \in ObjectId /\ p[i] \in RegisteredObject)
 
 (**
  * FAIRNESS CONDITIONS
@@ -314,12 +315,24 @@ IsUpstreamOnOpenPathToTarget(t, o) ==
  *     eventually finalized.
  *)
 Fairness ==
-    /\ \A o \in ObjectId: WF_vars(FinalizeObjects({o}))
-    /\ \A t \in TaskId: WF_vars(StageTasks({t}))
-    /\ \A t \in TaskId: WF_vars(/\ \E o \in ObjectId: IsUpstreamOnOpenPathToTarget(t, o)
-                                /\ \E a \in AgentId: AssignTasks(a, {t}))
-    /\ \A t \in TaskId: SF_vars(\E a \in AgentId: ProcessTasks(a, {t}))
-    /\ \A t \in TaskId: WF_vars(FinalizeTasks({t}))
+    /\ \A o \in ObjectId :
+        WF_vars(FinalizeObjects({o}))
+    /\ \A t \in TaskId :
+        WF_vars(StageTasks({t}))
+    /\ \A t \in TaskId :
+        WF_vars(
+            /\ \E o \in ObjectId :
+                IsTaskUpstreamOnOpenPathToTarget(t, o)
+            /\ \E a \in AgentId :
+                AssignTasks(a, {t})
+        )
+    /\ \A t \in TaskId :
+        SF_vars(
+            \E a \in AgentId :
+                ProcessTasks(a, {t})
+        )
+    /\ \A t \in TaskId :
+        WF_vars(FinalizeTasks({t}))
 
 (**
  * Full system specification.
