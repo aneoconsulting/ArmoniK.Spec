@@ -8,6 +8,8 @@
 (* of the system.                                                            *)
 (*****************************************************************************)
 
+EXTENDS Utils
+
 CONSTANTS
     ObjectId   \* Set of object identifiers (theoretically infinite)
 
@@ -128,7 +130,9 @@ Next ==
  *     eventually finalized.
  *)
 Fairness ==
-    /\ \A o \in ObjectId: WF_vars(o \in objectTargets /\ FinalizeObjects({o}))
+    \A o \in ObjectId :
+        object(o) ::
+            WF_vars(o \in objectTargets /\ FinalizeObjects({o}))
 
 (**
  * Full system specification.
@@ -146,10 +150,26 @@ Spec ==
 
 (**
  * SAFETY
- * An object can only be targeted if it is known to the system.
+ * Objects states are mutually exclusive, meaning that an object can only be in
+ * one of these states at any given time.
  *)
-TargetStateConsistent ==
+DistinctObjectStates ==
+    AreSetsDisjoint({UnknownObject, RegisteredObject, FinalizedObject})
+
+(** * SAFETY
+ * An object cannot be a target if it is unknown to the system. The set of
+ * targets must always be a subset of known objects.
+ *)
+TargetValidity ==
     objectTargets \intersect UnknownObject = {}
+
+(**
+ * SAFETY
+ * Once an object reaches the FINALIZED state, it remains there permanently.
+ *)
+PermanentFinalization ==
+    \A o \in ObjectId:
+        [](o \in FinalizedObject => [](o \in FinalizedObject))
 
 (**
  * LIVENESS
@@ -157,25 +177,15 @@ TargetStateConsistent ==
  *)
 EventualTargetFinalization ==
     \A o \in ObjectId:
-        o \in objectTargets ~> (o \in FinalizedObject \/ o \notin objectTargets)
+        <>[](o \in objectTargets) => <>(o \in FinalizedObject)
 
 (**
  * LIVENESS
- * Once an object reaches the FINALIZED state, it remains there permanently.
+ * Any object added to the target set must eventually be resolved, 
+ * meaning it is either finalized or removed from the target set.
  *)
-PermanentFinalization ==
-    \A o \in ObjectId:
-        [](o \in FinalizedObject => [](o \in FinalizedObject))
-
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* THEOREMS                                                                  *)
-(*****************************************************************************)
-
-THEOREM Spec => []TypeInv
-THEOREM Spec => []TargetStateConsistent
-THEOREM Spec => EventualTargetFinalization
-THEOREM Spec => PermanentFinalization
+EventualTargetResolution ==
+    \A o \in ObjectId :
+        o \in objectTargets ~> (o \in FinalizedObject \/ o \notin objectTargets)
 
 ===============================================================================

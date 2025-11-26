@@ -30,3 +30,6 @@ _apalache-out
 
 # Ignore Python cache files
 __pycache__
+
+# Ignore Jupyter cache files
+.ipynb_checkpoints

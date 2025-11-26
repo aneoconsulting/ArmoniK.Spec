@@ -8,6 +8,8 @@
 (* properties of the system.                                                 *)
 (*****************************************************************************)
 
+EXTENDS Utils
+
 CONSTANTS
     AgentId,   \* Set of agent identifiers (theoretically infinite)
     TaskId     \* Set of task identifiers (theoretically infinite)
@@ -40,6 +42,7 @@ TypeInv ==
     /\ agentTaskAlloc \in [AgentId -> SUBSET TaskId]
     /\ taskState \in [TaskId -> {
             TASK_UNKNOWN,
+            TASK_REGISTERED,
             TASK_STAGED,
             TASK_ASSIGNED,
             TASK_PROCESSED,
@@ -62,10 +65,21 @@ Init ==
 
 (**
  * TASK STAGING
+ * A new set 'T' of tasks is registred i.e., known to the system but not yet
+ * ready for processing.
+ *)
+RegisterTasks(T) ==
+    /\ T /= {} /\ T \subseteq UnknownTask
+    /\ taskState' =
+        [t \in TaskId |-> IF t \in T THEN TASK_REGISTERED ELSE taskState[t]]
+    /\ UNCHANGED agentTaskAlloc
+
+(**
+ * TASK STAGING
  * A new set 'T' of tasks is staged i.e., made available to the system for processing.
  *)
 StageTasks(T) ==
-    /\ T /= {} /\ T \subseteq UnknownTask
+    /\ T /= {} /\ T \subseteq RegisteredTask
     /\ taskState' =
         [t \in TaskId |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
     /\ UNCHANGED agentTaskAlloc
@@ -134,6 +148,7 @@ Terminating ==
  *)
 Next ==
     \/ \E T \in SUBSET TaskId:
+        \/ RegisterTasks(T)
         \/ StageTasks(T)
         \/ \E a \in AgentId:
             \/ AssignTasks(a, T)
@@ -151,8 +166,11 @@ Next ==
  *     finalized.
  *)
 Fairness ==
-    /\ \A t \in TaskId: SF_vars(\E a \in AgentId : ProcessTasks(a, {t}))
-    /\ \A t \in TaskId: WF_vars(FinalizeTasks({t}))
+    \A t \in TaskId:
+        task(t) ::
+            /\ WF_vars(StageTasks({t}))
+            /\ SF_vars(\E a \in AgentId : ProcessTasks(a, {t}))
+            /\ WF_vars(FinalizeTasks({t}))
 
 (**
  * Full system specification.
@@ -168,12 +186,9 @@ Spec ==
 (* SAFETY AND LIVENESS PROPERTIES                                            *)
 (*****************************************************************************)
 
-(**
- * SAFETY
- * The set of all allocated tasks always belongs to the universe of tasks.
- *)
-AllocConsistent ==
-    UNION {agentTaskAlloc[a] : a \in AgentId} \subseteq TaskId
+DistinctTaskStates ==
+    AreSetsDisjoint({UnknownTask, RegisteredTask, StagedTask, AssignedTask,
+                    ProcessedTask, FinalizedTask})
 
 (**
  * SAFETY
@@ -193,32 +208,35 @@ ExclusiveAssignment ==
 
 (**
  * LIVENESS
- * Any staged task ultimately remains in the STAGED or FINALIZED state.
- *)
-EventualQuiescence ==
-    \A t \in TaskId :
-        t \notin UnknownTask ~>
-            \/ [](t \in StagedTask)
-            \/ [](t \in FinalizedTask)
-
-(**
- * LIVENESS
  * Once a task reaches the FINALIZED state, it remains there permanently.
  *)
 PermanentFinalization ==
     \A t \in TaskId: [](t \in FinalizedTask => [](t \in FinalizedTask))
 
--------------------------------------------------------------------------------
+EventualStaging ==
+    \A t \in TaskId :
+        t \in RegisteredTask ~> t \in StagedTask
 
-(*****************************************************************************)
-(* THEOREMS                                                                  *)
-(*****************************************************************************)
+EventualProcessing ==
+    \A t \in TaskId :
+        t \in StagedTask /\ []<>(t \in AssignedTask) ~> t \in ProcessedTask
 
-THEOREM Spec => []TypeInv
-THEOREM Spec => []AllocConsistent
-THEOREM Spec => []AllocStateConsistent
-THEOREM Spec => []ExclusiveAssignment
-THEOREM Spec => EventualQuiescence
-THEOREM Spec => PermanentFinalization
+EventualFinalization ==
+    \A t \in TaskId :
+        t \in ProcessedTask ~> t \in FinalizedTask
+
+(**
+ * LIVENESS
+ * Any staged task ultimately remains in the STAGED or FINALIZED state.
+ *)
+EventualQuiescence ==
+    \A t \in TaskId :
+        t \in RegisteredTask ~>
+            \/ [](t \in StagedTask)
+            \/ [](t \in FinalizedTask)
+
+EventualDeallocation ==
+    \A t \in TaskId :
+        t \in AssignedTask ~> t \in StagedTask \/ t \in ProcessedTask
 
 =============================================================================
