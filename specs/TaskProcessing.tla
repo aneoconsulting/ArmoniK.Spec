@@ -157,28 +157,29 @@ Spec ==
 (* SAFETY AND LIVENESS PROPERTIES                                            *)
 (*****************************************************************************)
 
-(**
- * SAFETY
- * The set of all allocated tasks always belongs to the universe of tasks.
- *)
-AllocConsistent ==
-    UNION {agentTaskAlloc[a] : a \in AgentId} \subseteq TaskId
+DistinctTaskState ==
+    \A s1, s2 \in { UnknownTask, StagedTask, AssignedTask,
+                    ProcessedTask, FinalizedTask } :
+        (s1 /= s2 /\ s1 /= {} /\ s2 /= {}) => (s1 \intersect s2 = {})
 
 (**
  * SAFETY
- * A task is assigned to an agent if and only if it is in the ASISGNED state.
- *)
-AllocStateConsistent ==
-    \A t \in TaskId:
-        t \in AssignedTask <=> \E a \in AgentId: t \in agentTaskAlloc[a]
-
-(**
- * SAFETY
- * No task is held by multiple agents at the same time*
+ * A task is in the ASSIGNED state iff it is assigned to a UNIQUE agent.
  *)
 ExclusiveAssignment ==
-    \A a, b \in AgentId :
-        a /= b => agentTaskAlloc[a] \intersect agentTaskAlloc[b] = {}
+    \A t \in TaskId :
+        t \in AssignedTask <=>
+            \E a \in AgentId :
+                /\ t \in agentTaskAlloc[a]
+                /\ \A b \in AgentId :
+                        t \in agentTaskAlloc[b] => a = b
+
+(**
+ * LIVENESS
+ * Once a task reaches the FINALIZED state, it remains there permanently.
+ *)
+PermanentFinalization ==
+    \A t \in TaskId: [](t \in FinalizedTask => [](t \in FinalizedTask))
 
 (**
  * LIVENESS
@@ -190,13 +191,6 @@ EventualQuiescence ==
             \/ [](t \in StagedTask)
             \/ [](t \in FinalizedTask)
 
-(**
- * LIVENESS
- * Once a task reaches the FINALIZED state, it remains there permanently.
- *)
-PermanentFinalization ==
-    \A t \in TaskId: [](t \in FinalizedTask => [](t \in FinalizedTask))
-
 -------------------------------------------------------------------------------
 
 (*****************************************************************************)
@@ -204,10 +198,9 @@ PermanentFinalization ==
 (*****************************************************************************)
 
 THEOREM Spec => []TypeInv
-THEOREM Spec => []AllocConsistent
-THEOREM Spec => []AllocStateConsistent
+THEOREM Spec => []DistinctTaskState
 THEOREM Spec => []ExclusiveAssignment
-THEOREM Spec => EventualQuiescence
 THEOREM Spec => PermanentFinalization
+THEOREM Spec => EventualQuiescence
 
 =============================================================================
