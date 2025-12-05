@@ -112,6 +112,16 @@ FinalizeTasks(T) ==
         [t \in TaskId |-> IF t \in T THEN TASK_FINALIZED ELSE taskState[t]]
     /\ UNCHANGED agentTaskAlloc
 
+(**
+ * TERMINAL STATE
+ * Action representing the terminal state of the system, reached when
+ * there are no more tasks being processed (i.e., assigned to an agent or not
+ * yet finalized).
+ *)
+Terminating ==
+    /\ TaskId = UnknownTask \union StagedTask \union FinalizedTask
+    /\ UNCHANGED vars
+
 -------------------------------------------------------------------------------
 
 (*****************************************************************************)
@@ -123,13 +133,14 @@ FinalizeTasks(T) ==
  * Defines all possible atomic transitions of the system.
  *)
 Next ==
-    \E T \in SUBSET TaskId:
+    \/ \E T \in SUBSET TaskId:
         \/ StageTasks(T)
         \/ \E a \in AgentId:
             \/ AssignTasks(a, T)
             \/ ReleaseTasks(a, T)
             \/ ProcessTasks(a, T)
         \/ FinalizeTasks(T)
+    \/ Terminating
 
 (**
  * FAIRNESS CONDITIONS
