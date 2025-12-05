@@ -94,6 +94,15 @@ FinalizeObjects(O) ==
         [o \in ObjectId |-> IF o \in O THEN OBJECT_FINALIZED ELSE objectState[o]]
     /\ UNCHANGED objectTargets
 
+(**
+ * TERMINAL STATE
+ * Action representing the terminal state of the system, reached once all
+ * targeted objects have been finalized.
+ *)
+Terminating ==
+    /\ objectTargets \subseteq FinalizedObject
+    /\ UNCHANGED vars
+
 -------------------------------------------------------------------------------
 
 (*****************************************************************************)
@@ -105,11 +114,12 @@ FinalizeObjects(O) ==
  * Defines all possible atomic transitions of the system.
  *)
 Next ==
-    \E O \in SUBSET ObjectId:
+    \/ \E O \in SUBSET ObjectId:
         \/ RegisterObjects(O)
         \/ TargetObjects(O)
         \/ UntargetObjects(O)
         \/ FinalizeObjects(O)
+    \/ Terminating
 
 (**
  * FAIRNESS CONDITIONS

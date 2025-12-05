@@ -48,33 +48,6 @@ MCGraphs(Nodes) ==
 --------------------------------------------------------------------------------
 
 (**
- * Dummy action representing the terminal state of the system, reached once all
- * targeted objects have been finalized.
- *)
-Terminating ==
-    /\ objectTargets \subseteq FinalizedObject
-    /\ UNCHANGED vars
-
-(**
- * Modified next-state action. Extends the original system behavior with the
- * Terminating action to avoid artificial deadlocks due to the bounded task
- * and object sets.
- *)
-MCNext ==
-    \/ Next
-    \/ Terminating
-
-(**
- * Modified full system specification.
- *)
-MCSpec ==
-    /\ Init
-    /\ [][MCNext]_vars
-    /\ Fairness
-
---------------------------------------------------------------------------------
-
-(**
  * Symmetry relation between task, object and agent identifiers.
  *)
 Symmetry ==

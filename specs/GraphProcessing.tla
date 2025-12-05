@@ -260,6 +260,15 @@ FinalizeTasks(T) ==
             IF t \in T THEN TASK_FINALIZED ELSE taskState[t]]
     /\ UNCHANGED << agentTaskAlloc, deps, objectState, objectTargets >>
 
+(**
+ * TERMINAL STATE
+ * Action representing the terminal state of the system, reached once all
+ * targeted objects have been finalized.
+ *)
+Terminating ==
+    /\ OP!Terminating
+    /\ UNCHANGED << agentTaskAlloc, deps, taskState >>
+
 -------------------------------------------------------------------------------
 
 (*****************************************************************************)
@@ -283,6 +292,7 @@ Next ==
             \/ ReleaseTasks(a, T)
             \/ ProcessTasks(a, T)
         \/ FinalizeTasks(T)
+    \/ Terminating
 
 (**
  * Returns TRUE iff task 't' is upstream on an open (i.e., fully unexecuted)
