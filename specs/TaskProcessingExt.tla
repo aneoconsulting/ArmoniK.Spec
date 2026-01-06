@@ -1,8 +1,6 @@
 --------------------------- MODULE TaskProcessingExt ---------------------------
 
-EXTENDS Functions
-
-NULL == "NULL"
+EXTENDS FiniteSets, Functions, Utils
 
 CONSTANTS
     AgentId,   \* Set of agent identifiers (theoretically infinite)
@@ -93,14 +91,17 @@ StageTasks(T) ==
  * the bijection 'f') which are staged to allow the re-execution of the same
  * computations as those attempted by the tasks of 'T'.
  *)
-RetryTasks(T, U, f) ==
-    /\ T /= {} /\ T \subseteq UnretriedTask /\ U \subseteq UnknownTask
-    /\ f \in Bijection(T, U)
-    /\ taskState' =
-        [u \in TaskId |-> IF u \in U THEN TASK_STAGED ELSE taskState[u]]
-    /\ nextAttemptOf' =
-        [t \in TaskId |-> IF t \in T THEN f[t] ELSE nextAttemptOf[t]]
-    /\ UNCHANGED agentTaskAlloc
+RetryTasks(T, U) ==
+    LET
+        f == CHOOSE x \in Bijection(T, U) : TRUE
+    IN
+        /\ T /= {} /\ T \subseteq UnretriedTask /\ U \subseteq UnknownTask
+        /\ Cardinality(T) = Cardinality(U)
+        /\ taskState' =
+            [u \in TaskId |-> IF u \in U THEN TASK_STAGED ELSE taskState[u]]
+        /\ nextAttemptOf' =
+            [t \in TaskId |-> IF t \in T THEN f[t] ELSE nextAttemptOf[t]]
+        /\ UNCHANGED agentTaskAlloc
 
 (**
  * TASK ASSIGNMENT
@@ -224,7 +225,7 @@ Terminating ==
 Next ==
     \E T \in SUBSET TaskId:
         \/ StageTasks(T)
-        \/ \E U \in SUBSET TaskId: \E f \in [T -> U]: RetryTasks(T, U, f)
+        \/ \E U \in SUBSET TaskId: RetryTasks(T, U)
         \/ \E a \in AgentId:
             \/ AssignTasks(a, T)
             \/ ReleaseTasks(a, T)
@@ -247,7 +248,7 @@ Next ==
  *)
 Fairness ==
     \A t \in TaskId:
-        /\ WF_vars(\E u \in TaskId : RetryTasks({t}, {u}, [x \in {t} |-> u]))
+        /\ WF_vars(\E u \in TaskId : RetryTasks({t}, {u}))
         /\ SF_vars(\E a \in AgentId : ProcessTasks(a, {t}))
         /\ WF_vars(FinalizeTasks({t}))
         /\ WF_vars(ResumeTasks({t}))

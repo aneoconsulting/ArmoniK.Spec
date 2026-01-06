@@ -1,0 +1,75 @@
+{
+  "modules": [
+    {
+      "path": "specs/MCSimpleTaskScheduling.tla",
+      "models": [
+        {
+          "name": "small",
+          "path": "specs/MCSimpleTaskScheduling.cfg",
+          "type": "explicit",
+          "mode": "exhaustive",
+          "checks": {
+            "success": true,
+            "total_states": 1272,
+            "distinct_states": 216,
+            "state_depth": 5
+          }
+        }
+      ]
+    },
+    {
+      "path": "specs/MCSimpleObjectProcessing.tla",
+      "models": [
+        {
+          "name": "small",
+          "path": "specs/MCSimpleObjectProcessing.cfg",
+          "type": "explicit",
+          "mode": "exhaustive",
+          "checks": {
+            "success": true,
+            "total_states": 374,
+            "distinct_states": 64,
+            "state_depth": 4
+          }
+        }
+      ]
+    },
+    {
+      "path": "specs/MCTaskScheduling.tla",
+      "dependencies": {
+        "community_modules": true,
+        "additional_modules": ["modules/dist/ArmoniKSpecModules-deps.jar"]
+      },
+      "models": [
+        {
+          "name": "small",
+          "path": "specs/MCTaskScheduling_small.cfg",
+          "type": "explicit",
+          "mode": "exhaustive",
+          "checks": {
+            "success": true,
+            "total_states": 159,
+            "distinct_states": 34,
+            "state_depth": 9
+          }
+        },
+        {
+          "name": "large",
+          "path": "specs/MCTaskScheduling_medium.cfg",
+          "type": "explicit",
+          "mode": "exhaustive",
+          "configuration": {
+            "max_heap_size": "10G",
+            "workers": "12"
+          },
+          "checks": {
+            "success": true,
+            "total_states": 981515,
+            "distinct_states": 49080,
+            "state_depth": 17
+          }
+        }
+      ]
+    }
+  ]
+}

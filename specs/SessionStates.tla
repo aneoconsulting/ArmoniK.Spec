@@ -22,12 +22,16 @@ CONSTANT
 (**
  * Session states in their lifecycle.
  *)
-SESSION_UNKNOWN  == "SESSION_UNKNOWN"  \* Session is virtual, not yet known to the system.
-SESSION_OPENED   == "SESSION_OPENED"   \* Some computations may be in progress and new computations can be submitted.
-SESSION_PAUSED   == "SESSION_PAUSED"   \* Computations are paused except for those already started.
-SESSION_CANCELED == "SESSION_CANCELED" \* Running computations are interrupted, and the others won't be executed.
-SESSION_CLOSED   == "SESSION_CLOSED"   \* Submitting new computations is no longer possible, but old computations may still be running.
-SESSION_PURGED   == "SESSION_PURGED"   \* Session data have been removed, though metadata may remain for accounting.
+SESSION_UNKNOWN   == "SESSION_UNKNOWN"  \* Session is virtual, not yet known to the system.
+SESSION_OPENED    == "SESSION_OPENED"   \* Some computations may be in progress and new computations can be submitted.
+SESSION_PAUSING   == "SESSION_PAUSING"
+SESSION_RESUMING  == "SESSION_RESUMING"
+SESSION_PAUSED    == "SESSION_PAUSED"   \* Computations are paused except for those already started.
+SESSION_CANCELING == "SESSION_CANCELING"
+SESSION_CANCELED  == "SESSION_CANCELED" \* Running computations are interrupted, and the others won't be executed.
+SESSION_CLOSED    == "SESSION_CLOSED"   \* Submitting new computations is no longer possible, but old computations may still be running.
+SESSION_PURGING   == "SESSION_PURGING"
+SESSION_PURGED    == "SESSION_PURGED"   \* Session data have been removed, though metadata may remain for accounting.
 
 (**
  * Set of all session states.
@@ -52,11 +56,15 @@ AXIOM
 (**
  * Sets of sessions by state.
  *)
-UnknownSession  == SetOfSessionsIn(SESSION_UNKNOWN)
-OpenedSession   == SetOfSessionsIn(SESSION_OPENED)
-PausedSession   == SetOfSessionsIn(SESSION_PAUSED)
-CanceledSession == SetOfSessionsIn(SESSION_CANCELED)
-ClosedSession   == SetOfSessionsIn(SESSION_CLOSED)
-PurgedSession   == SetOfSessionsIn(SESSION_PURGED)
+UnknownSession   == SetOfSessionsIn(SESSION_UNKNOWN)
+OpenedSession    == SetOfSessionsIn(SESSION_OPENED)
+PausingSession   == SetOfSessionsIn(SESSION_PAUSING)
+ResumingSession  == SetOfSessionsIn(SESSION_RESUMING)
+PausedSession    == SetOfSessionsIn(SESSION_PAUSED)
+CancelingSession == SetOfSessionsIn(SESSION_CANCELING)
+CanceledSession  == SetOfSessionsIn(SESSION_CANCELED)
+ClosedSession    == SetOfSessionsIn(SESSION_CLOSED)
+PurgedSession    == SetOfSessionsIn(SESSION_PURGED)
+PurgingSession   == SetOfSessionsIn(SESSION_PURGING)
 
 ==============================================================================

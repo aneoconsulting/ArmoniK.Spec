@@ -30,9 +30,12 @@ TypeInv ==
     sessionState \in [SessionId -> {
         SESSION_UNKNOWN,
         SESSION_OPENED,
+        SESSION_PAUSING,
         SESSION_PAUSED,
+        SESSION_CANCELING,
         SESSION_CANCELED,
         SESSION_CLOSED,
+        SESSION_PURGING,
         SESSION_PURGED
     }]
 
@@ -65,9 +68,14 @@ CreateSessions(S) ==
  * running computations are interrupted, and and those that have not already
  * been completed will never be executed.
  *)
-CancelSessions(S) ==
+InitCancelSessions(S) ==
     /\ S /= {}
     /\ S \subseteq (OpenedSession \union PausedSession)
+    /\ sessionState' =
+        [s \in SessionId |-> IF s \in S THEN SESSION_CANCELING ELSE sessionState[s]]
+
+FinalizeCancelSessions(S) ==
+    /\ S /= {} /\ S \subseteq CancelingSession
     /\ sessionState' =
         [s \in SessionId |-> IF s \in S THEN SESSION_CANCELED ELSE sessionState[s]]
 
@@ -77,21 +85,26 @@ CancelSessions(S) ==
  * executed are postponed until the sessions are resumed.
  * Pausing a session is an idempotent operation.
  *)
-PauseSessions(S) ==
+InitPauseSessions(S) ==
     /\ S /= {}
     /\ S \subseteq (OpenedSession \union PausedSession)
     /\ sessionState' =
-        [s \in SessionId |-> IF s \in S THEN SESSION_PAUSED ELSE sessionState[s]]
+        [s \in SessionId |-> IF s \in S THEN SESSION_PAUSING ELSE sessionState[s]]
+
+FinalizePauseSessions(S) ==
+    /\ S /= {} /\ S \subseteq PausingSession
+    /\ sessionState' =
+        [s \in SessionId |-> IF s \in S THEN SESSION_PAUSING ELSE sessionState[s]]
 
 (**
  * RESUME SESSIONS
  * A set 'S' of paused sessions are opened again i.e., ready computations can
  * be processed.
  *)
-ResumeSessions(S) ==
-    /\ S /= {} /\ S \subseteq PausedSession
+InitResumeSessions(S) ==
+    /\ S /= {} /\ S \subseteq (PausingSession \union PausedSession)
     /\ sessionState' =
-        [s \in SessionId |-> IF s \in S THEN SESSION_OPENED ELSE sessionState[s]]
+        [s \in SessionId |-> IF s \in S THEN SESSION_RESUMING ELSE sessionState[s]]
 
 (**
  * CLOSE SESSIONS
@@ -113,7 +126,25 @@ PurgeSessions(S) ==
     /\ S /= {}
     /\ S \subseteq (ClosedSession \union CanceledSession)
     /\ sessionState' =
-        [s \in SessionId |-> IF s \in S THEN SESSION_PURGED ELSE sessionState[s]]
+        [s \in SessionId |-> IF s \in S THEN SESSION_PURGING ELSE sessionState[s]]
+
+FinalizeSessions(S) ==
+    /\ S /= {}
+    /\ S \subseteq (PausingSession \union CancelingSession \union PurgingSession)
+    /\ sessionState' =
+        [s \in SessionId |->
+            CASE s \in PausingSession   -> SESSION_PAUSED
+              [] s \in CancelingSession -> SESSION_CANCELED
+              [] s \in PurgingSession   -> SESSION_PURGED
+              [] OTHER                  -> sessionState[s]
+        ]
+
+(**
+ * Action representing the terminal state of the system. No particular
+ * constraints are imposed, as the state of sessions can be frozen at any time.
+ *)
+Terminating ==
+    UNCHANGED vars
 
 -------------------------------------------------------------------------------
 
@@ -133,6 +164,12 @@ Next ==
         \/ ResumeSessions(S)
         \/ CloseSessions(S)
         \/ PurgeSessions(S)
+        \/ FinalizeSessions(S)
+        \/ Terminating
+
+Fairness ==
+    \A s \in SessionId:
+        WF_vars(FinalizeSessions({s}))
 
 (**
  * Full system specification: all behaviors starting in Init and taking only
@@ -141,12 +178,18 @@ Next ==
 Spec ==
     /\ Init
     /\ [][Next]_vars
+    /\ Fairness
 
 -------------------------------------------------------------------------------
 
 (*****************************************************************************)
 (* SAFETY AND LIVENESS PROPERTIES                                            *)
 (*****************************************************************************)
+
+EventualCompletion ==
+    \A s \in SessionId:
+        /\ s \in CancelingSession ~> s \in CanceledSession
+        /\ s \in PausingSession ~> s \in PausedSession \/ s \in CanceledSession
 
 (**
  * LIVENESS
@@ -176,6 +219,7 @@ PermanentPurgation ==
 (******************************************************************************)
 
 THEOREM Spec => []TypeInv
+THEOREM Spec => EventualCompletion
 THEOREM Spec => EventualQuiescence
 THEOREM Spec => PermanentPurgation
 
