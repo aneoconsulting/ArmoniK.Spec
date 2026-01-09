@@ -8,6 +8,8 @@
 (* of the system.                                                            *)
 (*****************************************************************************)
 
+EXTENDS Utils
+
 CONSTANTS
     ObjectId   \* Set of object identifiers (theoretically infinite)
 
@@ -128,7 +130,9 @@ Next ==
  *     eventually finalized.
  *)
 Fairness ==
-    /\ \A o \in ObjectId: WF_vars(o \in objectTargets /\ FinalizeObjects({o}))
+    \A o \in ObjectId :
+        object(o) ::
+            WF_vars(o \in objectTargets /\ FinalizeObjects({o}))
 
 (**
  * Full system specification.
@@ -146,10 +150,26 @@ Spec ==
 
 (**
  * SAFETY
+ * Objects states are mutually exclusive, meaning that an object can only be in
+ * one of these states at any given time.
+ *)
+DistinctObjectStates ==
+    AreSetsDijoint({UnknownObject, RegisteredObject, FinalizedObject})
+
+(**
+ * SAFETY
  * An object can only be targeted if it is known to the system.
  *)
 TargetStateConsistent ==
     objectTargets \intersect UnknownObject = {}
+
+(**
+ * SAFETY
+ * Once an object reaches the FINALIZED state, it remains there permanently.
+ *)
+PermanentFinalization ==
+    \A o \in ObjectId:
+        [](o \in FinalizedObject => [](o \in FinalizedObject))
 
 (**
  * LIVENESS
@@ -157,25 +177,10 @@ TargetStateConsistent ==
  *)
 EventualTargetFinalization ==
     \A o \in ObjectId:
+        <>[](o \in objectTargets) => <>(o \in FinalizedObject)
+
+EventualTargetHandling ==
+    \A o \in ObjectId :
         o \in objectTargets ~> (o \in FinalizedObject \/ o \notin objectTargets)
-
-(**
- * LIVENESS
- * Once an object reaches the FINALIZED state, it remains there permanently.
- *)
-PermanentFinalization ==
-    \A o \in ObjectId:
-        [](o \in FinalizedObject => [](o \in FinalizedObject))
-
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* THEOREMS                                                                  *)
-(*****************************************************************************)
-
-THEOREM Spec => []TypeInv
-THEOREM Spec => []TargetStateConsistent
-THEOREM Spec => EventualTargetFinalization
-THEOREM Spec => PermanentFinalization
 
 ===============================================================================
