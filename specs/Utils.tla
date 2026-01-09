@@ -15,7 +15,7 @@
 \*     IN
 \*         FoldSet(Op, <<>>, S)
 
-AreSetsDijoint(Sets) ==
+AreSetsDisjoint(Sets) ==
     \A S1, S2 \in Sets : 
         S1 /= S2 => S1 \intersect S2 = {}
 

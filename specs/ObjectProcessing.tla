@@ -154,13 +154,13 @@ Spec ==
  * one of these states at any given time.
  *)
 DistinctObjectStates ==
-    AreSetsDijoint({UnknownObject, RegisteredObject, FinalizedObject})
+    AreSetsDisjoint({UnknownObject, RegisteredObject, FinalizedObject})
 
-(**
- * SAFETY
- * An object can only be targeted if it is known to the system.
+(** * SAFETY
+ * An object cannot be a target if it is unknown to the system. The set of
+ * targets must always be a subset of known objects.
  *)
-TargetStateConsistent ==
+TargetValidity ==
     objectTargets \intersect UnknownObject = {}
 
 (**
@@ -179,7 +179,12 @@ EventualTargetFinalization ==
     \A o \in ObjectId:
         <>[](o \in objectTargets) => <>(o \in FinalizedObject)
 
-EventualTargetHandling ==
+(**
+ * LIVENESS
+ * Any object added to the target set must eventually be resolved, 
+ * meaning it is either finalized or removed from the target set.
+ *)
+EventualTargetResolution ==
     \A o \in ObjectId :
         o \in objectTargets ~> (o \in FinalizedObject \/ o \notin objectTargets)
 
