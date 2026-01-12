@@ -1,4 +1,5 @@
 -------------------------- MODULE ObjectProcessingExt --------------------------
+EXTENDS Utils
 
 CONSTANTS
     ObjectId   \* Set of object identifiers (theoretically infinite)
@@ -33,8 +34,7 @@ TypeInv ==
             OBJECT_UNKNOWN,
             OBJECT_REGISTERED,
             OBJECT_COMPLETED,
-            OBJECT_ABORTED,
-            OBJECT_DELETED
+            OBJECT_ABORTED
         }]
     /\ objectTargets \in SUBSET ObjectId
 
@@ -43,6 +43,11 @@ TypeInv ==
 (*****************************************************************************)
 (* SYSTEM TRANSITIONS                                                        *)
 (*****************************************************************************)
+
+TargetObjects(O) ==
+    /\ O # {} /\ O \subseteq RegisteredObject \union CompletedObject \union AbortedObject
+    /\ objectTargets' = objectTargets \cup O
+    /\ UNCHANGED objectState
 
 (**
  * OBJECT FINALIZATION
@@ -82,7 +87,7 @@ Terminating ==
  *)
 Next ==
     \E O \in SUBSET ObjectId:
-        \/ OP!TargetObjects(O)
+        \/ TargetObjects(O)
         \/ OP!UntargetObjects(O)
         \/ OP!RegisterObjects(O)
         \/ FinalizeObjects(O)
@@ -95,7 +100,9 @@ Next ==
  *     eventually finalized (completed or aborted).
  *)
 Fairness ==
-    /\ \A o \in ObjectId: WF_vars(o \in objectTargets /\ FinalizeObjects({o}))
+    \A o \in ObjectId :
+        object(o) ::
+            WF_vars(o \in objectTargets /\ FinalizeObjects({o}))
 
 (**
  * Full system specification.
@@ -110,6 +117,9 @@ Spec ==
 (*****************************************************************************)
 (* SAFETY AND LIVENESS PROPERTIES                                            *)
 (*****************************************************************************)
+
+DistinctObjectStates ==
+    AreSetsDisjoint({UnknownObject, RegisteredObject, CompletedObject, AbortedObject})
 
 (**
  * SAFETY
@@ -134,15 +144,5 @@ RefinementMapping ==
                   [] OTHER                             -> objectState[o]
         ]
 RefineObjectProcessing == RefinementMapping!Spec
-
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* THEOREMS                                                                  *)
-(*****************************************************************************)
-
-THEOREM Spec => []TypeInv
-THEOREM Spec => PermanentFinalization
-THEOREM Spec => RefineObjectProcessing
 
 ================================================================================
