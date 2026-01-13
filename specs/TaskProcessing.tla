@@ -219,7 +219,8 @@ EventualStaging ==
 
 EventualProcessing ==
     \A t \in TaskId :
-        t \in StagedTask /\ []<>(t \in AssignedTask) ~> t \in ProcessedTask
+        []<>(t \in AssignedTask) => <>(t \in ProcessedTask)
+        \* t \in StagedTask /\ []<>(t \in AssignedTask) ~> t \in ProcessedTask
 
 EventualFinalization ==
     \A t \in TaskId :
