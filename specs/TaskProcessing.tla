@@ -230,6 +230,7 @@ EventualQuiescence ==
 (*****************************************************************************)
 
 THEOREM Spec => []TypeInv
+THEOREM Spec => []DistinctTaskStates
 THEOREM Spec => []AllocConsistent
 THEOREM Spec => []AllocStateConsistent
 THEOREM Spec => []ExclusiveAssignment
