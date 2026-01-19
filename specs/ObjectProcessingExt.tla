@@ -150,25 +150,13 @@ PermanentFinalization ==
  * LIVENESS
  * This specification refines the ObjectProcessing specification.
  *)
-OPAbs ==
-    INSTANCE ObjectProcessing
-        WITH objectState <- [
-            o \in ObjectId |->
-                CASE objectState[o] = OBJECT_COMPLETED -> OBJECT_FINALIZED
-                  [] objectState[o] = OBJECT_ABORTED   -> OBJECT_FINALIZED
-                  [] OTHER                             -> objectState[o]
-        ]
+objectStateBar ==
+    [o \in ObjectId |->
+        CASE objectState[o] = OBJECT_COMPLETED -> OBJECT_FINALIZED
+          [] objectState[o] = OBJECT_ABORTED   -> OBJECT_FINALIZED
+          [] OTHER                             -> objectState[o]
+    ]
+OPAbs == INSTANCE ObjectProcessing_proof WITH objectState <- objectStateBar
 RefineObjectProcessing == OPAbs!Spec
-
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* THEOREMS                                                                  *)
-(*****************************************************************************)
-
-THEOREM Spec => []TypeInv
-THEOREM Spec => []DistinctObjectStates
-THEOREM Spec => PermanentFinalization
-THEOREM Spec => RefineObjectProcessing
 
 ================================================================================
