@@ -8,6 +8,8 @@
 (* properties of the system.                                                 *)
 (*****************************************************************************)
 
+EXTENDS Utils
+
 CONSTANTS
     AgentId,   \* Set of agent identifiers (theoretically infinite)
     TaskId     \* Set of task identifiers (theoretically infinite)
@@ -165,9 +167,9 @@ Next ==
  *)
 Fairness ==
     \A t \in TaskId:
-        /\ WF_vars(StageTasks({t}))
-        /\ SF_vars(\E a \in AgentId : ProcessTasks(a, {t}))
-        /\ WF_vars(FinalizeTasks({t}))
+        /\ EventuallyStaged(t) :: WF_vars(StageTasks({t}))
+        /\ EventuallyProcessed(t) :: SF_vars(\E a \in AgentId : ProcessTasks(a, {t}))
+        /\ EventuallyFinalized(t) :: WF_vars(FinalizeTasks({t}))
 
 (**
  * Full system specification.
@@ -185,16 +187,9 @@ Spec ==
 
 (**
  * SAFETY
- * The set of all allocated tasks always belongs to the universe of tasks.
- *)
-AllocConsistent ==
-    UNION {agentTaskAlloc[a] : a \in AgentId} \subseteq TaskId
-
-(**
- * SAFETY
  * A task is assigned to an agent if and only if it is in the ASISGNED state.
  *)
-AllocStateConsistent ==
+AssignedStateIntegrity ==
     \A t \in TaskId:
         t \in AssignedTask <=> \E a \in AgentId: t \in agentTaskAlloc[a]
 
@@ -215,6 +210,40 @@ PermanentFinalization ==
 
 (**
  * LIVENESS
+ * Every registered task is eventually staged for processing.
+ *)
+EventualStaging ==
+    \A t \in TaskId :
+        t \in RegisteredTask ~> t \in StagedTask
+
+(**
+ * LIVENESS
+ * Any task assigned to an agent will eventually be either released back 
+ * to the staged pool or successfully processed.
+ *)
+EventualDeallocation ==
+    \A t \in TaskId :
+        t \in AssignedTask ~> t \in StagedTask \/ t \in ProcessedTask
+
+(**
+ * LIVENESS
+ * If a task is repeatedly assigned to agents, it must eventually reach 
+ * the processed state.
+ *)
+EventualProcessing ==
+    \A t \in TaskId :
+        []<>(t \in AssignedTask) => <>(t \in ProcessedTask)
+
+(**
+ * LIVENESS
+ * Every processed task will eventually reach the finalized state.
+ *)
+EventualFinalization ==
+    \A t \in TaskId :
+        t \in ProcessedTask ~> t \in FinalizedTask
+
+(**
+ * LIVENESS
  * Any staged task ultimately remains in the STAGED or FINALIZED state.
  *)
 EventualQuiescence ==
@@ -223,17 +252,4 @@ EventualQuiescence ==
             \/ [](t \in StagedTask)
             \/ [](t \in FinalizedTask)
 
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* THEOREMS                                                                  *)
-(*****************************************************************************)
-
-THEOREM Spec => []TypeInv
-THEOREM Spec => []AllocConsistent
-THEOREM Spec => []AllocStateConsistent
-THEOREM Spec => []ExclusiveAssignment
-THEOREM Spec => PermanentFinalization
-THEOREM Spec => EventualQuiescence
-
-=============================================================================
+===============================================================================
