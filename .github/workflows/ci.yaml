@@ -1,11 +1,66 @@
-name: CI
+name: Code Integration
 
 on:
   pull_request:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  modules:
-    name: Build and test custom modules
+  parse-modules:
+    name: Parse TLA+ Modules
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+      - name: Install TLA+ CLI
+        run: pip install tla-cli
+      - name: Parse specification
+        run: tla parse --manifest manifest.json
+
+  check-models:
+    name: Check Models
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+      - name: Install TLA+ CLI
+        run: pip install tla-cli
+      - name: Parse specification
+        run: tla model-check --manifest manifest.json
+
+  check-proofs:
+    name: Check Proofs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+      - name: Install TLA+ CLI
+        run: pip install tla-cli
+      - name: Parse specification
+        run: tla check-proof --manifest manifest.json
+
+  build-test-external-modules:
+    name: Build and Test External TLA+ Modules
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
@@ -17,5 +72,5 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-    - name: Build and test modules with Ant
+    - name: Build and test external TLA+ modules with Ant
       run: ant -noinput -buildfile modules/build.xml test

@@ -1,0 +1,79 @@
+modules:
+
+  - path: specs/TaskProcessing.tla
+    models:
+      - name: small
+        path: specs/TaskProcessing.cfg
+        timeout: 0:01:0
+        type: explicit
+        mode: exhaustive
+        checks:
+          success: true
+          total_states: 2632
+          distinct_states: 512
+          state_depth: 7
+    proofs:
+      - name: demos
+        path: specs/TaskProcessing_proof.tla
+        timeout: 0:02:00
+        settings:
+          stretch: 2
+        checks:
+          success: true
+          num_obligations: 140
+
+  - path: specs/ObjectProcessing.tla
+    models:
+      - name: small
+        path: specs/ObjectProcessing.cfg
+        timeout: 0:01:0
+        type: explicit
+        mode: exhaustive
+        checks:
+          success: true
+          total_states: 1196
+          distinct_states: 125
+          state_depth: 4
+    proofs:
+      - name: all
+        path: specs/ObjectProcessing_proof.tla
+        timeout: 0:01:00
+        checks:
+          success: true
+          num_obligations: 61
+
+  # - path: specs/GraphProcessing.tla
+  #   dependencies:
+  #     community_modules: tru
+  #     external_modules: modules/dist/ArmoniKSpecModules-deps.jar
+  # - path: specs/GraphProcessing_mc.tla
+  #   dependencies:
+  #     community_modules: tru
+  #     external_modules: modules/dist/ArmoniKSpecModules-deps.jar
+  #   models:
+  #     - name: small
+  #       path: specs/GraphProcessing_mc.cfg
+  #       timeout: 0:05:0
+  #       type: explicit
+  #       mode: exhaustive
+  #       settings:
+  #         workers: "auto"
+  #         max_heap_size: "4G"
+  #       checks:
+  #         success: true
+  #         total_states: 1196
+  #         distinct_states: 125
+  #         state_depth: 4
+
+  - path: specs/ObjectProcessingExt.tla
+    models:
+      - name: small
+        path: specs/ObjectProcessingExt.cfg
+        timeout: 0:01:0
+        type: explicit
+        mode: exhaustive
+        checks:
+          success: true
+          total_states: 5397
+          distinct_states: 343
+          state_depth: 4

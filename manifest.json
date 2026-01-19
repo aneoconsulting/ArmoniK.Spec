@@ -1,0 +1,38 @@
+{
+    "modules": [
+        {
+            "path": "specs/TaskProcessing.tla",
+            "dependencies": [],
+            "models": [
+                {
+                    "name": "small",
+                    "path": "specs/TaskProcessing.cfg",
+                    "timeout": "0:01:0",
+                    "type": "explicit",
+                    "mode": "exhaustive",
+                    "settings": {},
+                    "checks": {
+                        "success": true,
+                        "total_states": 2632,
+                        "distinct_states": 512,
+                        "state_depth": 7
+                    }
+                }
+            ],
+            "proofs": [
+                {
+                    "name": "all",
+                    "path": "specs/TaskProcessing_proof.tla",
+                    "timeout": "0:02:00",
+                    "settings": {
+                        "stretch": 2
+                    },
+                    "checks": {
+                        "success": true,
+                        "num_obligations": 140
+                    }
+                }
+            ]
+        }
+    ]
+}
