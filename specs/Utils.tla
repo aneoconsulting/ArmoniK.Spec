@@ -1,6 +1,8 @@
 --------------------------------- MODULE Utils ---------------------------------
 EXTENDS Naturals, FiniteSets
 
+NULL == ""
+
 (**
  * Checks if a collection of sets (a set of sets) are all disjoint.
  *)
