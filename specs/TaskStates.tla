@@ -8,6 +8,7 @@
 (* other specifications to reason about groups of tasks sharing the same     *)
 (* lifecycle phase.                                                          *)
 (*****************************************************************************) 
+EXTENDS Utils
 
 LOCAL INSTANCE FiniteSets
 
@@ -57,5 +58,26 @@ StagedTask     == SetOfTasksIn(TASK_STAGED)
 AssignedTask   == SetOfTasksIn(TASK_ASSIGNED)
 ProcessedTask  == SetOfTasksIn(TASK_PROCESSED)
 FinalizedTask  == SetOfTasksIn(TASK_FINALIZED)
+
+
+(**
+ * SAFETY PROPERTY
+ * Asserts that the sets representing different task lifecycle stages are 
+ * mutually disjoint. This ensures that every task exists in exactly one 
+ * primary state at any given time, preventing logical overlaps (e.g., an 
+ * object being both 'Completed' and 'Deleted').
+ *
+ * Any specification instantiating the current module must have this property
+ * as an invariant.
+ *)
+DistinctTaskStates ==
+    IsPairwiseDisjoint({
+        UnknownTask,
+        RegisteredTask,
+        StagedTask,
+        AssignedTask,
+        ProcessedTask,
+        FinalizedTask
+    })
 
 ===============================================================================
