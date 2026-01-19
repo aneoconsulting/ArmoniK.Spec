@@ -1,7 +1,7 @@
 ------------------------ MODULE ObjectProcessing_proof ------------------------
 EXTENDS ObjectProcessing, TLAPS
 
-THEOREM TypeCorrect == Spec => []TypeInv
+LEMMA LemmaTypeCorrect == Init /\ [][Next]_vars => []TypeInv
 <1>. USE DEF OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_FINALIZED, UnknownObject,
              RegisteredObject, FinalizedObject
 <1>1. Init => TypeInv
@@ -10,7 +10,10 @@ THEOREM TypeCorrect == Spec => []TypeInv
     BY DEF TypeInv, Next, vars, RegisterObjects, TargetObjects,
             UntargetObjects, FinalizeObjects, Terminating
 <1>. QED
-    BY <1>1, <1>2, PTL DEF Spec
+    BY <1>1, <1>2, PTL
+
+THEOREM TypeCorrect == Spec => []TypeInv
+BY LemmaTypeCorrect DEF Spec
 
 THEOREM DistinctObjectStatesCorrect == Spec => []DistinctObjectStates
 <1>. USE DEF IsPairwiseDisjoint, OBJECT_UNKNOWN, OBJECT_REGISTERED,
