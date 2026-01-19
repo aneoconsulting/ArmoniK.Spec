@@ -8,9 +8,9 @@
 (* allowing other specifications to reason about groups of objects sharing   *)
 (* the same lifecycle phase.                                                 *)
 (*****************************************************************************)
+EXTENDS Utils
 
 LOCAL INSTANCE FiniteSets
-LOCAL INSTANCE Utils
 
 (**
  * Abstract operator returning the set of objects in a given state.
