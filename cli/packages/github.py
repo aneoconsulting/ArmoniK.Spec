@@ -144,6 +144,12 @@ class GithubReleasePackage(Package, ABC):
         except UnknownObjectException:
             return False
 
+    def post_install(self) -> None:
+        """
+        Actions to perform after installation.
+        """
+        pass
+
     def install(self, pkg_version: Version) -> None:
         """
         Install a specific version of the package.
@@ -176,6 +182,8 @@ class GithubReleasePackage(Package, ABC):
             raise RuntimeError(
                 f"Failed to download {asset.name} (status code: {response.status_code})."
             )
+
+        self.post_install()
 
     def uninstall(self) -> None:
         """
@@ -244,3 +252,42 @@ class CommunityModules(GithubReleasePackage):
             The formatted version string.
         """
         return str(version)
+
+
+class TLAPS(GithubReleasePackage):
+    """
+    Binaries of the TLA+ Proof System.
+    """
+
+    def __init__(self, location: Path, logger: Logger, console: Console) -> None:
+        asset_name = "tlapm-1.6.0-pre-x86_64-linux-gnu.tar.gz"
+        super().__init__(
+            name="TLAPS",
+            location=(location / asset_name),
+            repo_name="tlaplus/tlapm",
+            asset_name=asset_name,
+            logger=logger,
+            console=console,
+            prerelease=True,
+        )
+
+    def version_to_tag(self, version: Version) -> str:
+        """
+        Format a version for use in GitHub API calls.
+
+        Args:
+            version: The version to format.
+
+        Returns:
+            The formatted version string.
+        """
+        return str(version).removesuffix("rc0") + "-pre"
+
+    def post_install(self) -> None:
+        """Unpack the TLAPS tarball after installation."""
+        import tarfile
+
+        with tarfile.open(self.location, "r:gz") as tar:
+            tar.extractall(path=self.location.parent)
+        # Remove the tarball after extraction
+        self.location.unlink()

@@ -19,15 +19,17 @@ from .constants import (
     UNCHANGED,
     tla2tools,
     community_modules,
+    tlaps,
     tlc,
     repl,
     sany,
+    tlapm,
 )
 from .utils import AliasedGroup, error_handler
 
 
 # Create a mapping for faster lookup
-pkg_map = {p.name: p for p in [tla2tools, community_modules]}
+pkg_map = {p.name: p for p in [tla2tools, community_modules, tlaps]}
 
 
 @click.group(
@@ -320,6 +322,7 @@ def tla_model_check(
         save_states=save_states,
     )
 
+
 @cli.command(name="parse")
 @click.argument(
     "module_paths",
@@ -343,6 +346,32 @@ def tla_parse(module_paths: list[Path], external_module: list[Path]) -> None:
     """
     for module_path in module_paths:
         sany.start(module_path, list(external_module))
+
+
+@cli.command(name="proof-check")
+@click.argument(
+    "module_paths",
+    type=click.Path(exists=True, dir_okay=False, resolve_path=True, path_type=Path),
+    nargs=-1,
+    help="Path(s) to the TLA+ module file(s) (.tla) to parse.",
+)
+@click.option(
+    "--stretch",
+    metavar="STRETCH_FACTOR",
+    type=int,
+    help="Optional stretch factor for TLAPM backends.",
+)
+@error_handler
+def tla_check_proof(module_paths: list[Path], stretch: int | None) -> None:
+    """
+    Run TLAPM to check proofs in TLA+ module files.
+    """
+    for module_path in module_paths:
+        num_obligations = tlapm.start(module_path, stretch)
+        CONSOLE.print(
+            f"{module_path.name.removesuffix('.tla')}: {num_obligations} obligations proved."
+        )
+
 
 if __name__ == "__main__":
     cli()

@@ -71,7 +71,7 @@ THEOREM EventualTargetFinalizationCorrect == Spec => EventualTargetFinalization
     BY DEF EventualTargetFinalization            
 <1>1. Fairness => Fairness!EventuallyFinalized(o)
     BY DEF Fairness
-<1>2. []ObjectSafetyInv /\ [][Next]_vars /\ Fairness!EventuallyFinalize(o) /\ [](o \in objectTargets)
+<1>2. []ObjectSafetyInv /\ [][Next]_vars /\ Fairness!EventuallyFinalized(o) /\ [](o \in objectTargets)
         => <>(o \in FinalizedObject)
     <2>. USE DEF OBJECT_FINALIZED, FinalizedObject
     <2>1. ObjectSafetyInv /\ (o \in objectTargets) /\ ~(o \in FinalizedObject)
@@ -100,7 +100,7 @@ THEOREM EventualTargetResolutionCorrect == Spec => EventualTargetResolution
 <1>3. ObjectSafetyInv /\ o \in objectTargets => ENABLED <<o \in objectTargets /\ FinalizeObjects({o})>>_vars \/ o \in FinalizedObject
     BY ExpandENABLED, TargetsAreKnown DEF FinalizeObjects, vars,
        OBJECT_REGISTERED, OBJECT_FINALIZED, RegisteredObject, FinalizedObject
-<1>4. Fairness => Fairness!EventuallyFinalize(o)
+<1>4. Fairness => Fairness!EventuallyFinalized(o)
     BY DEF Fairness
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, ObjectSafetyInvCorrect, PTL DEF Spec, ObjectSafetyInv

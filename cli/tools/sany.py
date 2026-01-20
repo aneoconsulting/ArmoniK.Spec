@@ -33,5 +33,9 @@ class SANY(JavaClassTool):
         cmd = self.get_java_command([str(path)])
         output = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if output.returncode != 0:
-            raise click.ClickException(f"Failed to parse {path}.\n\n{output.stdout.decode('utf-8')}\n{output.stderr.decode('utf-8')}")
-        self.console.print(f"Successfully parsed module {path.name.removesuffix('.tla')}.")
+            raise click.ClickException(
+                f"Failed to parse {path}.\n\n{output.stdout.decode('utf-8')}\n{output.stderr.decode('utf-8')}"
+            )
+        self.console.print(
+            f"Successfully parsed module {path.name.removesuffix('.tla')}."
+        )

@@ -57,6 +57,8 @@ class AliasedGroup(click.RichGroup):
             return rv
         if cmd_name == "mc":
             return click.Group.get_command(self, ctx, "model-check")
+        elif cmd_name == "pc":
+            return click.Group.get_command(self, ctx, "proof-check")
         return None
 
     def resolve_command(

@@ -5,8 +5,8 @@ from pathlib import Path
 from rich.console import Console
 from rich.logging import RichHandler
 
-from .packages import TLA2Tools, CommunityModules
-from .tools import TLC, REPL, SANY
+from .packages import TLA2Tools, CommunityModules, TLAPS
+from .tools import TLC, REPL, SANY, TLAPM
 
 
 VALID = "[green]✓[/green]"
@@ -31,6 +31,7 @@ LOGGER = logging.getLogger("rich")
 
 tla2tools = TLA2Tools(location=TOOLS_DIR, logger=LOGGER, console=CONSOLE)
 community_modules = CommunityModules(location=TOOLS_DIR, logger=LOGGER, console=CONSOLE)
+tlaps = TLAPS(location=TOOLS_DIR, logger=LOGGER, console=CONSOLE)
 
 repl = REPL(main_class="tlc2.REPL", pkg=tla2tools, logger=LOGGER, console=CONSOLE)
 
@@ -49,3 +50,5 @@ sany = SANY(
     logger=LOGGER,
     console=CONSOLE,
 )
+
+tlapm = TLAPM(pkg=tlaps, logger=LOGGER, console=CONSOLE)
