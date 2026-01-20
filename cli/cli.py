@@ -21,6 +21,7 @@ from .constants import (
     community_modules,
     tlc,
     repl,
+    sany,
 )
 from .utils import AliasedGroup, error_handler
 
@@ -319,6 +320,29 @@ def tla_model_check(
         save_states=save_states,
     )
 
+@cli.command(name="parse")
+@click.argument(
+    "module_paths",
+    type=click.Path(exists=True, dir_okay=False, resolve_path=True, path_type=Path),
+    nargs=-1,
+    help="Path(s) to the TLA+ module file(s) (.tla) to parse.",
+)
+@click.option(
+    "--external-module",
+    metavar="MODULE_PATH",
+    type=click.Path(
+        exists=True, dir_okay=True, file_okay=True, resolve_path=True, path_type=Path
+    ),
+    multiple=True,
+    help="Additional external TLA+ modules or JAR files to include in the classpath.",
+)
+@error_handler
+def tla_parse(module_paths: list[Path], external_module: list[Path]) -> None:
+    """
+    Run the SANY parser on TLA+ module files.
+    """
+    for module_path in module_paths:
+        sany.start(module_path, list(external_module))
 
 if __name__ == "__main__":
     cli()

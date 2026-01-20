@@ -6,7 +6,7 @@ from rich.console import Console
 from rich.logging import RichHandler
 
 from .packages import TLA2Tools, CommunityModules
-from .tools import TLC, REPL
+from .tools import TLC, REPL, SANY
 
 
 VALID = "[green]✓[/green]"
@@ -38,6 +38,13 @@ tlc = TLC(
     main_class="tlc2.TLC",
     data_path=RUN_DATA_DIR,
     community_modules=community_modules,
+    pkg=tla2tools,
+    logger=LOGGER,
+    console=CONSOLE,
+)
+
+sany = SANY(
+    main_class="tla2sany.SANY",
     pkg=tla2tools,
     logger=LOGGER,
     console=CONSOLE,
