@@ -136,22 +136,11 @@ RetryTasks(T, U) ==
  *)
 AssignTasks(a, T) ==
     /\ T /= {} /\ T \subseteq StagedTask
+    /\ \A t \in T: ~cancelRequested[t] /\ ~pausingRequested[t]
     /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \union T]
     /\ taskState' =
         [t \in TaskId |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, cancelRequested, pausingRequested >>
-
-(**
- * TASK STARTING
- * An agent 'a' begins execution of a set of assigned tasks 'T', 
- * provided they haven't been marked for cancellation.
- *)
-StartTasks(a, T) ==
-    /\ T /= {} /\ T \subseteq (agentTaskAlloc[a] \intersect AssignedTask)
-    /\ \A t \in T: ~cancelRequested[t] /\ ~pausingRequested[t]
-    /\ taskState' =
-        [t \in TaskId |-> IF t \in T THEN TASK_STARTED ELSE taskState[t]]
-    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, cancelRequested, pausingRequested >>
 
 (**
  * TASK RELEASE
@@ -159,32 +148,6 @@ StartTasks(a, T) ==
  *)
 ReleaseTasks(a, T) ==
     /\ TP!ReleaseTasks(a, T)
-    /\ UNCHANGED << nextAttemptOf, cancelRequested, pausingRequested >>
-
-(**
- * CANCELLATION ACKNOWLEDGMENT
- * An agent 'a' recognizes that a set of assigned/started tasks 'T' have a 
- * pending cancellation request, moving them to a terminal CANCELED state.
- *)
-AcknowledgeTasksCancellation(a, T) ==
-    /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
-    /\ \A t \in T: cancelRequested[t]
-    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
-    /\ taskState' =
-        [t \in TaskId |-> IF t \in T THEN TASK_CANCELED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, cancelRequested, pausingRequested >>
-
-(**
- * PAUSING ACKNOWLEDGMENT
- * An agent 'a' recognizes that a set of assigned tasks 'T' have a 
- * pending pausing request, moving them to the PAUSED state.
- *)
-AcknowledgeTasksPausing(a, T) ==
-    /\ T /= {} /\ T \subseteq (agentTaskAlloc[a] \intersect AssignedTask)
-    /\ \A t \in T: pausingRequested[t]
-    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
-    /\ taskState' =
-        [t \in TaskId |-> IF t \in T THEN TASK_PAUSED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, cancelRequested, pausingRequested >>
 
 (**
@@ -197,7 +160,7 @@ AcknowledgeTasksPausing(a, T) ==
  *   - Task crashed irrecoverably - re-execution is prohibited.
  *)
 ProcessTasks(a, T) ==
-    /\ T /= {} /\ T \subseteq (agentTaskAlloc[a] \intersect StartedTask)
+    /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
     /\ \E S, F, C \in SUBSET T :
         /\ UNION {S, F, C} = T
         /\ IsPairwiseDisjoint({S, F, C})
@@ -234,17 +197,31 @@ FinalizeTasks(T) ==
  * However, assigned tasks and potentially certain staged tasks 'ExemptStagedTasks'
  * cannot be canceled immediately. In this case, the cancellation is delayed until an agent takes action.
  *)
-CancelTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq UNION {RegisteredTask, StagedTask, PausedTask, AssignedTask}
-    /\ \E ExemptStagedTasks \in SUBSET (T \intersect StagedTask):
-        taskState' =
-            [t \in TaskId |-> IF t \in T /\ t \notin (AssignedTask \union ExemptStagedTasks)
-                                THEN TASK_CANCELED
-                                ELSE taskState[t]]
+RequestTasksCancellation(T) ==
+    /\ T /= {} /\ T \intersect UnknownTask = {}
     /\ cancelRequested' =
         [t \in TaskId |-> IF t \in T THEN TRUE ELSE cancelRequested[t]]
     /\ UNCHANGED << agentTaskAlloc, taskState, nextAttemptOf, pausingRequested >>
+
+(**
+ * CANCELLATION ACKNOWLEDGMENT
+ * An agent 'a' recognizes that a set of assigned/started tasks 'T' have a 
+ * pending cancellation request, moving them to a terminal CANCELED state.
+ *)
+CancelTasks(T) ==
+    /\ T /= {} /\ \A t \in T: cancelRequested[t]
+    /\ \/ \E a \in AgentId:
+            /\ T \subseteq agentTaskAlloc[a]
+            /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
+       \/ /\ (T \intersect AssignedTask) = {}
+          /\ UNCHANGED agentTaskAlloc
+    /\ taskState' =
+        [t \in TaskId |-> IF t \in T /\ (\/ t \in RegisteredTask
+                                         \/ t \in StagedTask
+                                         \/ t \in AssignedTask)
+                            THEN TASK_CANCELED
+                            ELSE taskState[t]]
+    /\ UNCHANGED << nextAttemptOf, cancelRequested, pausingRequested >>
 
 (**
  * TASK PAUSING
@@ -253,18 +230,29 @@ CancelTasks(T) ==
  * and assigned task (execution not started). It only register the request of pausing
  * for assigned tasks.
  *)
-PauseTasks(T) ==
-    /\ T /= {} /\ T \subseteq (StagedTask \union AssignedTask)
+RequestTasksPausing(T) ==
+    /\ T /= {} /\ T \intersect UnknownTask = {}
     /\ \A t \in T: ~cancelRequested[t]
-    /\ \E AffectedStagedTasks \in SUBSET (T \intersect StagedTask):
-        taskState' =
-            [t \in TaskId |-> IF t \in AffectedStagedTasks
-                                THEN TASK_PAUSED
-                                ELSE taskState[t]]
-    \* /\ taskState' =
-    \*     [t \in TaskId |-> IF t \in T \intersect StagedTask THEN TASK_PAUSED ELSE taskState[t]]
     /\ pausingRequested' = [t \in TaskId |-> IF t \in T THEN TRUE ELSE pausingRequested[t]]
-    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, cancelRequested >>
+    /\ UNCHANGED << agentTaskAlloc, taskState, nextAttemptOf, cancelRequested >>
+
+(**
+ * PAUSING ACKNOWLEDGMENT
+ * An agent 'a' recognizes that a set of assigned tasks 'T' have a 
+ * pending pausing request, moving them to the PAUSED state.
+ *)
+PauseTasks(T) ==
+    /\ T /= {} /\ \A t \in T: pausingRequested[t]
+    /\ \/ \E a \in AgentId:
+            /\ T \subseteq agentTaskAlloc[a]
+            /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
+       \/ /\ (T \intersect AssignedTask) = {}
+          /\ UNCHANGED agentTaskAlloc
+    /\ taskState' =
+        [t \in TaskId |-> IF t \in T /\ (t \in StagedTask \/ t \in AssignedTask)
+                            THEN TASK_PAUSED
+                            ELSE taskState[t]]
+    /\ UNCHANGED << nextAttemptOf, cancelRequested, pausingRequested >>
 
 (**
  * TASK RESUMING
@@ -309,13 +297,12 @@ Next ==
         \/ \E U \in SUBSET TaskId: RetryTasks(T, U)
         \/ \E a \in AgentId:
             \/ AssignTasks(a, T)
-            \/ StartTasks(a, T)
             \/ ReleaseTasks(a, T)
-            \/ AcknowledgeTasksCancellation(a, T)
-            \/ AcknowledgeTasksPausing(a, T)
             \/ ProcessTasks(a, T)
         \/ FinalizeTasks(T)
+        \/ RequestTasksCancellation(T)
         \/ CancelTasks(T)
+        \/ RequestTasksPausing(T)
         \/ PauseTasks(T)
         \/ ResumeTasks(T)
         \/ Terminating
@@ -334,26 +321,11 @@ Fairness ==
     \A t \in TaskId:
         /\ WF_vars(StageTasks({t}))
         /\ WF_vars(\E u \in TaskId : RetryTasks({t}, {u}))
-        /\ WF_vars(cancelRequested[t] /\ \E a \in AgentId: AssignTasks(a, {t}))
-        /\ WF_vars(pausingRequested[t] /\ \E a \in AgentId: AssignTasks(a, {t}))
-        /\ SF_vars(\E a \in AgentId : AcknowledgeTasksCancellation(a, {t}))
-        /\ SF_vars(\E a \in AgentId : AcknowledgeTasksPausing(a, {t}))
-        /\ SF_vars(\E a \in AgentId : StartTasks(a, {t}))
         /\ SF_vars(\E a \in AgentId : ProcessTasks(a, {t}))
         /\ WF_vars(FinalizeTasks({t}))
+        /\ WF_vars(CancelTasks({t}))
+        /\ WF_vars(PauseTasks({t}))
         /\ WF_vars(ResumeTasks({t}))
-
-Liveness ==
-        \* The temporal formula below captures the assumption that a user do not
-        \* pause a task infinitely often. This assumption is necessary to rule out
-        \* a livelock in which an agent repeatedly pauses a task in response to
-        \* user requests. In general, this kind of temporal formula is discouraged;
-        \* fairness conditions are usually preferred. In this case, however, the
-        \* assumption is naturally temporal. An equivalent way to avoid the livelock
-        \* is to impose the fairness condition below. Its drawback is that it
-        \* does not faithfully represent the underlying assumption.
-        \* SF_vars(~pausingRequested[t] /\ (\E a \in AgentId: AssignTasks(a, {t}) \/ UNCHANGED vars))
-        \A t \in TaskId : ~[]<>(pausingRequested[t])
 
 (**
  * Full system specification.
@@ -362,7 +334,6 @@ Spec ==
     /\ Init
     /\ [][Next]_vars
     /\ Fairness
-    /\ Liveness
 
 -------------------------------------------------------------------------------
 
@@ -378,8 +349,6 @@ TaskStateIntegrity ==
     \A t \in TaskId:
         /\ t \in RetriedTask =>
             nextAttemptOf[t] /= NULL /\ nextAttemptOf[t] \notin UnknownTask
-        /\ t \in (AssignedTask \union StartedTask)
-            <=> \E a \in AgentId : t \in agentTaskAlloc[a]
         /\ t \in CanceledTask => cancelRequested[t]
         /\ t \in PausedTask => pausingRequested[t]
         /\ t \in UnknownTask => ~cancelRequested[t] /\ ~pausingRequested[t]
@@ -443,7 +412,7 @@ PausedTaskEventualResolution ==
 FailedTaskEventualRetry ==
     \A t \in TaskId:
         t \in UnretriedTask ~>
-            nextAttemptOf[t] \in StagedTask
+            nextAttemptOf[t] \in (StagedTask \union CanceledTask)
 
 (**
  * LIVENESS
@@ -464,8 +433,7 @@ TPAbs ==
     INSTANCE TaskProcessing
         WITH taskState <- [
             t \in TaskId |->
-                CASE taskState[t] = TASK_STARTED   -> TASK_ASSIGNED
-                  [] taskState[t] = TASK_SUCCEEDED -> TASK_PROCESSED
+                CASE taskState[t] = TASK_SUCCEEDED -> TASK_PROCESSED
                   [] taskState[t] = TASK_FAILED    -> TASK_PROCESSED
                   [] taskState[t] = TASK_CRASHED   -> TASK_PROCESSED
                   [] taskState[t] = TASK_COMPLETED -> TASK_FINALIZED
