@@ -56,71 +56,48 @@ THEOREM RefineObjectProcessingCorrect == Spec => RefineObjectProcessing
         OPAbs!FinalizeObjects, OPAbs!Terminating, OP!UnknownObject, UnknownObject,
         RegisteredObject, FinalizedObject, CompletedObject, AbortedObject,
         OPAbs!UnknownObject, OPAbs!RegisteredObject, OPAbs!FinalizedObject
-<1>3. Spec => []OPAbs!TypeInv
-    BY <1>1, <1>2, OPAbs!LemmaTypeCorrect, PTL DEF Spec
-<1>4. []TypeInv /\ []OPAbs!TypeInv /\ [][Next]_vars /\ Fairness => OPAbs!Fairness
+<1>3. [][Next]_vars /\ Fairness => OPAbs!Fairness
     <2>. DEFINE AbsA(o) == o \in objectTargets /\ OPAbs!FinalizeObjects({o})
                 A(o) == o \in objectTargets /\ FinalizeObjects({o})
     <2>. SUFFICES ASSUME NEW o \in ObjectId
-                  PROVE []TypeInv /\ []OPAbs!TypeInv  /\ [][Next]_vars /\ WF_vars(A(o))
+                  PROVE [][Next]_vars /\ WF_vars(A(o))
                             => WF_(OPAbs!vars)(AbsA(o))
-        BY DEF Fairness, OPAbs!Fairness
-    <2>1. TypeInv /\ OPAbs!TypeInv /\ ENABLED <<AbsA(o)>>_(OPAbs!vars)
-            => (ENABLED <<A(o)>>_vars)
-        <3>1. TypeInv => (ENABLED <<A(o)>>_vars
+        BY Isa DEF Fairness, OPAbs!Fairness
+    <2>1. ENABLED <<AbsA(o)>>_(OPAbs!vars) => (ENABLED <<A(o)>>_vars)
+        <3>1. (ENABLED <<A(o)>>_vars
                 <=> o \in RegisteredObject /\ o \in objectTargets)
-            <4>. SUFFICES ASSUME TypeInv
-                          PROVE ENABLED <<A(o)>>_vars
-                                    <=> o \in RegisteredObject /\ o \in objectTargets
-                OBVIOUS
-            <4>1. ( /\ {o} \subseteq RegisteredObject
-                    /\ \E C, A \in SUBSET {o} :
-                        /\ C \union A = {o}
-                        /\ C \intersect  A = {}
-                        /\ objectState' =
-                            [o_1 \in ObjectId |-> CASE o_1 \in C -> OBJECT_COMPLETED
-                                                    [] o_1 \in A -> OBJECT_ABORTED
-                                                    [] OTHER   -> objectState[o_1]]) => objectState'[o] /= objectState[o]
-                BY DEF RegisteredObject
+            <4>1. A(o) => objectState'[o] /= objectState[o]
+              BY DEF RegisteredObject, FinalizeObjects
             <4>2. <<A(o)>>_vars <=> A(o)
-                BY <4>1 DEF FinalizeObjects, vars
+                BY <4>1 DEF vars
             <4>3. (ENABLED <<A(o)>>_vars) <=> (ENABLED A(o))
                 BY <4>2, ENABLEDaxioms
             <4>4. (ENABLED A(o)) <=> o \in RegisteredObject /\ o \in objectTargets
-                BY ExpandENABLED DEF TypeInv, FinalizeObjects
+                BY Isa, ExpandENABLED DEF FinalizeObjects
             <4>. QED
                 BY <4>3, <4>4
-        <3>2. OPAbs!TypeInv => (ENABLED <<AbsA(o)>>_(OPAbs!vars)
+        <3>2. (ENABLED <<AbsA(o)>>_(OPAbs!vars)
                 <=> o \in OPAbs!RegisteredObject /\ o \in objectTargets)
-            <4>. SUFFICES ASSUME OPAbs!TypeInv
-                          PROVE ENABLED <<AbsA(o)>>_(OPAbs!vars)
-                                    <=> o \in OPAbs!RegisteredObject /\ o \in objectTargets
-                OBVIOUS
-            <4>1. (/\ {o} \subseteq OPAbs!RegisteredObject
-                /\ objectStateBar'
-                    = [o_1 \in ObjectId |->
-                        IF o_1 \in {o}
-                                THEN "OBJECT_FINALIZED"
-                                ELSE objectStateBar[o_1]]) => objectStateBar' /= objectStateBar
-                BY DEF OPAbs!RegisteredObject
+            <4>1. AbsA(o) => objectStateBar' /= objectStateBar
+              BY DEF OPAbs!FinalizeObjects, OPAbs!RegisteredObject
             <4>2. <<AbsA(o)>>_(OPAbs!vars) <=> AbsA(o)
-                BY <4>1 DEF OPAbs!TypeInv, OPAbs!FinalizeObjects, OPAbs!vars
+                BY <4>1 DEF OPAbs!vars
             <4>3. (ENABLED <<AbsA(o)>>_(OPAbs!vars)) <=> (ENABLED AbsA(o))
                 BY <4>2, ENABLEDaxioms
             <4>4. (ENABLED AbsA(o))
                     <=> o \in OPAbs!RegisteredObject /\ o \in objectTargets
-                BY ExpandENABLED DEF TypeInv, objectStateBar, OPAbs!FinalizeObjects
+                BY ExpandENABLED DEF objectStateBar, OPAbs!FinalizeObjects
             <4>. QED
                 BY <4>3, <4>4
         <3>. QED
             BY <3>1, <3>2 DEF RegisteredObject, OPAbs!RegisteredObject, objectStateBar
-    <2>2. TypeInv /\ <<A(o)>>_vars => <<AbsA(o)>>_(OPAbs!vars)
-        BY DEF TypeInv, vars, objectStateBar, OPAbs!vars, RegisteredObject,
-            CompletedObject, AbortedObject, FinalizeObjects, OPAbs!RegisteredObject,
+    <2>2. <<A(o)>>_vars => <<AbsA(o)>>_(OPAbs!vars)
+        BY DEF vars, objectStateBar, OPAbs!vars, RegisteredObject, CompletedObject,
+            AbortedObject, FinalizeObjects, OPAbs!RegisteredObject,
             OPAbs!FinalizeObjects
     <2>. QED
         BY <2>1, <2>2, PTL
 <1>. QED
-    BY <1>1, <1>2, <1>3, <1>4, TypeCorrect, PTL DEF Spec, OPAbs!Spec, RefineObjectProcessing
+    BY <1>1, <1>2, <1>3, PTL DEF Spec, OPAbs!Spec, RefineObjectProcessing
 
 ================================================================================
