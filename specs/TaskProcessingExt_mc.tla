@@ -11,6 +11,6 @@ EXTENDS FiniteSets, Naturals, TaskProcessingExt
  * to prevent such a deadlock.
  *)
 ActionConstraint ==
-    Cardinality(UnknownTask') >= Cardinality(UnretriedTask')
+    Cardinality(UnknownTask') >= Cardinality({t \in FailedTask: ~IsRetried(t)}')
 
 ================================================================================
