@@ -7,7 +7,7 @@
 (* - Decomposing the abstract PROCESSED state into concrete outcomes:         *)
 (* SUCCEEDED, FAILED, or CRASHED.                                             *)
 (* - Implementing a retry mechanism where FAILED tasks are cloned and         *)
-(* re-staged, tracked via the 'nextAttemptOf' mapping.                        *)
+(* re-staged, tracked via the 'taskComputation' mapping.                        *)
 (* - Refining the abstract FINALIZED state into permanent terminal states:    *)
 (* COMPLETED (post-success), RETRIED (post-failure), or ABORTED (crashed).    *)
 (*                                                                            *)
@@ -19,22 +19,21 @@
 EXTENDS FiniteSets, Functions, Utils, TLC
 
 CONSTANTS
-    AgentId,   \* Set of agent identifiers (theoretically infinite)
-    TaskId     \* Set of task identifiers (theoretically infinite)
+    AgentId,     \* Set of agent identifiers (theoretically infinite)
+    TaskId,      \* Set of task identifiers (theoretically infinite)
+    ComputationId \* Set of computation identifiers (theoretically infinite)
 
 ASSUME
-    \* Agent and task identifier sets are disjoint
-    AgentId \intersect TaskId = {}
+    IsPairwiseDisjoint({AgentId, TaskId, ComputationId})
 
 VARIABLES
     agentTaskAlloc,   \* agentTaskAlloc[a] is the set of tasks currently assigned to agent a
     taskState,        \* taskState[t] records the current lifecycle state of task t
-    nextAttemptOf,    \* nextAttemptOf[t] is the ID of the clone task of t that retries
-                      \* the execution of t (NULL if t has no associated retries).
+    taskComputation,  \* taskComputation[t] is the ID of the computation t is an execution instance of.
     cancelRequested,  \* cancelRequested[t] is a flag indicating the request to cancel task t
     pausingRequested  \* pausingRequested[t] is a flag indicating the request to pause task t
 
-vars == << agentTaskAlloc, taskState, nextAttemptOf, cancelRequested, pausingRequested >>
+vars == << agentTaskAlloc, taskState, taskComputation, cancelRequested, pausingRequested >>
 
 -------------------------------------------------------------------------------
 
@@ -54,7 +53,7 @@ TP == INSTANCE TaskProcessing
  * Claims that all state variables always take values of the expected form.
  *   - agentTaskAlloc is a function mapping each agent to a subset of tasks.
  *   - taskState is a function mapping each task to one of the defined states.
- *   - nextAttemptOf is a function mapping each task to another task or NULL.
+ *   - taskComputation is a function mapping each task to a computation or NULL.
  *   - cancelRequested is a function mapping each task to a boolean value.
  *   - pausingRequested is a function mapping each task to a boolean value.
  *)
@@ -66,7 +65,7 @@ TypeInv ==
             TASK_COMPLETED, TASK_RETRIED, TASK_ABORTED, TASK_CANCELED, 
             TASK_PAUSED
         }]
-    /\ nextAttemptOf \in [TaskId -> TaskId \union {NULL}]
+    /\ taskComputation \in [TaskId -> ComputationId \union {NULL}]
     /\ cancelRequested \in [TaskId -> BOOLEAN]
     /\ pausingRequested \in [TaskId -> BOOLEAN]
 
@@ -74,8 +73,18 @@ TypeInv ==
  * Returns the set of failed tasks that havn't yet been retried, i.e., a copy of
  * the task has not been staged to re-execute the same computation.
  *)
-UnretriedTask ==
-    {t \in TaskId: t \in FailedTask /\ nextAttemptOf[t] = NULL}
+\* UnretriedTask ==
+\*     {t \in TaskId: t \in FailedTask /\ ~(\E u \in TaskId: taskComputation[u] = taskComputation[t] THEN ELSE  }
+
+IsRetried(t) ==
+    /\ t \in FailedTask
+    /\ \E u \in TaskId :
+        /\ t /= u
+        /\ taskComputation[t] = taskComputation[u]
+        /\ u \notin UNION {UnknownTask, FailedTask, RetriedTask}
+
+AvailableComputations ==
+    (ComputationId \ {taskComputation[t]: t \in TaskId \ UnknownTask}) \union {taskComputation[t]: t \in FailedTask}
 
 -------------------------------------------------------------------------------
 
@@ -89,7 +98,7 @@ UnretriedTask ==
  *)
 Init ==
     /\ TP!Init
-    /\ nextAttemptOf = [t \in TaskId |-> NULL]
+    /\ taskComputation = [t \in TaskId |-> NULL]
     /\ cancelRequested = [t \in TaskId |-> FALSE]
     /\ pausingRequested = [t \in TaskId |-> FALSE]
 
@@ -98,9 +107,16 @@ Init ==
  * A new set 'T' of tasks is registred i.e., known to the system but not yet
  * ready for processing.
  *)
-RegisterTasks(T) ==
-    /\ TP!RegisterTasks(T)
-    /\ UNCHANGED << nextAttemptOf, cancelRequested, pausingRequested >>
+RegisterTasks(T, C, f) ==
+    /\ T /= {} /\ T \subseteq UnknownTask
+    \* /\ PrintT(AvailableComputations)
+    /\ C \subseteq AvailableComputations
+    /\ f \in Bijection(T, C)
+    /\ taskState' =
+        [t \in TaskId |-> IF t \in T THEN TASK_REGISTERED ELSE taskState[t]]
+    /\ taskComputation' =
+        [t \in TaskId |-> IF t \in T THEN f[t] ELSE taskComputation[t]]
+    /\ UNCHANGED << agentTaskAlloc, cancelRequested, pausingRequested >>
 
 (**
  * TASK STAGING
@@ -108,26 +124,7 @@ RegisterTasks(T) ==
  *)
 StageTasks(T) ==
     /\ TP!StageTasks(T)
-    /\ UNCHANGED << nextAttemptOf, cancelRequested, pausingRequested >>
-
-(**
- * RETRYABLE TASK REGISTRATION
- * A set of tasks 'T' that have not yet been retried are cloned by a set of
- * tasks 'U' (each task in 'T' being associated with a single task in 'U' by
- * the bijection 'f') which are registered to allow the re-execution of the same
- * computations as those attempted by the tasks of 'T'.
- *)
-RetryTasks(T, U) ==
-    LET
-        f == CHOOSE x \in Bijection(T, U) : TRUE
-    IN
-        /\ T /= {} /\ T \subseteq UnretriedTask /\ U \subseteq UnknownTask
-        /\ Cardinality(T) = Cardinality(U)
-        /\ taskState' =
-            [u \in TaskId |-> IF u \in U THEN TASK_REGISTERED ELSE taskState[u]]
-        /\ nextAttemptOf' =
-            [t \in TaskId |-> IF t \in T THEN f[t] ELSE nextAttemptOf[t]]
-        /\ UNCHANGED << agentTaskAlloc, cancelRequested, pausingRequested >>
+    /\ UNCHANGED << taskComputation, cancelRequested, pausingRequested >>
 
 (**
  * TASK ASSIGNMENT
@@ -140,7 +137,7 @@ AssignTasks(a, T) ==
     /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \union T]
     /\ taskState' =
         [t \in TaskId |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, cancelRequested, pausingRequested >>
+    /\ UNCHANGED << taskComputation, cancelRequested, pausingRequested >>
 
 (**
  * TASK RELEASE
@@ -148,7 +145,7 @@ AssignTasks(a, T) ==
  *)
 ReleaseTasks(a, T) ==
     /\ TP!ReleaseTasks(a, T)
-    /\ UNCHANGED << nextAttemptOf, cancelRequested, pausingRequested >>
+    /\ UNCHANGED << taskComputation, cancelRequested, pausingRequested >>
 
 (**
  * TASK PROCESSING
@@ -170,7 +167,7 @@ ProcessTasks(a, T) ==
                                 [] t \in F -> TASK_FAILED
                                 [] t \in C -> TASK_CRASHED
                                 [] OTHER   -> taskState[t]]
-        /\ UNCHANGED << nextAttemptOf, cancelRequested, pausingRequested >>
+        /\ UNCHANGED << taskComputation, cancelRequested, pausingRequested >>
 
 (**
  * TASK POST-PROCESSING
@@ -179,13 +176,13 @@ ProcessTasks(a, T) ==
 FinalizeTasks(T) ==
     /\ T /= {}
     /\ T \subseteq (SucceededTask \union FailedTask \union CrashedTask)
-    /\ T \intersect UnretriedTask = {}
+    /\ \A t \in T \intersect FailedTask: IsRetried(t)
     /\ taskState' =
         [t \in TaskId |-> CASE t \in SucceededTask \intersect T -> TASK_COMPLETED
                             [] t \in FailedTask \intersect T    -> TASK_RETRIED
                             [] t \in CrashedTask \intersect T   -> TASK_ABORTED
                             [] OTHER               -> taskState[t]]
-    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, cancelRequested, pausingRequested >>
+    /\ UNCHANGED << agentTaskAlloc, taskComputation, cancelRequested, pausingRequested >>
 
 (**
  * TASK CANCELLATION
@@ -201,7 +198,7 @@ RequestTasksCancellation(T) ==
     /\ T /= {} /\ T \intersect UnknownTask = {}
     /\ cancelRequested' =
         [t \in TaskId |-> IF t \in T THEN TRUE ELSE cancelRequested[t]]
-    /\ UNCHANGED << agentTaskAlloc, taskState, nextAttemptOf, pausingRequested >>
+    /\ UNCHANGED << agentTaskAlloc, taskState, taskComputation, pausingRequested >>
 
 (**
  * CANCELLATION ACKNOWLEDGMENT
@@ -221,7 +218,7 @@ CancelTasks(T) ==
                                          \/ t \in AssignedTask)
                             THEN TASK_CANCELED
                             ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, cancelRequested, pausingRequested >>
+    /\ UNCHANGED << taskComputation, cancelRequested, pausingRequested >>
 
 (**
  * TASK PAUSING
@@ -234,7 +231,7 @@ RequestTasksPausing(T) ==
     /\ T /= {} /\ T \intersect UnknownTask = {}
     /\ \A t \in T: ~cancelRequested[t]
     /\ pausingRequested' = [t \in TaskId |-> IF t \in T THEN TRUE ELSE pausingRequested[t]]
-    /\ UNCHANGED << agentTaskAlloc, taskState, nextAttemptOf, cancelRequested >>
+    /\ UNCHANGED << agentTaskAlloc, taskState, taskComputation, cancelRequested >>
 
 (**
  * PAUSING ACKNOWLEDGMENT
@@ -252,7 +249,7 @@ PauseTasks(T) ==
         [t \in TaskId |-> IF t \in T /\ (t \in StagedTask \/ t \in AssignedTask)
                             THEN TASK_PAUSED
                             ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, cancelRequested, pausingRequested >>
+    /\ UNCHANGED << taskComputation, cancelRequested, pausingRequested >>
 
 (**
  * TASK RESUMING
@@ -264,7 +261,7 @@ ResumeTasks(T) ==
     /\ taskState' =
         [t \in TaskId |-> IF t \in (T \intersect PausedTask) THEN TASK_STAGED ELSE taskState[t]]
     /\ pausingRequested' = [t \in TaskId |-> IF t \in T THEN FALSE ELSE pausingRequested[t]]
-    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, cancelRequested >>
+    /\ UNCHANGED << agentTaskAlloc, taskComputation, cancelRequested >>
 
 (**
  * TERMINAL STATE
@@ -277,7 +274,6 @@ Terminating ==
             UnknownTask, StagedTask, CompletedTask, RetriedTask, AbortedTask,
             CanceledTask
         }
-    /\ UnretriedTask = {}
     /\ UNCHANGED vars
 
 -------------------------------------------------------------------------------
@@ -292,9 +288,8 @@ Terminating ==
  *)
 Next ==
     \E T \in SUBSET TaskId:
-        \/ RegisterTasks(T)
+        \/ \E C \in SUBSET ComputationId : \E f \in [T -> C] : RegisterTasks(T, C, f)
         \/ StageTasks(T)
-        \/ \E U \in SUBSET TaskId: RetryTasks(T, U)
         \/ \E a \in AgentId:
             \/ AssignTasks(a, T)
             \/ ReleaseTasks(a, T)
@@ -319,13 +314,22 @@ Next ==
  *)
 Fairness ==
     \A t \in TaskId:
+        /\ WF_vars(/\ t \in FailedTask
+                   \* Replace with implication
+                   /\ \E u \in UnknownTask:
+                        RegisterTasks({u}, {taskComputation[t]}, [x \in {u} |-> taskComputation[t]]))
         /\ WF_vars(StageTasks({t}))
-        /\ WF_vars(\E u \in TaskId : RetryTasks({t}, {u}))
+        \* This fairness is satisfied if the task eventually reamins in Staged, Canceled, ...
         /\ SF_vars(\E a \in AgentId : ProcessTasks(a, {t}))
         /\ WF_vars(FinalizeTasks({t}))
         /\ WF_vars(CancelTasks({t}))
         /\ WF_vars(PauseTasks({t}))
         /\ WF_vars(ResumeTasks({t}))
+    \* /\ \A c \in ComputationId:
+    \*     SF_vars(\E t \in TaskId:
+    \*                 \E a \in AgentId:
+    \*                     taskComputation[t] = c /\ ProcessTasks(a, {t})
+    \*             )
 
 (**
  * Full system specification.
@@ -348,10 +352,17 @@ Spec ==
 TaskStateIntegrity ==
     \A t \in TaskId:
         /\ t \in RetriedTask =>
-            nextAttemptOf[t] /= NULL /\ nextAttemptOf[t] \notin UnknownTask
+            \E u \in TaskId: /\ u \notin (UnknownTask \union RetriedTask)
+                             /\ taskComputation[t] = taskComputation[u]
         /\ t \in CanceledTask => cancelRequested[t]
         /\ t \in PausedTask => pausingRequested[t]
         /\ t \in UnknownTask => ~cancelRequested[t] /\ ~pausingRequested[t]
+
+UniqueComputationCompletion ==
+    \A t, u \in TaskId:
+        (/\ {t, u} \in (CompletedTask \union AbortedTask)
+         /\ taskComputation[t] = taskComputation[u])
+            => t = u
 
 (**
  * SAFETY
@@ -411,8 +422,13 @@ PausedTaskEventualResolution ==
  *)
 FailedTaskEventualRetry ==
     \A t \in TaskId:
-        t \in UnretriedTask ~>
-            nextAttemptOf[t] \in (StagedTask \union CanceledTask)
+        t \in FailedTask ~>
+            \E u \in RegisteredTask : taskComputation[u] = taskComputation[t]
+
+RetriesEventualCompletion ==
+    \A c \in ComputationId :
+        []<>(\E t \in TaskId : taskComputation[t] = c /\ t \in UNION {SucceededTask, FailedTask, CrashedTask})
+            => <>(\E u \in TaskId : taskComputation[u] = c /\ u \in AbortedTask \union CompletedTask)
 
 (**
  * LIVENESS
@@ -454,6 +470,7 @@ RefineTaskProcessing == TPAbs!Spec
 THEOREM Spec => []TypeInv
 THEOREM Spec => []DistinctTaskStates
 THEOREM Spec => []TaskStateIntegrity
+THEOREM Spec => []UniqueComputationCompletion
 THEOREM Spec => PermanentFinalization
 THEOREM Spec => RequestedCancellationEventualAcknowledgment
 THEOREM Spec => AssignedTaskCancellationResolution
