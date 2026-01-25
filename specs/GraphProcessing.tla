@@ -19,7 +19,7 @@ CONSTANTS
     ObjectId,  \* Set of object identifiers (theoretically infinite)
     TaskId     \* Set of task identifiers (theoretically infinite)
 
-ASSUME
+ASSUME Assumptions ==
     \* Agent, task, and object identifiers are pairwise disjoint.
     /\ AgentId \intersect ObjectId = {}
     /\ AgentId \intersect TaskId = {}
@@ -92,7 +92,7 @@ TypeInv ==
             TASK_FINALIZED
         }]
     /\ LET Nodes == TaskId \union ObjectId IN
-        deps \in [node: SUBSET Nodes, edge: SUBSET (Nodes \X Nodes)]
+        deps \in {G \in [node: SUBSET Nodes, edge: SUBSET (Nodes \X Nodes)]: IsDirectedGraph(G)}
 
 (**
  * Returns all nodes in graph 'G' labeled with task IDs.
@@ -182,7 +182,7 @@ RegisterGraph(G) ==
  *)
 TargetObjects(O) ==
     /\ OP!TargetObjects(O)
-    /\ UNCHANGED << agentTaskAlloc, deps, objectState, taskState >>
+    /\ UNCHANGED << agentTaskAlloc, deps, taskState >>
 
 (**
  * OBJECT UNTARGETING
@@ -190,7 +190,7 @@ TargetObjects(O) ==
  *)
 UntargetObjects(O) ==
     /\ OP!UntargetObjects(O)
-    /\ UNCHANGED << agentTaskAlloc, deps, objectState, taskState >>
+    /\ UNCHANGED << agentTaskAlloc, deps, taskState >>
 
 (**
  * OBJECT FINALIZATION
@@ -202,7 +202,7 @@ FinalizeObjects(O) ==
     /\ \/ O \subseteq Roots(deps)
        \/ \A o \in O: \E t \in Predecessors(deps, o): t \in ProcessedTask
     /\ OP!FinalizeObjects(O)
-    /\ UNCHANGED << agentTaskAlloc, deps, objectTargets, taskState >>
+    /\ UNCHANGED << agentTaskAlloc, deps, taskState >>
 
 (**
  * TASK STAGING
@@ -267,6 +267,7 @@ FinalizeTasks(T) ==
  *)
 Terminating ==
     /\ OP!Terminating
+    /\ TP!Terminating
     /\ UNCHANGED << agentTaskAlloc, deps, taskState >>
 
 -------------------------------------------------------------------------------
@@ -328,21 +329,10 @@ Fairness ==
     /\ \A o \in ObjectId :
         WF_vars(FinalizeObjects({o}))
     /\ \A t \in TaskId :
-        WF_vars(StageTasks({t}))
-    /\ \A t \in TaskId :
-        WF_vars(
-            /\ \E o \in ObjectId :
-                IsTaskUpstreamOnOpenPathToTarget(t, o)
-            /\ \E a \in AgentId :
-                AssignTasks(a, {t})
-        )
-    /\ \A t \in TaskId :
-        SF_vars(
-            \E a \in AgentId :
-                ProcessTasks(a, {t})
-        )
-    /\ \A t \in TaskId :
-        WF_vars(FinalizeTasks({t}))
+        /\ EventuallyStaged(t) :: WF_vars(StageTasks({t}))
+        /\ WF_vars((\E o \in ObjectId : IsTaskUpstreamOnOpenPathToTarget(t, o)) /\ (\E a \in AgentId : AssignTasks(a, {t})))
+        /\ EventuallyProcessed(t) :: SF_vars(\E a \in AgentId : ProcessTasks(a, {t}))
+        /\ EventuallyFinalized(t) :: WF_vars(FinalizeTasks({t}))
 
 (**
  * Full system specification.
@@ -408,19 +398,30 @@ TaskDataDependenciesInvariant ==
             /\ Successors(deps, t) = Successors(deps', t)
     ]_deps
 
+\* LEMMA Lemma1 ==
+\* \A n \in Nat:
+\*     [](M(o)= n => <>(M(o) < n))
+
+\* P(n) == []((M(o) = n) => FALSE)
+\* THEOREM ASSUME NEW n \in Nat PROVE P(n)
+\* <1>1. ASSUME \A m \in Nat: m < n => P(m) PROVE P(n)
+\*     <2>1. CASE n = 0
+\*     <2>2. CASE n /= 0
+\*         <3>1. \E m \in Nat: m < n /\ <>(M(o) = n)
+\*             BY Lemma1, PTL, TypeInvMetric
+\*         <2>2. QED
+\*             BY <1>1, <3>1, PTL
+\*     <2>. QED
+\*         BY <2>1, <2>2
+\* <1>. QED
+\*     BY <1>1, NatStrongInduction
+
 (**
  * LIVENESS
  * This specification refines the TaskProcessing specification.
  *)
-Mapping ==
-    INSTANCE TaskProcessing WITH
-        taskState <- [t \in TaskId |->
-            IF t \in RegisteredTask
-                THEN TASK_UNKNOWN
-                ELSE taskState[t]]
-
 TaskProcessingRefined ==
-    Mapping!Spec
+    TP!Spec
 
 (**
  * LIVENESS
@@ -428,19 +429,5 @@ TaskProcessingRefined ==
  *)
 ObjectProcessingRefined ==
     OP!Spec
-
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* THEOREMS                                                                  *)
-(*****************************************************************************)
-
-THEOREM Spec => []TypeInv
-THEOREM Spec => []DependencyGraphCompliant
-THEOREM Spec => []GraphStateConsistent
-THEOREM Spec => []TargetsDerivedFromRoots
-THEOREM Spec => TaskDataDependenciesInvariant
-THEOREM Spec => TaskProcessingRefined
-THEOREM Spec => ObjectProcessingRefined
 
 ================================================================================
