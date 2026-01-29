@@ -8,9 +8,9 @@
 (* other specifications to reason about groups of tasks sharing the same     *)
 (* lifecycle phase.                                                          *)
 (*****************************************************************************) 
-EXTENDS Utils
 
 LOCAL INSTANCE FiniteSets
+LOCAL INSTANCE Utils
 
 (**
  * Abstract operator returning the set of tasks in a given state.
@@ -26,8 +26,18 @@ TASK_UNKNOWN    == "TASK_UNKNOWN"    \* Task is virtual, not yet known to the sy
 TASK_REGISTERED == "TASK_REGISTERED" \* Task is known to the system and pending readiness for processing
 TASK_STAGED     == "TASK_STAGED"     \* Task is ready for processing
 TASK_ASSIGNED   == "TASK_ASSIGNED"   \* Task is assigned to an agent for processing
+TASK_STARTED    == "TASK_STARTED"
 TASK_PROCESSED  == "TASK_PROCESSED"  \* Task processing completed
+TASK_SUCCEEDED  == "TASK_SUCCEEDED"  \* Task processing succeeded
+TASK_FAILED     == "TASK_FAILED"     \* Task processing failed, but the task can be retried
+TASK_CRASHED    == "TASK_CRASHED"    \* Task processing failed irrecoverably
 TASK_FINALIZED  == "TASK_FINALIZED"  \* Task post-processing is completed
+TASK_COMPLETED  == "TASK_COMPLETED"  \* Task processing and post-processed completed successfully
+TASK_RETRIED    == "TASK_RETRIED"    \* The task processing failed and it was cloned to try again
+TASK_ABORTED    == "TASK_ABORTED"    \* Task processing unsuccessful but post-processing completed successfully
+TASK_CANCELED   == "TASK_CANCELED"   \* Task processing was canceled by the user
+TASK_PAUSED     == "TASK_PAUSED"     \* Task processing is postponed by the user
+TASK_DELETED    == "TASK_DELETED"    \* Task has been deleted from the system
 
 (**
  * Set of all task states.
@@ -38,16 +48,28 @@ TaskState ==
         TASK_REGISTERED,
         TASK_STAGED,
         TASK_ASSIGNED,
+        TASK_STARTED,
         TASK_PROCESSED,
-        TASK_FINALIZED
+        TASK_SUCCEEDED,
+        TASK_FAILED,
+        TASK_CRASHED,
+        TASK_FINALIZED,
+        TASK_COMPLETED,
+        TASK_RETRIED,
+        TASK_ABORTED,
+        TASK_CANCELED,
+        TASK_PAUSED,
+        TASK_DELETED
     }
 
 (**
  * SetOfTasksIn must return a finite set for each task state.
  *)
-AXIOM
-    \A s \in TaskState:
+ASSUME
+    /\ \A s \in TaskState:
         IsFiniteSet(SetOfTasksIn(s))
+    /\ \A s1, s2 \in TaskState:
+        SetOfTasksIn(s1) \intersect SetOfTasksIn(s2) = {}
 
 (**
  * Sets of tasks by state.
@@ -56,9 +78,17 @@ UnknownTask    == SetOfTasksIn(TASK_UNKNOWN)
 RegisteredTask == SetOfTasksIn(TASK_REGISTERED)
 StagedTask     == SetOfTasksIn(TASK_STAGED)
 AssignedTask   == SetOfTasksIn(TASK_ASSIGNED)
+StartedTask    == SetOfTasksIn(TASK_STARTED)
 ProcessedTask  == SetOfTasksIn(TASK_PROCESSED)
+SucceededTask  == SetOfTasksIn(TASK_SUCCEEDED)
+FailedTask     == SetOfTasksIn(TASK_FAILED)
+CrashedTask    == SetOfTasksIn(TASK_CRASHED)
 FinalizedTask  == SetOfTasksIn(TASK_FINALIZED)
-
+CompletedTask  == SetOfTasksIn(TASK_COMPLETED)
+RetriedTask    == SetOfTasksIn(TASK_RETRIED)
+AbortedTask    == SetOfTasksIn(TASK_ABORTED)
+CanceledTask   == SetOfTasksIn(TASK_CANCELED)
+PausedTask     == SetOfTasksIn(TASK_PAUSED)
 
 (**
  * SAFETY PROPERTY
@@ -76,8 +106,17 @@ DistinctTaskStates ==
         RegisteredTask,
         StagedTask,
         AssignedTask,
+        StagedTask,
         ProcessedTask,
-        FinalizedTask
+        SucceededTask,
+        FailedTask,
+        CrashedTask,
+        FinalizedTask,
+        CompletedTask,
+        RetriedTask,
+        AbortedTask,
+        CanceledTask,
+        PausedTask
     })
 
 ===============================================================================
