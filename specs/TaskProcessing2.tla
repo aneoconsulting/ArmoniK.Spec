@@ -1,4 +1,4 @@
---------------------------- MODULE TaskProcessingExt ---------------------------
+---------------------------- MODULE TaskProcessing2 ----------------------------
 (******************************************************************************)
 (* This module specifies an extension of the 'TaskProcessing' specification,  *)
 (* providing a concrete implementation of task execution and finalization.    *)
@@ -46,7 +46,7 @@ INSTANCE TaskStates
 (**
  * instance of the TaskProcessing specification.
  *)
-TP == INSTANCE TaskProcessing
+TP1 == INSTANCE TaskProcessing1
 
 (**
  * TYPE INVARIANT
@@ -97,7 +97,7 @@ Retries[t \in TaskId] ==
  * addition, no tasks were retried or requested to be canceled or paused.
  *)
 Init ==
-    /\ TP!Init
+    /\ TP1!Init
     /\ nextAttemptOf = [t \in TaskId |-> NULL]
     /\ cancelRequested = {}
     /\ pausingRequested = {}
@@ -108,7 +108,7 @@ Init ==
  * ready for processing.
  *)
 RegisterTasks(T) ==
-    /\ TP!RegisterTasks(T)
+    /\ TP1!RegisterTasks(T)
     /\ UNCHANGED << nextAttemptOf, cancelRequested, pausingRequested >>
 
 (**
@@ -116,7 +116,7 @@ RegisterTasks(T) ==
  * A new set 'T' of tasks is staged i.e., made available to the system for processing.
  *)
 StageTasks(T) ==
-    /\ TP!StageTasks(T)
+    /\ TP1!StageTasks(T)
     /\ UNCHANGED << nextAttemptOf, cancelRequested, pausingRequested >>
 
 (**
@@ -154,7 +154,7 @@ AssignTasks(a, T) ==
  * An agent 'a' postpones a set 'T' of tasks it currently holds.
  *)
 ReleaseTasks(a, T) ==
-    /\ TP!ReleaseTasks(a, T)
+    /\ TP1!ReleaseTasks(a, T)
     /\ UNCHANGED << nextAttemptOf, cancelRequested, pausingRequested >>
 
 (**
@@ -460,8 +460,8 @@ EventualFinalization ==
  * LIVENESS
  * This specification refines the TaskProcessing specification.
  *)
-TPAbs ==
-    INSTANCE TaskProcessing
+TP1Abs ==
+    INSTANCE TaskProcessing1
         WITH taskState <- [
             t \in TaskId |->
                 CASE taskState[t] = TASK_SUCCEEDED -> TASK_PROCESSED
@@ -474,7 +474,7 @@ TPAbs ==
                   [] taskState[t] = TASK_PAUSED    -> TASK_STAGED
                   [] OTHER                         -> taskState[t]
         ]
-RefineTaskProcessing == TPAbs!Spec
+RefineTaskProcessing == TP1Abs!Spec
 
 -------------------------------------------------------------------------------
 

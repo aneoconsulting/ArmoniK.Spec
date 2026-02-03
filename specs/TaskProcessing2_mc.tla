@@ -1,6 +1,6 @@
-------------------------- MODULE TaskProcessingExt_mc -------------------------
+-------------------------- MODULE TaskProcessing2_mc ---------------------------
 
-EXTENDS TaskProcessingExt
+EXTENDS TaskProcessing2
 
 --------------------------------------------------------------------------------
 

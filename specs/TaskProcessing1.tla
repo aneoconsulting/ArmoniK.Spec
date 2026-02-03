@@ -1,4 +1,4 @@
----------------------------- MODULE TaskProcessing ----------------------------
+---------------------------- MODULE TaskProcessing1 ----------------------------
 (*****************************************************************************)
 (* This module specifies an abstract distributed task scheduling system.     *)
 (* Tasks are dynamically submitted and executed by a varying, unknown set of *)
@@ -252,4 +252,4 @@ EventualQuiescence ==
             \/ [](t \in StagedTask)
             \/ [](t \in FinalizedTask)
 
-===============================================================================
+================================================================================

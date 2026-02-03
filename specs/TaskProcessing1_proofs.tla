@@ -1,5 +1,5 @@
-------------------------- MODULE TaskProcessing_proof -------------------------
-EXTENDS TaskProcessing, TLAPS
+------------------------ MODULE TaskProcessing1_proofs -------------------------
+EXTENDS TaskProcessing1, TLAPS
 
 THEOREM TypeCorrect == Spec => []TypeInv
 <1>. USE DEF TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED, TASK_PROCESSED,
@@ -213,4 +213,4 @@ THEOREM EventualQuiescenceCorrect == Spec => EventualQuiescence
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, TaskSafetyInvCorrect, PTL DEF Spec
 
-===============================================================================
+================================================================================
