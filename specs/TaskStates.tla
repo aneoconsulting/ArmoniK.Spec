@@ -8,9 +8,10 @@
 (* other specifications to reason about groups of tasks sharing the same     *)
 (* lifecycle phase.                                                          *)
 (*****************************************************************************) 
+EXTENDS Utils
 
 LOCAL INSTANCE FiniteSets
-LOCAL INSTANCE Utils
+
 
 (**
  * Abstract operator returning the set of tasks in a given state.
@@ -26,7 +27,6 @@ TASK_UNKNOWN    == "TASK_UNKNOWN"    \* Task is virtual, not yet known to the sy
 TASK_REGISTERED == "TASK_REGISTERED" \* Task is known to the system and pending readiness for processing
 TASK_STAGED     == "TASK_STAGED"     \* Task is ready for processing
 TASK_ASSIGNED   == "TASK_ASSIGNED"   \* Task is assigned to an agent for processing
-TASK_STARTED    == "TASK_STARTED"
 TASK_PROCESSED  == "TASK_PROCESSED"  \* Task processing completed
 TASK_SUCCEEDED  == "TASK_SUCCEEDED"  \* Task processing succeeded
 TASK_FAILED     == "TASK_FAILED"     \* Task processing failed, but the task can be retried
@@ -37,7 +37,6 @@ TASK_RETRIED    == "TASK_RETRIED"    \* The task processing failed and it was cl
 TASK_ABORTED    == "TASK_ABORTED"    \* Task processing unsuccessful but post-processing completed successfully
 TASK_CANCELED   == "TASK_CANCELED"   \* Task processing was canceled by the user
 TASK_PAUSED     == "TASK_PAUSED"     \* Task processing is postponed by the user
-TASK_DELETED    == "TASK_DELETED"    \* Task has been deleted from the system
 
 (**
  * Set of all task states.
@@ -48,7 +47,6 @@ TaskState ==
         TASK_REGISTERED,
         TASK_STAGED,
         TASK_ASSIGNED,
-        TASK_STARTED,
         TASK_PROCESSED,
         TASK_SUCCEEDED,
         TASK_FAILED,
@@ -58,8 +56,7 @@ TaskState ==
         TASK_RETRIED,
         TASK_ABORTED,
         TASK_CANCELED,
-        TASK_PAUSED,
-        TASK_DELETED
+        TASK_PAUSED
     }
 
 (**
@@ -78,7 +75,6 @@ UnknownTask    == SetOfTasksIn(TASK_UNKNOWN)
 RegisteredTask == SetOfTasksIn(TASK_REGISTERED)
 StagedTask     == SetOfTasksIn(TASK_STAGED)
 AssignedTask   == SetOfTasksIn(TASK_ASSIGNED)
-StartedTask    == SetOfTasksIn(TASK_STARTED)
 ProcessedTask  == SetOfTasksIn(TASK_PROCESSED)
 SucceededTask  == SetOfTasksIn(TASK_SUCCEEDED)
 FailedTask     == SetOfTasksIn(TASK_FAILED)
@@ -106,7 +102,6 @@ DistinctTaskStates ==
         RegisteredTask,
         StagedTask,
         AssignedTask,
-        StagedTask,
         ProcessedTask,
         SucceededTask,
         FailedTask,
