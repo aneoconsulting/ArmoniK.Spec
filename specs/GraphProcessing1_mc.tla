@@ -1,4 +1,4 @@
--------------------------- MODULE GraphProcessing_mc --------------------------
+-------------------------- MODULE GraphProcessing1_mc --------------------------
 (*******************************************************************************)
 (* Bounded model-checking extension of GraphProcessing.                        *)
 (*                                                                             *)
@@ -14,7 +14,7 @@
 (* In addition, optimizations are provided to speed up model checking.         *)
 (*******************************************************************************)
 
-EXTENDS GraphsExt, GraphProcessing, Randomization, TLC
+EXTENDS GraphsExt, GraphProcessing1, Randomization, TLC
 
 ASSUME IsFiniteSet(AgentId)
 ASSUME IsFiniteSet(ObjectId)

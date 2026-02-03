@@ -1,4 +1,4 @@
----------------------------- MODULE GraphProcessing ----------------------------
+--------------------------- MODULE GraphProcessing1 ----------------------------
 (*****************************************************************************)
 (* This module specifies an abstract decentralized distributed task graph    *)
 (* processing system.                                                        *)
@@ -55,12 +55,12 @@ INSTANCE TaskStates
 (**
  * Instance of the TaskProcessing specification.
  *)
-TP == INSTANCE TaskProcessing
+TP1 == INSTANCE TaskProcessing1
 
 (**
  * Instance of the ObjectProcessing specification.
  *)
-OP == INSTANCE ObjectProcessing
+OP1 == INSTANCE ObjectProcessing1
 
 -------------------------------------------------------------------------------
 
@@ -141,8 +141,8 @@ IsUnilaterallyConnectedGraph(G) ==
  * Initially, no tasks, objects, or dependencies exist.
  *)
 Init ==
-    /\ TP!Init
-    /\ OP!Init
+    /\ TP1!Init
+    /\ OP1!Init
     /\ deps = EmptyGraph
 
 (**
@@ -181,7 +181,7 @@ RegisterGraph(G) ==
  * cannot be targeted.
  *)
 TargetObjects(O) ==
-    /\ OP!TargetObjects(O)
+    /\ OP1!TargetObjects(O)
     /\ UNCHANGED << agentTaskAlloc, deps, objectState, taskState >>
 
 (**
@@ -189,7 +189,7 @@ TargetObjects(O) ==
  * A set 'O' of targeted objects is unmarked.
  *)
 UntargetObjects(O) ==
-    /\ OP!UntargetObjects(O)
+    /\ OP1!UntargetObjects(O)
     /\ UNCHANGED << agentTaskAlloc, deps, objectState, taskState >>
 
 (**
@@ -201,7 +201,7 @@ UntargetObjects(O) ==
 FinalizeObjects(O) ==
     /\ \/ O \subseteq Roots(deps)
        \/ \A o \in O: \E t \in Predecessors(deps, o): t \in ProcessedTask
-    /\ OP!FinalizeObjects(O)
+    /\ OP1!FinalizeObjects(O)
     /\ UNCHANGED << agentTaskAlloc, deps, objectTargets, taskState >>
 
 (**
@@ -222,7 +222,7 @@ StageTasks(T) ==
  * An agent 'a' takes responsibility for processing a set 'T' of staged tasks.
  *)
 AssignTasks(a, T) ==
-    /\ TP!AssignTasks(a, T)
+    /\ TP1!AssignTasks(a, T)
     /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
@@ -230,7 +230,7 @@ AssignTasks(a, T) ==
  * An agent 'a' postpones a set 'T' of tasks it currently holds.
  *)
 ReleaseTasks(a, T) ==
-    /\ TP!ReleaseTasks(a, T)
+    /\ TP1!ReleaseTasks(a, T)
     /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
@@ -239,7 +239,7 @@ ReleaseTasks(a, T) ==
  * holds.
  *)
 ProcessTasks(a, T) ==
-    /\ TP!ProcessTasks(a, T)
+    /\ TP1!ProcessTasks(a, T)
     /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
@@ -266,7 +266,7 @@ FinalizeTasks(T) ==
  * targeted objects have been finalized.
  *)
 Terminating ==
-    /\ OP!Terminating
+    /\ OP1!Terminating
     /\ UNCHANGED << agentTaskAlloc, deps, taskState >>
 
 -------------------------------------------------------------------------------
@@ -413,7 +413,7 @@ TaskDataDependenciesInvariant ==
  * This specification refines the TaskProcessing specification.
  *)
 Mapping ==
-    INSTANCE TaskProcessing WITH
+    INSTANCE TaskProcessing1 WITH
         taskState <- [t \in TaskId |->
             IF t \in RegisteredTask
                 THEN TASK_UNKNOWN
@@ -427,7 +427,7 @@ TaskProcessingRefined ==
  * This specification refines the ObjectProcessing specification.
  *)
 ObjectProcessingRefined ==
-    OP!Spec
+    OP1!Spec
 
 -------------------------------------------------------------------------------
 

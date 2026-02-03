@@ -1,5 +1,5 @@
------------------------- MODULE ObjectProcessing_proof ------------------------
-EXTENDS ObjectProcessing, TLAPS
+----------------------- MODULE ObjectProcessing1_proofs ------------------------
+EXTENDS ObjectProcessing1, TLAPS
 
 LEMMA LemmaTypeCorrect == Init /\ [][Next]_vars => []TypeInv
 <1>. USE DEF OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_FINALIZED, UnknownObject,
@@ -108,4 +108,4 @@ THEOREM EventualTargetResolutionCorrect == Spec => EventualTargetResolution
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, ObjectSafetyInvCorrect, PTL DEF Spec, ObjectSafetyInv
 
-===============================================================================
+================================================================================
