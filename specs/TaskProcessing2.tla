@@ -333,7 +333,7 @@ Next ==
 Fairness ==
     \A t \in TaskId:
         /\ WF_vars(t \in UnretriedTask /\ \E u \in TaskId: RegisterTasks({u}))
-        /\ WF_vars(StageTasks({t}))
+        /\ WF_vars(\E u \in TaskId: nextAttemptOf[u] = t /\ StageTasks({t}))
         /\ WF_vars(\E u \in TaskId : RecordTaskRetries({t}, {u}))
         /\ SF_vars(\E a \in AgentId : ProcessTasks(a, {t}))
         /\ WF_vars(FinalizeTasks({t}))

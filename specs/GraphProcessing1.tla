@@ -412,15 +412,8 @@ TaskDataDependenciesInvariant ==
  * LIVENESS
  * This specification refines the TaskProcessing specification.
  *)
-Mapping ==
-    INSTANCE TaskProcessing1 WITH
-        taskState <- [t \in TaskId |->
-            IF t \in RegisteredTask
-                THEN TASK_UNKNOWN
-                ELSE taskState[t]]
-
 TaskProcessingRefined ==
-    Mapping!Spec
+    TP1!Spec
 
 (**
  * LIVENESS
