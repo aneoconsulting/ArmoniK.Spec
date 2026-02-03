@@ -1,17 +1,17 @@
------------------------ MODULE ObjectProcessingExt_proof -----------------------
-EXTENDS ObjectProcessingExt, TLAPS
+----------------------- MODULE ObjectProcessing2_proofs ------------------------
+EXTENDS ObjectProcessing2, TLAPS
 
 USE DEF OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_FINALIZED, OBJECT_COMPLETED,
         OBJECT_ABORTED, OBJECT_DELETED
 
-USE DEF OP!OBJECT_UNKNOWN, OP!OBJECT_REGISTERED, OP!OBJECT_FINALIZED
+USE DEF OP1!OBJECT_UNKNOWN, OP1!OBJECT_REGISTERED, OP1!OBJECT_FINALIZED
 
 THEOREM TypeCorrect == Spec => []TypeInv
-<1>1. OP!Init => TypeInv
-    BY DEF OP!Init, TypeInv
+<1>1. OP1!Init => TypeInv
+    BY DEF OP1!Init, TypeInv
 <1>2. TypeInv /\ [Next]_vars => TypeInv'
-    BY DEF TypeInv, Next, vars, TargetObjects, OP!UntargetObjects,
-           OP!RegisterObjects, FinalizeObjects, Terminating, UnknownObject,
+    BY DEF TypeInv, Next, vars, TargetObjects, OP1!UntargetObjects,
+           OP1!RegisterObjects, FinalizeObjects, Terminating, UnknownObject,
            RegisteredObject, CompletedObject, AbortedObject
 <1>. QED
     BY <1>1, <1>2, PTL DEF Spec
@@ -19,11 +19,11 @@ THEOREM TypeCorrect == Spec => []TypeInv
 THEOREM DistinctObjectStatesCorrect == Spec => []DistinctObjectStates
 <1>. USE DEF UnknownObject, RegisteredObject, FinalizedObject, CompletedObject,
              AbortedObject, DeletedObject
-<1>1. OP!Init => DistinctObjectStates
-    BY DEF OP!Init, DistinctObjectStates, IsPairwiseDisjoint
+<1>1. OP1!Init => DistinctObjectStates
+    BY DEF OP1!Init, DistinctObjectStates, IsPairwiseDisjoint
 <1>2. TypeInv /\ DistinctObjectStates /\ [Next]_vars => DistinctObjectStates'
     BY DEF TypeInv, DistinctObjectStates, IsPairwiseDisjoint, Next, vars,
-       TargetObjects, OP!UntargetObjects, OP!RegisterObjects, FinalizeObjects,
+       TargetObjects, OP1!UntargetObjects, OP1!RegisterObjects, FinalizeObjects,
        Terminating
 <1>. QED
     BY <1>1, <1>2, TypeCorrect, PTL DEF Spec
@@ -33,8 +33,8 @@ THEOREM PermanentFinalizationCorrect == Spec => PermanentFinalization
               PROVE Spec => /\ [](o \in CompletedObject => [](o \in CompletedObject))
                             /\ [](o \in AbortedObject => [](o \in AbortedObject))
     BY DEF PermanentFinalization
-<1>. USE DEF Next, vars, TargetObjects, OP!UntargetObjects, OP!RegisterObjects,
-         FinalizeObjects, Terminating, OP!UnknownObject, RegisteredObject,
+<1>. USE DEF Next, vars, TargetObjects, OP1!UntargetObjects, OP1!RegisterObjects,
+         FinalizeObjects, Terminating, OP1!UnknownObject, RegisteredObject,
          CompletedObject, AbortedObject
 <1>1. o \in CompletedObject /\ [Next]_vars
         => (o \in CompletedObject)'
@@ -46,24 +46,24 @@ THEOREM PermanentFinalizationCorrect == Spec => PermanentFinalization
     BY <1>1, <1>2, PTL DEF Spec
 
 THEOREM RefineObjectProcessingCorrect == Spec => RefineObjectProcessing
-<1>. USE DEF OPAbs!OBJECT_UNKNOWN, OPAbs!OBJECT_REGISTERED, OPAbs!OBJECT_FINALIZED
-<1>1. OP!Init => OPAbs!Init
-    BY DEF OP!Init, OPAbs!Init, objectStateBar
-<1>2. [Next]_vars => [OPAbs!Next]_(OPAbs!vars)
-    BY DEF Next, vars, objectStateBar, OPAbs!Next, OPAbs!vars, OP!RegisterObjects,
-        TargetObjects, OP!UntargetObjects, FinalizeObjects, Terminating,
-        OPAbs!RegisterObjects, OPAbs!TargetObjects, OPAbs!UntargetObjects,
-        OPAbs!FinalizeObjects, OPAbs!Terminating, OP!UnknownObject, UnknownObject,
+<1>. USE DEF OP1Abs!OBJECT_UNKNOWN, OP1Abs!OBJECT_REGISTERED, OP1Abs!OBJECT_FINALIZED
+<1>1. OP1!Init => OP1Abs!Init
+    BY DEF OP1!Init, OP1Abs!Init, objectStateBar
+<1>2. [Next]_vars => [OP1Abs!Next]_(OP1Abs!vars)
+    BY DEF Next, vars, objectStateBar, OP1Abs!Next, OP1Abs!vars, OP1!RegisterObjects,
+        TargetObjects, OP1!UntargetObjects, FinalizeObjects, Terminating,
+        OP1Abs!RegisterObjects, OP1Abs!TargetObjects, OP1Abs!UntargetObjects,
+        OP1Abs!FinalizeObjects, OP1Abs!Terminating, OP1!UnknownObject, UnknownObject,
         RegisteredObject, FinalizedObject, CompletedObject, AbortedObject,
-        OPAbs!UnknownObject, OPAbs!RegisteredObject, OPAbs!FinalizedObject
-<1>3. [][Next]_vars /\ Fairness => OPAbs!Fairness
-    <2>. DEFINE AbsA(o) == o \in objectTargets /\ OPAbs!FinalizeObjects({o})
+        OP1Abs!UnknownObject, OP1Abs!RegisteredObject, OP1Abs!FinalizedObject
+<1>3. [][Next]_vars /\ Fairness => OP1Abs!Fairness
+    <2>. DEFINE AbsA(o) == o \in objectTargets /\ OP1Abs!FinalizeObjects({o})
                 A(o) == o \in objectTargets /\ FinalizeObjects({o})
     <2>. SUFFICES ASSUME NEW o \in ObjectId
                   PROVE [][Next]_vars /\ WF_vars(A(o))
-                            => WF_(OPAbs!vars)(AbsA(o))
-        BY Isa DEF Fairness, OPAbs!Fairness
-    <2>1. ENABLED <<AbsA(o)>>_(OPAbs!vars) => (ENABLED <<A(o)>>_vars)
+                            => WF_(OP1Abs!vars)(AbsA(o))
+        BY Isa DEF Fairness, OP1Abs!Fairness
+    <2>1. ENABLED <<AbsA(o)>>_(OP1Abs!vars) => (ENABLED <<A(o)>>_vars)
         <3>1. (ENABLED <<A(o)>>_vars
                 <=> o \in RegisteredObject /\ o \in objectTargets)
             <4>1. A(o) => objectState'[o] /= objectState[o]
@@ -76,28 +76,28 @@ THEOREM RefineObjectProcessingCorrect == Spec => RefineObjectProcessing
                 BY Isa, ExpandENABLED DEF FinalizeObjects
             <4>. QED
                 BY <4>3, <4>4
-        <3>2. (ENABLED <<AbsA(o)>>_(OPAbs!vars)
-                <=> o \in OPAbs!RegisteredObject /\ o \in objectTargets)
+        <3>2. (ENABLED <<AbsA(o)>>_(OP1Abs!vars)
+                <=> o \in OP1Abs!RegisteredObject /\ o \in objectTargets)
             <4>1. AbsA(o) => objectStateBar' /= objectStateBar
-              BY DEF OPAbs!FinalizeObjects, OPAbs!RegisteredObject
-            <4>2. <<AbsA(o)>>_(OPAbs!vars) <=> AbsA(o)
-                BY <4>1 DEF OPAbs!vars
-            <4>3. (ENABLED <<AbsA(o)>>_(OPAbs!vars)) <=> (ENABLED AbsA(o))
+              BY DEF OP1Abs!FinalizeObjects, OP1Abs!RegisteredObject
+            <4>2. <<AbsA(o)>>_(OP1Abs!vars) <=> AbsA(o)
+                BY <4>1 DEF OP1Abs!vars
+            <4>3. (ENABLED <<AbsA(o)>>_(OP1Abs!vars)) <=> (ENABLED AbsA(o))
                 BY <4>2, ENABLEDaxioms
             <4>4. (ENABLED AbsA(o))
-                    <=> o \in OPAbs!RegisteredObject /\ o \in objectTargets
-                BY ExpandENABLED DEF objectStateBar, OPAbs!FinalizeObjects
+                    <=> o \in OP1Abs!RegisteredObject /\ o \in objectTargets
+                BY ExpandENABLED DEF objectStateBar, OP1Abs!FinalizeObjects
             <4>. QED
                 BY <4>3, <4>4
         <3>. QED
-            BY <3>1, <3>2 DEF RegisteredObject, OPAbs!RegisteredObject, objectStateBar
-    <2>2. <<A(o)>>_vars => <<AbsA(o)>>_(OPAbs!vars)
-        BY DEF vars, objectStateBar, OPAbs!vars, RegisteredObject, CompletedObject,
-            AbortedObject, FinalizeObjects, OPAbs!RegisteredObject,
-            OPAbs!FinalizeObjects
+            BY <3>1, <3>2 DEF RegisteredObject, OP1Abs!RegisteredObject, objectStateBar
+    <2>2. <<A(o)>>_vars => <<AbsA(o)>>_(OP1Abs!vars)
+        BY DEF vars, objectStateBar, OP1Abs!vars, RegisteredObject, CompletedObject,
+            AbortedObject, FinalizeObjects, OP1Abs!RegisteredObject,
+            OP1Abs!FinalizeObjects
     <2>. QED
         BY <2>1, <2>2, PTL
 <1>. QED
-    BY <1>1, <1>2, <1>3, PTL DEF Spec, OPAbs!Spec, RefineObjectProcessing
+    BY <1>1, <1>2, <1>3, PTL DEF Spec, OP1Abs!Spec, RefineObjectProcessing
 
 ================================================================================
