@@ -167,7 +167,6 @@ Next ==
  *)
 Fairness ==
     \A t \in TaskId:
-        /\ EventuallyStaged(t) :: WF_vars(StageTasks({t}))
         /\ EventuallyProcessed(t) :: SF_vars(\E a \in AgentId : ProcessTasks(a, {t}))
         /\ EventuallyFinalized(t) :: WF_vars(FinalizeTasks({t}))
 
@@ -210,14 +209,6 @@ PermanentFinalization ==
 
 (**
  * LIVENESS
- * Every registered task is eventually staged for processing.
- *)
-EventualStaging ==
-    \A t \in TaskId :
-        t \in RegisteredTask ~> t \in StagedTask
-
-(**
- * LIVENESS
  * Any task assigned to an agent will eventually be either released back 
  * to the staged pool or successfully processed.
  *)
@@ -249,6 +240,7 @@ EventualFinalization ==
 EventualQuiescence ==
     \A t \in TaskId :
         t \in RegisteredTask ~>
+            \/ [](t \in RegisteredTask)
             \/ [](t \in StagedTask)
             \/ [](t \in FinalizedTask)
 
