@@ -1,4 +1,4 @@
----------------------------- MODULE TaskProcessing2 ----------------------------
+---------------------------- MODULE TaskProcessing3 ----------------------------
 (******************************************************************************)
 (* This module specifies an extension of the 'TaskProcessing' specification,  *)
 (* providing a concrete implementation of task execution and finalization.    *)
@@ -16,8 +16,6 @@
 (* 'TaskProcessing', ensuring safety and liveness across the abstraction.     *)
 (******************************************************************************)
 
-EXTENDS FiniteSets, Functions, Naturals, Utils
-
 CONSTANTS
     AgentId,   \* Set of agent identifiers (theoretically infinite)
     TaskId     \* Set of task identifiers (theoretically infinite)
@@ -29,9 +27,11 @@ ASSUME
 VARIABLES
     agentTaskAlloc,   \* agentTaskAlloc[a] is the set of tasks currently assigned to agent a
     taskState,        \* taskState[t] records the current lifecycle state of task t
-    nextAttemptOf     \* nextAttemptOf[t]: ID of the task retrying t (NULL if none)
+    nextAttemptOf,    \* nextAttemptOf[t]: ID of the task retrying t (NULL if none)
+    cancelRequested,  \* cancelRequested indicates all tasks for which cancellation has been requested
+    pausingRequested  \* pausingRequested indicates all tasks for which pausing has been requested
 
-vars == << agentTaskAlloc, taskState, nextAttemptOf >>
+vars == << agentTaskAlloc, taskState, nextAttemptOf, cancelRequested, pausingRequested >>
 
 -------------------------------------------------------------------------------
 
@@ -44,7 +44,7 @@ INSTANCE TaskStates
 (**
  * instance of the TaskProcessing specification.
  *)
-TP1 == INSTANCE TaskProcessing1
+TP2 == INSTANCE TaskProcessing2
 
 (**
  * TYPE INVARIANT
@@ -52,31 +52,13 @@ TP1 == INSTANCE TaskProcessing1
  *   - agentTaskAlloc is a function mapping each agent to a subset of tasks.
  *   - taskState is a function mapping each task to one of the defined states.
  *   - nextAttemptOf is a function mapping each task to another task or NULL.
+ *   - cancelRequested is a set of tasks.
+ *   - pausingRequested is a set of tasks.
  *)
 TypeInv == 
-    /\ agentTaskAlloc \in [AgentId -> SUBSET TaskId]
-    /\ taskState \in [TaskId -> {
-            TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED, 
-            TASK_SUCCEEDED, TASK_FAILED, TASK_CRASHED, TASK_COMPLETED,
-            TASK_RETRIED, TASK_ABORTED, TASK_CANCELED, TASK_PAUSED
-        }]
-    /\ nextAttemptOf \in [TaskId -> TaskId \union {NULL}]
-
-(**
- * Returns the set of failed tasks that havn't yet been retried, i.e., a copy of
- * the task has not been staged to re-execute the same computation.
- *)
-UnretriedTask ==
-    {t \in FailedTask: nextAttemptOf[t] = NULL}
-
-(**
- * Returns the set of all tasks in the retry chain starting from t. This set is
- * recursively built from the 'nextAttemptOf' state variable.
- *)
-Retries[t \in TaskId] ==
-    IF nextAttemptOf[t] = NULL
-        THEN {}
-        ELSE {t} \union Retries[nextAttemptOf[t]]
+    /\ TP2!TypeInv
+    /\ cancelRequested \in SUBSET TaskId
+    /\ pausingRequested \in SUBSET TaskId
 
 -------------------------------------------------------------------------------
 
@@ -90,8 +72,9 @@ Retries[t \in TaskId] ==
  * addition, no tasks were retried or requested to be canceled or paused.
  *)
 Init ==
-    /\ TP1!Init
-    /\ nextAttemptOf = [t \in TaskId |-> NULL]
+    /\ TP2!Init
+    /\ cancelRequested = {}
+    /\ pausingRequested = {}
 
 (**
  * TASK REGISTRATION
@@ -99,16 +82,16 @@ Init ==
  * ready for processing.
  *)
 RegisterTasks(T) ==
-    /\ TP1!RegisterTasks(T)
-    /\ UNCHANGED nextAttemptOf
+    /\ TP2!RegisterTasks(T)
+    /\ UNCHANGED << cancelRequested, pausingRequested >>
 
 (**
  * TASK STAGING
  * A new set 'T' of tasks is staged i.e., made available to the system for processing.
  *)
 StageTasks(T) ==
-    /\ TP1!StageTasks(T)
-    /\ UNCHANGED nextAttemptOf
+    /\ TP2!StageTasks(T)
+    /\ UNCHANGED << cancelRequested, pausingRequested >>
 
 (**
  * TASK RETRIES RECORDING
@@ -117,13 +100,8 @@ StageTasks(T) ==
  * single task in 'U' by the bijection 'f').
  *)
 RecordTaskRetries(T, U) ==
-    /\ T /= {}
-    /\ T \subseteq UnretriedTask
-    /\ U \subseteq RegisteredTask
-    /\ \E f \in Bijection(T, U):
-        nextAttemptOf' =
-            [t \in TaskId |-> IF t \in T THEN f[t] ELSE nextAttemptOf[t]]
-    /\ UNCHANGED << agentTaskAlloc, taskState >>
+    /\ TP2!RecordTaskRetries(T, U)
+    /\ UNCHANGED << cancelRequested, pausingRequested >>
 
 (**
  * TASK ASSIGNMENT
@@ -132,16 +110,21 @@ RecordTaskRetries(T, U) ==
  * requested.
  *)
 AssignTasks(a, T) ==
-    /\ TP1!AssignTasks(a, T)
-    /\ UNCHANGED nextAttemptOf
+    /\ T /= {} /\ T \subseteq StagedTask
+    /\ T \intersect cancelRequested = {}
+    /\ T \intersect pausingRequested = {}
+    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \union T]
+    /\ taskState' =
+        [t \in TaskId |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
+    /\ UNCHANGED << nextAttemptOf, cancelRequested, pausingRequested >>
 
 (**
  * TASK RELEASE
  * An agent 'a' postpones a set 'T' of tasks it currently holds.
  *)
 ReleaseTasks(a, T) ==
-    /\ TP1!ReleaseTasks(a, T)
-    /\ UNCHANGED nextAttemptOf
+    /\ TP2!ReleaseTasks(a, T)
+    /\ UNCHANGED << nextAttemptOf, cancelRequested, pausingRequested >>
 
 (**
  * TASK PROCESSING
@@ -158,32 +141,97 @@ ReleaseTasks(a, T) ==
  * of the three possible states.
  *)
 ProcessTasks(a, T) ==
-    /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
-    /\ \E S, F, C \in SUBSET T :
-        /\ UNION {S, F, C} = T
-        /\ IsPairwiseDisjoint({S, F, C})
-        /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
-        /\ taskState' =
-            [t \in TaskId |-> CASE t \in S -> TASK_SUCCEEDED
-                                [] t \in F -> TASK_FAILED
-                                [] t \in C -> TASK_CRASHED
-                                [] OTHER   -> taskState[t]]
-        /\ UNCHANGED nextAttemptOf
+    /\ TP2!ProcessTasks(a, T)
+    /\ UNCHANGED << cancelRequested, pausingRequested >>
 
 (**
  * TASK POST-PROCESSING
  * A set 'T' of tasks is post-processed based on the task processing states.
  *)
 FinalizeTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq (SucceededTask \union FailedTask \union CrashedTask)
-    /\ T \intersect UnretriedTask = {}
+    /\ TP2!FinalizeTasks(T)
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, cancelRequested, pausingRequested >>
+
+(**
+ * TASK CANCELLATION REQUESTING
+ * The cancellation of a set 'T' of tasks is requested.
+ *)
+RequestTasksCancellation(T) ==
+    /\ T /= {} /\ T \intersect UnknownTask = {}
+    /\ cancelRequested' = cancelRequested \union T
+    /\ UNCHANGED << agentTaskAlloc, taskState, nextAttemptOf, pausingRequested >>
+
+(**
+ * TASK CANCELLATION ACKNOWLEDGMENT
+ * The request to cancel a set 'T' of tasks is acknowledged. There are two
+ * possible scenarios:
+ *   - All tasks in 'T' are assigned to agent 'a', in which case they are
+ *     released and their states changes to CANCELED.
+ *   - No tasks in 'T' is allocated and therefore all tasks are changed to
+ *     the CANCELED state, provided that their processing has not already
+ *     been completed (i.e., the tasks are in REGISTERED or STAGED states).
+ *)
+CancelTasks(T) ==
+    /\ T /= {} /\ T \subseteq cancelRequested
+    /\ \/ \E a \in AgentId:
+            /\ T \subseteq agentTaskAlloc[a]
+            /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
+       \/ /\ T \intersect AssignedTask = {}
+          /\ UNCHANGED agentTaskAlloc
     /\ taskState' =
-        [t \in TaskId |-> CASE t \in SucceededTask \intersect T -> TASK_COMPLETED
-                            [] t \in FailedTask \intersect T    -> TASK_RETRIED
-                            [] t \in CrashedTask \intersect T   -> TASK_ABORTED
-                            [] OTHER               -> taskState[t]]
-    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf >>
+        [t \in TaskId |-> IF t \in T /\ (\/ t \in RegisteredTask
+                                         \/ t \in StagedTask
+                                         \/ t \in AssignedTask)
+                            THEN TASK_CANCELED
+                            ELSE taskState[t]]
+    /\ UNCHANGED << nextAttemptOf, cancelRequested, pausingRequested >>
+
+(**
+ * TASK PAUSING REQUESTING
+ * The pausing of a set 'T' of tasks is requested. Tasks can be paused
+ * provided that they have not been previously requested to be canceled.
+ *)
+RequestTasksPausing(T) ==
+    /\ T /= {} /\ T \intersect UnknownTask = {}
+    /\ T \intersect cancelRequested = {}
+    /\ pausingRequested' = pausingRequested \union T
+    /\ UNCHANGED << agentTaskAlloc, taskState, nextAttemptOf, cancelRequested >>
+
+(**
+ * TASK PAUSING ACKNOWLEDGMENT
+ * The request to pause a set 'T' of tasks is acknowledged. There are two
+ * possible scenarios:
+ *   - All tasks in 'T' are assigned to agent 'a', in which case they are
+ *     released and their states changes to PAUSED.
+ *   - No tasks in 'T' is allocated and therefore all STAGED tasks are set to
+ *     the PAUSED state and the other tasks remain in the same state.
+ *)
+PauseTasks(T) ==
+    /\ T /= {} /\ T \subseteq pausingRequested
+    /\ \/ \E a \in AgentId:
+            /\ T \subseteq agentTaskAlloc[a]
+            /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
+       \/ /\ T \intersect AssignedTask = {}
+          /\ UNCHANGED agentTaskAlloc
+    /\ taskState' =
+        [t \in TaskId |-> IF t \in T /\ (t \in StagedTask \/ t \in AssignedTask)
+                            THEN TASK_PAUSED
+                            ELSE taskState[t]]
+    /\ UNCHANGED << nextAttemptOf, cancelRequested, pausingRequested >>
+
+(**
+ * TASK RESUMING
+ * A set 'T' of paused tasks is resumed.
+ *)
+ResumeTasks(T) ==
+    /\ T /= {}
+    /\ T \subseteq pausingRequested
+    /\ taskState' =
+        [t \in TaskId |-> IF t \in (T \intersect PausedTask)
+                            THEN TASK_STAGED
+                            ELSE taskState[t]]
+    /\ pausingRequested' = pausingRequested \ T
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, cancelRequested >>
 
 (**
  * TERMINAL STATE
@@ -218,6 +266,11 @@ Next ==
             \/ ReleaseTasks(a, T)
             \/ ProcessTasks(a, T)
         \/ FinalizeTasks(T)
+        \/ RequestTasksCancellation(T)
+        \/ CancelTasks(T)
+        \/ RequestTasksPausing(T)
+        \/ PauseTasks(T)
+        \/ ResumeTasks(T)
     \/ Terminating
 
 (**
@@ -231,12 +284,11 @@ Next ==
  *   - A task cannot remain indefinitely paused without being resumed.
  *)
 Fairness ==
-    \A t \in TaskId:
-        /\ WF_vars(t \in UnretriedTask /\ \E u \in TaskId: RegisterTasks({u}))
-        /\ WF_vars(\E u \in TaskId: nextAttemptOf[t] = u /\ StageTasks({u}))
-        /\ WF_vars(\E u \in TaskId : RecordTaskRetries({t}, {u}))
-        /\ SF_vars(\E a \in AgentId : ProcessTasks(a, {t}))
-        /\ WF_vars(FinalizeTasks({t}))
+    /\ TP2!Fairness
+    /\ \A t \in TaskId:
+        /\ WF_vars(CancelTasks({t}))
+        /\ WF_vars(PauseTasks({t}))
+        /\ WF_vars(ResumeTasks({t}))
 
 (**
  * Full system specification.
@@ -254,12 +306,17 @@ Spec ==
 
 (**
  * SAFETY
- * The associated task as a new attempt at a RETRIED task is known to the
+ * The state of a task is valid if it meets the following conditions:
+ *   - A canceled task must have received a cancellation request.
+ *   - A paused task must have received a pause request.
+ *   - An unknown task cannot have an associated cancellation or pause request.
  *)
 TaskStateIntegrity ==
     \A t \in TaskId:
-        t \in RetriedTask =>
-            nextAttemptOf[t] /= NULL /\ nextAttemptOf[t] \notin UnknownTask
+        /\ t \in CanceledTask => t \in cancelRequested
+        /\ t \in PausedTask => t \in pausingRequested
+        /\ t \in UnknownTask => /\ t \notin cancelRequested
+                                /\ t \notin pausingRequested
 
 (**
  * SAFETY
@@ -271,51 +328,59 @@ PermanentFinalization ==
         /\ [](t \in CompletedTask => [](t \in CompletedTask))
         /\ [](t \in RetriedTask => [](t \in RetriedTask))
         /\ [](t \in AbortedTask => [](t \in AbortedTask))
+        /\ [](t \in CanceledTask => [](t \in CanceledTask))
 
 (**
  * LIVENESS
- * A failed task is eventually retried.
+ * Any registered/paused/staged task with a cancellation request 
+ * must eventually reach the CANCELED state.
  *)
-FailedTaskEventualRetry ==
+RequestedCancellationEventualAcknowledgment ==
     \A t \in TaskId:
-        t \in FailedTask ~> nextAttemptOf[t] \in StagedTask
+        t \in UNION {RegisteredTask, StagedTask, PausedTask} /\ t \in cancelRequested
+            ~> t \in CanceledTask
 
 (**
  * LIVENESS
- * A task cannot be retried an infinite number of times. In practice, this means
- * that one of the attempts will eventually be completed, aborted, canceled, or
- * remain indefinitely staged.
+ * Tasks that are already assigned to agents when a cancellation is requested 
+ * must eventually resolve—either by the agent acknowledging the cancellation 
+ * or by finishing the work before the cancellation is processed.
  *)
-NoInfiniteRetries ==
-    \A t \in TaskId:
-        \E n \in Nat:
-            <>[](Cardinality(Retries[t]) = n)
+AssignedTaskCancellationResolution ==
+    \A t \in TaskId :
+        t \in AssignedTask /\ t \in cancelRequested
+            ~> \/ t \in CanceledTask
+               \/ t \in CompletedTask
+               \/ t \in AbortedTask
+               \/ t \in RetriedTask
 
 (**
  * LIVENESS
- * Processed tasks are eventually post-processed in accordance with their
- * processing state.
+ * A paused task that is not canceled is eventually resumed.
  *)
-EventualFinalization ==
+PausedTaskEventualResume ==
     \A t \in TaskId:
-        /\ t \in SucceededTask ~> t \in CompletedTask
-        /\ t \in FailedTask ~> t \in RetriedTask
-        /\ t \in CrashedTask ~> t \in AbortedTask
+        [](t \notin cancelRequested) /\ <>(t \in PausedTask) => <>(t \in StagedTask)
+
+(**
+ * LIVENSS
+ * Any task in the PAUSED state eventually moves back to STAGED (unless it
+ * is canceled).
+ *)
+PausedTaskEventualResolution ==
+    \A t \in TaskId: \*[](t \notin CanceledTask) =>
+        t \in PausedTask ~> t \in StagedTask \/ t \in CanceledTask
 
 (**
  * LIVENESS
  * This specification refines the TaskProcessing specification.
  *)
 TP1Abs ==
-    INSTANCE TaskProcessing1
+    INSTANCE TaskProcessing2
         WITH taskState <- [
             t \in TaskId |->
-                CASE taskState[t] = TASK_SUCCEEDED -> TASK_PROCESSED
-                  [] taskState[t] = TASK_FAILED    -> TASK_PROCESSED
-                  [] taskState[t] = TASK_CRASHED   -> TASK_PROCESSED
-                  [] taskState[t] = TASK_COMPLETED -> TASK_FINALIZED
-                  [] taskState[t] = TASK_RETRIED   -> TASK_FINALIZED
-                  [] taskState[t] = TASK_ABORTED   -> TASK_FINALIZED
+                CASE taskState[t] = TASK_CANCELED  -> TASK_STAGED
+                  [] taskState[t] = TASK_PAUSED    -> TASK_STAGED
                   [] OTHER                         -> taskState[t]
         ]
 RefineTaskProcessing == TP1Abs!Spec
@@ -330,9 +395,10 @@ THEOREM Spec => []TypeInv
 THEOREM Spec => []DistinctTaskStates
 THEOREM Spec => []TaskStateIntegrity
 THEOREM Spec => PermanentFinalization
-THEOREM Spec => FailedTaskEventualRetry
-THEOREM Spec => NoInfiniteRetries
-THEOREM Spec => EventualFinalization
+THEOREM Spec => RequestedCancellationEventualAcknowledgment
+THEOREM Spec => AssignedTaskCancellationResolution
+THEOREM Spec => PausedTaskEventualResume
+THEOREM Spec => PausedTaskEventualResolution
 THEOREM Spec => RefineTaskProcessing
 
 ================================================================================
