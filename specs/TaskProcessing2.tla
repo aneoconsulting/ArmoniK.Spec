@@ -16,15 +16,16 @@
 (* 'TaskProcessing', ensuring safety and liveness across the abstraction.     *)
 (******************************************************************************)
 
-EXTENDS FiniteSets, Functions, Naturals, Utils
+EXTENDS FiniteSets, Functions, Naturals, Utils, TLAPS
 
 CONSTANTS
     AgentId,   \* Set of agent identifiers (theoretically infinite)
-    TaskId     \* Set of task identifiers (theoretically infinite)
+    TaskId,    \* Set of task identifiers (theoretically infinite)
+    NULL       \* Constant representing a null value
 
-ASSUME
-    \* Agent and task identifier sets are disjoint
-    AgentId \intersect TaskId = {}
+ASSUME Assumptions ==
+    /\ AgentId \intersect TaskId = {}
+    /\ NULL \notin TaskId
 
 VARIABLES
     agentTaskAlloc,   \* agentTaskAlloc[a] is the set of tasks currently assigned to agent a
@@ -193,8 +194,7 @@ FinalizeTasks(T) ==
  *)
 Terminating ==
     /\ TaskId = UNION {
-            UnknownTask, StagedTask, CompletedTask, RetriedTask, AbortedTask,
-            CanceledTask
+            UnknownTask, RegisteredTask, StagedTask, CompletedTask, RetriedTask, AbortedTask
         }
     /\ UNCHANGED vars
 
@@ -306,33 +306,20 @@ EventualFinalization ==
  * LIVENESS
  * This specification refines the TaskProcessing specification.
  *)
+taskStateBar ==
+    [
+        t \in TaskId |->
+            CASE taskState[t] = TASK_SUCCEEDED -> TASK_PROCESSED
+                [] taskState[t] = TASK_FAILED    -> TASK_PROCESSED
+                [] taskState[t] = TASK_CRASHED   -> TASK_PROCESSED
+                [] taskState[t] = TASK_COMPLETED -> TASK_FINALIZED
+                [] taskState[t] = TASK_RETRIED   -> TASK_FINALIZED
+                [] taskState[t] = TASK_ABORTED   -> TASK_FINALIZED
+                [] OTHER                         -> taskState[t]
+    ]
 TP1Abs ==
-    INSTANCE TaskProcessing1
-        WITH taskState <- [
-            t \in TaskId |->
-                CASE taskState[t] = TASK_SUCCEEDED -> TASK_PROCESSED
-                  [] taskState[t] = TASK_FAILED    -> TASK_PROCESSED
-                  [] taskState[t] = TASK_CRASHED   -> TASK_PROCESSED
-                  [] taskState[t] = TASK_COMPLETED -> TASK_FINALIZED
-                  [] taskState[t] = TASK_RETRIED   -> TASK_FINALIZED
-                  [] taskState[t] = TASK_ABORTED   -> TASK_FINALIZED
-                  [] OTHER                         -> taskState[t]
-        ]
+    INSTANCE TaskProcessing1_proofs
+        WITH taskState <- taskStateBar
 RefineTaskProcessing == TP1Abs!Spec
-
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* THEOREMS                                                                  *)
-(*****************************************************************************)
-
-THEOREM Spec => []TypeInv
-THEOREM Spec => []DistinctTaskStates
-THEOREM Spec => []TaskStateIntegrity
-THEOREM Spec => PermanentFinalization
-THEOREM Spec => FailedTaskEventualRetry
-THEOREM Spec => NoInfiniteRetries
-THEOREM Spec => EventualFinalization
-THEOREM Spec => RefineTaskProcessing
 
 ================================================================================

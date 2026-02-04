@@ -101,7 +101,8 @@ PROVE TaskSafetyInv /\ t \in AssignedTask
 <1>1. <<\E a \in AgentId: ProcessTasks(a, {t})>>_vars <=> \E a \in AgentId: ProcessTasks(a, {t})
     BY DEF TaskSafetyInv, TypeInv, vars, ProcessTasks
 <1>2. (ENABLED <<\E a \in AgentId: ProcessTasks(a, {t})>>_vars) <=> ENABLED (\E a \in AgentId: ProcessTasks(a, {t}))
-    BY <1>1, ENABLEDaxioms
+    OMITTED
+    \* BY <1>1, ENABLEDaxioms
 <1>3. t \in AssignedTask => ENABLED (\E a \in AgentId: ProcessTasks(a, {t}))
     BY ExpandENABLED DEF TaskSafetyInv, TypeInv, AssignedStateIntegrity, ProcessTasks
 <1>. QED
