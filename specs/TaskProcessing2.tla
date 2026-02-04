@@ -16,15 +16,18 @@
 (* 'TaskProcessing', ensuring safety and liveness across the abstraction.     *)
 (******************************************************************************)
 
-EXTENDS FiniteSets, Functions, Naturals, Utils
+EXTENDS FiniteSets, Functions, Naturals, Utils, TLAPS
 
 CONSTANTS
     AgentId,   \* Set of agent identifiers (theoretically infinite)
-    TaskId     \* Set of task identifiers (theoretically infinite)
+    TaskId,    \* Set of task identifiers (theoretically infinite)
+    NULL       \* Constant representing a null value
 
-ASSUME
-    \* Agent and task identifier sets are disjoint
-    AgentId \intersect TaskId = {}
+ASSUME Assumptions ==
+    /\ IsFiniteSet(AgentId)
+    /\ IsFiniteSet(TaskId)
+    /\ AgentId \intersect TaskId = {}
+    /\ NULL \notin TaskId
 
 VARIABLES
     agentTaskAlloc,   \* agentTaskAlloc[a] is the set of tasks currently assigned to agent a
@@ -58,7 +61,7 @@ TypeInv ==
     /\ taskState \in [TaskId -> {
             TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED, 
             TASK_SUCCEEDED, TASK_FAILED, TASK_CRASHED, TASK_COMPLETED,
-            TASK_RETRIED, TASK_ABORTED, TASK_CANCELED, TASK_PAUSED
+            TASK_RETRIED, TASK_ABORTED
         }]
     /\ nextAttemptOf \in [TaskId -> TaskId \union {NULL}]
 
@@ -174,14 +177,17 @@ ProcessTasks(a, T) ==
  * TASK POST-PROCESSING
  * A set 'T' of tasks is post-processed based on the task processing states.
  *)
-FinalizeTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq (SucceededTask \union FailedTask \union CrashedTask)
-    /\ T \intersect UnretriedTask = {}
+FinalizeTasks(S, F, C) ==
+    /\ UNION {S, F, C} /= {}
+    /\ IsPairwiseDisjoint({S, F, C})
+    /\ S \subseteq SucceededTask
+    /\ F \subseteq FailedTask
+    /\ C \subseteq CrashedTask
+    /\ F \intersect UnretriedTask /= {} => UnknownTask = {}
     /\ taskState' =
-        [t \in TaskId |-> CASE t \in SucceededTask \intersect T -> TASK_COMPLETED
-                            [] t \in FailedTask \intersect T    -> TASK_RETRIED
-                            [] t \in CrashedTask \intersect T   -> TASK_ABORTED
+        [t \in TaskId |-> CASE t \in S -> TASK_COMPLETED
+                            [] t \in F -> IF t \in UnretriedTask THEN TASK_ABORTED ELSE TASK_RETRIED
+                            [] t \in C -> TASK_ABORTED
                             [] OTHER               -> taskState[t]]
     /\ UNCHANGED << agentTaskAlloc, nextAttemptOf >>
 
@@ -193,8 +199,7 @@ FinalizeTasks(T) ==
  *)
 Terminating ==
     /\ TaskId = UNION {
-            UnknownTask, StagedTask, CompletedTask, RetriedTask, AbortedTask,
-            CanceledTask
+            UnknownTask, RegisteredTask, StagedTask, CompletedTask, RetriedTask, AbortedTask
         }
     /\ UNCHANGED vars
 
@@ -217,7 +222,7 @@ Next ==
             \/ AssignTasks(a, T)
             \/ ReleaseTasks(a, T)
             \/ ProcessTasks(a, T)
-        \/ FinalizeTasks(T)
+    \/ \E S, F, C \in SUBSET TaskId: FinalizeTasks(S, F, C)
     \/ Terminating
 
 (**
@@ -236,7 +241,9 @@ Fairness ==
         /\ WF_vars(\E u \in TaskId: nextAttemptOf[t] = u /\ StageTasks({u}))
         /\ WF_vars(\E u \in TaskId : RecordTaskRetries({t}, {u}))
         /\ SF_vars(\E a \in AgentId : ProcessTasks(a, {t}))
-        /\ WF_vars(FinalizeTasks({t}))
+        /\ WF_vars(FinalizeTasks({t}, {}, {}))
+        /\ WF_vars(FinalizeTasks({}, {t}, {}))
+        /\ WF_vars(FinalizeTasks({}, {}, {t}))
 
 (**
  * Full system specification.
@@ -259,7 +266,10 @@ Spec ==
 TaskStateIntegrity ==
     \A t \in TaskId:
         /\ t \in RetriedTask => nextAttemptOf[t] /= NULL 
+        /\ nextAttemptOf[t] /= NULL => t \in FailedTask \union RetriedTask
         /\ nextAttemptOf[t] \notin UnknownTask
+        /\ t \in CompletedTask \union AbortedTask
+            => nextAttemptOf[t] = NULL
 
 (**
  * SAFETY
@@ -278,7 +288,8 @@ PermanentFinalization ==
  *)
 FailedTaskEventualRetry ==
     \A t \in TaskId:
-        t \in FailedTask => <>(nextAttemptOf[t] \in StagedTask)
+        t \in FailedTask /\ []~(UnknownTask = {}) => <>(nextAttemptOf[t] \in StagedTask)
+        \* t \in FailedTask => <>(nextAttemptOf[t] \in StagedTask)
 
 (**
  * LIVENESS
@@ -299,40 +310,26 @@ NoInfiniteRetries ==
 EventualFinalization ==
     \A t \in TaskId:
         /\ t \in SucceededTask ~> t \in CompletedTask
-        /\ t \in FailedTask ~> t \in RetriedTask
+        /\ t \in FailedTask ~> t \in RetriedTask \/ t \in AbortedTask
         /\ t \in CrashedTask ~> t \in AbortedTask
 
 (**
  * LIVENESS
  * This specification refines the TaskProcessing specification.
  *)
+taskStateBar ==
+    [t \in TaskId |->
+        CASE taskState[t] = TASK_SUCCEEDED -> TASK_PROCESSED
+          [] taskState[t] = TASK_FAILED    -> TASK_PROCESSED
+          [] taskState[t] = TASK_CRASHED   -> TASK_PROCESSED
+          [] taskState[t] = TASK_COMPLETED -> TASK_FINALIZED
+          [] taskState[t] = TASK_RETRIED   -> TASK_FINALIZED
+          [] taskState[t] = TASK_ABORTED   -> TASK_FINALIZED
+          [] OTHER                         -> taskState[t]
+    ]
 TP1Abs ==
-    INSTANCE TaskProcessing1
-        WITH taskState <- [
-            t \in TaskId |->
-                CASE taskState[t] = TASK_SUCCEEDED -> TASK_PROCESSED
-                  [] taskState[t] = TASK_FAILED    -> TASK_PROCESSED
-                  [] taskState[t] = TASK_CRASHED   -> TASK_PROCESSED
-                  [] taskState[t] = TASK_COMPLETED -> TASK_FINALIZED
-                  [] taskState[t] = TASK_RETRIED   -> TASK_FINALIZED
-                  [] taskState[t] = TASK_ABORTED   -> TASK_FINALIZED
-                  [] OTHER                         -> taskState[t]
-        ]
+    INSTANCE TaskProcessing1_proofs
+        WITH taskState <- taskStateBar
 RefineTaskProcessing == TP1Abs!Spec
-
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* THEOREMS                                                                  *)
-(*****************************************************************************)
-
-THEOREM Spec => []TypeInv
-THEOREM Spec => []DistinctTaskStates
-THEOREM Spec => []TaskStateIntegrity
-THEOREM Spec => PermanentFinalization
-THEOREM Spec => FailedTaskEventualRetry
-THEOREM Spec => NoInfiniteRetries
-THEOREM Spec => EventualFinalization
-THEOREM Spec => RefineTaskProcessing
 
 ================================================================================

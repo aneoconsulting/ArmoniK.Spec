@@ -133,7 +133,7 @@ FinalizeTasks(T) ==
  * yet finalized).
  *)
 Terminating ==
-    /\ TaskId = UnknownTask \union StagedTask \union FinalizedTask
+    /\ TaskId = UNION {UnknownTask, RegisteredTask, StagedTask, FinalizedTask}
     /\ UNCHANGED vars
 
 -------------------------------------------------------------------------------

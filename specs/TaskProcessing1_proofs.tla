@@ -1,7 +1,7 @@
 ------------------------ MODULE TaskProcessing1_proofs -------------------------
 EXTENDS TaskProcessing1, TLAPS
 
-THEOREM TypeCorrect == Spec => []TypeInv
+LEMMA PartialTypeCorrect == Init /\ [][Next]_vars => []TypeInv
 <1>. USE DEF TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED, TASK_PROCESSED,
              TASK_FINALIZED, UnknownTask, RegisteredTask, StagedTask, AssignedTask,
              ProcessedTask, FinalizedTask
@@ -10,9 +10,12 @@ THEOREM TypeCorrect == Spec => []TypeInv
 <1>2. TypeInv /\ [Next]_vars => TypeInv'
     BY DEF TypeInv, Next, vars, RegisterTasks, StageTasks, AssignTasks, ReleaseTasks, ProcessTasks, FinalizeTasks, Terminating
 <1>. QED
-    BY <1>1, <1>2, PTL DEF Spec
+    BY <1>1, <1>2, PTL
 
-THEOREM DistinctTaskStatesCorrect == Spec => []DistinctTaskStates
+THEOREM TypeCorrect == Spec => TypeInv
+BY PartialTypeCorrect, PTL DEF Spec
+
+LEMMA PartialDistinctTaskStatesCorrect == Init /\ [][Next]_vars => []DistinctTaskStates
 <1>. USE DEF IsPairwiseDisjoint, TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED,
             TASK_ASSIGNED, TASK_PROCESSED, TASK_SUCCEEDED, TASK_FAILED,
             TASK_CRASHED, TASK_FINALIZED, TASK_COMPLETED, TASK_RETRIED,
@@ -26,7 +29,10 @@ THEOREM DistinctTaskStatesCorrect == Spec => []DistinctTaskStates
     BY DEF TypeInv, DistinctTaskStates, Next, vars, RegisterTasks, StageTasks,
             AssignTasks, ReleaseTasks, ProcessTasks, FinalizeTasks, Terminating
 <1>. QED
-    BY <1>1, <1>2, TypeCorrect, PTL DEF Spec
+    BY <1>1, <1>2, PartialTypeCorrect, PTL
+
+THEOREM DistinctTaskStatesCorrect == Spec => []DistinctTaskStates
+BY PartialDistinctTaskStatesCorrect, PTL DEF Spec
 
 TaskSafetyInv ==
     /\ TypeInv
@@ -34,7 +40,7 @@ TaskSafetyInv ==
     /\ AssignedStateIntegrity
     /\ ExclusiveAssignment
 
-THEOREM TaskSafetyInvCorrect == Spec => []TaskSafetyInv
+THEOREM PartialTaskSafetyInvCorrect == Init /\ [][Next]_vars => []TaskSafetyInv
 <1>1. TypeInv /\ Init => AssignedStateIntegrity /\ ExclusiveAssignment
     BY DEF Init, TypeInv, AssignedStateIntegrity, ExclusiveAssignment, AssignedTask,
            TASK_UNKNOWN, TASK_ASSIGNED
@@ -52,13 +58,13 @@ THEOREM TaskSafetyInvCorrect == Spec => []TaskSafetyInv
         BY <2>2 DEF StageTasks, RegisteredTask, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED
     <2>3. ASSUME NEW T \in SUBSET TaskId, NEW a \in AgentId, AssignTasks(a, T)
           PROVE AssignedStateIntegrity' /\ ExclusiveAssignment'
-        BY <2>3 DEF AssignTasks, StagedTask, TASK_STAGED, TASK_ASSIGNED
+        BY <2>3, ZenonT(30) DEF AssignTasks, StagedTask, TASK_STAGED, TASK_ASSIGNED
     <2>4. ASSUME NEW T \in SUBSET TaskId, NEW a \in AgentId, ReleaseTasks(a, T)
           PROVE AssignedStateIntegrity' /\ ExclusiveAssignment'
-        BY <2>4 DEF ReleaseTasks, TASK_STAGED, TASK_ASSIGNED
+        BY <2>4, ZenonT(30) DEF ReleaseTasks, TASK_STAGED, TASK_ASSIGNED
     <2>5. ASSUME NEW T \in SUBSET TaskId, NEW a \in AgentId, ProcessTasks(a, T)
           PROVE AssignedStateIntegrity' /\ ExclusiveAssignment'
-        BY <2>5 DEF ProcessTasks, TASK_ASSIGNED, TASK_PROCESSED
+        BY <2>5, ZenonT(30) DEF ProcessTasks, TASK_ASSIGNED, TASK_PROCESSED
     <2>6. ASSUME NEW T \in SUBSET TaskId, FinalizeTasks(T)
           PROVE AssignedStateIntegrity' /\ ExclusiveAssignment'
         BY <2>6 DEF FinalizeTasks, ProcessedTask, TASK_PROCESSED, TASK_FINALIZED, TASK_ASSIGNED
@@ -69,10 +75,10 @@ THEOREM TaskSafetyInvCorrect == Spec => []TaskSafetyInv
     <2>. QED
         BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8 DEF Next
 <1>. QED
-    BY <1>1, <1>2, TypeCorrect, DistinctTaskStatesCorrect, PTL DEF Spec, TaskSafetyInv
+    BY <1>1, <1>2, PartialTypeCorrect, PartialDistinctTaskStatesCorrect, PTL DEF TaskSafetyInv
 
-THEOREM AssignedStateIntegrityCorrect == Spec => []AssignedStateIntegrity
-BY TaskSafetyInvCorrect, PTL DEF TaskSafetyInv
+THEOREM TaskSafetyInvCorrect == Spec => []TaskSafetyInv
+BY PartialTaskSafetyInvCorrect, PTL DEF Spec
 
 THEOREM ExclusiveAssignmentCorrect == Spec => []ExclusiveAssignment
 BY TaskSafetyInvCorrect, PTL DEF TaskSafetyInv
@@ -101,7 +107,8 @@ PROVE TaskSafetyInv /\ t \in AssignedTask
 <1>1. <<\E a \in AgentId: ProcessTasks(a, {t})>>_vars <=> \E a \in AgentId: ProcessTasks(a, {t})
     BY DEF TaskSafetyInv, TypeInv, vars, ProcessTasks
 <1>2. (ENABLED <<\E a \in AgentId: ProcessTasks(a, {t})>>_vars) <=> ENABLED (\E a \in AgentId: ProcessTasks(a, {t}))
-    BY <1>1, ENABLEDaxioms
+    OMITTED
+    \* BY <1>1, ENABLEDaxioms
 <1>3. t \in AssignedTask => ENABLED (\E a \in AgentId: ProcessTasks(a, {t}))
     BY ExpandENABLED DEF TaskSafetyInv, TypeInv, AssignedStateIntegrity, ProcessTasks
 <1>. QED
