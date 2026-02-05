@@ -258,8 +258,8 @@ Spec ==
  *)
 TaskStateIntegrity ==
     \A t \in TaskId:
-        t \in RetriedTask =>
-            nextAttemptOf[t] /= NULL /\ nextAttemptOf[t] \notin UnknownTask
+        /\ t \in RetriedTask => nextAttemptOf[t] /= NULL 
+        /\ nextAttemptOf[t] \notin UnknownTask
 
 (**
  * SAFETY
@@ -278,7 +278,7 @@ PermanentFinalization ==
  *)
 FailedTaskEventualRetry ==
     \A t \in TaskId:
-        t \in FailedTask ~> nextAttemptOf[t] \in StagedTask
+        t \in FailedTask => <>(nextAttemptOf[t] \in StagedTask)
 
 (**
  * LIVENESS
