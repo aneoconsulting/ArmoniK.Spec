@@ -58,7 +58,7 @@ TypeInv ==
     /\ taskState \in [TaskId -> {
             TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED, 
             TASK_SUCCEEDED, TASK_FAILED, TASK_CRASHED, TASK_COMPLETED,
-            TASK_RETRIED, TASK_ABORTED, TASK_CANCELED, TASK_PAUSED
+            TASK_RETRIED, TASK_ABORTED
         }]
     /\ nextAttemptOf \in [TaskId -> TaskId \union {NULL}]
 
