@@ -328,21 +328,12 @@ Fairness ==
     /\ \A o \in ObjectId :
         WF_vars(FinalizeObjects({o}))
     /\ \A t \in TaskId :
-        WF_vars(StageTasks({t}))
-    /\ \A t \in TaskId :
-        WF_vars(
-            /\ \E o \in ObjectId :
-                IsTaskUpstreamOnOpenPathToTarget(t, o)
-            /\ \E a \in AgentId :
-                AssignTasks(a, {t})
-        )
-    /\ \A t \in TaskId :
-        SF_vars(
-            \E a \in AgentId :
-                ProcessTasks(a, {t})
-        )
-    /\ \A t \in TaskId :
-        WF_vars(FinalizeTasks({t}))
+        /\ WF_vars(StageTasks({t}))
+        /\ WF_vars(
+            /\ \E o \in ObjectId : IsTaskUpstreamOnOpenPathToTarget(t, o)
+            /\ \E a \in AgentId : AssignTasks(a, {t}))
+        /\ SF_vars(\E a \in AgentId : ProcessTasks(a, {t}))
+        /\ WF_vars(FinalizeTasks({t}))
 
 (**
  * Full system specification.

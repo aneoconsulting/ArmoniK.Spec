@@ -74,16 +74,17 @@ TargetObjects(O) ==
  *   - objects are aborted, meaning that their data cannot be written and never
  *     will be.
  *)
-FinalizeObjects(O) ==
+CompleteObjects(O) ==
     /\ O /= {} /\ O \subseteq RegisteredObject
-    /\ \E C, A \in SUBSET O :
-        /\ C \union A = O
-        /\ C \intersect  A = {}
-        /\ objectState' =
-            [o \in ObjectId |-> CASE o \in C -> OBJECT_COMPLETED
-                                  [] o \in A -> OBJECT_ABORTED
-                                  [] OTHER   -> objectState[o]]
-        /\ UNCHANGED objectTargets
+    /\ objectState' =
+        [o \in ObjectId |-> IF o \in O THEN OBJECT_COMPLETED ELSE objectState[o]]
+    /\ UNCHANGED objectTargets
+
+AbortObjects(O) ==
+    /\ O /= {} /\ O \subseteq RegisteredObject
+    /\ objectState' =
+        [o \in ObjectId |-> IF o \in O THEN OBJECT_ABORTED ELSE objectState[o]]
+    /\ UNCHANGED objectTargets
 
 (**
  * TERMINAL STATE
@@ -109,7 +110,8 @@ Next ==
         \/ TargetObjects(O)
         \/ OP1!UntargetObjects(O)
         \/ OP1!RegisterObjects(O)
-        \/ FinalizeObjects(O)
+        \/ CompleteObjects(O)
+        \/ AbortObjects(O)
         \/ Terminating
 
 (**
@@ -120,7 +122,8 @@ Next ==
  *)
 Fairness ==
     \A o \in ObjectId :
-        WF_vars(o \in objectTargets /\ FinalizeObjects({o}))
+        /\ WF_vars(o \in objectTargets /\ CompleteObjects({o}))
+        /\ WF_vars(o \in objectTargets /\ AbortObjects({o}))
 
 (**
  * Full system specification.
