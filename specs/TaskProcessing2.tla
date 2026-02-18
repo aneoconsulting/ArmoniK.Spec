@@ -24,9 +24,9 @@ CONSTANTS
     NULL       \* Constant representing a null value
 
 ASSUME Assumptions ==
-    /\ IsFiniteSet(AgentId)
-    /\ IsFiniteSet(TaskId)
     /\ AgentId \intersect TaskId = {}
+    /\ ~IsFiniteSet(TaskId)
+    /\ ~IsFiniteSet(TaskId)
     /\ NULL \notin TaskId
 
 VARIABLES
@@ -164,7 +164,7 @@ ProcessTasks(a, T) ==
     /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
     /\ \E S, F, C \in SUBSET T :
         /\ UNION {S, F, C} = T
-        /\ IsPairwiseDisjoint({S, F, C})
+        /\ S \intersect F = {} /\ S \intersect C = {} /\ F \intersect C = {}
         /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
         /\ taskState' =
             [t \in TaskId |-> CASE t \in S -> TASK_SUCCEEDED
@@ -177,18 +177,23 @@ ProcessTasks(a, T) ==
  * TASK POST-PROCESSING
  * A set 'T' of tasks is post-processed based on the task processing states.
  *)
-FinalizeTasks(S, F, C) ==
-    /\ UNION {S, F, C} /= {}
-    /\ IsPairwiseDisjoint({S, F, C})
-    /\ S \subseteq SucceededTask
-    /\ F \subseteq FailedTask
-    /\ C \subseteq CrashedTask
-    /\ F \intersect UnretriedTask /= {} => UnknownTask = {}
+CompleteTasks(T) ==
+    /\ T /= {} /\ T \subseteq SucceededTask
     /\ taskState' =
-        [t \in TaskId |-> CASE t \in S -> TASK_COMPLETED
-                            [] t \in F -> IF t \in UnretriedTask THEN TASK_ABORTED ELSE TASK_RETRIED
-                            [] t \in C -> TASK_ABORTED
-                            [] OTHER               -> taskState[t]]
+        [t \in TaskId |-> IF t \in T THEN TASK_COMPLETED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf >>
+
+AbortTasks(T) ==
+    /\ T /= {} /\ T \subseteq CrashedTask
+    /\ taskState' =
+        [t \in TaskId |-> IF t \in T THEN TASK_ABORTED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf >>
+
+RetryTasks(T) ==
+    /\ T /= {} /\ T \subseteq FailedTask
+    /\ T \intersect UnretriedTask = {}
+    /\ taskState' =
+        [t \in TaskId |-> IF t \in T THEN TASK_RETRIED ELSE taskState[t]]
     /\ UNCHANGED << agentTaskAlloc, nextAttemptOf >>
 
 (**
@@ -199,7 +204,8 @@ FinalizeTasks(S, F, C) ==
  *)
 Terminating ==
     /\ TaskId = UNION {
-            UnknownTask, RegisteredTask, StagedTask, CompletedTask, RetriedTask, AbortedTask
+            UnknownTask, RegisteredTask, StagedTask, CompletedTask, RetriedTask,
+            AbortedTask
         }
     /\ UNCHANGED vars
 
@@ -222,7 +228,9 @@ Next ==
             \/ AssignTasks(a, T)
             \/ ReleaseTasks(a, T)
             \/ ProcessTasks(a, T)
-    \/ \E S, F, C \in SUBSET TaskId: FinalizeTasks(S, F, C)
+        \/ CompleteTasks(T)
+        \/ AbortTasks(T)
+        \/ RetryTasks(T)
     \/ Terminating
 
 (**
@@ -238,12 +246,24 @@ Next ==
 Fairness ==
     \A t \in TaskId:
         /\ WF_vars(t \in UnretriedTask /\ \E u \in TaskId: RegisterTasks({u}))
-        /\ WF_vars(\E u \in TaskId: nextAttemptOf[t] = u /\ StageTasks({u}))
-        /\ WF_vars(\E u \in TaskId : RecordTaskRetries({t}, {u}))
+        /\ WF_vars(StageTasks({nextAttemptOf[t]}))
+        /\ SF_vars(\E u \in TaskId : RecordTaskRetries({t}, {u}))
         /\ SF_vars(\E a \in AgentId : ProcessTasks(a, {t}))
-        /\ WF_vars(FinalizeTasks({t}, {}, {}))
-        /\ WF_vars(FinalizeTasks({}, {t}, {}))
-        /\ WF_vars(FinalizeTasks({}, {}, {t}))
+        /\ WF_vars(CompleteTasks({t}))
+        /\ WF_vars(AbortTasks({t}))
+        /\ WF_vars(RetryTasks({t}))
+
+(**
+ * LIVENESS
+ * A task cannot be retried an infinite number of times. In practice, this means
+ * that one of the attempts will eventually be completed, aborted, canceled, or
+ * remain indefinitely staged.
+ *)
+NoInfiniteRetries ==
+    \A t \in TaskId:
+        \E S \in SUBSET TaskId:
+                <>[](Retries[t] = S)
+
 
 (**
  * Full system specification.
@@ -252,6 +272,7 @@ Spec ==
     /\ Init
     /\ [][Next]_vars
     /\ Fairness
+    \* /\ NoInfiniteRetries
 
 -------------------------------------------------------------------------------
 
@@ -288,19 +309,7 @@ PermanentFinalization ==
  *)
 FailedTaskEventualRetry ==
     \A t \in TaskId:
-        t \in FailedTask /\ []~(UnknownTask = {}) => <>(nextAttemptOf[t] \in StagedTask)
-        \* t \in FailedTask => <>(nextAttemptOf[t] \in StagedTask)
-
-(**
- * LIVENESS
- * A task cannot be retried an infinite number of times. In practice, this means
- * that one of the attempts will eventually be completed, aborted, canceled, or
- * remain indefinitely staged.
- *)
-NoInfiniteRetries ==
-    \A t \in TaskId:
-        \E n \in Nat:
-            <>[](Cardinality(Retries[t]) = n)
+        t \in FailedTask ~> nextAttemptOf[t] /= NULL
 
 (**
  * LIVENESS
@@ -310,7 +319,7 @@ NoInfiniteRetries ==
 EventualFinalization ==
     \A t \in TaskId:
         /\ t \in SucceededTask ~> t \in CompletedTask
-        /\ t \in FailedTask ~> t \in RetriedTask \/ t \in AbortedTask
+        /\ t \in FailedTask ~> t \in RetriedTask
         /\ t \in CrashedTask ~> t \in AbortedTask
 
 (**
@@ -330,6 +339,6 @@ taskStateBar ==
 TP1Abs ==
     INSTANCE TaskProcessing1_proofs
         WITH taskState <- taskStateBar
-RefineTaskProcessing == TP1Abs!Spec
+RefineTP1 == TP1Abs!Spec
 
 ================================================================================
