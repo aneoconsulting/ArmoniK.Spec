@@ -48,18 +48,25 @@ THEOREM ObjectSafetyInvCorrect == Spec => []ObjectSafetyInv
 BY TypeCorrect, DistinctObjectStatesCorrect, TargetValidityCorrect, PTL
    DEF ObjectSafetyInv
 
+LEMMA StableFinalizedStateCorrect == 
+    ASSUME NEW o \in ObjectId
+    PROVE o \in FinalizedObject /\ [Next]_vars
+            => (o \in FinalizedObject)'
+<1>. USE DEF OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_FINALIZED, UnknownObject,
+             RegisteredObject, FinalizedObject
+<1>1. QED
+    BY DEF Next, vars, RegisterObjects, TargetObjects,
+            UntargetObjects, FinalizeObjects, Terminating
+
+
 THEOREM PermanentFinalizationCorrect == Spec => PermanentFinalization
 <1>. SUFFICES ASSUME NEW o \in ObjectId
               PROVE Spec => [](o \in FinalizedObject => [](o \in FinalizedObject))
     BY DEF PermanentFinalization
-<1>. USE DEF OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_FINALIZED, UnknownObject,
-             RegisteredObject, FinalizedObject
-<1>1. TypeInv /\ o \in FinalizedObject /\ [Next]_vars
-        => (o \in FinalizedObject)'
-    BY DEF TypeInv, Next, vars, RegisterObjects, TargetObjects,
-            UntargetObjects, FinalizeObjects, Terminating
+<1>1. o \in FinalizedObject /\ [Next]_vars => (o \in FinalizedObject)'
+    BY StableFinalizedStateCorrect
 <1>. QED
-    BY <1>1, TypeCorrect, PTL DEF Spec
+    BY <1>1, PTL DEF Spec
 
 LEMMA TargetsAreKnown == ASSUME NEW o \in objectTargets
                          PROVE ObjectSafetyInv => \/ o \in RegisteredObject
