@@ -2,6 +2,8 @@
 
 EXTENDS TaskProcessing2
 
+ASSUME Cardinality(TaskId) > MaxRetries
+
 --------------------------------------------------------------------------------
 
 (**
