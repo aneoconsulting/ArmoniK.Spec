@@ -16,17 +16,19 @@
 (* 'TaskProcessing', ensuring safety and liveness across the abstraction.     *)
 (******************************************************************************)
 
-EXTENDS FiniteSets, Functions, Naturals, Utils, TLAPS
+EXTENDS DenumerableSets, FiniteSets, Functions, Naturals, Utils, TLAPS
 
 CONSTANTS
     AgentId,   \* Set of agent identifiers (theoretically infinite)
     TaskId,    \* Set of task identifiers (theoretically infinite)
+    MaxRetries,
     NULL       \* Constant representing a null value
 
 ASSUME Assumptions ==
     /\ AgentId \intersect TaskId = {}
-    /\ ~IsFiniteSet(TaskId)
-    /\ ~IsFiniteSet(TaskId)
+    /\ IsDenumerableSet(TaskId)
+    /\ IsDenumerableSet(TaskId)
+    /\ MaxRetries \in Nat
     /\ NULL \notin TaskId
 
 VARIABLES
@@ -72,14 +74,19 @@ TypeInv ==
 UnretriedTask ==
     {t \in FailedTask: nextAttemptOf[t] = NULL}
 
-(**
- * Returns the set of all tasks in the retry chain starting from t. This set is
- * recursively built from the 'nextAttemptOf' state variable.
- *)
-Retries[t \in TaskId] ==
-    IF nextAttemptOf[t] = NULL
-        THEN {}
-        ELSE {t} \union Retries[nextAttemptOf[t]]
+\* (**
+\*  * Returns the set of all tasks in the retry chain starting from t. This set is
+\*  * recursively built from the 'nextAttemptOf' state variable.
+\*  *)
+\* TasksRetries[t \in TaskId] ==
+\*     IF nextAttemptOf[t] = NULL
+\*         THEN {}
+\*         ELSE {t} \union TasksRetries[nextAttemptOf[t]]
+
+\* TasksAttempts(t) ==
+\*     {tt \in TransitiveClosure(NextAttemptOfRel, TaskId): ss[1] = t \/ ss[2] = t}
+
+\* u = nextAttemptOf[t] => PreviousAttempts(u) = PreviousAttempts(t) \cup {u}
 
 -------------------------------------------------------------------------------
 
@@ -119,10 +126,10 @@ StageTasks(T) ==
  * as such by a set of tasks 'U' (each task in 'T' being associated with a
  * single task in 'U' by the bijection 'f').
  *)
-RecordTaskRetries(T, U) ==
+SetTaskRetries(T, U) ==
     /\ T /= {}
     /\ T \subseteq UnretriedTask
-    /\ U \subseteq RegisteredTask
+    /\ U \subseteq UnknownTask
     /\ \E f \in Bijection(T, U):
         nextAttemptOf' =
             [t \in TaskId |-> IF t \in T THEN f[t] ELSE nextAttemptOf[t]]
@@ -166,6 +173,7 @@ ProcessTasks(a, T) ==
         /\ UNION {S, F, C} = T
         /\ S \intersect F = {} /\ S \intersect C = {} /\ F \intersect C = {}
         /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
+        \* /\ \A t \in F: Cardinality(TaskAttempts(t)) < MaxRetries
         /\ taskState' =
             [t \in TaskId |-> CASE t \in S -> TASK_SUCCEEDED
                                 [] t \in F -> TASK_FAILED
@@ -223,7 +231,7 @@ Next ==
     \/ \E T \in SUBSET TaskId:
         \/ RegisterTasks(T)
         \/ StageTasks(T)
-        \/ \E U \in SUBSET TaskId: RecordTaskRetries(T, U)
+        \/ \E U \in SUBSET TaskId: SetTaskRetries(T, U)
         \/ \E a \in AgentId:
             \/ AssignTasks(a, T)
             \/ ReleaseTasks(a, T)
@@ -245,25 +253,13 @@ Next ==
  *)
 Fairness ==
     \A t \in TaskId:
-        /\ WF_vars(t \in UnretriedTask /\ \E u \in TaskId: RegisterTasks({u}))
+        /\ WF_vars(\E u \in TaskId : SetTaskRetries({t}, {u}))
+        /\ WF_vars(RegisterTasks({nextAttemptOf[t]}))
         /\ WF_vars(StageTasks({nextAttemptOf[t]}))
-        /\ SF_vars(\E u \in TaskId : RecordTaskRetries({t}, {u}))
         /\ SF_vars(\E a \in AgentId : ProcessTasks(a, {t}))
         /\ WF_vars(CompleteTasks({t}))
         /\ WF_vars(AbortTasks({t}))
         /\ WF_vars(RetryTasks({t}))
-
-(**
- * LIVENESS
- * A task cannot be retried an infinite number of times. In practice, this means
- * that one of the attempts will eventually be completed, aborted, canceled, or
- * remain indefinitely staged.
- *)
-NoInfiniteRetries ==
-    \A t \in TaskId:
-        \E S \in SUBSET TaskId:
-                <>[](Retries[t] = S)
-
 
 (**
  * Full system specification.
@@ -272,7 +268,6 @@ Spec ==
     /\ Init
     /\ [][Next]_vars
     /\ Fairness
-    \* /\ NoInfiniteRetries
 
 -------------------------------------------------------------------------------
 
@@ -288,7 +283,6 @@ TaskStateIntegrity ==
     \A t \in TaskId:
         /\ t \in RetriedTask => nextAttemptOf[t] /= NULL 
         /\ nextAttemptOf[t] /= NULL => t \in FailedTask \union RetriedTask
-        /\ nextAttemptOf[t] \notin UnknownTask
         /\ t \in CompletedTask \union AbortedTask
             => nextAttemptOf[t] = NULL
 
@@ -309,7 +303,24 @@ PermanentFinalization ==
  *)
 FailedTaskEventualRetry ==
     \A t \in TaskId:
-        t \in FailedTask ~> nextAttemptOf[t] /= NULL
+        t \in UnretriedTask ~> nextAttemptOf[t] \in StagedTask
+
+(**
+ * LIVENESS
+ * A task cannot be retried an infinite number of times. In practice, this means
+ * that one of the attempts will eventually be completed, aborted, canceled, or
+ * remain indefinitely staged.
+ *)
+\* NoInfiniteRetries ==
+\*     \A t \in TaskId:
+\*         \E S \in SUBSET TaskId:
+\*                 <>[](Retries[t] = S)
+
+\* TaskAttempsBouding ==
+\*     \A t \in TaskId:
+\*         \E S \in SUBSET TaskId:
+\*             /\ Cardinality(S) <= MaxRetries
+\*             /\ <>[](TaskAttempts(t) = S)
 
 (**
  * LIVENESS

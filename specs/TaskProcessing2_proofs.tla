@@ -17,7 +17,7 @@ LEMMA LemType == Init /\ [][Next]_vars => []TypeInv
     BY DEF Init, TP1!Init
 <1>2. TypeInv /\ [Next]_vars => TypeInv'
     BY DEF Next, vars, RegisterTasks, TP1!RegisterTasks, StageTasks,
-           TP1!StageTasks, RecordTaskRetries, Bijection, Injection, Surjection,
+           TP1!StageTasks, SetTaskRetries, Bijection, Injection, Surjection,
            AssignTasks, TP1!AssignTasks, ReleaseTasks, TP1!ReleaseTasks,
            ProcessTasks, CompleteTasks, AbortTasks, RetryTasks, Terminating
 <1>. QED
@@ -40,9 +40,9 @@ LEMMA LemRefineTP1InitNext == Init /\ [][Next]_vars => TP1Abs!Init /\ [][TP1Abs!
     <2>2. ASSUME NEW T \in SUBSET TaskId, StageTasks(T)
           PROVE TP1Abs!StageTasks(T)
         BY <2>2 DEF StageTasks, TP1!StageTasks, TP1Abs!StageTasks, TP1!RegisteredTask, TP1Abs!RegisteredTask
-    <2>3. ASSUME NEW T \in SUBSET TaskId, NEW U \in SUBSET TaskId, RecordTaskRetries(T, U)
+    <2>3. ASSUME NEW T \in SUBSET TaskId, NEW U \in SUBSET TaskId, SetTaskRetries(T, U)
           PROVE UNCHANGED TP1Abs!vars
-        BY <2>3 DEF RecordTaskRetries, TP1Abs!vars
+        BY <2>3 DEF SetTaskRetries, TP1Abs!vars
     <2>4. ASSUME NEW T \in SUBSET TaskId, NEW a \in AgentId, AssignTasks(a, T)
           PROVE TP1Abs!AssignTasks(a, T)
         BY <2>4 DEF AssignTasks, TP1!AssignTasks, TP1Abs!AssignTasks, TP1!StagedTask, TP1Abs!StagedTask
@@ -96,9 +96,9 @@ LEMMA LemTaskStateIntegrity == Init /\ [][Next]_vars => []TaskStateIntegrity
     <2>2. ASSUME NEW T \in SUBSET TaskId, StageTasks(T)
           PROVE TaskStateIntegrity'
         BY <2>2 DEF StageTasks, TP1!StageTasks, TP1!RegisteredTask
-    <2>3. ASSUME NEW T \in SUBSET TaskId, NEW U \in SUBSET TaskId, RecordTaskRetries(T, U)
+    <2>3. ASSUME NEW T \in SUBSET TaskId, NEW U \in SUBSET TaskId, SetTaskRetries(T, U)
           PROVE TaskStateIntegrity'
-        BY <2>3, Assumptions DEF TypeInv, RecordTaskRetries, Bijection, Injection, Surjection, IsInjective, RegisteredTask, UnretriedTask
+        BY <2>3, Assumptions DEF TypeInv, SetTaskRetries, Bijection, Injection, Surjection, IsInjective, RegisteredTask, UnretriedTask
     <2>4. ASSUME NEW T \in SUBSET TaskId, NEW a \in AgentId, AssignTasks(a, T)
           PROVE TaskStateIntegrity'
         BY <2>4 DEF AssignTasks, TP1!AssignTasks, TP1!StagedTask
@@ -134,22 +134,22 @@ LEMMA LemTaskStateIntegrity == Init /\ [][Next]_vars => []TaskStateIntegrity
 THEOREM TP2_TaskStateIntegrity == Spec => []TaskStateIntegrity
 BY LemTaskStateIntegrity, PTL DEF Spec
 
-UnknownTaskDenumerability ==
+UnknownTaskNotEmpty ==
     IsDenumerableSet(UnknownTask)
 
-LEMMA LemUnknownTaskDenumerability == Init /\ [][Next]_vars => []UnknownTaskDenumerability
+LEMMA LemUnknownTaskNotEmpty == Init /\ [][Next]_vars => []UnknownTaskNotEmpty
 
-THEOREM TP2_UnknownTaskDenumerability == Spec => []UnknownTaskDenumerability
-BY LemUnknownTaskDenumerability, PTL DEF Spec
+THEOREM TP2_UnknownTaskNotEmpty == Spec => []UnknownTaskNotEmpty
+BY LemUnknownTaskNotEmpty, PTL DEF Spec
 
 TaskSafetyInv ==
     /\ TypeInv
     /\ TP1Abs!TaskSafetyInv
     /\ TaskStateIntegrity
-    /\ UnknownTaskDenumerability
+    /\ UnknownTaskNotEmpty
 
 LEMMA LemTaskSafetyInv == Init /\ [][Next]_vars => []TaskSafetyInv
-BY LemType, LemTP1TaskSafetyInv, LemTaskStateIntegrity, LemUnknownTaskDenumerability, PTL DEF TaskSafetyInv
+BY LemType, LemTP1TaskSafetyInv, LemTaskStateIntegrity, LemUnknownTaskNotEmpty, PTL DEF TaskSafetyInv
 
 THEOREM TP2_TaskSafetyInv == Spec => []TaskSafetyInv
 BY LemTaskSafetyInv DEF Spec
@@ -161,7 +161,7 @@ THEOREM TP2_PermanentFinalization == Spec => PermanentFinalization
                             /\ [](t \in AbortedTask => [](t \in AbortedTask))
     BY DEF PermanentFinalization
 <1>. USE DEF Next, vars, RegisterTasks, TP1!RegisterTasks, TP1!UnknownTask,
-         StageTasks, TP1!StageTasks, TP1!RegisteredTask, RecordTaskRetries,
+         StageTasks, TP1!StageTasks, TP1!RegisteredTask, SetTaskRetries,
          AssignTasks, TP1!AssignTasks, TP1!StagedTask, ReleaseTasks,
          TP1!ReleaseTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask,
          TP1Abs!AssignedStateIntegrity, ProcessTasks, TP1Abs!TaskSafetyInv,
@@ -267,11 +267,11 @@ THEOREM TP2_PermanentFinalization == Spec => PermanentFinalization
 \* \*     <2>. SUFFICES ASSUME TypeInv, IsWellFoundedOn(R, TaskId), [Next]_vars
 \* \*                   PROVE IsWellFoundedOn(R', TaskId)
 \* \*         OBVIOUS
-\* \*     <2>1. ASSUME NEW T \in SUBSET TaskId, NEW U \in SUBSET TaskId, RecordTaskRetries(T, U)
+\* \*     <2>1. ASSUME NEW T \in SUBSET TaskId, NEW U \in SUBSET TaskId, SetTaskRetries(T, U)
 \* \*           PROVE IsWellFoundedOn(R', TaskId)
 \* \*         <3>. PICK f \in Bijection(T, U) : nextAttemptOf' =
 \* \*             [t \in TaskId |-> IF t \in T THEN f[t] ELSE nextAttemptOf[t]]
-\* \*             BY <2>1 DEF RecordTaskRetries
+\* \*             BY <2>1 DEF SetTaskRetries
 \* \*         <3>. DEFINE S == TaskId \ U
 \* \*                     RR == {<<t, f[t]>>: t \in T}
 \* \*         <3>1. IsWellFoundedOn(R, S)
@@ -280,7 +280,7 @@ THEOREM TP2_PermanentFinalization == Spec => PermanentFinalization
 \* \*             OBVIOUS
 \* \*         <3>3. RR \in SUBSET S \X U
 \* \*             <4>1. T \in SUBSET S
-\* \*                 BY <2>1 DEF RecordTaskRetries, UnretriedTask, FailedTask, RegisteredTask
+\* \*                 BY <2>1 DEF SetTaskRetries, UnretriedTask, FailedTask, RegisteredTask
 \* \*             <4>2. \A t \in T: f[t] \in U
 \* \*                 BY DEF Bijection, Surjection
 \* \*             <4>. QED
@@ -289,7 +289,7 @@ THEOREM TP2_PermanentFinalization == Spec => PermanentFinalization
 \* \*             OBVIOUS
 \* \*         <3>5. R' = R \union RR
 \* \*             <4>1. \A t \in T: nextAttemptOf[t] \notin TaskId
-\* \*                 BY <2>1, Assumptions DEF RecordTaskRetries, UnretriedTask, FailedTask
+\* \*                 BY <2>1, Assumptions DEF SetTaskRetries, UnretriedTask, FailedTask
 \* \*             <4>2. RR = {ss \in T \X U: nextAttemptOf[ss[1]] = ss[2]}'
 \* \*                 BY DEF NextAttemptOfRel, Bijection, Surjection, Injection, IsInjective
 \* \*             <4>. QED
@@ -369,23 +369,54 @@ LEMMA LemFailedTaskEventualRetry ==
 <1>1. A /\ [Next]_vars => A' \/ B'
 <1>2. B /\ [Next]_vars => A' \/ B' \/ C'
 <1>3. A => ENABLED <<t \in UnretriedTask /\ \E u \in TaskId: RegisterTasks({u})>>_vars
-<1>4. B => ENABLED <<\E u \in TaskId : RecordTaskRetries({t}, {u})>>_vars
+<1>4. B => ENABLED <<\E u \in TaskId : SetTaskRetries({t}, {u})>>_vars
 <1>5. <<t \in UnretriedTask /\ \E u \in TaskId: RegisterTasks({u})>>_vars => B'
-<1>6. <<\E u \in TaskId : RecordTaskRetries({t}, {u})>>_vars => C'
+<1>6. <<\E u \in TaskId : SetTaskRetries({t}, {u})>>_vars => C'
 <1>7. Fairness
       => /\ WF_vars(t \in UnretriedTask /\ \E u \in TaskId: RegisterTasks({u}))
          /\ WF_vars(StageTasks({nextAttemptOf[t]}))
-         /\ SF_vars(\E u \in TaskId : RecordTaskRetries({t}, {u}))
+         /\ SF_vars(\E u \in TaskId : SetTaskRetries({t}, {u}))
     BY DEF Fairness
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, PTL
 
 THEOREM TP2_FailedTaskEventualRetry == Spec => FailedTaskEventualRetry
 <1>. SUFFICES ASSUME NEW t \in TaskId
-              PROVE Spec => t \in FailedTask ~> nextAttemptOf[t] /= NULL
+              PROVE Spec => t \in UnretriedTask ~> nextAttemptOf[t] \in StagedTask
     BY DEF FailedTaskEventualRetry
+<1>1. Spec => t \in UnretriedTask ~> nextAttemptOf[t] \in UnknownTask
+    <2>1. t \in UnretriedTask /\ [Next]_vars => (t \in UnretriedTask)' \/ (nextAttemptOf[t] \in UnknownTask)'
+    <2>2. t \in UnretriedTask => ENABLED <<\E u \in TaskId : SetTaskRetries({t}, {u})>>_vars
+    <2>3. <<\E u \in TaskId : SetTaskRetries({t}, {u})>>_vars => (nextAttemptOf[t] \in UnknownTask)'
+        BY DEF SetTaskRetries, vars, UnknownTask, Bijection, Surjection
+    <2>4. Fairness => WF_vars(\E u \in TaskId : SetTaskRetries({t}, {u}))
+        BY DEF Fairness
+    <2>. QED
+        BY <2>1, <2>2, <2>3, <2>4, PTL DEF Spec
+<1>2. Spec => nextAttemptOf[t] \in UnknownTask ~> nextAttemptOf[t] \in RegisteredTask
+    <2>1. nextAttemptOf[t] \in UnknownTask /\ [Next]_vars => (nextAttemptOf[t] \in UnknownTask)' \/ (nextAttemptOf[t] \in RegisteredTask)'
+    <2>2. nextAttemptOf[t] \in UnknownTask => ENABLED <<RegisterTasks({nextAttemptOf[t]})>>_vars
+        BY ExpandENABLED DEF RegisterTasks, TP1!RegisterTasks, vars, TP1!UnknownTask, UnknownTask
+    <2>3. <<RegisterTasks({nextAttemptOf[t]})>>_vars => (nextAttemptOf[t] \in RegisteredTask)'
+        BY DEF RegisterTasks, TP1!RegisterTasks, vars, TP1!UnknownTask, RegisteredTask
+    <2>4. Fairness => WF_vars(RegisterTasks({nextAttemptOf[t]}))
+        BY DEF Fairness
+    <2>. QED
+        BY <2>1, <2>2, <2>3, <2>4, PTL DEF Spec
+<1>3. Spec => nextAttemptOf[t] \in RegisteredTask ~> nextAttemptOf[t] \in StagedTask
+    <2>1. TaskSafetyInv /\ nextAttemptOf[t] \in RegisteredTask /\ [Next]_vars => (nextAttemptOf[t] \in RegisteredTask)' \/ (nextAttemptOf[t] \in StagedTask)'
+        BY DEF TaskSafetyInv, TypeInv, CrashedTask, AbortedTask, Next, vars, RegisterTasks, TP1!RegisterTasks, TP1!UnknownTask, StageTasks, TP1!StageTasks, TP1!RegisteredTask, SetTaskRetries, AssignTasks, TP1!AssignTasks, TP1!StagedTask, ReleaseTasks, TP1!ReleaseTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, ProcessTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, CompleteTasks, AbortTasks, RetryTasks, SucceededTask, FailedTask, CrashedTask, UnretriedTask, Terminating, vars, taskStateBar, RegisteredTask, StagedTask
+    <2>2. nextAttemptOf[t] \in RegisteredTask => ENABLED <<StageTasks({nextAttemptOf[t]})>>_vars
+        BY ExpandENABLED DEF StageTasks, TP1!StageTasks, vars, TP1!RegisteredTask, RegisteredTask
+    <2>3. TaskSafetyInv /\ <<StageTasks({nextAttemptOf[t]})>>_vars => (nextAttemptOf[t] \in StagedTask)'
+        BY DEF TaskSafetyInv, TypeInv, StageTasks, TP1!StageTasks, StagedTask, vars
+    <2>4. Fairness => WF_vars(StageTasks({nextAttemptOf[t]}))
+        BY DEF Fairness
+    <2>. QED
+        BY <2>1, <2>2, <2>3, <2>4, TP2_TaskSafetyInv, PTL DEF Spec
 <1>. QED
-    BY LemFailedTaskEventualRetry, TP2_TaskSafetyInv, PTL DEF Spec
+    BY <1>1, <1>2, <1>3, PTL
+    \* BY LemFailedTaskEventualRetry, TP2_TaskSafetyInv, PTL DEF Spec
 
 LEMMA LemFailedTaskEventualFinalization ==
     ASSUME NEW t \in TaskId
@@ -395,7 +426,7 @@ LEMMA LemFailedTaskEventualFinalization ==
 <1>2. []TaskSafetyInv /\ [][Next]_vars /\ Fairness
       => t \in FailedTask /\ ~ t \in UnretriedTask ~> t \in RetriedTask
     <2>1. TaskSafetyInv /\ t \in FailedTask /\ ~ t \in UnretriedTask /\ [Next]_vars => (t \in FailedTask /\ ~ t \in UnretriedTask)' \/ (t \in RetriedTask)'
-        BY DEF TaskSafetyInv, CrashedTask, AbortedTask, RetriedTask, Next, vars, RegisterTasks, TP1!RegisterTasks, TP1!UnknownTask, StageTasks, TP1!StageTasks, TP1!RegisteredTask, RecordTaskRetries, AssignTasks, TP1!AssignTasks, TP1!StagedTask, ReleaseTasks, TP1!ReleaseTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, ProcessTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, CompleteTasks, AbortTasks, RetryTasks, SucceededTask, FailedTask, CrashedTask, UnretriedTask, Terminating, vars, taskStateBar
+        BY DEF TaskSafetyInv, CrashedTask, AbortedTask, RetriedTask, Next, vars, RegisterTasks, TP1!RegisterTasks, TP1!UnknownTask, StageTasks, TP1!StageTasks, TP1!RegisteredTask, SetTaskRetries, AssignTasks, TP1!AssignTasks, TP1!StagedTask, ReleaseTasks, TP1!ReleaseTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, ProcessTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, CompleteTasks, AbortTasks, RetryTasks, SucceededTask, FailedTask, CrashedTask, UnretriedTask, Terminating, vars, taskStateBar
     <2>2. t \in FailedTask /\ ~ t \in UnretriedTask => ENABLED <<RetryTasks({t})>>_vars
         BY ExpandENABLED DEF RetryTasks, vars, UnretriedTask, FailedTask, RetriedTask
     <2>3. <<RetryTasks({t})>>_vars => (t \in RetriedTask)'
@@ -419,17 +450,17 @@ LEMMA LemFailedTaskEventualFinalization ==
 \* <1>3. S => (B ~> (A \/ C))
 \* \* <1>3. B(t) /\ [Next]_vars => A(t)' \/ C(t)'
 \* <1>4. S => ([]<>B => <>C)
-\*     <2>1. TaskSafetyInv /\ (t \in FailedTask /\ nextAttemptOf[t] = NULL /\ \E u \in TaskId: u \in RegisteredTask) => ENABLED <<\E u \in TaskId : RecordTaskRetries({t}, {u})>>_vars
-\*         \* BY ExpandENABLED DEF TaskSafetyInv, TypeInv, RecordTaskRetries, vars, UnretriedTask, FailedTask, RegisteredTask, Bijection, Injection, IsInjective, Surjection
-\*     <2>2. TaskSafetyInv /\ <<\E u \in TaskId : RecordTaskRetries({t}, {u})>>_vars => (t \in FailedTask /\ ~ t \in UnretriedTask)'
-\*         \* BY DEF TaskSafetyInv, TypeInv, RecordTaskRetries, vars, UnretriedTask, FailedTask
-\*     <2>3. Fairness => SF_vars(\E u \in TaskId : RecordTaskRetries({t}, {u}))
+\*     <2>1. TaskSafetyInv /\ (t \in FailedTask /\ nextAttemptOf[t] = NULL /\ \E u \in TaskId: u \in RegisteredTask) => ENABLED <<\E u \in TaskId : SetTaskRetries({t}, {u})>>_vars
+\*         \* BY ExpandENABLED DEF TaskSafetyInv, TypeInv, SetTaskRetries, vars, UnretriedTask, FailedTask, RegisteredTask, Bijection, Injection, IsInjective, Surjection
+\*     <2>2. TaskSafetyInv /\ <<\E u \in TaskId : SetTaskRetries({t}, {u})>>_vars => (t \in FailedTask /\ ~ t \in UnretriedTask)'
+\*         \* BY DEF TaskSafetyInv, TypeInv, SetTaskRetries, vars, UnretriedTask, FailedTask
+\*     <2>3. Fairness => SF_vars(\E u \in TaskId : SetTaskRetries({t}, {u}))
 \*         \* BY DEF Fairness
 \*     <2>. QED
 \*         BY <>1, <2>2, <2>3, TP2_TaskSafetyInv, PTL DEF Spec
 \* <1>5. S => (C ~> D)
 \*     <2>1. TaskSafetyInv /\ t \in FailedTask /\ ~ t \in UnretriedTask /\ [Next]_vars => (t \in FailedTask /\ ~ t \in UnretriedTask)' \/ (t \in RetriedTask)'
-\*         \* BY DEF CrashedTask, AbortedTask, RetriedTask, Next, vars, RegisterTasks, TP1!RegisterTasks, TP1!UnknownTask, StageTasks, TP1!StageTasks, TP1!RegisteredTask, RecordTaskRetries, AssignTasks, TP1!AssignTasks, TP1!StagedTask, ReleaseTasks, TP1!ReleaseTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, ProcessTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, CompleteTasks, AbortTasks, RetryTasks, SucceededTask, FailedTask, CrashedTask, UnretriedTask, Terminating, vars, taskStateBar
+\*         \* BY DEF CrashedTask, AbortedTask, RetriedTask, Next, vars, RegisterTasks, TP1!RegisterTasks, TP1!UnknownTask, StageTasks, TP1!StageTasks, TP1!RegisteredTask, SetTaskRetries, AssignTasks, TP1!AssignTasks, TP1!StagedTask, ReleaseTasks, TP1!ReleaseTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, ProcessTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, CompleteTasks, AbortTasks, RetryTasks, SucceededTask, FailedTask, CrashedTask, UnretriedTask, Terminating, vars, taskStateBar
 \*     <2>2. t \in FailedTask /\ ~ t \in UnretriedTask => ENABLED <<RetryTasks({t})>>_vars
 \*         \* BY ExpandENABLED DEF RetryTasks, vars, UnretriedTask, FailedTask, RetriedTask
 \*     <2>3. <<RetryTasks({t})>>_vars => (t \in RetriedTask)'
@@ -453,7 +484,7 @@ THEOREM TP2_EventualFinalization == Spec => EventualFinalization
     BY DEF EventualFinalization
 <1>1. Spec => t \in SucceededTask ~> t \in CompletedTask
     <2>1. TaskSafetyInv /\ t \in SucceededTask /\ [Next]_vars => (t \in SucceededTask)' \/ (t \in CompletedTask)'
-        BY DEF TaskSafetyInv, SucceededTask, CompletedTask, Next, vars, RegisterTasks, TP1!RegisterTasks, TP1!UnknownTask, StageTasks, TP1!StageTasks, TP1!RegisteredTask, RecordTaskRetries, AssignTasks, TP1!AssignTasks, TP1!StagedTask, ReleaseTasks, TP1!ReleaseTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, ProcessTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, CompleteTasks, AbortTasks, RetryTasks, SucceededTask, FailedTask, CrashedTask, UnretriedTask, Terminating, vars, taskStateBar
+        BY DEF TaskSafetyInv, SucceededTask, CompletedTask, Next, vars, RegisterTasks, TP1!RegisterTasks, TP1!UnknownTask, StageTasks, TP1!StageTasks, TP1!RegisteredTask, SetTaskRetries, AssignTasks, TP1!AssignTasks, TP1!StagedTask, ReleaseTasks, TP1!ReleaseTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, ProcessTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, CompleteTasks, AbortTasks, RetryTasks, SucceededTask, FailedTask, CrashedTask, UnretriedTask, Terminating, vars, taskStateBar
     <2>2. t \in SucceededTask => ENABLED <<CompleteTasks({t})>>_vars
         BY ExpandENABLED DEF CompleteTasks, UnretriedTask, SucceededTask, FailedTask, CrashedTask, vars
     <2>3. t \in SucceededTask /\ <<CompleteTasks({t})>>_vars => (t \in CompletedTask)'
@@ -466,7 +497,7 @@ THEOREM TP2_EventualFinalization == Spec => EventualFinalization
     BY LemFailedTaskEventualFinalization, TP2_TaskSafetyInv, PTL DEF Spec
 <1>3. Spec => t \in CrashedTask ~> t \in AbortedTask
     <2>1. TaskSafetyInv /\ t \in CrashedTask /\ [Next]_vars => (t \in CrashedTask)' \/ (t \in AbortedTask)'
-        BY DEF TaskSafetyInv, CrashedTask, AbortedTask, Next, vars, RegisterTasks, TP1!RegisterTasks, TP1!UnknownTask, StageTasks, TP1!StageTasks, TP1!RegisteredTask, RecordTaskRetries, AssignTasks, TP1!AssignTasks, TP1!StagedTask, ReleaseTasks, TP1!ReleaseTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, ProcessTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, CompleteTasks, AbortTasks, RetryTasks, SucceededTask, FailedTask, CrashedTask, UnretriedTask, Terminating, vars, taskStateBar
+        BY DEF TaskSafetyInv, CrashedTask, AbortedTask, Next, vars, RegisterTasks, TP1!RegisterTasks, TP1!UnknownTask, StageTasks, TP1!StageTasks, TP1!RegisteredTask, SetTaskRetries, AssignTasks, TP1!AssignTasks, TP1!StagedTask, ReleaseTasks, TP1!ReleaseTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, ProcessTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, CompleteTasks, AbortTasks, RetryTasks, SucceededTask, FailedTask, CrashedTask, UnretriedTask, Terminating, vars, taskStateBar
     <2>2. t \in CrashedTask => ENABLED <<AbortTasks({t})>>_vars
         BY ExpandENABLED DEF AbortTasks, UnretriedTask, SucceededTask, FailedTask, CrashedTask, vars
     <2>3. t \in CrashedTask /\ <<AbortTasks({t})>>_vars => (t \in AbortedTask)'
@@ -571,7 +602,7 @@ THEOREM TP2_RefineTP1 == Spec => RefineTP1
                           PROVE TaskSafetyInv /\ t \in SucceededTask /\ [Next]_vars => (t \in SucceededTask)'
                 BY <3>0a, PTL
             <4>1. TaskSafetyInv /\ t \in SucceededTask /\ [Next]_vars => (t \in SucceededTask)' \/ (t \in CompletedTask)'
-                BY <2>0 DEF TaskSafetyInv, CrashedTask, AbortedTask, Next, vars, RegisterTasks, TP1!RegisterTasks, TP1!UnknownTask, StageTasks, TP1!StageTasks, TP1!RegisteredTask, RecordTaskRetries, AssignTasks, TP1!AssignTasks, TP1!StagedTask, ReleaseTasks, TP1!ReleaseTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, ProcessTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, CompleteTasks, AbortTasks, RetryTasks, SucceededTask, FailedTask, CrashedTask, UnretriedTask, Terminating, vars, taskStateBar, CompletedTask
+                BY <2>0 DEF TaskSafetyInv, CrashedTask, AbortedTask, Next, vars, RegisterTasks, TP1!RegisterTasks, TP1!UnknownTask, StageTasks, TP1!StageTasks, TP1!RegisteredTask, SetTaskRetries, AssignTasks, TP1!AssignTasks, TP1!StagedTask, ReleaseTasks, TP1!ReleaseTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, ProcessTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, CompleteTasks, AbortTasks, RetryTasks, SucceededTask, FailedTask, CrashedTask, UnretriedTask, Terminating, vars, taskStateBar, CompletedTask
             <4>2. (~ t \in CompletedTask)'
                 <5>1. (t \in SucceededTask \/ t \in CrashedTask \/ t \in FailedTask)'
                     BY <2>0, PTL
@@ -585,7 +616,7 @@ THEOREM TP2_RefineTP1 == Spec => RefineTP1
                           PROVE TaskSafetyInv /\ t \in CrashedTask /\ [Next]_vars => (t \in CrashedTask)'
                 BY <3>0b, PTL
             <4>1. TaskSafetyInv /\ t \in CrashedTask /\ [Next]_vars => (t \in CrashedTask)' \/ (t \in AbortedTask)'
-                BY <2>0 DEF TaskSafetyInv, CrashedTask, AbortedTask, Next, vars, RegisterTasks, TP1!RegisterTasks, TP1!UnknownTask, StageTasks, TP1!StageTasks, TP1!RegisteredTask, RecordTaskRetries, AssignTasks, TP1!AssignTasks, TP1!StagedTask, ReleaseTasks, TP1!ReleaseTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, ProcessTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, CompleteTasks, AbortTasks, RetryTasks, SucceededTask, FailedTask, CrashedTask, UnretriedTask, Terminating, vars, taskStateBar
+                BY <2>0 DEF TaskSafetyInv, CrashedTask, AbortedTask, Next, vars, RegisterTasks, TP1!RegisterTasks, TP1!UnknownTask, StageTasks, TP1!StageTasks, TP1!RegisteredTask, SetTaskRetries, AssignTasks, TP1!AssignTasks, TP1!StagedTask, ReleaseTasks, TP1!ReleaseTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, ProcessTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, CompleteTasks, AbortTasks, RetryTasks, SucceededTask, FailedTask, CrashedTask, UnretriedTask, Terminating, vars, taskStateBar
             <4>2. (~ t \in AbortedTask)'
                 <5>1. (t \in SucceededTask \/ t \in CrashedTask \/ t \in FailedTask)'
                     BY <2>0, PTL
@@ -599,7 +630,7 @@ THEOREM TP2_RefineTP1 == Spec => RefineTP1
                           PROVE TaskSafetyInv /\ t \in FailedTask /\ ~ t \in UnretriedTask /\ [Next]_vars => (t \in FailedTask /\ ~ t \in UnretriedTask)'
                 BY <3>0c, PTL
             <4>1. TaskSafetyInv /\ t \in FailedTask /\ ~ t \in UnretriedTask /\ [Next]_vars => (t \in FailedTask /\ ~ t \in UnretriedTask)' \/ (t \in RetriedTask)'
-                BY <2>0 DEF TaskSafetyInv, CrashedTask, AbortedTask, Next, vars, RegisterTasks, TP1!RegisterTasks, TP1!UnknownTask, StageTasks, TP1!StageTasks, TP1!RegisteredTask, RecordTaskRetries, AssignTasks, TP1!AssignTasks, TP1!StagedTask, ReleaseTasks, TP1!ReleaseTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, ProcessTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, CompleteTasks, AbortTasks, RetryTasks, SucceededTask, FailedTask, CrashedTask, UnretriedTask, Terminating, vars, taskStateBar, RetriedTask
+                BY <2>0 DEF TaskSafetyInv, CrashedTask, AbortedTask, Next, vars, RegisterTasks, TP1!RegisterTasks, TP1!UnknownTask, StageTasks, TP1!StageTasks, TP1!RegisteredTask, SetTaskRetries, AssignTasks, TP1!AssignTasks, TP1!StagedTask, ReleaseTasks, TP1!ReleaseTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, ProcessTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, CompleteTasks, AbortTasks, RetryTasks, SucceededTask, FailedTask, CrashedTask, UnretriedTask, Terminating, vars, taskStateBar, RetriedTask
             <4>2. (~ t \in RetriedTask)'
                 <5>1. (t \in SucceededTask \/ t \in CrashedTask \/ t \in FailedTask)'
                     BY <2>0, PTL
@@ -630,7 +661,7 @@ THEOREM TP2_RefineTP1 == Spec => RefineTP1
             <4>. QED
                 BY <4>1, LemFailedTaskEventualFinalization, PTL
         <3>4. ENABLED <<TP1Abs!FinalizeTasks({t})>>_TP1Abs!vars /\ TaskSafetyInv /\ P /\ [Next]_vars => P'
-            BY <2>0 DEF TaskSafetyInv, CrashedTask, AbortedTask, Next, vars, RegisterTasks, TP1!RegisterTasks, TP1!UnknownTask, StageTasks, TP1!StageTasks, TP1!RegisteredTask, RecordTaskRetries, AssignTasks, TP1!AssignTasks, TP1!StagedTask, ReleaseTasks, TP1!ReleaseTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, ProcessTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, CompleteTasks, AbortTasks, RetryTasks, SucceededTask, FailedTask, CrashedTask, UnretriedTask, Terminating, vars, taskStateBar
+            BY <2>0 DEF TaskSafetyInv, CrashedTask, AbortedTask, Next, vars, RegisterTasks, TP1!RegisterTasks, TP1!UnknownTask, StageTasks, TP1!StageTasks, TP1!RegisteredTask, SetTaskRetries, AssignTasks, TP1!AssignTasks, TP1!StagedTask, ReleaseTasks, TP1!ReleaseTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, ProcessTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, CompleteTasks, AbortTasks, RetryTasks, SucceededTask, FailedTask, CrashedTask, UnretriedTask, Terminating, vars, taskStateBar
         <3>. QED
             BY <2>0, <3>1, <3>2, <3>3, <3>4, PTL
     <2>6. Fairness => /\ WF_vars(CompleteTasks({t}))
