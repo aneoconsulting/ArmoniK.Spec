@@ -1,5 +1,6 @@
 --------------------------------- MODULE Utils ---------------------------------
-EXTENDS Naturals, FiniteSets
+LOCAL INSTANCE Naturals
+LOCAL INSTANCE FiniteSets
 
 NULL == ""
 

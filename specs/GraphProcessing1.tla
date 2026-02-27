@@ -12,15 +12,17 @@
 (* together with its key safety and liveness properties.                     *)
 (*****************************************************************************)
 
-EXTENDS FiniteSets, Graphs, Naturals, Sequences
+EXTENDS FiniteSets, Graphs, Naturals, Sequences, TLAPS
 
 CONSTANTS
     AgentId,   \* Set of agent identifiers (theoretically infinite)
     ObjectId,  \* Set of object identifiers (theoretically infinite)
     TaskId     \* Set of task identifiers (theoretically infinite)
 
-ASSUME
-    \* Agent, task, and object identifiers are pairwise disjoint.
+ASSUME Assumptions ==
+    /\ IsFiniteSet(AgentId) /\ AgentId /= {}
+    /\ IsFiniteSet(ObjectId) /\ ObjectId /= {}
+    /\ IsFiniteSet(TaskId) /\ TaskId /= {}
     /\ AgentId \intersect ObjectId = {}
     /\ AgentId \intersect TaskId = {}
     /\ ObjectId \intersect TaskId = {}
@@ -55,12 +57,12 @@ INSTANCE TaskStates
 (**
  * Instance of the TaskProcessing specification.
  *)
-TP1 == INSTANCE TaskProcessing1
+TP1 == INSTANCE TaskProcessing1_proofs
 
 (**
  * Instance of the ObjectProcessing specification.
  *)
-OP1 == INSTANCE ObjectProcessing1
+OP1 == INSTANCE ObjectProcessing1_proofs
 
 -------------------------------------------------------------------------------
 
@@ -92,7 +94,7 @@ TypeInv ==
             TASK_FINALIZED
         }]
     /\ LET Nodes == TaskId \union ObjectId IN
-        deps \in [node: SUBSET Nodes, edge: SUBSET (Nodes \X Nodes)]
+        deps \in {G \in [node: SUBSET Nodes, edge: SUBSET (Nodes \X Nodes)]: IsDirectedGraph(G)}
 
 (**
  * Returns all nodes in graph 'G' labeled with task IDs.
@@ -182,7 +184,7 @@ RegisterGraph(G) ==
  *)
 TargetObjects(O) ==
     /\ OP1!TargetObjects(O)
-    /\ UNCHANGED << agentTaskAlloc, deps, objectState, taskState >>
+    /\ UNCHANGED << agentTaskAlloc, deps, taskState >>
 
 (**
  * OBJECT UNTARGETING
@@ -190,7 +192,7 @@ TargetObjects(O) ==
  *)
 UntargetObjects(O) ==
     /\ OP1!UntargetObjects(O)
-    /\ UNCHANGED << agentTaskAlloc, deps, objectState, taskState >>
+    /\ UNCHANGED << agentTaskAlloc, deps, taskState >>
 
 (**
  * OBJECT FINALIZATION
@@ -202,7 +204,7 @@ FinalizeObjects(O) ==
     /\ \/ O \subseteq Roots(deps)
        \/ \A o \in O: \E t \in Predecessors(deps, o): t \in ProcessedTask
     /\ OP1!FinalizeObjects(O)
-    /\ UNCHANGED << agentTaskAlloc, deps, objectTargets, taskState >>
+    /\ UNCHANGED << agentTaskAlloc, deps, taskState >>
 
 (**
  * TASK STAGING
@@ -267,6 +269,7 @@ FinalizeTasks(T) ==
  *)
 Terminating ==
     /\ OP1!Terminating
+    /\ TP1!Terminating
     /\ UNCHANGED << agentTaskAlloc, deps, taskState >>
 
 -------------------------------------------------------------------------------
@@ -294,6 +297,15 @@ Next ==
         \/ FinalizeTasks(T)
     \/ Terminating
 
+OpenPath(o) ==
+    {p \in SimplePath(deps) :
+        /\ p[1] \in StagedTask \union ProcessedTask \union FinalizedObject
+        /\ p[Len(p)] = o
+        /\ \A i \in 2..(Len(p) - 1) :
+            \/ p[i] \in RegisteredTask
+            \/ p[i] \in RegisteredObject
+    }
+
 (**
  * Returns TRUE iff task 't' is upstream on an open (i.e., fully unexecuted)
  * production path toward an unfinalized target object 'o'.
@@ -304,13 +316,14 @@ Next ==
 IsTaskUpstreamOnOpenPathToTarget(t, o) ==
     /\ o \in objectTargets
     /\ o \in RegisteredObject
-    /\ t \in StagedTask
-    /\ \E p \in SimplePath(deps) :
-        /\ p[1] = t
-        /\ p[Len(p)] = o
-        /\ \A i \in 2..(Len(p) - 1) :
-            \/ (p[i] \in TaskId /\ p[i] \in RegisteredTask)
-            \/ (p[i] \in ObjectId /\ p[i] \in RegisteredObject)
+    /\ \E p \in OpenPath(o): p[1] = t
+    \* /\ t \in StagedTask
+    \* /\ \E p \in SimplePath(deps) :
+    \*     /\ p[1] = t
+    \*     /\ p[Len(p)] = o
+    \*     /\ \A i \in 2..(Len(p) - 1) :
+    \*         \/ (p[i] \in TaskId /\ p[i] \in RegisteredTask)
+    \*         \/ (p[i] \in ObjectId /\ p[i] \in RegisteredObject)
 
 (**
  * FAIRNESS CONDITIONS
@@ -328,21 +341,10 @@ Fairness ==
     /\ \A o \in ObjectId :
         WF_vars(FinalizeObjects({o}))
     /\ \A t \in TaskId :
-        WF_vars(StageTasks({t}))
-    /\ \A t \in TaskId :
-        WF_vars(
-            /\ \E o \in ObjectId :
-                IsTaskUpstreamOnOpenPathToTarget(t, o)
-            /\ \E a \in AgentId :
-                AssignTasks(a, {t})
-        )
-    /\ \A t \in TaskId :
-        SF_vars(
-            \E a \in AgentId :
-                ProcessTasks(a, {t})
-        )
-    /\ \A t \in TaskId :
-        WF_vars(FinalizeTasks({t}))
+        /\ EventuallyStaged(t) :: WF_vars(StageTasks({t}))
+        /\ EventuallyAssigned(t) :: WF_vars((\E o \in ObjectId : IsTaskUpstreamOnOpenPathToTarget(t, o)) /\ (\E a \in AgentId : AssignTasks(a, {t})))
+        /\ EventuallyProcessed(t) :: SF_vars(\E a \in AgentId : ProcessTasks(a, {t}))
+        /\ EventuallyFinalized(t) :: WF_vars(FinalizeTasks({t}))
 
 (**
  * Full system specification.
@@ -370,16 +372,23 @@ DependencyGraphCompliant ==
  * Ensures consistent relationships between graph structure and task/object
  * states.
  *)
-GraphStateConsistent ==
-    /\ TaskNode(deps) \intersect UnknownTask = {}
-    /\ ObjectNode(deps) \intersect UnknownObject = {}
-    /\ \A t \in TaskNode(deps):
-        t \notin RegisteredTask
-            => Predecessors(deps, t) \subseteq FinalizedObject
-    \* /\ \A o \in ObjectNode(deps) \ Roots(deps):
-    \*     o \in FinalizedObject
-    \*         => \E t \in Predecessors(deps, o):
-    \*             t \in (ProcessedTask \union FinalizedTask)
+\* GraphStateConsistent ==
+\*     /\ TaskNode(deps) \intersect UnknownTask = {}
+\*     /\ ObjectNode(deps) \intersect UnknownObject = {}
+\*     /\ \A t \in TaskId: t \in deps.node <=> t \notin UnknownTask
+\*     /\ \A o \in ObjectId: o \in deps.node <=> o \notin UnknownObject
+\*     /\ \A t \in TaskNode(deps):
+\*         t \notin RegisteredTask
+\*             => Predecessors(deps, t) \subseteq FinalizedObject
+GraphStateIntegrity ==
+    /\ \A t \in TaskId:
+        /\ t \in deps.node <=> t \notin UnknownTask
+        /\ IsFiniteSet(Predecessors(deps, t))
+        /\ IsFiniteSet(Successors(deps, t))
+        /\ t \notin RegisteredTask
+                => Predecessors(deps, t) \subseteq FinalizedObject
+    /\ \A o \in ObjectId:
+        /\ o \in deps.node <=> o \notin UnknownObject
 
 (**
  * SAFETY
@@ -387,8 +396,8 @@ GraphStateConsistent ==
  * connected finalized subgraph.
  *)
 TargetsDerivedFromRoots ==
-    \A o \in objectTargets:
-        o \in FinalizedObject =>
+    \A o \in ObjectId:
+        o \in objectTargets /\ o \in FinalizedObject =>
             \E subDeps \in DirectedSubgraph(deps):
                 /\ Roots(subDeps) \subseteq Roots(deps)
                 /\ Leaves(subDeps) = {o}
@@ -402,11 +411,51 @@ TargetsDerivedFromRoots ==
  * The data dependencies of each task remain immutable throughout execution.
  *)
 TaskDataDependenciesInvariant ==
-    [][
-        \A t \in TaskNode(deps):
-            /\ Predecessors(deps, t) = Predecessors(deps', t)
-            /\ Successors(deps, t) = Successors(deps', t)
-    ]_deps
+    \A t \in TaskId:
+        [][
+            t \notin UnknownTask =>
+                /\ Predecessors(deps, t) = Predecessors(deps', t)
+                /\ Successors(deps, t) = Successors(deps', t)
+        ]_deps
+
+ShortestOpenPath(o) ==
+    IF o \in FinalizedObject
+        THEN <<>>
+        ELSE CHOOSE x \in OpenPath(o) : \A y \in OpenPath(o) : Len(x) =< Len(y)
+
+OpenPathIsBoundedSet ==
+    \A o \in ObjectId:
+        \E n \in Nat:
+            <>[](Cardinality(OpenPath(o)) <= n)
+
+ShortestOpenPathTypeInv ==
+    \A o \in ObjectId:
+        ShortestOpenPath(o) \in SimplePath(deps)
+
+ShortestOpenPathIsDecreasing ==
+    \A o \in ObjectId: 
+        [](ShortestOpenPath(o) /= << >>)
+            => [][Len(ShortestOpenPath(o))' <= Len(ShortestOpenPath(o))]_vars
+
+ShortestOpenPathEventualDecrease ==
+    \A o \in ObjectId:
+        \A n \in Nat \ {0}:
+            [](o \in objectTargets /\ o \in RegisteredObject)
+            => [](Len(ShortestOpenPath(o)) = n => <>(Len(ShortestOpenPath(o)) < n))
+
+\* P == [](\E n \in Nat \ {0}: M(o) = n) => FALSE
+\* THEOREM ASSUME NEW n \in Nat PROVE P(n)
+\* <1>1. ASSUME \A m \in Nat: m < n => P(m) PROVE P(n)
+\*     <2>1. CASE n = 0
+\*     <2>2. CASE n /= 0
+\*         <3>1. \E m \in Nat: m < n /\ <>(M(o) = n)
+\*             BY Lemma1, PTL, TypeInvMetric
+\*         <2>2. QED
+\*             BY <1>1, <3>1, PTL
+\*     <2>. QED
+\*         BY <2>1, <2>2
+\* <1>. QED
+\*     BY <1>1, NatStrongInduction
 
 (**
  * LIVENESS
@@ -421,19 +470,5 @@ TaskProcessingRefined ==
  *)
 ObjectProcessingRefined ==
     OP1!Spec
-
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* THEOREMS                                                                  *)
-(*****************************************************************************)
-
-THEOREM Spec => []TypeInv
-THEOREM Spec => []DependencyGraphCompliant
-THEOREM Spec => []GraphStateConsistent
-THEOREM Spec => []TargetsDerivedFromRoots
-THEOREM Spec => TaskDataDependenciesInvariant
-THEOREM Spec => TaskProcessingRefined
-THEOREM Spec => ObjectProcessingRefined
 
 ================================================================================
