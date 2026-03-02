@@ -83,7 +83,7 @@ THEOREM TP2_TP1TaskSafetyInv == Spec => []TP1Abs!TaskSafetyInv
 BY LemTP1TaskSafetyInv DEF Spec
 
 LEMMA LemTaskStateIntegrity == Init /\ [][Next]_vars => []TaskStateIntegrity
-<1>. USE DEF TaskStateIntegrity, UnknownTask, FailedTask, RetriedTask, CompletedTask, AbortedTask
+<1>. USE FS_EmptySet, FS_Union, FS_Subset, Assumptions DEF TaskStateIntegrity, UnknownTask, FailedTask, RetriedTask, CompletedTask, AbortedTask, TaskAttempts, TransitiveClosureOn, IsTransitivelyClosedOn
 <1>1. TypeInv /\ Init => TaskStateIntegrity
     BY Assumptions DEF TypeInv, Init, TP1!Init
 <1>2. TypeInv /\ TP1Abs!TaskSafetyInv /\ TaskStateIntegrity /\ [Next]_vars => TaskStateIntegrity'
@@ -98,7 +98,7 @@ LEMMA LemTaskStateIntegrity == Init /\ [][Next]_vars => []TaskStateIntegrity
         BY <2>2 DEF StageTasks, TP1!StageTasks, TP1!RegisteredTask
     <2>3. ASSUME NEW T \in SUBSET TaskId, NEW U \in SUBSET TaskId, SetTaskRetries(T, U)
           PROVE TaskStateIntegrity'
-        BY <2>3, Assumptions DEF TypeInv, SetTaskRetries, Bijection, Injection, Surjection, IsInjective, RegisteredTask, UnretriedTask
+        BY <2>3, Assumptions DEF TypeInv, TP1Abs!TaskSafetyInv, TP1Abs!ExclusiveAssignment, TP1Abs!AssignedStateIntegrity, TP1Abs!AssignedTask, SetTaskRetries, Bijection, Injection, Surjection, IsInjective, RegisteredTask, UnretriedTask
     <2>4. ASSUME NEW T \in SUBSET TaskId, NEW a \in AgentId, AssignTasks(a, T)
           PROVE TaskStateIntegrity'
         BY <2>4 DEF AssignTasks, TP1!AssignTasks, TP1!StagedTask
@@ -107,7 +107,7 @@ LEMMA LemTaskStateIntegrity == Init /\ [][Next]_vars => []TaskStateIntegrity
         BY <2>5 DEF TypeInv, ReleaseTasks, TP1!ReleaseTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedStateIntegrity, TP1Abs!AssignedTask, taskStateBar
     <2>6. ASSUME NEW T \in SUBSET TaskId, NEW a \in AgentId, ProcessTasks(a, T)
           PROVE TaskStateIntegrity'
-        BY <2>6 DEF TypeInv, ProcessTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedStateIntegrity, TP1Abs!AssignedTask, taskStateBar
+        BY <2>6 DEF TypeInv, ProcessTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedStateIntegrity, TP1Abs!ExclusiveAssignment, TP1Abs!AssignedTask, taskStateBar
     <2>7. ASSUME NEW T \in SUBSET TaskId, CompleteTasks(T)
           PROVE TaskStateIntegrity'
         BY <2>7 DEF CompleteTasks, SucceededTask,
@@ -131,11 +131,62 @@ LEMMA LemTaskStateIntegrity == Init /\ [][Next]_vars => []TaskStateIntegrity
 <1>. QED
     BY <1>1, <1>2, LemType, LemTP1TaskSafetyInv, PTL
 
+LEMMA ASSUME NEW t \in TaskId
+      PROVE Init /\ [][Next]_vars => [](Cardinality(TaskAttempts(t)) <= MaxRetries)
+<1>. DEFINE P == Cardinality(TaskAttempts(t)) <= MaxRetries
+<1>. USE DEF TaskAttempts, TransitiveClosureOn, IsTransitivelyClosedOn
+<1>1. TypeInv /\ Init => P
+    BY FS_EmptySet, FS_Subset, Assumptions DEF Init
+<1>2. TypeInv /\ TP1Abs!TaskSafetyInv /\ P /\ [Next]_vars => P'
+    <2>. SUFFICES ASSUME TypeInv, TP1Abs!TaskSafetyInv, P, [Next]_vars
+                  PROVE P'
+        OBVIOUS
+    <2>1. ASSUME NEW T \in SUBSET TaskId, RegisterTasks(T)
+          PROVE P'
+        BY <2>1 DEF RegisterTasks, TP1!RegisterTasks, TP1!UnknownTask
+    <2>2. ASSUME NEW T \in SUBSET TaskId, StageTasks(T)
+          PROVE P'
+        BY <2>2 DEF StageTasks, TP1!StageTasks, TP1!RegisteredTask
+    <2>3. ASSUME NEW T \in SUBSET TaskId, NEW U \in SUBSET TaskId, SetTaskRetries(T, U)
+          PROVE P'
+        BY <2>3, Assumptions DEF TypeInv, TP1Abs!TaskSafetyInv, TP1Abs!ExclusiveAssignment, TP1Abs!AssignedStateIntegrity, TP1Abs!AssignedTask, SetTaskRetries, Bijection, Injection, Surjection, IsInjective, RegisteredTask, UnretriedTask
+    <2>4. ASSUME NEW T \in SUBSET TaskId, NEW a \in AgentId, AssignTasks(a, T)
+          PROVE P'
+        BY <2>4 DEF AssignTasks, TP1!AssignTasks, TP1!StagedTask
+    <2>5. ASSUME NEW T \in SUBSET TaskId, NEW a \in AgentId, ReleaseTasks(a, T)
+          PROVE P'
+        BY <2>5 DEF TypeInv, ReleaseTasks, TP1!ReleaseTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedStateIntegrity, TP1Abs!AssignedTask, taskStateBar
+    <2>6. ASSUME NEW T \in SUBSET TaskId, NEW a \in AgentId, ProcessTasks(a, T)
+          PROVE P'
+        BY <2>6 DEF TypeInv, ProcessTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedStateIntegrity, TP1Abs!ExclusiveAssignment, TP1Abs!AssignedTask, taskStateBar
+    <2>7. ASSUME NEW T \in SUBSET TaskId, CompleteTasks(T)
+          PROVE P'
+        BY <2>7 DEF CompleteTasks, SucceededTask,
+           TP1Abs!ProcessedTask
+    <2>8. ASSUME NEW T \in SUBSET TaskId, AbortTasks(T)
+          PROVE P'
+        BY <2>8 DEF AbortTasks, CrashedTask,
+           TP1Abs!ProcessedTask
+    <2>9. ASSUME NEW T \in SUBSET TaskId, RetryTasks(T)
+          PROVE P'
+        BY <2>9 DEF RetryTasks, UnretriedTask, FailedTask
+    <2>10. ASSUME Terminating
+          PROVE TaskAttempts(t)' = TaskAttempts(t)
+        BY <2>10 DEF Terminating, vars
+    <2>11. ASSUME UNCHANGED vars
+          PROVE P'
+        BY <2>11 DEF vars
+    <2>. QED
+        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11
+           DEF Next
+<1>. QED
+    BY <1>1, <1>2, PTL
+
 THEOREM TP2_TaskStateIntegrity == Spec => []TaskStateIntegrity
 BY LemTaskStateIntegrity, PTL DEF Spec
 
 UnknownTaskNotEmpty ==
-    \E t \in TaskId : t \in UnknownTask
+    \E t \in TaskId : t \in UnknownTask /\ ~ \E u \in TaskId: nextAttemptOf[u] = t
 
 LEMMA LemUnknownTaskNotEmpty == Init /\ [][Next]_vars => []UnknownTaskNotEmpty
 <1>1. Init => IsDenumerableSet(UnknownTask)
@@ -165,10 +216,21 @@ LEMMA LemUnknownTaskNotEmpty == Init /\ [][Next]_vars => []UnknownTaskNotEmpty
         BY <2>1 DEF Next
     <2>. QED
         BY DEF TP1Abs!TaskSafetyInv, TP1Abs!AssignedStateIntegrity, TP1Abs!AssignedTask, taskStateBar, UnknownTask, vars, SetTaskRetries, StageTasks, TP1!StageTasks, TP1!RegisteredTask, AssignTasks, TP1!AssignTasks, TP1!StagedTask, ReleaseTasks, TP1!ReleaseTasks, ProcessTasks, CompleteTasks, SucceededTask, AbortTasks, CrashedTask, RetryTasks, UnretriedTask, FailedTask, Terminating
-<1>3. TypeInv /\ IsDenumerableSet(UnknownTask) => \E t \in TaskId : t \in UnknownTask
-    BY DS_NonEmpty DEF TypeInv, UnknownTask
+\* <1>3. TypeInv /\ IsDenumerableSet(UnknownTask) => \E t \in TaskId : t \in UnknownTask
+\*     BY DS_NonEmpty DEF TypeInv, UnknownTask
+<1>3. TypeInv /\ TaskStateIntegrity /\ IsDenumerableSet(UnknownTask) => \E t \in TaskId : t \in UnknownTask /\ ~ \E u \in TaskId: nextAttemptOf[u] = t
+    <2>. DEFINE T == {v \in TaskId: nextAttemptOf[v] \in TaskId}
+                U == {nextAttemptOf[v]: v \in T}
+    <2>. SUFFICES ASSUME TypeInv, TaskStateIntegrity, IsDenumerableSet(UnknownTask)
+                  PROVE UnknownTask \ U /= {}
+        BY DEF TypeInv, UnknownTask
+    <2>1. IsFiniteSet(T)
+    <2>2. IsFiniteSet(U)
+        BY <2>1, FS_Image, Isa
+    <2>. QED
+        BY <2>2, DS_FiniteDifference, DS_NonEmpty
 <1>. QED
-    BY <1>1, <1>2, <1>3, LemTP1TaskSafetyInv, LemType, PTL DEF UnknownTaskNotEmpty
+    BY <1>1, <1>2, <1>3, LemTP1TaskSafetyInv, LemType, LemTaskStateIntegrity, PTL DEF UnknownTaskNotEmpty
 
 THEOREM TP2_UnknownTaskNotEmpty == Spec => []UnknownTaskNotEmpty
 BY LemUnknownTaskNotEmpty, PTL DEF Spec
@@ -184,6 +246,32 @@ BY LemType, LemTP1TaskSafetyInv, LemTaskStateIntegrity, LemUnknownTaskNotEmpty, 
 
 THEOREM TP2_TaskSafetyInv == Spec => []TaskSafetyInv
 BY LemTaskSafetyInv DEF Spec
+
+THEOREM TP2_TaskAttemptsIsIncreasing == Spec => TaskAttemptsIsIncreasing
+<1>. SUFFICES ASSUME NEW t \in TaskId
+              PROVE Spec => [][TaskAttempts(t) \subseteq TaskAttempts(t)']_nextAttemptOf
+    BY DEF TaskAttemptsIsIncreasing
+<1>. SUFFICES ASSUME [Next]_vars
+              PROVE [TaskAttempts(t) \subseteq TaskAttempts(t)']_nextAttemptOf
+    BY PTL DEF Spec, vars
+<1>1. ASSUME NEW T \in SUBSET TaskId, NEW U \in SUBSET TaskId, SetTaskRetries(T, U)
+      PROVE [TaskAttempts(t) \subseteq TaskAttempts(t)']_nextAttemptOf
+    BY <1>1, Assumptions DEF TaskAttempts, TransitiveClosureOn, IsTransitivelyClosedOn, SetTaskRetries, UnknownTask, UnretriedTask, FailedTask
+<1>. SUFFICES ASSUME [\/ \E T \in SUBSET TaskId:
+                            \/ RegisterTasks(T)
+                            \/ StageTasks(T)
+                            \/ \E a \in AgentId:
+                                \/ AssignTasks(a, T)
+                                \/ ReleaseTasks(a, T)
+                                \/ ProcessTasks(a, T)
+                            \/ CompleteTasks(T)
+                            \/ AbortTasks(T)
+                            \/ RetryTasks(T)
+                        \/ Terminating]_vars
+            PROVE UNCHANGED nextAttemptOf
+        BY <1>1 DEF Next, TaskAttempts, TransitiveClosureOn
+<1>. QED
+    BY DEF TP1Abs!TaskSafetyInv, TP1Abs!AssignedStateIntegrity, TP1Abs!AssignedTask, taskStateBar, vars, RegisterTasks, TP1!RegisterTasks, TP1!UnknownTask, StageTasks, TP1!StageTasks, TP1!RegisteredTask, AssignTasks, TP1!AssignTasks, TP1!StagedTask, ReleaseTasks, TP1!ReleaseTasks, ProcessTasks, CompleteTasks, SucceededTask, AbortTasks, CrashedTask, RetryTasks, UnretriedTask, FailedTask, Terminating
 
 THEOREM TP2_PermanentFinalization == Spec => PermanentFinalization
 <1>. SUFFICES ASSUME NEW t \in TaskId
@@ -385,6 +473,11 @@ THEOREM TP2_PermanentFinalization == Spec => PermanentFinalization
 \* \*     OBVIOUS
 \* \* <1>. QED
 
+THEOREM TP2_TaskAttempsIsBouded == Spec => TaskAttempsIsBouded
+\* <1>. SUFFICES ASSUME NEW t \in TaskId
+\*               PROVE Spec => 
+\* <1>. QED
+
 LEMMA LemFailedTaskEventualRetry ==
     ASSUME NEW t \in TaskId
     PROVE []TaskSafetyInv /\ [][Next]_vars /\ Fairness
@@ -398,6 +491,7 @@ LEMMA LemFailedTaskEventualRetry ==
                                 /\ {t} # {}
                                 /\ {t} \subseteq UnretriedTask
                                 /\ {u} \subseteq UnknownTask
+                                /\ \A v \in {u}: ~ \E w \in TaskId: nextAttemptOf[w] = v
                                 /\ \E f \in Bijection({t}, {u}) :
                                         nextAttemptOfp
                                         = [t_1 \in TaskId |->
@@ -406,7 +500,7 @@ LEMMA LemFailedTaskEventualRetry ==
                                 /\ taskStatep = taskState
                             /\ <<agentTaskAllocp, taskStatep, nextAttemptOfp>> /= <<agentTaskAlloc, taskState, nextAttemptOf>>
         BY ExpandENABLED DEF SetTaskRetries, vars
-    <2>. PICK u \in TaskId: u \in UnknownTask
+    <2>. PICK u \in TaskId: u \in UnknownTask /\ ~ \E v \in TaskId: nextAttemptOf[v] = u
         BY DEF TaskSafetyInv, UnknownTaskNotEmpty
     <2>. DEFINE g               == [x \in {t} |-> u]
                 agentTaskAllocp == agentTaskAlloc
@@ -446,7 +540,7 @@ THEOREM TP2_FailedTaskEventualRetry == Spec => FailedTaskEventualRetry
     <2>1. TaskSafetyInv /\ nextAttemptOf[t] \in UnknownTask /\ [Next]_vars => (nextAttemptOf[t] \in UnknownTask)' \/ (nextAttemptOf[t] \in RegisteredTask)'
         BY Assumptions DEF TaskSafetyInv, TypeInv, CrashedTask, AbortedTask, Next, vars, RegisterTasks, TP1!RegisterTasks, TP1!UnknownTask, StageTasks, TP1!StageTasks, TP1!RegisteredTask, SetTaskRetries, AssignTasks, TP1!AssignTasks, TP1!StagedTask, ReleaseTasks, TP1!ReleaseTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, ProcessTasks, TP1Abs!TaskSafetyInv, TP1Abs!AssignedTask, TP1Abs!AssignedStateIntegrity, CompleteTasks, AbortTasks, RetryTasks, SucceededTask, FailedTask, CrashedTask, UnretriedTask, Terminating, vars, taskStateBar, RegisteredTask, StagedTask, UnknownTask, Bijection, Injection, Surjection, IsInjective
     <2>2. nextAttemptOf[t] \in UnknownTask => ENABLED <<RegisterTasks({nextAttemptOf[t]})>>_vars
-        BY ExpandENABLED DEF RegisterTasks, TP1!RegisterTasks, vars, TP1!UnknownTask, UnknownTask
+        BY ExpandENABLED, FS_Singleton DEF RegisterTasks, TP1!RegisterTasks, vars, TP1!UnknownTask, UnknownTask
     <2>3. <<RegisterTasks({nextAttemptOf[t]})>>_vars => (nextAttemptOf[t] \in RegisteredTask)'
         BY DEF RegisterTasks, TP1!RegisterTasks, vars, TP1!UnknownTask, RegisteredTask
     <2>4. Fairness => WF_vars(RegisterTasks({nextAttemptOf[t]}))

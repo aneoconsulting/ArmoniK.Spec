@@ -1,39 +1,27 @@
 ---------------------------- MODULE TaskProcessing2 ----------------------------
 (******************************************************************************)
 (* This module specifies an extension of the 'TaskProcessing' specification,  *)
-(* providing a concrete implementation of task execution and finalization.    *)
-(*                                                                            *)
-(* Key refinements include:                                                   *)
-(* - Decomposing the abstract PROCESSED state into concrete outcomes:         *)
-(* SUCCEEDED, FAILED, or CRASHED.                                             *)
-(* - Implementing a retry mechanism where FAILED tasks are cloned and         *)
-(* re-staged, tracked via the 'nextAttemptOf' mapping.                        *)
-(* - Refining the abstract FINALIZED state into permanent terminal states:    *)
-(* COMPLETED (post-success), RETRIED (post-failure), or ABORTED (crashed).    *)
-(*                                                                            *)
-(* The module defines a refinement mapping (TPAbs) that collapses these       *)
-(* granular execution and retry steps back into the high-level states of      *)
-(* 'TaskProcessing', ensuring safety and liveness across the abstraction.     *)
+(* providing a detailed description of task execution and finalization.       *)
 (******************************************************************************)
 
 EXTENDS DenumerableSets, FiniteSets, Functions, Naturals, Utils, TLAPS, WellFoundedInduction
 
 CONSTANTS
-    AgentId,   \* Set of agent identifiers (theoretically infinite)
-    TaskId,    \* Set of task identifiers (theoretically infinite)
-    MaxRetries,
-    NULL       \* Constant representing a null value
+    AgentId,    \* Set of agent identifiers
+    TaskId,     \* Set of task identifiers
+    MaxRetries, \* Maximal number of retries for tasks
+    NULL        \* Constant representing a null value
 
 ASSUME Assumptions ==
     /\ AgentId \intersect TaskId = {}
-    /\ IsDenumerableSet(TaskId)
+    /\ IsFiniteSet(AgentId)
     /\ IsDenumerableSet(TaskId)
     /\ MaxRetries \in Nat
     /\ NULL \notin TaskId
 
 VARIABLES
-    agentTaskAlloc,   \* agentTaskAlloc[a] is the set of tasks currently assigned to agent a
-    taskState,        \* taskState[t] records the current lifecycle state of task t
+    agentTaskAlloc,   \* agentTaskAlloc[a]: set of tasks assigned to agent a
+    taskState,        \* taskState[t]: current lifecycle state of task t
     nextAttemptOf     \* nextAttemptOf[t]: ID of the task retrying t (NULL if none)
 
 vars == << agentTaskAlloc, taskState, nextAttemptOf >>
@@ -41,13 +29,16 @@ vars == << agentTaskAlloc, taskState, nextAttemptOf >>
 -------------------------------------------------------------------------------
 
 (**
- * Instance of the TaskStates module with SetOfTasksIn operator provided.
+ * Instance of the TaskStates module.
+ * Provides set-based views of tasks (e.g., SucceededTask, FailedTask) 
+ * by filtering TaskId based on the current taskState.
  *)
 INSTANCE TaskStates
     WITH SetOfTasksIn <- LAMBDA s : {t \in TaskId: taskState[t] = s}
 
 (**
- * instance of the TaskProcessing specification.
+ * Instance of the high-level TaskProcessing1 specification to re-use
+ * action definitions.
  *)
 TP1 == INSTANCE TaskProcessing1
 
@@ -68,26 +59,23 @@ TypeInv ==
     /\ nextAttemptOf \in [TaskId -> TaskId \union {NULL}]
 
 (**
- * Returns the set of failed tasks that havn't yet been retried, i.e., a copy of
- * the task has not been staged to re-execute the same computation.
+ * The subset of FailedTasks for which a follow-up attempt (retry) 
+ * has not yet been linked via nextAttemptOf.
  *)
 UnretriedTask ==
     {t \in FailedTask: nextAttemptOf[t] = NULL}
 
-\* (**
-\*  * Returns the set of all tasks in the retry chain starting from t. This set is
-\*  * recursively built from the 'nextAttemptOf' state variable.
-\*  *)
-\* TasksRetries[t \in TaskId] ==
-\*     IF nextAttemptOf[t] = NULL
-\*         THEN {}
-\*         ELSE {t} \union TasksRetries[nextAttemptOf[t]]
-
-\* TasksAttempts(t) ==
-\*     LET
-\*         NextAttemptOfRel == {ss \in TaskId \X TaskId : nextAttemptOf[ss[1]] = ss[2]}
-\*     IN
-\*         UNION {{tt[1], tt[2]}: tt \in TransitiveClosureOn(NextAttemptOfRel, TaskId)}
+(**
+ * Set of all tasks connected to 't' via the retry chain.
+ * This includes all previous attempts and all subsequent retries.
+ * It uses the symmetric transitive closure of the nextAttemptOf relation.
+ *)
+TaskAttempts(t) ==
+    LET
+        NextAttemptOfRel == {ss \in TaskId \X TaskId : nextAttemptOf[ss[1]] = ss[2]}
+        R                == TransitiveClosureOn(NextAttemptOfRel, TaskId)
+    IN
+        {u \in TaskId: <<u, t>> \in R \/ <<t, u>> \in R}
 
 -------------------------------------------------------------------------------
 
@@ -97,8 +85,8 @@ UnretriedTask ==
 
 (**
  * INITIAL STATE
- * Initially, no task has been registered and no agent holds any task. In
- * addition, no tasks were retried or requested to be canceled or paused.
+ * Initially, no task has been registered and retried and no agent holds any
+ * task.
  *)
 Init ==
     /\ TP1!Init
@@ -106,8 +94,7 @@ Init ==
 
 (**
  * TASK REGISTRATION
- * A new set 'T' of tasks is registred i.e., known to the system but not yet
- * ready for processing.
+ * Introduces a finite set of tasks 'T' into the system (TASK_REGISTERED).
  *)
 RegisterTasks(T) ==
     /\ IsFiniteSet(T)
@@ -116,7 +103,7 @@ RegisterTasks(T) ==
 
 (**
  * TASK STAGING
- * A new set 'T' of tasks is staged i.e., made available to the system for processing.
+ * Moves tasks 'T' from REGISTERED to STAGED, making them available for assignment.
  *)
 StageTasks(T) ==
     /\ TP1!StageTasks(T)
@@ -124,14 +111,14 @@ StageTasks(T) ==
 
 (**
  * TASK RETRIES RECORDING
- * A set of tasks 'T' that have not yet been recognized as retried are recorded
- * as such by a set of tasks 'U' (each task in 'T' being associated with a
- * single task in 'U' by the bijection 'f').
+ * Maps a set of failed tasks 'T' to a set of new, unknown tasks 'U'.
+ * This effectively "links" the failure of 'T' to the future execution of 'U'.
  *)
 SetTaskRetries(T, U) ==
     /\ T /= {}
     /\ T \subseteq UnretriedTask
     /\ U \subseteq UnknownTask
+    /\ \A u \in U: ~ \E t \in TaskId: nextAttemptOf[t] = u
     /\ \E f \in Bijection(T, U):
         nextAttemptOf' =
             [t \in TaskId |-> IF t \in T THEN f[t] ELSE nextAttemptOf[t]]
@@ -139,9 +126,7 @@ SetTaskRetries(T, U) ==
 
 (**
  * TASK ASSIGNMENT
- * An agent 'a' takes responsibility for processing a set 'T' of staged
- * tasks. Tasks can be assigned iff their cancelation or pausing have not been
- * requested.
+ * Agent 'a' claims set 'T' for processing.
  *)
 AssignTasks(a, T) ==
     /\ TP1!AssignTasks(a, T)
@@ -149,7 +134,8 @@ AssignTasks(a, T) ==
 
 (**
  * TASK RELEASE
- * An agent 'a' postpones a set 'T' of tasks it currently holds.
+ * Agent 'a' returns tasks 'T' to the STAGED state without completing their
+ * processing.
  *)
 ReleaseTasks(a, T) ==
     /\ TP1!ReleaseTasks(a, T)
@@ -157,25 +143,19 @@ ReleaseTasks(a, T) ==
 
 (**
  * TASK PROCESSING
- * An agent 'a' completes the processing of a set 'T' of tasks it currently
- * holds. Three scenarios are possible:
- *   - Task processing succeeded.
- *   - Task processing failed, but the cause may be transient — retrying
- *     execution is allowed.
- *   - Task crashed irrecoverably - re-execution is prohibited.
- *
- * When an agent acknowledges the completion of the processing of a set of tasks,
- * these tasks can have any of the three states mentioned above. The set 'T' is
- * therefore divided into three subsets 'S', 'F', and 'C', corresponding to each
- * of the three possible states.
+ * Agent 'a' finishes tasks 'T', sorting them according to the possible
+ * processing states i.e., Success (S), Failure (F), or Crash (C). 
+ * Failed tasks are tasks that can be retried (their execution will be retried
+ * by another task), while crashed tasks will simply be aborted.  A task can
+ * only fail (F) if it hasn't exceeded the maximum number of retries.
  *)
 ProcessTasks(a, T) ==
     /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
     /\ \E S, F, C \in SUBSET T :
         /\ UNION {S, F, C} = T
         /\ S \intersect F = {} /\ S \intersect C = {} /\ F \intersect C = {}
+        /\ \A t \in F: Cardinality(TaskAttempts(t)) < MaxRetries
         /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
-        \* /\ \A t \in F: Cardinality(TaskAttempts(t)) < MaxRetries
         /\ taskState' =
             [t \in TaskId |-> CASE t \in S -> TASK_SUCCEEDED
                                 [] t \in F -> TASK_FAILED
@@ -184,8 +164,8 @@ ProcessTasks(a, T) ==
         /\ UNCHANGED nextAttemptOf
 
 (**
- * TASK POST-PROCESSING
- * A set 'T' of tasks is post-processed based on the task processing states.
+ * TASK COMPLETION
+ * Finalizes successfully processed tasks 'T' into the terminal COMPLETED state.
  *)
 CompleteTasks(T) ==
     /\ T /= {} /\ T \subseteq SucceededTask
@@ -193,12 +173,23 @@ CompleteTasks(T) ==
         [t \in TaskId |-> IF t \in T THEN TASK_COMPLETED ELSE taskState[t]]
     /\ UNCHANGED << agentTaskAlloc, nextAttemptOf >>
 
+(**
+ * TASK ABORTION
+ * Finalizes crashed tasks 'T' into the terminal ABORTED state. 
+ * Crashed tasks cannot be retried.
+ *)
 AbortTasks(T) ==
     /\ T /= {} /\ T \subseteq CrashedTask
     /\ taskState' =
         [t \in TaskId |-> IF t \in T THEN TASK_ABORTED ELSE taskState[t]]
     /\ UNCHANGED << agentTaskAlloc, nextAttemptOf >>
 
+(**
+ * TASK RETRY FINALIZATION
+ * Finalizes failed tasks 'T' into the RETRIED state.
+ * A task can only move to RETRIED once its 'nextAttemptOf' mapping
+ * has been established (i.e., it's no longer 'Unretried').
+ *)
 RetryTasks(T) ==
     /\ T /= {} /\ T \subseteq FailedTask
     /\ T \intersect UnretriedTask = {}
@@ -208,9 +199,8 @@ RetryTasks(T) ==
 
 (**
  * TERMINAL STATE
- * Action representing the terminal state of the system, reached when
- * there are no more tasks being processed (i.e., assigned to an agent or not
- * yet finalized i.e., completed, retried, aborted or canceled).
+ * Stuttering step representing a state where all tasks have reached 
+ * terminal states.
  *)
 Terminating ==
     /\ TaskId = UNION {
@@ -246,12 +236,20 @@ Next ==
 (**
  * FAIRNESS CONDITIONS
  * Ensure that progress is eventually made for tasks that can act.
- *   - A task cannot remain indefinitely failed without being retried.
+ *   - A task cannot remain indefinitely failed without being eventually
+ *     linked to another task for retry.
+ *   - A new task attempt cannot reamin indefinitely unknown without being
+ *     eventually registered.
+ *   - A new task attempt cannot reamin indefinitely staged without being
+ *     eventually staged.
  *   - A task cannot be assigned to an agent an infinite number of times
  *     without eventually being processed.
- *   - A task cannot remain indefinitely processed without being eventually
- *     finalized (completed, retried or aborted).
- *   - A task cannot remain indefinitely paused without being resumed.
+ *   - A task cannot remain indefinitely succeeded without being eventually
+ *     completed.
+ *   - A task cannot remain indefinitely crashed without being eventually
+ *     aborted.
+ *   - A task cannot remain indefinitely failed without being eventually
+ *     retried.
  *)
 Fairness ==
     \A t \in TaskId:
@@ -279,7 +277,7 @@ Spec ==
 
 (**
  * SAFETY
- * The associated task as a new attempt at a RETRIED task is known to the
+ * Ensures consistent relationship between a task's status and its retry chain.
  *)
 TaskStateIntegrity ==
     \A t \in TaskId:
@@ -287,11 +285,23 @@ TaskStateIntegrity ==
         /\ nextAttemptOf[t] /= NULL => t \in FailedTask \union RetriedTask
         /\ t \in CompletedTask \union AbortedTask
             => nextAttemptOf[t] = NULL
+        /\ \E u, v \in TaskId: nextAttemptOf[u] = t /\ nextAttemptOf[v] = t
+                               => u = v
+        /\ nextAttemptOf[t] /= t
+        /\ Cardinality(TaskAttempts(t)) <= MaxRetries
 
 (**
  * SAFETY
- * Once a task reaches the state COMPLETED, RETRIED, ABORTED, or CANCELED, it
- * remains there permanently.
+ * Guarantees that the set of attempts for a task can only increase.
+ *)
+TaskAttemptsIsIncreasing ==
+    \A t \in TaskId:
+        [][TaskAttempts(t) \subseteq TaskAttempts(t)']_nextAttemptOf
+
+(**
+ * SAFETY
+ * Terminal states (Completed, Retried, Aborted) are sinks; once entered, 
+ * the state cannot change.
  *)
 PermanentFinalization ==
     \A t \in TaskId:
@@ -301,7 +311,8 @@ PermanentFinalization ==
 
 (**
  * LIVENESS
- * A failed task is eventually retried.
+ * Guarantees that every task failure eventually leads to the next attempt
+ * being staged.
  *)
 FailedTaskEventualRetry ==
     \A t \in TaskId:
@@ -309,20 +320,21 @@ FailedTaskEventualRetry ==
 
 (**
  * LIVENESS
- * A task cannot be retried an infinite number of times. In practice, this means
- * that one of the attempts will eventually be completed, aborted, canceled, or
- * remain indefinitely staged.
+ * Guarantees that the number of attempts for a task is bounded by the
+ * maximum number of attempts and that the set of all attempts eventually
+ * stabilize. This means that the last attempt is eventually completed or
+ * aborted.
  *)
-\* TaskAttempsBouding ==
-\*     \A t \in TaskId:
-\*         \E S \in SUBSET TaskId:
-\*             /\ Cardinality(S) <= MaxRetries
-\*             /\ <>[](TaskAttempts(t) = S)
+TaskAttempsIsBouded ==
+    \A t \in TaskId:
+        \E S \in SUBSET TaskId:
+            /\ Cardinality(S) <= MaxRetries
+            /\ <>[](TaskAttempts(t) = S)
 
 (**
  * LIVENESS
- * Processed tasks are eventually post-processed in accordance with their
- * processing state.
+ * Guarantees that temporary processing states (Succeeded, Failed, Crashed) 
+ * always transition to terminal states.
  *)
 EventualFinalization ==
     \A t \in TaskId:
