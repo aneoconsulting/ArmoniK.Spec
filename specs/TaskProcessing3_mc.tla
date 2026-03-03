@@ -1,16 +1,16 @@
 -------------------------- MODULE TaskProcessing3_mc ---------------------------
+(*******************************************************************************)
+(* This specification adapts the TaskProcessing3 specification to make it      *)
+(* verifiable on finite models by TLC.                                         *)
+(*******************************************************************************)
 
 EXTENDS TaskProcessing3
 
 --------------------------------------------------------------------------------
 
-(**
- * The finiteness of the task ID set can lead to a suttering when all task IDs
- * are "known" and a failed task cannot be retried because no new task can be
- * found for retry. This constraint restricts system actions during model-checking
- * to prevent such a behavior.
- *)
-ActionConstraint ==
-    Cardinality(UnknownTask') >= Cardinality(TP2!UnretriedTask')
+TP3MC == INSTANCE TaskProcessing2_mc
+
+MCTaskAttempts(t)   == TP3MC!MCTaskAttempts(t)
+ActionConstraint == TP3MC!ActionConstraint
 
 ================================================================================
