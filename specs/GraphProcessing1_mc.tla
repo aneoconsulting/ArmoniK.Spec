@@ -16,10 +16,6 @@
 
 EXTENDS GraphsExt, GraphProcessing1, Randomization, TLC
 
-ASSUME IsFiniteSet(AgentId)
-ASSUME IsFiniteSet(ObjectId)
-ASSUME IsFiniteSet(TaskId)
-
 --------------------------------------------------------------------------------
 
 (**
@@ -33,7 +29,7 @@ ASSUME IsFiniteSet(TaskId)
  * Note: The ACGraphs operator is provided by the GraphsExt module.
  *)
 MCGraphs(Nodes) ==
-    ACGraphs(Nodes \intersect UnknownTask, Nodes \intersect ObjectId)
+    ACGraphs(Nodes \intersect UnknownTask, Nodes \intersect Object)
 
 \* MCGraphsRand(Nodes) ==
 \*     UNION {
@@ -51,6 +47,6 @@ MCGraphs(Nodes) ==
  * Symmetry relation between task, object and agent identifiers.
  *)
 Symmetry ==
-    Permutations(TaskId) \union Permutations(ObjectId) \union Permutations(AgentId)
+    Permutations(Task) \union Permutations(Object) \union Permutations(Agent)
 
 ================================================================================
