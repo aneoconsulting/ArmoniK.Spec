@@ -8,7 +8,7 @@
 (* of the system.                                                            *)
 (*****************************************************************************)
 
-EXTENDS DenumerableSets
+EXTENDS DenumerableSets, TLAPS
 
 CONSTANTS
     Object  \* Abstract set of all objects
@@ -168,7 +168,7 @@ PermanentFinalization ==
  *)
 EventualTargetFinalization ==
     \A o \in Object:
-        <>[](o \in objectTargets) => <>(o \in FinalizedObject)
+        []([](o \in objectTargets) => <>(o \in FinalizedObject))
 
 (**
  * LIVENESS
