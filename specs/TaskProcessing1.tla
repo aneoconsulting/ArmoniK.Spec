@@ -8,7 +8,7 @@
 (* properties of the system.                                                 *)
 (*****************************************************************************)
 
-EXTENDS DenumerableSets, FiniteSets
+EXTENDS DenumerableSets, FiniteSets, TLAPS
 
 CONSTANTS
     Agent,   \* Abstract set of all agents

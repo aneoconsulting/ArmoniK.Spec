@@ -39,17 +39,22 @@ BY LemType, LemTargetValidity, PTL DEF ObjectSafetyInv
 THEOREM OP1_ObjectSafetyInv == Spec => []ObjectSafetyInv
 BY LemObjectSafetyInv DEF Spec
 
+LEMMA LemStableFinalizedState == 
+    ASSUME NEW o \in Object
+    PROVE o \in FinalizedObject /\ [Next]_vars
+          => (o \in FinalizedObject)'
+BY DEF Next, vars, RegisterObjects, TargetObjects, UntargetObjects,
+FinalizeObjects, Terminating, UnknownObject, RegisteredObject, FinalizedObject
+
 THEOREM OP1_PermanentFinalization == Spec => PermanentFinalization
 <1>. SUFFICES ASSUME NEW o \in Object
               PROVE Spec => [](o \in FinalizedObject => [](o \in FinalizedObject))
     BY DEF PermanentFinalization
-<1>1. ObjectSafetyInv /\ o \in FinalizedObject /\ [Next]_vars
+<1>1. o \in FinalizedObject /\ [Next]_vars
         => (o \in FinalizedObject)'
-    BY DEF ObjectSafetyInv, TypeOk, OP1State, Next, vars, RegisterObjects,
-    TargetObjects, UntargetObjects, FinalizeObjects, Terminating, UnknownObject,
-    RegisteredObject, FinalizedObject
+    BY LemStableFinalizedState
 <1>. QED
-    BY <1>1, OP1_ObjectSafetyInv, PTL DEF Spec
+    BY <1>1, PTL DEF Spec
 
 LEMMA LemTargetsAreKnown ==
         ASSUME NEW o \in objectTargets, ObjectSafetyInv
@@ -57,9 +62,9 @@ LEMMA LemTargetsAreKnown ==
 BY DEF ObjectSafetyInv, TypeOk, OP1State, TargetValidity, UnknownObject,
 RegisteredObject, FinalizedObject
 
-THEOREM OP1_EventualTargetFinalizationCorrect == Spec => EventualTargetFinalization
+THEOREM OP1_EventualTargetFinalization == Spec => EventualTargetFinalization
 <1>. SUFFICES ASSUME NEW o \in Object
-              PROVE Spec => (<>[](o \in objectTargets) => <>(o \in FinalizedObject))
+              PROVE Spec => []([](o \in objectTargets) => <>(o \in FinalizedObject))
     BY DEF EventualTargetFinalization            
 <1>. DEFINE WF == WF_vars(o \in objectTargets /\ FinalizeObjects({o}))
 <1>1. Fairness => WF

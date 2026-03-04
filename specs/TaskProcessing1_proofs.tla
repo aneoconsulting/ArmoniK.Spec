@@ -66,16 +66,26 @@ LEMMA LemTaskSafetyInv == Init /\ [][Next]_vars => []TaskSafetyInv
 THEOREM TP1_TaskSafetyInv == Spec => []TaskSafetyInv
 BY LemTaskSafetyInv DEF Spec
 
+LEMMA LemStableFinalization ==
+    ASSUME NEW t \in Task
+    PROVE TaskSafetyInv /\ t \in FinalizedTask /\ [Next]_vars
+          => (t \in FinalizedTask)'
+BY DEF TaskSafetyInv, AssignedStateIntegrity, Next, vars, RegisterTasks,
+StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks,
+FinalizeTasks, Terminating, UnknownTask, RegisteredTask, StagedTask,
+AssignedTask, ProcessedTask, FinalizedTask
+
 THEOREM TP1_PermanentFinalization == Spec => PermanentFinalization
 <1>. SUFFICES ASSUME NEW t \in Task
                 PROVE Spec => [](t \in FinalizedTask => [](t \in FinalizedTask))
     BY DEF PermanentFinalization
 <1>1. TaskSafetyInv /\ t \in FinalizedTask /\ [Next]_vars
             => (t \in FinalizedTask)'
-    BY DEF TaskSafetyInv, AssignedStateIntegrity, Next, vars, RegisterTasks,
-    StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks,
-    FinalizeTasks, Terminating, UnknownTask, RegisteredTask, StagedTask,
-    AssignedTask, ProcessedTask, FinalizedTask
+    BY LemStableFinalization
+    \* BY DEF TaskSafetyInv, AssignedStateIntegrity, Next, vars, RegisterTasks,
+    \* StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks,
+    \* FinalizeTasks, Terminating, UnknownTask, RegisteredTask, StagedTask,
+    \* AssignedTask, ProcessedTask, FinalizedTask
 <1>2. QED
     BY <1>1, TP1_TaskSafetyInv, PTL DEF Spec
 
@@ -146,16 +156,26 @@ THEOREM TP1_EventualProcessing == Spec => EventualProcessing
 <1>. QED
     BY <1>1, <1>2, <1>3, TP1_TaskSafetyInv, PTL DEF Spec
 
+LEMMA LemProcessedTaskNext ==
+    ASSUME NEW t \in Task, TaskSafetyInv
+    PROVE t \in ProcessedTask /\ [Next]_vars
+          => (t \in ProcessedTask)' \/ (t \in FinalizedTask)'
+BY DEF TaskSafetyInv, TypeOk, AssignedStateIntegrity, Next, vars, RegisterTasks,
+StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks, FinalizeTasks,
+Terminating, UnknownTask, RegisteredTask, StagedTask, AssignedTask, ProcessedTask,
+FinalizedTask
+
 THEOREM TP1_EventualFinalization == Spec => EventualFinalization
 <1>. SUFFICES ASSUME NEW t \in Task
                 PROVE Spec => t \in ProcessedTask ~> t \in FinalizedTask
     BY DEF EventualFinalization
 <1>1. TaskSafetyInv /\ t \in ProcessedTask /\ [Next]_vars
       => (t \in ProcessedTask)' \/ (t \in FinalizedTask)'
-    BY DEF TaskSafetyInv, TypeOk, AssignedStateIntegrity, Next, vars, RegisterTasks,
-    StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks, FinalizeTasks,
-    Terminating, UnknownTask, RegisteredTask, StagedTask, AssignedTask, ProcessedTask,
-    FinalizedTask
+    BY LemProcessedTaskNext
+    \* BY DEF TaskSafetyInv, TypeOk, AssignedStateIntegrity, Next, vars, RegisterTasks,
+    \* StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks, FinalizeTasks,
+    \* Terminating, UnknownTask, RegisteredTask, StagedTask, AssignedTask, ProcessedTask,
+    \* FinalizedTask
 <1>2. t \in ProcessedTask => ENABLED <<FinalizeTasks({t})>>_vars
     BY ExpandENABLED DEF FinalizeTasks, vars, ProcessedTask
 <1>3. t \in ProcessedTask /\ <<FinalizeTasks({t})>>_vars => (t \in FinalizedTask)'
