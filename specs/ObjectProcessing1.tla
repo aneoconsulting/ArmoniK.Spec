@@ -13,7 +13,7 @@ EXTENDS DenumerableSets
 CONSTANTS
     Object  \* Abstract set of all objects
 
-ASSUMPTION
+ASSUMPTION OP1Assumptions ==
     IsDenumerableSet(Object) \* Object is an infinitely countable set
 
 VARIABLES

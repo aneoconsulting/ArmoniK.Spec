@@ -16,7 +16,7 @@ EXTENDS DenumerableSets
 CONSTANTS
     Object  \* Abstract set of all objects
 
-ASSUMPTION
+ASSUMPTION OP2Assumptions ==
     IsDenumerableSet(Object) \* Object is an infinitely countable set
 
 VARIABLES
@@ -160,7 +160,7 @@ objectStateBar ==
           [] objectState[o] = OBJECT_ABORTED   -> OBJECT_FINALIZED
           [] OTHER                             -> objectState[o]
     ]
-OP1Abs == INSTANCE ObjectProcessing1 WITH objectState <- objectStateBar
+OP1Abs == INSTANCE ObjectProcessing1_proofs WITH objectState <- objectStateBar
 RefineObjectProcessing1 == OP1Abs!Spec
 
 ================================================================================
