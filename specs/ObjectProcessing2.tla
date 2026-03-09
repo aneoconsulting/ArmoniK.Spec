@@ -61,7 +61,7 @@ TypeOk ==
  * wants these objects to be finalized (completed or aborted).
  *)
 TargetObjects(O) ==
-    /\ O # {} /\ O \in UNION {RegisteredObject, CompletedObject, AbortedObject}
+    /\ O # {} /\ O \subseteq UNION {RegisteredObject, CompletedObject, AbortedObject}
     /\ objectTargets' = objectTargets \union O
     /\ UNCHANGED objectState
 
@@ -108,9 +108,9 @@ Terminating ==
  *)
 Next ==
     \/ \E O \in SUBSET Object:
+        \/ OP1!RegisterObjects(O)
         \/ TargetObjects(O)
         \/ OP1!UntargetObjects(O)
-        \/ OP1!RegisterObjects(O)
         \/ CompleteObjects(O)
         \/ AbortObjects(O)
     \/ Terminating
