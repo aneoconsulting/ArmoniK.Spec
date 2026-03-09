@@ -8,8 +8,13 @@
 (* of the system.                                                            *)
 (*****************************************************************************)
 
+EXTENDS DenumerableSets
+
 CONSTANTS
-    ObjectId   \* Set of object identifiers (theoretically infinite)
+    Object  \* Abstract set of all objects
+
+ASSUMPTION
+    IsDenumerableSet(Object) \* Object is an infinitely countable set
 
 VARIABLES
     objectState,  \* objectState[o] records the current lifecycle state of object o
@@ -20,10 +25,11 @@ vars == << objectState, objectTargets >>
 -------------------------------------------------------------------------------
 
 (**
- * Instance of the ObjectStates module with SetOfObjectsIn operator provided.
+ * Imports the definition of the states of objects and sets of objects sharing
+ * the same state.
  *)
 INSTANCE ObjectStates
-    WITH SetOfObjectsIn <- LAMBDA s : {o \in ObjectId: objectState[o] = s}
+    WITH SetOfObjectsIn <- LAMBDA s : {o \in Object: objectState[o] = s}
 
 (**
  * TYPE INVARIANT
@@ -31,13 +37,9 @@ INSTANCE ObjectStates
  *   - objectState is a function mapping each object to one of the defined states.
  *   - objectTargets is a subset of valid object identifiers.
  *)
-TypeInv ==
-    /\ objectState \in [ObjectId -> {
-            OBJECT_UNKNOWN,
-            OBJECT_REGISTERED,
-            OBJECT_FINALIZED
-        }]
-    /\ objectTargets \in SUBSET ObjectId
+TypeOk ==
+    /\ objectState \in [Object -> OP1State]
+    /\ objectTargets \in SUBSET Object
 
 -------------------------------------------------------------------------------
 
@@ -50,7 +52,7 @@ TypeInv ==
  * Initially, all objects are unknown and none are marked as targets.
  *)
 Init ==
-    /\ objectState = [o \in ObjectId |-> OBJECT_UNKNOWN]
+    /\ objectState = [o \in Object |-> OBJECT_UNKNOWN]
     /\ objectTargets = {}
 
 (**
@@ -61,7 +63,7 @@ Init ==
 RegisterObjects(O) ==
     /\ O /= {} /\ O \subseteq UnknownObject
     /\ objectState' =
-        [o \in ObjectId |-> IF o \in O THEN OBJECT_REGISTERED ELSE objectState[o]]
+        [o \in Object |-> IF o \in O THEN OBJECT_REGISTERED ELSE objectState[o]]
     /\ UNCHANGED objectTargets
 
 (**
@@ -91,7 +93,7 @@ UntargetObjects(O) ==
 FinalizeObjects(O) ==
     /\ O /= {} /\ O \subseteq RegisteredObject
     /\ objectState' =
-        [o \in ObjectId |-> IF o \in O THEN OBJECT_FINALIZED ELSE objectState[o]]
+        [o \in Object |-> IF o \in O THEN OBJECT_FINALIZED ELSE objectState[o]]
     /\ UNCHANGED objectTargets
 
 (**
@@ -114,7 +116,7 @@ Terminating ==
  * Defines all possible atomic transitions of the system.
  *)
 Next ==
-    \/ \E O \in SUBSET ObjectId:
+    \/ \E O \in SUBSET Object:
         \/ RegisterObjects(O)
         \/ TargetObjects(O)
         \/ UntargetObjects(O)
@@ -128,9 +130,8 @@ Next ==
  *     eventually finalized.
  *)
 Fairness ==
-    \A o \in ObjectId:
-        EventuallyFinalized(o) ::
-            WF_vars(o \in objectTargets /\ FinalizeObjects({o}))
+    \A o \in Object:
+        WF_vars(o \in objectTargets /\ FinalizeObjects({o}))
 
 (**
  * Full system specification.
@@ -158,7 +159,7 @@ TargetValidity ==
  * Once an object reaches the FINALIZED state, it remains there permanently.
  *)
 PermanentFinalization ==
-    \A o \in ObjectId:
+    \A o \in Object:
         [](o \in FinalizedObject => [](o \in FinalizedObject))
 
 (**
@@ -166,7 +167,7 @@ PermanentFinalization ==
  * Every targeted object is eventually either finalized or untargeted.
  *)
 EventualTargetFinalization ==
-    \A o \in ObjectId:
+    \A o \in Object:
         <>[](o \in objectTargets) => <>(o \in FinalizedObject)
 
 (**
@@ -175,7 +176,7 @@ EventualTargetFinalization ==
  * meaning it is either finalized or removed from the target set.
  *)
 EventualTargetResolution ==
-    \A o \in ObjectId :
-        o \in objectTargets ~> (o \in FinalizedObject \/ o \notin objectTargets)
+    \A o \in Object :
+        o \in objectTargets ~> (o \in FinalizedObject \/ ~ o \in objectTargets)
 
 ================================================================================
