@@ -10,7 +10,7 @@ EXTENDS DenumerableSets
 CONSTANTS
     Object  \* Abstract set of all objects
 
-ASSUMPTION
+ASSUMPTION OP3Assumptions ==
     IsDenumerableSet(Object) \* Object is an infinitely countable set
 
 VARIABLES
@@ -32,7 +32,7 @@ INSTANCE ObjectStates
 (**
  * Imports ObjectProcessing2 definitions.
  *)
-OP2 == INSTANCE ObjectProcessing2
+OP2 == INSTANCE ObjectProcessing2_proofs
 
 (**
  * TYPE INVARIANT
@@ -116,7 +116,7 @@ AbortObjects(O) ==
 DeleteObjects(O) ==
     /\ O /= {}
     /\ O \intersect UnknownObject = {}
-    /\ O \intersect objectTargets = {}
+    /\ O \intersect objectTargets \intersect RegisteredObject = {}
     /\ objectDeleted' = objectDeleted \union O
     /\ UNCHANGED << objectState, objectTargets >>
 
@@ -141,9 +141,9 @@ Terminating ==
  *)
 Next ==
     \/ \E O \in SUBSET Object:
+        \/ RegisterObjects(O)
         \/ TargetObjects(O)
         \/ UntargetObjects(O)
-        \/ RegisterObjects(O)
         \/ CompleteObjects(O)
         \/ AbortObjects(O)
         \/ DeleteObjects(O)
@@ -184,13 +184,23 @@ DeletionValidity ==
 
 (**
  * SAFETY
+ * A targeted registered object cannot be deleted.
+ *)
+RegisteredTargetsUndeleted ==
+    \A o \in Object:
+        o \in RegisteredObject /\ o \in objectTargets => ~ o \in objectDeleted
+
+(**
+ * SAFETY
  * Once deleted, the state of an object does not change.
  *)
 DeletionQuiescence ==
-    [][ \A o \in Object :
-        o \in objectDeleted =>
-            /\ objectState'[o] = objectState[o]
-            /\ o \in objectTargets' <=> o \in objectTargets ]_vars
+    \A o \in Object:
+        [][
+            (o \in objectDeleted => (
+                /\ objectState'[o] = objectState[o]
+                /\ o \in objectTargets' <=> o \in objectTargets))
+        ]_vars
 
 (**
  * LIVENESS
