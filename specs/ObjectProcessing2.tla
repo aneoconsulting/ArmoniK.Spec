@@ -1,19 +1,23 @@
 --------------------------- MODULE ObjectProcessing2 ---------------------------
 (*****************************************************************************)
 (* This module specifies an extended object lifecycle system that refines    *)
-(* the 'ObjectProcessing' specification. It provides a more granular         *)
+(* the 'ObjectProcessing1' specification. It provides a more granular        *)
 (* implementation of the finalization process by decomposing the abstract    *)
 (* FINALIZED state into two concrete outcomes: COMPLETED and ABORTED.        *)
 (*                                                                           *)
 (* The specification defines a refinement mapping that projects these        *)
-(* detailed states back onto the abstract states of 'ObjectProcessing',      *)
+(* detailed states back onto the abstract states of 'ObjectProcessing1',     *)
 (* while asserting that the system's targeting behaviors and safety          *)
 (* invariants remain consistent across this refinement.                      *)
 (*****************************************************************************)
-EXTENDS Utils
+
+EXTENDS DenumerableSets
 
 CONSTANTS
-    ObjectId   \* Set of object identifiers (theoretically infinite)
+    Object  \* Abstract set of all objects
+
+ASSUMPTION
+    IsDenumerableSet(Object) \* Object is an infinitely countable set
 
 VARIABLES
     objectState,  \* objectState[o] records the current lifecycle state of object o
@@ -24,13 +28,14 @@ vars == << objectState, objectTargets >>
 -------------------------------------------------------------------------------
 
 (**
- * Instance of the ObjectStates module with SetOfObjectsIn operator provided.
+ * Imports the definition of the states of objects and sets of objects sharing
+ * the same state.
  *)
 INSTANCE ObjectStates
-    WITH SetOfObjectsIn <- LAMBDA s : {o \in ObjectId: objectState[o] = s}
+    WITH SetOfObjectsIn <- LAMBDA s : {o \in Object: objectState[o] = s}
 
 (**
- * Instance of the ObjectProcessing specification.
+ * Imports ObjectProcessing1 definitions.
  *)
 OP1 == INSTANCE ObjectProcessing1
 
@@ -40,14 +45,9 @@ OP1 == INSTANCE ObjectProcessing1
  *   - objectState is a function mapping each object to one of the defined states.
  *   - objectTargets is a subset of valid object identifiers.
  *)
-TypeInv ==
-    /\ objectState \in [ObjectId -> {
-            OBJECT_UNKNOWN,
-            OBJECT_REGISTERED,
-            OBJECT_COMPLETED,
-            OBJECT_ABORTED
-        }]
-    /\ objectTargets \in SUBSET ObjectId
+TypeOk ==
+    /\ objectState \in [Object -> OP2State]
+    /\ objectTargets \in SUBSET Object
 
 -------------------------------------------------------------------------------
 
@@ -61,29 +61,31 @@ TypeInv ==
  * wants these objects to be finalized (completed or aborted).
  *)
 TargetObjects(O) ==
-    /\ O # {} /\ O \subseteq RegisteredObject \union CompletedObject \union AbortedObject
+    /\ O # {} /\ O \in UNION {RegisteredObject, CompletedObject, AbortedObject}
     /\ objectTargets' = objectTargets \union O
     /\ UNCHANGED objectState
 
 (**
  * OBJECT FINALIZATION
- * A set 'O' of objects is finalized, meaning that these objects are now
- * immutable (will never be modified). Two scenarios are possible:
- *   - objects are completed, meaning that their data has been written and
- *     will never be overwritten
- *   - objects are aborted, meaning that their data cannot be written and never
- *     will be.
+ * A set 'O' of objects is completed, meaning that their data has been
+ * written and will never be modified.
  *)
-FinalizeObjects(O) ==
+CompleteObjects(O) ==
     /\ O /= {} /\ O \subseteq RegisteredObject
-    /\ \E C, A \in SUBSET O :
-        /\ C \union A = O
-        /\ C \intersect  A = {}
-        /\ objectState' =
-            [o \in ObjectId |-> CASE o \in C -> OBJECT_COMPLETED
-                                  [] o \in A -> OBJECT_ABORTED
-                                  [] OTHER   -> objectState[o]]
-        /\ UNCHANGED objectTargets
+    /\ objectState' =
+        [o \in Object |-> IF o \in O THEN OBJECT_COMPLETED ELSE objectState[o]]
+    /\ UNCHANGED objectTargets
+
+(**
+ * OBJECT FINALIZATION
+ * A set 'O' of objects is aborted, meaning that these objects have been
+ * generated with empty data and no data will never be provided.
+ *)
+AbortObjects(O) ==
+    /\ O /= {} /\ O \subseteq RegisteredObject
+    /\ objectState' =
+        [o \in Object |-> IF o \in O THEN OBJECT_ABORTED ELSE objectState[o]]
+    /\ UNCHANGED objectTargets
 
 (**
  * TERMINAL STATE
@@ -105,12 +107,13 @@ Terminating ==
  * Defines all possible atomic transitions of the system.
  *)
 Next ==
-    \E O \in SUBSET ObjectId:
+    \/ \E O \in SUBSET Object:
         \/ TargetObjects(O)
         \/ OP1!UntargetObjects(O)
         \/ OP1!RegisterObjects(O)
-        \/ FinalizeObjects(O)
-        \/ Terminating
+        \/ CompleteObjects(O)
+        \/ AbortObjects(O)
+    \/ Terminating
 
 (**
  * FAIRNESS CONDITIONS
@@ -119,8 +122,9 @@ Next ==
  *     eventually finalized (completed or aborted).
  *)
 Fairness ==
-    \A o \in ObjectId :
-        WF_vars(o \in objectTargets /\ FinalizeObjects({o}))
+    \A o \in Object :
+        /\ WF_vars(o \in objectTargets /\ CompleteObjects({o}))
+        /\ WF_vars(o \in objectTargets /\ AbortObjects({o}))
 
 (**
  * Full system specification.
@@ -142,21 +146,21 @@ Spec ==
  * permanently.
  *)
 PermanentFinalization ==
-    \A o \in ObjectId:
+    \A o \in Object:
         /\ [](o \in CompletedObject => [](o \in CompletedObject))
         /\ [](o \in AbortedObject => [](o \in AbortedObject))
 
 (**
  * LIVENESS
- * This specification refines the ObjectProcessing specification.
+ * This specification refines the ObjectProcessing1 specification.
  *)
 objectStateBar ==
-    [o \in ObjectId |->
+    [o \in Object |->
         CASE objectState[o] = OBJECT_COMPLETED -> OBJECT_FINALIZED
           [] objectState[o] = OBJECT_ABORTED   -> OBJECT_FINALIZED
           [] OTHER                             -> objectState[o]
     ]
-OP1Abs == INSTANCE ObjectProcessing1_proofs WITH objectState <- objectStateBar
-RefineObjectProcessing == OP1Abs!Spec
+OP1Abs == INSTANCE ObjectProcessing1 WITH objectState <- objectStateBar
+RefineObjectProcessing1 == OP1Abs!Spec
 
 ================================================================================
