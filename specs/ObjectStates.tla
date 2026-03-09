@@ -24,8 +24,6 @@ OBJECT_REGISTERED == "OBJECT_REGISTERED" \* Object created with only its metadat
 OBJECT_FINALIZED  == "OBJECT_FINALIZED"  \* Object has been successfully generated
 OBJECT_COMPLETED  == "OBJECT_COMPLETED"  \* Object has been generated with a non-empty data
 OBJECT_ABORTED    == "OBJECT_ABORTED"    \* Object has been genereted without any data
-OBJECT_DELETED    == "OBJECT_DELETED"    \* Object has been deleted from the system
-
 
 (**
  * Sets of states accessible for each level of refinement.
@@ -34,7 +32,7 @@ OP1State == {OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_FINALIZED}
 OP2State == {OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_COMPLETED,
              OBJECT_ABORTED}
 OP3State == {OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_COMPLETED,
-             OBJECT_ABORTED, OBJECT_DELETED}
+             OBJECT_ABORTED}
 
 (**
  * Sets of objects by state.
@@ -44,6 +42,5 @@ RegisteredObject == SetOfObjectsIn(OBJECT_REGISTERED)
 FinalizedObject  == SetOfObjectsIn(OBJECT_FINALIZED)
 CompletedObject  == SetOfObjectsIn(OBJECT_COMPLETED)
 AbortedObject    == SetOfObjectsIn(OBJECT_ABORTED)
-DeletedObject    == SetOfObjectsIn(OBJECT_DELETED)
 
 ===============================================================================
