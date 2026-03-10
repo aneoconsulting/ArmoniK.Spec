@@ -8,9 +8,9 @@ EXTENDS TaskProcessing3
 
 --------------------------------------------------------------------------------
 
-TP3MC == INSTANCE TaskProcessing2_mc
+TP2MC == INSTANCE TaskProcessing2_mc
 
-MCTaskAttempts(t)   == TP3MC!MCTaskAttempts(t)
-ActionConstraint == TP3MC!ActionConstraint
+MCPreviousAttempts(t) == TP2MC!MCPreviousAttempts(t)
+ActionConstraint      == TP2MC!ActionConstraint
 
 ================================================================================
