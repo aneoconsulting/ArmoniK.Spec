@@ -108,6 +108,7 @@ StageTasks(T) ==
  * state, bypassing agent assignment and execution.
  *)
 DiscardTasks(T) ==
+    \* TODO a paused task can be discarded
     \* /\ T \intersect stoppingRequested = {}
     /\ TP2!DiscardTasks(T)
     /\ UNCHANGED << stoppingRequested, pausingRequested >>
@@ -157,6 +158,7 @@ ReleaseTasks(a, T) ==
  * of the three possible states.
  *)
 ProcessTasks(a, T) ==
+    \* TODO: ADD TRANSITION TO STOPPED
     /\ TP2!ProcessTasks(a, T)
     /\ UNCHANGED << stoppingRequested, pausingRequested >>
 
@@ -196,11 +198,13 @@ RequestTasksStopping(T) ==
  *     been completed (i.e., the tasks are in REGISTERED or STAGED states).
  *)
 StopTasks(T) ==
-    /\ T /= {} /\ T \subseteq stoppingRequested
+    \* TODO Move first disjunct to ProcessTasks
+    /\ T /= {}
     /\ \/ \E a \in Agent:
             /\ T \subseteq agentTaskAlloc[a]
             /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
        \/ /\ T \intersect AssignedTask = {}
+          /\ T \subseteq stoppingRequested
           /\ UNCHANGED agentTaskAlloc
     /\ taskState' =
         [t \in Task |-> IF t \in T /\ (\/ t \in RegisteredTask
@@ -348,6 +352,11 @@ TaskStateIntegrity ==
     /\ PausedTask \subseteq pausingRequested
     /\ UnknownTask \intersect pausingRequested = {}
 
+PermanentStopping ==
+    \A t \in Task:
+        [](~ t \in DiscardedTask)
+        => [](t \in StoppedTask => [](t \in StoppedTask))
+
 (**
  * LIVENESS
  * Any registered/paused/staged task with a cancellation request 
@@ -358,29 +367,6 @@ RequestedStoppingEventualAcknowledgment ==
         /\ t \in UNION {RegisteredTask, StagedTask, PausedTask}
         /\ t \in stoppingRequested
         ~> t \in StoppedTask \/ t \in AbortedTask
-
-(**
- * LIVENESS
- * Tasks that are already assigned to agents when a cancellation is requested 
- * must eventually resolve—either by the agent acknowledging the cancellation 
- * or by finishing the work before the cancellation is processed.
- *)
-AssignedTaskStoppingResolution ==
-    \A t \in Task :
-        t \in AssignedTask /\ t \in stoppingRequested
-        ~> \/ t \in StoppedTask
-            \/ t \in CompletedTask
-            \/ t \in AbortedTask
-            \/ t \in RetriedTask
-
-(**
- * LIVENESS
- * A paused task that is not canceled is eventually resumed.
- *)
-PausedTaskEventualResume ==
-    \A t \in Task:
-        [](~ t \in stoppingRequested)
-        => t \in PausedTask ~> t \in StagedTask
 
 (**
  * LIVENESS

@@ -337,7 +337,9 @@ PermanentFinalization ==
  *)
 FailedTaskEventualRetry ==
     \A t \in Task:
-        t \in UnretriedTask ~> nextAttemptOf[t] \in RegisteredTask
+        /\ t \in UnretriedTask ~> nextAttemptOf[t] \in RegisteredTask
+        /\ [](~ nextAttemptOf[t] \in DiscardedTask)
+           => nextAttemptOf[t] \in RegisteredTask ~> nextAttemptOf[t] \in StagedTask
 
 (**
  * LIVENESS
@@ -346,7 +348,7 @@ FailedTaskEventualRetry ==
  * stabilize. This means that the last attempt is eventually completed or
  * aborted.
  *)
-TaskAttempsIsBouded ==
+TaskAttemptsIsBounded ==
     \A t \in Task:
         \E S \in SUBSET Task:
             /\ Cardinality(S) <= MaxRetries
