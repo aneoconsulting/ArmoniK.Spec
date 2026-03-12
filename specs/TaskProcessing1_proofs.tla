@@ -1,123 +1,113 @@
 ------------------------ MODULE TaskProcessing1_proofs -------------------------
 EXTENDS TaskProcessing1, TLAPS
 
-THEOREM TypeCorrect == Spec => []TypeInv
-<1>. USE DEF TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED, TASK_PROCESSED,
-             TASK_FINALIZED, UnknownTask, RegisteredTask, StagedTask, AssignedTask,
-             ProcessedTask, FinalizedTask
-<1>1. Init => TypeInv
-    BY DEF Init, TypeInv
-<1>2. TypeInv /\ [Next]_vars => TypeInv'
-    BY DEF TypeInv, Next, vars, RegisterTasks, StageTasks, AssignTasks, ReleaseTasks, ProcessTasks, FinalizeTasks, Terminating
-<1>. QED
-    BY <1>1, <1>2, PTL DEF Spec
+USE DEF TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED, TASK_PROCESSED,
+TASK_FINALIZED
 
-THEOREM DistinctTaskStatesCorrect == Spec => []DistinctTaskStates
-<1>. USE DEF IsPairwiseDisjoint, TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED,
-            TASK_ASSIGNED, TASK_PROCESSED, TASK_SUCCEEDED, TASK_FAILED,
-            TASK_CRASHED, TASK_FINALIZED, TASK_COMPLETED, TASK_RETRIED,
-            TASK_ABORTED, TASK_CANCELED, TASK_PAUSED, UnknownTask,
-            RegisteredTask, StagedTask, AssignedTask, ProcessedTask,
-            SucceededTask, FailedTask, CrashedTask, FinalizedTask,
-            CompletedTask, RetriedTask, AbortedTask, CanceledTask, PausedTask
-<1>1. Init => DistinctTaskStates
-    BY DEF Init, DistinctTaskStates
-<1>2. TypeInv /\ DistinctTaskStates /\ [Next]_vars => DistinctTaskStates'
-    BY DEF TypeInv, DistinctTaskStates, Next, vars, RegisterTasks, StageTasks,
-            AssignTasks, ReleaseTasks, ProcessTasks, FinalizeTasks, Terminating
+LEMMA LemType == Init /\ [][Next]_vars => []TypeOk
+<1>. USE DEF TypeOk, TP1State
+<1>1. Init => TypeOk
+    BY DEF Init
+<1>2. TypeOk /\ [Next]_vars => TypeOk'
+    BY DEF Next, vars, RegisterTasks, StageTasks, DiscardTasks, AssignTasks,
+    ReleaseTasks, ProcessTasks, FinalizeTasks, Terminating, UnknownTask,
+    RegisteredTask, StagedTask, AssignedTask, ProcessedTask, FinalizedTask
 <1>. QED
-    BY <1>1, <1>2, TypeCorrect, PTL DEF Spec
+    BY <1>1, <1>2, PTL
+
+THEOREM TP1_Type == Spec => []TypeOk
+BY LemType DEF Spec
 
 TaskSafetyInv ==
-    /\ TypeInv
-    /\ DistinctTaskStates
+    /\ TypeOk
     /\ AssignedStateIntegrity
     /\ ExclusiveAssignment
 
-THEOREM TaskSafetyInvCorrect == Spec => []TaskSafetyInv
-<1>1. TypeInv /\ Init => AssignedStateIntegrity /\ ExclusiveAssignment
-    BY DEF Init, TypeInv, AssignedStateIntegrity, ExclusiveAssignment, AssignedTask,
-           TASK_UNKNOWN, TASK_ASSIGNED
-<1>2. TypeInv /\ AssignedStateIntegrity /\ ExclusiveAssignment /\ [Next]_vars
-        => AssignedStateIntegrity' /\ ExclusiveAssignment'
-    <2>. SUFFICES ASSUME TypeInv, AssignedStateIntegrity, ExclusiveAssignment, [Next]_vars
+LEMMA LemTaskSafetyInv == Init /\ [][Next]_vars => []TaskSafetyInv
+<1>. USE DEF TypeOk, AssignedStateIntegrity, ExclusiveAssignment, AssignedTask
+<1>1. TypeOk /\ Init => AssignedStateIntegrity /\ ExclusiveAssignment
+    BY DEF Init
+<1>2. TypeOk /\ AssignedStateIntegrity /\ ExclusiveAssignment /\ [Next]_vars
+      => AssignedStateIntegrity' /\ ExclusiveAssignment'
+    <2>. SUFFICES ASSUME TypeOk, AssignedStateIntegrity, ExclusiveAssignment, [Next]_vars
                   PROVE AssignedStateIntegrity' /\ ExclusiveAssignment'
         OBVIOUS
-    <2>. USE DEF TypeInv, AssignedStateIntegrity, ExclusiveAssignment, AssignedTask
-    <2>1. ASSUME NEW T \in SUBSET TaskId, RegisterTasks(T)
+    <2>. USE DEF TypeOk, AssignedStateIntegrity, ExclusiveAssignment, AssignedTask
+    <2>1. ASSUME NEW T \in SUBSET Task, RegisterTasks(T)
           PROVE AssignedStateIntegrity' /\ ExclusiveAssignment'
-        BY <2>1 DEF RegisterTasks, UnknownTask, TASK_UNKNOWN, TASK_REGISTERED, TASK_ASSIGNED
-    <2>2. ASSUME NEW T \in SUBSET TaskId, StageTasks(T)
+        BY <2>1 DEF RegisterTasks, UnknownTask
+    <2>2. ASSUME NEW T \in SUBSET Task, StageTasks(T)
           PROVE AssignedStateIntegrity' /\ ExclusiveAssignment'
-        BY <2>2 DEF StageTasks, RegisteredTask, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED
-    <2>3. ASSUME NEW T \in SUBSET TaskId, NEW a \in AgentId, AssignTasks(a, T)
+        BY <2>2 DEF StageTasks, RegisteredTask
+    <2>3. ASSUME NEW T \in SUBSET Task, DiscardTasks(T)
           PROVE AssignedStateIntegrity' /\ ExclusiveAssignment'
-        BY <2>3 DEF AssignTasks, StagedTask, TASK_STAGED, TASK_ASSIGNED
-    <2>4. ASSUME NEW T \in SUBSET TaskId, NEW a \in AgentId, ReleaseTasks(a, T)
+        BY <2>3 DEF DiscardTasks, RegisteredTask, StagedTask
+    <2>4. ASSUME NEW T \in SUBSET Task, NEW a \in Agent, AssignTasks(a, T)
           PROVE AssignedStateIntegrity' /\ ExclusiveAssignment'
-        BY <2>4 DEF ReleaseTasks, TASK_STAGED, TASK_ASSIGNED
-    <2>5. ASSUME NEW T \in SUBSET TaskId, NEW a \in AgentId, ProcessTasks(a, T)
+        BY <2>4 DEF AssignTasks, StagedTask
+    <2>5. ASSUME NEW T \in SUBSET Task, NEW a \in Agent, ReleaseTasks(a, T)
           PROVE AssignedStateIntegrity' /\ ExclusiveAssignment'
-        BY <2>5 DEF ProcessTasks, TASK_ASSIGNED, TASK_PROCESSED
-    <2>6. ASSUME NEW T \in SUBSET TaskId, FinalizeTasks(T)
+        BY <2>5 DEF ReleaseTasks
+    <2>6. ASSUME NEW T \in SUBSET Task, NEW a \in Agent, ProcessTasks(a, T)
           PROVE AssignedStateIntegrity' /\ ExclusiveAssignment'
-        BY <2>6 DEF FinalizeTasks, ProcessedTask, TASK_PROCESSED, TASK_FINALIZED, TASK_ASSIGNED
-    <2>7. CASE Terminating
-        BY <2>7 DEF Terminating, vars
-    <2>8. CASE UNCHANGED vars
-        BY <2>8 DEF vars
+        BY <2>6 DEF ProcessTasks
+    <2>7. ASSUME NEW T \in SUBSET Task, FinalizeTasks(T)
+          PROVE AssignedStateIntegrity' /\ ExclusiveAssignment'
+        BY <2>7 DEF FinalizeTasks, ProcessedTask
+    <2>8. CASE Terminating
+        BY <2>8 DEF Terminating, vars
+    <2>9. CASE UNCHANGED vars
+        BY <2>9 DEF vars
     <2>. QED
-        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8 DEF Next
+        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9 DEF Next
 <1>. QED
-    BY <1>1, <1>2, TypeCorrect, DistinctTaskStatesCorrect, PTL DEF Spec, TaskSafetyInv
+    BY <1>1, <1>2, LemType, PTL DEF TaskSafetyInv
 
-THEOREM AssignedStateIntegrityCorrect == Spec => []AssignedStateIntegrity
-BY TaskSafetyInvCorrect, PTL DEF TaskSafetyInv
+THEOREM TP1_TaskSafetyInv == Spec => []TaskSafetyInv
+BY LemTaskSafetyInv DEF Spec
 
-THEOREM ExclusiveAssignmentCorrect == Spec => []ExclusiveAssignment
-BY TaskSafetyInvCorrect, PTL DEF TaskSafetyInv
-
-THEOREM PermanentFinalizationCorrect == Spec => PermanentFinalization
-<1>. SUFFICES ASSUME NEW t \in TaskId
+THEOREM TP1_PermanentFinalization == Spec => PermanentFinalization
+<1>. SUFFICES ASSUME NEW t \in Task
                 PROVE Spec => [](t \in FinalizedTask => [](t \in FinalizedTask))
     BY DEF PermanentFinalization
-<1>. USE DEF TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED, TASK_PROCESSED,
-             TASK_FINALIZED, UnknownTask, RegisteredTask, StagedTask, AssignedTask,
-             ProcessedTask, FinalizedTask
 <1>1. TaskSafetyInv /\ t \in FinalizedTask /\ [Next]_vars
             => (t \in FinalizedTask)'
-    BY DEF TaskSafetyInv, TypeInv, AssignedStateIntegrity, ExclusiveAssignment,
-            Next, vars, RegisterTasks, StageTasks, AssignTasks, ReleaseTasks,
-            ProcessTasks, FinalizeTasks, Terminating
+    BY DEF TaskSafetyInv, AssignedStateIntegrity, Next, vars, RegisterTasks,
+    StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks,
+    FinalizeTasks, Terminating, UnknownTask, RegisteredTask, StagedTask,
+    AssignedTask, ProcessedTask, FinalizedTask
 <1>2. QED
-    BY <1>1, TaskSafetyInvCorrect, PTL DEF Spec
+    BY <1>1, TP1_TaskSafetyInv, PTL DEF Spec
 
-LEMMA AssignmentEnablesProcessing == ASSUME NEW t \in TaskId
-PROVE TaskSafetyInv /\ t \in AssignedTask
-        => ENABLED <<\E a \in AgentId: ProcessTasks(a, {t})>>_vars
-<1>. SUFFICES ASSUME TaskSafetyInv
-              PROVE t \in AssignedTask => ENABLED <<\E a \in AgentId: ProcessTasks(a, {t})>>_vars
-    OBVIOUS
-<1>1. <<\E a \in AgentId: ProcessTasks(a, {t})>>_vars <=> \E a \in AgentId: ProcessTasks(a, {t})
-    BY DEF TaskSafetyInv, TypeInv, vars, ProcessTasks
-<1>2. (ENABLED <<\E a \in AgentId: ProcessTasks(a, {t})>>_vars) <=> ENABLED (\E a \in AgentId: ProcessTasks(a, {t}))
+LEMMA AssignmentEnablesProcessing ==
+        ASSUME NEW t \in Task, TaskSafetyInv
+        PROVE t \in AssignedTask
+              => ENABLED <<\E a \in Agent: ProcessTasks(a, {t})>>_vars
+<1>1. <<\E a \in Agent: ProcessTasks(a, {t})>>_vars
+      <=> \E a \in Agent: ProcessTasks(a, {t})
+    BY DEF TaskSafetyInv, TypeOk, vars, ProcessTasks
+<1>2. (ENABLED <<\E a \in Agent: ProcessTasks(a, {t})>>_vars)
+      <=> ENABLED (\E a \in Agent: ProcessTasks(a, {t}))
     BY <1>1, ENABLEDaxioms
-<1>3. t \in AssignedTask => ENABLED (\E a \in AgentId: ProcessTasks(a, {t}))
-    BY ExpandENABLED DEF TaskSafetyInv, TypeInv, AssignedStateIntegrity, ProcessTasks
+<1>3. t \in AssignedTask => ENABLED (\E a \in Agent: ProcessTasks(a, {t}))
+    BY ExpandENABLED DEF TaskSafetyInv, TypeOk, AssignedStateIntegrity,
+    ProcessTasks
 <1>. QED
     BY <1>2, <1>3
 
-THEOREM EventualDeallocationCorrect == Spec => EventualDeallocation
-<1>. SUFFICES ASSUME NEW t \in TaskId
-              PROVE Spec => t \in AssignedTask ~> t \in StagedTask \/ t \in ProcessedTask
+THEOREM TP1_EventualDeallocation == Spec => EventualDeallocation
+<1>. SUFFICES ASSUME NEW t \in Task
+              PROVE Spec => t \in AssignedTask
+                            ~> t \in StagedTask \/ t \in ProcessedTask
     BY DEF EventualDeallocation
 <1>1. t \in AssignedTask /\ [Next]_vars => \/ (t \in AssignedTask)'
                                            \/ (t \in StagedTask)'
                                            \/ (t \in ProcessedTask)'
-    <2>. SUFFICES ASSUME NEW T \in SUBSET TaskId, t \in AssignedTask
+    <2>. SUFFICES ASSUME NEW T \in SUBSET Task, t \in AssignedTask
                   PROVE [\/ RegisterTasks(T)
                          \/ StageTasks(T)
-                         \/ \E a \in AgentId:
+                         \/ DiscardTasks(T)
+                         \/ \E a \in Agent:
                              \/ AssignTasks(a, T)
                              \/ ReleaseTasks(a, T)
                              \/ ProcessTasks(a, T)
@@ -125,81 +115,83 @@ THEOREM EventualDeallocationCorrect == Spec => EventualDeallocation
                          \/ Terminating]_vars => \/ (t \in AssignedTask)'
                                                  \/ (t \in StagedTask)'
                                                  \/ (t \in ProcessedTask)'
-        BY DEF Next
+        BY Zenon DEF Next
     <2>. QED
-        BY DEF RegisterTasks, StageTasks, AssignTasks, ReleaseTasks, ProcessTasks,
-               FinalizeTasks, Terminating, vars, UnknownTask, RegisteredTask, StagedTask,
-               AssignedTask, ProcessedTask, FinalizedTask,         TASK_UNKNOWN,
-               TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED, TASK_PROCESSED, TASK_FINALIZED
-<1>2. TaskSafetyInv /\ t \in AssignedTask /\ <<\E a \in AgentId : ProcessTasks(a, {t})>>_vars => (t \in ProcessedTask)'
-    BY DEF TaskSafetyInv, TypeInv, ProcessTasks, AssignedTask, ProcessedTask
-<1>3. TaskSafetyInv /\ t \in AssignedTask => ENABLED <<\E a \in AgentId : ProcessTasks(a, {t})>>_vars
+        BY DEF RegisterTasks, StageTasks, DiscardTasks, AssignTasks, ReleaseTasks,
+        ProcessTasks, FinalizeTasks, Terminating, vars, UnknownTask, RegisteredTask,
+        StagedTask, AssignedTask, ProcessedTask, FinalizedTask
+<1>2. TaskSafetyInv /\ t \in AssignedTask /\ <<\E a \in Agent : ProcessTasks(a, {t})>>_vars
+      => (t \in ProcessedTask)'
+    BY DEF TaskSafetyInv, TypeOk, ProcessTasks, AssignedTask, ProcessedTask
+<1>3. TaskSafetyInv /\ t \in AssignedTask
+      => ENABLED <<\E a \in Agent : ProcessTasks(a, {t})>>_vars
     BY AssignmentEnablesProcessing
-<1>4. Fairness => SF_vars(\E a \in AgentId : ProcessTasks(a, {t}))
+<1>4. Fairness => SF_vars(\E a \in Agent : ProcessTasks(a, {t}))
     BY DEF Fairness
 <1>. QED
-    BY <1>1, <1>2, <1>3, <1>4, TaskSafetyInvCorrect, PTL DEF Spec
+    BY <1>1, <1>2, <1>3, <1>4, TP1_TaskSafetyInv, PTL DEF Spec
 
-THEOREM EventualProcessingCorrect == Spec => EventualProcessing
-<1>. SUFFICES ASSUME NEW t \in TaskId
+THEOREM TP1_EventualProcessing == Spec => EventualProcessing
+<1>. SUFFICES ASSUME NEW t \in Task
               PROVE Spec => ([]<>(t \in AssignedTask) => <>(t \in ProcessedTask))
     BY DEF EventualProcessing
-<1>1. TaskSafetyInv /\ t \in AssignedTask => ENABLED <<\E a \in AgentId: ProcessTasks(a, {t})>>_vars
+<1>1. TaskSafetyInv /\ t \in AssignedTask
+      => ENABLED <<\E a \in Agent: ProcessTasks(a, {t})>>_vars
     BY AssignmentEnablesProcessing
-<1>2. <<\E a \in AgentId: ProcessTasks(a, {t})>>_vars => (t \in ProcessedTask)'
+<1>2. <<\E a \in Agent: ProcessTasks(a, {t})>>_vars
+      => (t \in ProcessedTask)'
     BY DEF ProcessTasks, ProcessedTask
 <1>3. Fairness => Fairness!EventuallyProcessed(t)
     BY DEF Fairness
 <1>. QED
-    BY <1>1, <1>2, <1>3, TaskSafetyInvCorrect, PTL DEF Spec
+    BY <1>1, <1>2, <1>3, TP1_TaskSafetyInv, PTL DEF Spec
 
-THEOREM EventualFinalizationCorrect == Spec => EventualFinalization
-<1>. SUFFICES ASSUME NEW t \in TaskId
+THEOREM TP1_EventualFinalization == Spec => EventualFinalization
+<1>. SUFFICES ASSUME NEW t \in Task
                 PROVE Spec => t \in ProcessedTask ~> t \in FinalizedTask
     BY DEF EventualFinalization
-<1>1. Fairness => Fairness!EventuallyFinalized(t)
-    BY DEF Fairness
-<1>. USE DEF TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED, TASK_PROCESSED,
-             TASK_FINALIZED, UnknownTask, RegisteredTask, StagedTask, AssignedTask,
-             ProcessedTask, FinalizedTask
-<1>2. TaskSafetyInv /\ t \in ProcessedTask /\ [Next]_vars => (t \in ProcessedTask)' \/ (t \in FinalizedTask)'
-    BY DEF TaskSafetyInv, TypeInv, AssignedStateIntegrity, Next, vars, RegisterTasks,
-           StageTasks, AssignTasks, ReleaseTasks, ProcessTasks, FinalizeTasks,
-           Terminating
+<1>1. TaskSafetyInv /\ t \in ProcessedTask /\ [Next]_vars
+      => (t \in ProcessedTask)' \/ (t \in FinalizedTask)'
+    BY DEF TaskSafetyInv, TypeOk, AssignedStateIntegrity, Next, vars, RegisterTasks,
+    StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks, FinalizeTasks,
+    Terminating, UnknownTask, RegisteredTask, StagedTask, AssignedTask, ProcessedTask,
+    FinalizedTask
+<1>2. t \in ProcessedTask => ENABLED <<FinalizeTasks({t})>>_vars
+    BY ExpandENABLED DEF FinalizeTasks, vars, ProcessedTask
 <1>3. t \in ProcessedTask /\ <<FinalizeTasks({t})>>_vars => (t \in FinalizedTask)'
-    BY DEF FinalizeTasks
-<1>4. t \in ProcessedTask => ENABLED <<FinalizeTasks({t})>>_vars
-    BY ExpandENABLED DEF FinalizeTasks, vars
+    BY DEF FinalizeTasks, ProcessedTask, FinalizedTask
+<1>4. Fairness => Fairness!EventuallyFinalized(t)
+    BY DEF Fairness
 <1>. QED
-    BY <1>1, <1>2, <1>3, <1>4, TaskSafetyInvCorrect, PTL DEF Spec
+    BY <1>1, <1>2, <1>3, <1>4, TP1_TaskSafetyInv, PTL DEF Spec
 
-THEOREM EventualQuiescenceCorrect == Spec => EventualQuiescence
-<1>. SUFFICES ASSUME NEW t \in TaskId
+THEOREM TP1_EventualQuiescence == Spec => EventualQuiescence
+<1>. SUFFICES ASSUME NEW t \in Task
               PROVE Spec => (t \in RegisteredTask ~> \/ [](t \in RegisteredTask)
                                                      \/ [](t \in StagedTask)
                                                      \/ [](t \in FinalizedTask))
     BY DEF EventualQuiescence
-<1>1. TaskSafetyInv /\ t \in RegisteredTask /\ [Next]_vars => (t \in RegisteredTask)' \/ (t \in StagedTask)'
-    BY DEF TaskSafetyInv, TypeInv, AssignedStateIntegrity, Next, vars, RegisterTasks,
-           StageTasks, AssignTasks, ReleaseTasks, ProcessTasks, FinalizeTasks,
-           Terminating, TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED,
-           TASK_PROCESSED, TASK_FINALIZED, UnknownTask, RegisteredTask, StagedTask,
-           AssignedTask, ProcessedTask, FinalizedTask
-<1>2. TaskSafetyInv /\ t \in StagedTask /\ [Next]_vars => (t \in StagedTask)' \/ (t \in AssignedTask)'
-    BY DEF TaskSafetyInv, TypeInv, AssignedStateIntegrity, Next, vars, RegisterTasks,
-           StageTasks, AssignTasks, ReleaseTasks, ProcessTasks, FinalizeTasks,
-           Terminating, TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED,
-           TASK_PROCESSED, TASK_FINALIZED, UnknownTask, RegisteredTask, StagedTask,
-           AssignedTask, ProcessedTask, FinalizedTask
+<1>1. TaskSafetyInv /\ t \in RegisteredTask /\ [Next]_vars
+      => (t \in RegisteredTask)' \/ (t \in StagedTask)'  \/ (t \in ProcessedTask)'
+    BY DEF TaskSafetyInv, TypeOk, AssignedStateIntegrity, Next, vars, RegisterTasks,
+    StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks, FinalizeTasks,
+    Terminating, UnknownTask, RegisteredTask, StagedTask, AssignedTask, ProcessedTask,
+    FinalizedTask
+<1>2. TaskSafetyInv /\ t \in StagedTask /\ [Next]_vars
+      => (t \in StagedTask)' \/ (t \in AssignedTask)' \/ (t \in ProcessedTask)'
+    BY DEF TaskSafetyInv, TypeOk, AssignedStateIntegrity, Next, vars, RegisterTasks,
+    StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks, FinalizeTasks,
+    Terminating, UnknownTask, RegisteredTask, StagedTask, AssignedTask, ProcessedTask,
+    FinalizedTask
 <1>3. Spec => (t \in AssignedTask ~> t \in StagedTask \/ t \in ProcessedTask)
-    BY EventualDeallocationCorrect DEF EventualDeallocation
+    BY TP1_EventualDeallocation DEF EventualDeallocation
 <1>4. Spec => ([]<>(t \in AssignedTask) => <>(t \in ProcessedTask))
-    BY EventualProcessingCorrect DEF EventualProcessing
+    BY TP1_EventualProcessing DEF EventualProcessing
 <1>5. Spec => (t \in ProcessedTask ~> t \in FinalizedTask)
-    BY EventualFinalizationCorrect DEF EventualFinalization
+    BY TP1_EventualFinalization DEF EventualFinalization
 <1>6. Spec => [](t \in FinalizedTask => [](t \in FinalizedTask))
-    BY PermanentFinalizationCorrect DEF PermanentFinalization
+    BY TP1_PermanentFinalization DEF PermanentFinalization
 <1>. QED
-    BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, TaskSafetyInvCorrect, PTL DEF Spec
+    BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, TP1_TaskSafetyInv, PTL DEF Spec
 
 ================================================================================

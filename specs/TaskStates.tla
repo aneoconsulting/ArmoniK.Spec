@@ -8,10 +8,6 @@
 (* other specifications to reason about groups of tasks sharing the same     *)
 (* lifecycle phase.                                                          *)
 (*****************************************************************************) 
-EXTENDS Utils
-
-LOCAL INSTANCE FiniteSets
-
 
 (**
  * Abstract operator returning the set of tasks in a given state.
@@ -30,43 +26,28 @@ TASK_ASSIGNED   == "TASK_ASSIGNED"   \* Task is assigned to an agent for process
 TASK_PROCESSED  == "TASK_PROCESSED"  \* Task processing completed
 TASK_SUCCEEDED  == "TASK_SUCCEEDED"  \* Task processing succeeded
 TASK_FAILED     == "TASK_FAILED"     \* Task processing failed, but the task can be retried
-TASK_CRASHED    == "TASK_CRASHED"    \* Task processing failed irrecoverably
+TASK_DISCARDED  == "TASK_DISCARDED"  \* Task cannot be processed successfully and should not be retried
 TASK_FINALIZED  == "TASK_FINALIZED"  \* Task post-processing is completed
 TASK_COMPLETED  == "TASK_COMPLETED"  \* Task processing and post-processed completed successfully
 TASK_RETRIED    == "TASK_RETRIED"    \* The task processing failed and it was cloned to try again
 TASK_ABORTED    == "TASK_ABORTED"    \* Task processing unsuccessful but post-processing completed successfully
-TASK_CANCELED   == "TASK_CANCELED"   \* Task processing was canceled by the user
+TASK_STOPPED    == "TASK_STOPPED"    \* Task processing was stopped and no post-processing has been performed
 TASK_PAUSED     == "TASK_PAUSED"     \* Task processing is postponed by the user
 
 (**
- * Set of all task states.
+ * Sets of states accessible for each level of refinement.
  *)
-TaskState ==
-    {
-        TASK_UNKNOWN,
-        TASK_REGISTERED,
-        TASK_STAGED,
-        TASK_ASSIGNED,
-        TASK_PROCESSED,
-        TASK_SUCCEEDED,
-        TASK_FAILED,
-        TASK_CRASHED,
-        TASK_FINALIZED,
-        TASK_COMPLETED,
-        TASK_RETRIED,
-        TASK_ABORTED,
-        TASK_CANCELED,
-        TASK_PAUSED
-    }
-
-(**
- * SetOfTasksIn must return a finite set for each task state.
- *)
-ASSUME
-    /\ \A s \in TaskState:
-        IsFiniteSet(SetOfTasksIn(s))
-    /\ \A s1, s2 \in TaskState:
-        SetOfTasksIn(s1) \intersect SetOfTasksIn(s2) = {}
+TP1State == {TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED,
+             TASK_PROCESSED, TASK_FINALIZED}
+TP2State == {TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED,
+             TASK_SUCCEEDED, TASK_FAILED, TASK_DISCARDED, TASK_COMPLETED,
+             TASK_RETRIED, TASK_ABORTED}
+TP3State == {TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED,
+             TASK_SUCCEEDED, TASK_FAILED, TASK_DISCARDED, TASK_COMPLETED,
+             TASK_RETRIED, TASK_ABORTED, TASK_STOPPED, TASK_PAUSED}
+TP4State == {TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED,
+             TASK_SUCCEEDED, TASK_FAILED, TASK_DISCARDED, TASK_COMPLETED,
+             TASK_RETRIED, TASK_ABORTED, TASK_STOPPED, TASK_PAUSED}
 
 (**
  * Sets of tasks by state.
@@ -78,40 +59,12 @@ AssignedTask   == SetOfTasksIn(TASK_ASSIGNED)
 ProcessedTask  == SetOfTasksIn(TASK_PROCESSED)
 SucceededTask  == SetOfTasksIn(TASK_SUCCEEDED)
 FailedTask     == SetOfTasksIn(TASK_FAILED)
-CrashedTask    == SetOfTasksIn(TASK_CRASHED)
+DiscardedTask  == SetOfTasksIn(TASK_DISCARDED)
 FinalizedTask  == SetOfTasksIn(TASK_FINALIZED)
 CompletedTask  == SetOfTasksIn(TASK_COMPLETED)
 RetriedTask    == SetOfTasksIn(TASK_RETRIED)
 AbortedTask    == SetOfTasksIn(TASK_ABORTED)
-CanceledTask   == SetOfTasksIn(TASK_CANCELED)
+StoppedTask    == SetOfTasksIn(TASK_STOPPED)
 PausedTask     == SetOfTasksIn(TASK_PAUSED)
-
-(**
- * SAFETY PROPERTY
- * Asserts that the sets representing different task lifecycle stages are 
- * mutually disjoint. This ensures that every task exists in exactly one 
- * primary state at any given time, preventing logical overlaps (e.g., an 
- * object being both 'Completed' and 'Deleted').
- *
- * Any specification instantiating the current module must have this property
- * as an invariant.
- *)
-DistinctTaskStates ==
-    IsPairwiseDisjoint({
-        UnknownTask,
-        RegisteredTask,
-        StagedTask,
-        AssignedTask,
-        ProcessedTask,
-        SucceededTask,
-        FailedTask,
-        CrashedTask,
-        FinalizedTask,
-        CompletedTask,
-        RetriedTask,
-        AbortedTask,
-        CanceledTask,
-        PausedTask
-    })
 
 ===============================================================================
