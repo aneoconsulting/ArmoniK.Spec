@@ -1,111 +1,106 @@
 ----------------------- MODULE ObjectProcessing1_proofs ------------------------
 EXTENDS ObjectProcessing1, TLAPS
 
-LEMMA LemmaTypeCorrect == Init /\ [][Next]_vars => []TypeInv
-<1>. USE DEF OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_FINALIZED, UnknownObject,
-             RegisteredObject, FinalizedObject
-<1>1. Init => TypeInv
-    BY DEF Init, TypeInv
-<1>2. TypeInv /\ [Next]_vars => TypeInv'
-    BY DEF TypeInv, Next, vars, RegisterObjects, TargetObjects,
-            UntargetObjects, FinalizeObjects, Terminating
+USE DEF OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_FINALIZED
+
+LEMMA LemType == Init /\ [][Next]_vars => []TypeOk
+<1>. USE DEF TypeOk, OP1State, UnknownObject, RegisteredObject, FinalizedObject
+<1>1. Init => TypeOk
+    BY DEF Init
+<1>2. TypeOk /\ [Next]_vars => TypeOk'
+    BY DEF Next, vars, RegisterObjects, TargetObjects, UntargetObjects,
+    FinalizeObjects, Terminating
 <1>. QED
     BY <1>1, <1>2, PTL
 
-THEOREM TypeCorrect == Spec => []TypeInv
-BY LemmaTypeCorrect DEF Spec
+THEOREM OP1_Type == Spec => []TypeOk
+BY LemType DEF Spec
 
-THEOREM DistinctObjectStatesCorrect == Spec => []DistinctObjectStates
-<1>. USE DEF IsPairwiseDisjoint, OBJECT_UNKNOWN, OBJECT_REGISTERED,
-         OBJECT_FINALIZED, OBJECT_COMPLETED, OBJECT_ABORTED, OBJECT_DELETED,
-         UnknownObject, RegisteredObject, FinalizedObject, CompletedObject,
-         AbortedObject, DeletedObject
-<1>1. Init => DistinctObjectStates
-    BY DEF Init, DistinctObjectStates
-<1>2. TypeInv /\ DistinctObjectStates /\ [Next]_vars => DistinctObjectStates'
-    BY DEF TypeInv, DistinctObjectStates, Next, vars, RegisterObjects,
-       TargetObjects, UntargetObjects, FinalizeObjects, Terminating
-<1>. QED
-    BY <1>1, <1>2, TypeCorrect, PTL DEF Spec
-
-THEOREM TargetValidityCorrect == Spec => []TargetValidity
-<1>. USE DEF OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_FINALIZED, UnknownObject,
-             RegisteredObject, FinalizedObject
+LEMMA LemTargetValidity == Init /\ [][Next]_vars => []TargetValidity
+<1>. USE DEF TargetValidity, UnknownObject, RegisteredObject, FinalizedObject
 <1>1. Init => TargetValidity
-    BY DEF Init, TargetValidity
-<1>2. TypeInv /\ TargetValidity /\ [Next]_vars => TargetValidity'
-    BY DEF TargetValidity, TypeInv, Next, vars, RegisterObjects,
-            TargetObjects, UntargetObjects, FinalizeObjects, Terminating
+    BY DEF Init
+<1>2. TypeOk /\ TargetValidity /\ [Next]_vars => TargetValidity'
+    BY DEF TypeOk, Next, vars, RegisterObjects, TargetObjects, UntargetObjects,
+    FinalizeObjects, Terminating
 <1>. QED
-    BY <1>1, <1>2, TypeCorrect, PTL DEF Spec
+    BY <1>1, <1>2, LemType, PTL
+
+THEOREM OP1_TargetValidity == Spec => []TargetValidity
+BY LemTargetValidity DEF Spec
 
 ObjectSafetyInv ==
-    /\ TypeInv
-    /\ DistinctObjectStates
+    /\ TypeOk
     /\ TargetValidity
 
-THEOREM ObjectSafetyInvCorrect == Spec => []ObjectSafetyInv
-BY TypeCorrect, DistinctObjectStatesCorrect, TargetValidityCorrect, PTL
-   DEF ObjectSafetyInv
+LEMMA LemObjectSafetyInv == Init /\ [][Next]_vars => []ObjectSafetyInv
+BY LemType, LemTargetValidity, PTL DEF ObjectSafetyInv
 
-THEOREM PermanentFinalizationCorrect == Spec => PermanentFinalization
-<1>. SUFFICES ASSUME NEW o \in ObjectId
+THEOREM OP1_ObjectSafetyInv == Spec => []ObjectSafetyInv
+BY LemObjectSafetyInv DEF Spec
+
+LEMMA LemStableFinalizedState == 
+    ASSUME NEW o \in Object
+    PROVE o \in FinalizedObject /\ [Next]_vars
+          => (o \in FinalizedObject)'
+BY DEF Next, vars, RegisterObjects, TargetObjects, UntargetObjects,
+FinalizeObjects, Terminating, UnknownObject, RegisteredObject, FinalizedObject
+
+THEOREM OP1_PermanentFinalization == Spec => PermanentFinalization
+<1>. SUFFICES ASSUME NEW o \in Object
               PROVE Spec => [](o \in FinalizedObject => [](o \in FinalizedObject))
     BY DEF PermanentFinalization
-<1>. USE DEF OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_FINALIZED, UnknownObject,
-             RegisteredObject, FinalizedObject
-<1>1. TypeInv /\ o \in FinalizedObject /\ [Next]_vars
+<1>1. o \in FinalizedObject /\ [Next]_vars
         => (o \in FinalizedObject)'
-    BY DEF TypeInv, Next, vars, RegisterObjects, TargetObjects,
-            UntargetObjects, FinalizeObjects, Terminating
+    BY LemStableFinalizedState
 <1>. QED
-    BY <1>1, TypeCorrect, PTL DEF Spec
+    BY <1>1, PTL DEF Spec
 
-LEMMA TargetsAreKnown == ASSUME NEW o \in objectTargets
-                         PROVE ObjectSafetyInv => \/ o \in RegisteredObject
-                                                  \/ o \in FinalizedObject
-BY DEF ObjectSafetyInv, TypeInv, DistinctObjectStates, TargetValidity,
-       OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_FINALIZED, UnknownObject,
-       RegisteredObject, FinalizedObject
+LEMMA LemTargetsAreKnown ==
+        ASSUME NEW o \in objectTargets, ObjectSafetyInv
+        PROVE o \in RegisteredObject \/ o \in FinalizedObject
+BY DEF ObjectSafetyInv, TypeOk, OP1State, TargetValidity, UnknownObject,
+RegisteredObject, FinalizedObject
 
-THEOREM EventualTargetFinalizationCorrect == Spec => EventualTargetFinalization
-<1>. SUFFICES ASSUME NEW o \in ObjectId
-              PROVE Spec => (<>[](o \in objectTargets) => <>(o \in FinalizedObject))
+THEOREM OP1_EventualTargetFinalization == Spec => EventualTargetFinalization
+<1>. SUFFICES ASSUME NEW o \in Object
+              PROVE Spec => []([](o \in objectTargets) => <>(o \in FinalizedObject))
     BY DEF EventualTargetFinalization            
-<1>1. Fairness => Fairness!EventuallyFinalized(o)
+<1>. DEFINE WF == WF_vars(o \in objectTargets /\ FinalizeObjects({o}))
+<1>1. Fairness => WF
     BY DEF Fairness
-<1>2. []ObjectSafetyInv /\ [][Next]_vars /\ Fairness!EventuallyFinalized(o) /\ [](o \in objectTargets)
+<1>2. []ObjectSafetyInv /\ [][Next]_vars /\ WF /\ [](o \in objectTargets)
         => <>(o \in FinalizedObject)
-    <2>. USE DEF OBJECT_FINALIZED, FinalizedObject
+    <2>. USE DEF FinalizedObject
     <2>1. ObjectSafetyInv /\ (o \in objectTargets) /\ ~(o \in FinalizedObject)
             => ENABLED <<o \in objectTargets /\ FinalizeObjects({o})>>_vars
-        BY ExpandENABLED, TargetsAreKnown DEF FinalizeObjects, vars
+        BY ExpandENABLED, LemTargetsAreKnown DEF FinalizeObjects, vars
     <2>2. <<o \in objectTargets /\ FinalizeObjects({o})>>_vars => (o \in FinalizedObject)'
         BY DEF FinalizeObjects, vars
     <2>3. QED
         BY <2>1, <2>2, PTL
 <1> QED
-    BY <1>1, <1>2, PTL, ObjectSafetyInvCorrect DEF Spec
+    BY <1>1, <1>2, PTL, OP1_ObjectSafetyInv DEF Spec
 
-THEOREM EventualTargetResolutionCorrect == Spec => EventualTargetResolution
-<1>. SUFFICES ASSUME NEW o \in ObjectId
-              PROVE Spec => (o \in objectTargets ~> (o \in FinalizedObject \/ o \notin objectTargets))
+THEOREM OP1_EventualTargetResolution == Spec => EventualTargetResolution
+<1>. SUFFICES ASSUME NEW o \in Object
+              PROVE Spec => (o \in objectTargets ~> (o \in FinalizedObject \/ ~ o \in objectTargets))
     BY DEF EventualTargetResolution
 <1>1. o \in objectTargets /\ [Next]_vars => \/ (o \in objectTargets)'
                                             \/ (o \in FinalizedObject)'
                                             \/ (o \notin objectTargets)'
     BY DEF Next, vars, RegisterObjects, TargetObjects, UntargetObjects,
-           FinalizeObjects, Terminating
+    FinalizeObjects, Terminating
 <1>2. <<o \in objectTargets /\ FinalizeObjects({o})>>_vars
         => (o \in FinalizedObject)'
     BY DEF FinalizeObjects, OBJECT_REGISTERED, OBJECT_FINALIZED,
-           RegisteredObject, FinalizedObject
+    RegisteredObject, FinalizedObject
 <1>3. ObjectSafetyInv /\ o \in objectTargets => ENABLED <<o \in objectTargets /\ FinalizeObjects({o})>>_vars \/ o \in FinalizedObject
-    BY ExpandENABLED, TargetsAreKnown DEF FinalizeObjects, vars,
-       OBJECT_REGISTERED, OBJECT_FINALIZED, RegisteredObject, FinalizedObject
-<1>4. Fairness => Fairness!EventuallyFinalized(o)
+    BY ExpandENABLED, LemTargetsAreKnown DEF FinalizeObjects, vars,
+    RegisteredObject, FinalizedObject
+<1>4. Fairness => WF_vars(o \in objectTargets /\ FinalizeObjects({o}))
     BY DEF Fairness
 <1>. QED
-    BY <1>1, <1>2, <1>3, <1>4, ObjectSafetyInvCorrect, PTL DEF Spec, ObjectSafetyInv
+    BY <1>1, <1>2, <1>3, <1>4, OP1_ObjectSafetyInv, PTL DEF Spec, ObjectSafetyInv
 
 ================================================================================

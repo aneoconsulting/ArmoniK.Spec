@@ -1,14 +1,8 @@
---------------------------- MODULE ObjectProcessing2 ---------------------------
+--------------------------- MODULE ObjectProcessing3 ---------------------------
 (*****************************************************************************)
 (* This module specifies an extended object lifecycle system that refines    *)
-(* the 'ObjectProcessing1' specification. It provides a more granular        *)
-(* implementation of the finalization process by decomposing the abstract    *)
-(* FINALIZED state into two concrete outcomes: COMPLETED and ABORTED.        *)
-(*                                                                           *)
-(* The specification defines a refinement mapping that projects these        *)
-(* detailed states back onto the abstract states of 'ObjectProcessing1',     *)
-(* while asserting that the system's targeting behaviors and safety          *)
-(* invariants remain consistent across this refinement.                      *)
+(* the 'ObjectProcessing2' specification. It provides the modeling of the    *)
+(* object deletion mechanism.                                                *)
 (*****************************************************************************)
 
 EXTENDS DenumerableSets
@@ -16,14 +10,15 @@ EXTENDS DenumerableSets
 CONSTANTS
     Object  \* Abstract set of all objects
 
-ASSUMPTION OP2Assumptions ==
+ASSUMPTION OP3Assumptions ==
     IsDenumerableSet(Object) \* Object is an infinitely countable set
 
 VARIABLES
-    objectState,  \* objectState[o] records the current lifecycle state of object o
-    objectTargets \* objectTargets is the set of objects currently marked as targets
+    objectState,   \* objectState[o] records the current lifecycle state of object o
+    objectTargets, \* objectTargets is the set of objects currently marked as targets
+    objectDeleted  \* objectDeleted is the set of objects currently delted
 
-vars == << objectState, objectTargets >>
+vars == << objectState, objectTargets, objectDeleted >>
 
 -------------------------------------------------------------------------------
 
@@ -35,25 +30,44 @@ INSTANCE ObjectStates
     WITH SetOfObjectsIn <- LAMBDA s : {o \in Object: objectState[o] = s}
 
 (**
- * Imports ObjectProcessing1 definitions.
+ * Imports ObjectProcessing2 definitions.
  *)
-OP1 == INSTANCE ObjectProcessing1
+OP2 == INSTANCE ObjectProcessing2_proofs
 
 (**
  * TYPE INVARIANT
  * Claims that all state variables always take values of the expected form.
  *   - objectState is a function mapping each object to one of the defined states.
  *   - objectTargets is a subset of valid object identifiers.
+ *   - deletedObject is a subset of valid object identifiers.
  *)
 TypeOk ==
-    /\ objectState \in [Object -> OP2State]
+    /\ objectState \in [Object -> OP3State]
     /\ objectTargets \in SUBSET Object
+    /\ objectDeleted \in SUBSET Object
 
 -------------------------------------------------------------------------------
 
 (*****************************************************************************)
-(* SYSTEM TRANSITIONS                                                        *)
+(* SYSTEM INITIAL STATE AND TRANSITIONS                                      *)
 (*****************************************************************************)
+
+(**
+ * INITIAL STATE
+ * Initially, all objects are unknown and none are marked as targets or deleted.
+ *)
+Init ==
+    /\ OP2!OP1!Init
+    /\ objectDeleted = {}
+
+(**
+ * OBJECT REGISTRATION
+ * A new set 'O' of objects is registered in the system, i.e., it is created
+ * with the metadata provided and empty data.
+ *)
+RegisterObjects(O) ==
+    /\ OP2!OP1!RegisterObjects(O)
+    /\ UNCHANGED objectDeleted
 
 (**
  * OBJECT TARGETING
@@ -61,9 +75,18 @@ TypeOk ==
  * wants these objects to be finalized (completed or aborted).
  *)
 TargetObjects(O) ==
-    /\ O # {} /\ O \subseteq UNION {RegisteredObject, CompletedObject, AbortedObject}
-    /\ objectTargets' = objectTargets \union O
-    /\ UNCHANGED objectState
+    /\ O \intersect objectDeleted = {}
+    /\ OP2!TargetObjects(O)
+    /\ UNCHANGED objectDeleted
+
+(**
+ * OBJECT UNTARGETING
+ * A set 'O' of currently targeted objects is unmarked.
+ *)
+UntargetObjects(O) ==
+    /\ O \intersect objectDeleted = {}
+    /\ OP2!OP1!UntargetObjects(O)
+    /\ UNCHANGED objectDeleted
 
 (**
  * OBJECT FINALIZATION
@@ -71,10 +94,9 @@ TargetObjects(O) ==
  * written and will never be modified.
  *)
 CompleteObjects(O) ==
-    /\ O /= {} /\ O \subseteq RegisteredObject
-    /\ objectState' =
-        [o \in Object |-> IF o \in O THEN OBJECT_COMPLETED ELSE objectState[o]]
-    /\ UNCHANGED objectTargets
+    /\ O \intersect objectDeleted = {}
+    /\ OP2!CompleteObjects(O)
+    /\ UNCHANGED objectDeleted
 
 (**
  * OBJECT FINALIZATION
@@ -82,10 +104,21 @@ CompleteObjects(O) ==
  * generated with empty data and no data will never be provided.
  *)
 AbortObjects(O) ==
-    /\ O /= {} /\ O \subseteq RegisteredObject
-    /\ objectState' =
-        [o \in Object |-> IF o \in O THEN OBJECT_ABORTED ELSE objectState[o]]
-    /\ UNCHANGED objectTargets
+    /\ O \intersect objectDeleted = {}
+    /\ OP2!AbortObjects(O)
+    /\ UNCHANGED objectDeleted
+
+(**
+ * OBJECT FINALIZATION
+ * A set 'O' of objects is deleted, meaning that the system no longer has
+ * knowledge of these objects (metadata and associated data).
+ *)
+DeleteObjects(O) ==
+    /\ O /= {}
+    /\ O \intersect UnknownObject = {}
+    /\ O \intersect objectTargets \intersect RegisteredObject = {}
+    /\ objectDeleted' = objectDeleted \union O
+    /\ UNCHANGED << objectState, objectTargets >>
 
 (**
  * TERMINAL STATE
@@ -108,11 +141,12 @@ Terminating ==
  *)
 Next ==
     \/ \E O \in SUBSET Object:
-        \/ OP1!RegisterObjects(O)
+        \/ RegisterObjects(O)
         \/ TargetObjects(O)
-        \/ OP1!UntargetObjects(O)
+        \/ UntargetObjects(O)
         \/ CompleteObjects(O)
         \/ AbortObjects(O)
+        \/ DeleteObjects(O)
     \/ Terminating
 
 (**
@@ -130,7 +164,7 @@ Fairness ==
  * Full system specification.
  *)
 Spec ==
-    /\ OP1!Init
+    /\ Init
     /\ [][Next]_vars
     /\ Fairness
 
@@ -142,25 +176,36 @@ Spec ==
 
 (**
  * SAFETY
- * Once an object reaches the completed or aborted state, it remains there
- * permanently.
+ * An object can only be deleted if it is known to the system.
  *)
-PermanentFinalization ==
+DeletionValidity ==
     \A o \in Object:
-        /\ [](o \in CompletedObject => [](o \in CompletedObject))
-        /\ [](o \in AbortedObject => [](o \in AbortedObject))
+        o \in objectDeleted => ~ o \in UnknownObject
+
+(**
+ * SAFETY
+ * A targeted registered object cannot be deleted.
+ *)
+RegisteredTargetsUndeleted ==
+    \A o \in Object:
+        o \in RegisteredObject /\ o \in objectTargets => ~ o \in objectDeleted
+
+(**
+ * SAFETY
+ * Once deleted, the state of an object does not change.
+ *)
+DeletionQuiescence ==
+    \A o \in Object:
+        [][
+            (o \in objectDeleted => (
+                /\ objectState'[o] = objectState[o]
+                /\ o \in objectTargets' <=> o \in objectTargets))
+        ]_vars
 
 (**
  * LIVENESS
- * This specification refines the ObjectProcessing1 specification.
+ * This specification refines the ObjectProcessing2 specification.
  *)
-objectStateBar ==
-    [o \in Object |->
-        CASE objectState[o] = OBJECT_COMPLETED -> OBJECT_FINALIZED
-          [] objectState[o] = OBJECT_ABORTED   -> OBJECT_FINALIZED
-          [] OTHER                             -> objectState[o]
-    ]
-OP1Abs == INSTANCE ObjectProcessing1_proofs WITH objectState <- objectStateBar
-RefineObjectProcessing1 == OP1Abs!Spec
+RefineObjectProcessing2 == OP2!Spec
 
 ================================================================================
