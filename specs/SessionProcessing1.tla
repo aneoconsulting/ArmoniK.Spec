@@ -178,7 +178,6 @@ Spec ==
 PermanentDeletion ==
     \A s \in Session :
         [](s \in DeletedSession => [](s \in DeletedSession))
-    
 
 (**
  * LIVENESS
