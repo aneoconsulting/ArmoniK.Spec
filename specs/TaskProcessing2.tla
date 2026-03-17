@@ -4,20 +4,20 @@
 (* providing a detailed description of task execution and finalization.       *)
 (******************************************************************************)
 
-EXTENDS DenumerableSets, FiniteSets, Functions, Naturals, Utils, TLAPS, WellFoundedInduction
+EXTENDS DenumerableSets, FiniteSets, Functions, Naturals, TLAPS, Utils, WellFoundedInduction
 
 CONSTANTS
-    AgentId,    \* Set of agent identifiers
-    TaskId,     \* Set of task identifiers
+    Agent,    \* Set of agent identifiers
+    Task,     \* Set of task identifiers
     MaxRetries, \* Maximal number of retries for tasks
     NULL        \* Constant representing a null value
 
-ASSUME Assumptions ==
-    /\ AgentId \intersect TaskId = {}
-    /\ IsFiniteSet(AgentId)
-    /\ IsDenumerableSet(TaskId)
+ASSUME TP2Assumptions ==
+    /\ Agent \intersect Task = {}
+    /\ IsFiniteSet(Agent)
+    /\ IsDenumerableSet(Task)
     /\ MaxRetries \in Nat
-    /\ NULL \notin TaskId
+    /\ NULL \notin Task
 
 VARIABLES
     agentTaskAlloc,   \* agentTaskAlloc[a]: set of tasks assigned to agent a
@@ -31,10 +31,10 @@ vars == << agentTaskAlloc, taskState, nextAttemptOf >>
 (**
  * Instance of the TaskStates module.
  * Provides set-based views of tasks (e.g., SucceededTask, FailedTask) 
- * by filtering TaskId based on the current taskState.
+ * by filtering Task based on the current taskState.
  *)
 INSTANCE TaskStates
-    WITH SetOfTasksIn <- LAMBDA s : {t \in TaskId: taskState[t] = s}
+    WITH SetOfTasksIn <- LAMBDA s : {t \in Task: taskState[t] = s}
 
 (**
  * Instance of the high-level TaskProcessing1 specification to re-use
@@ -49,14 +49,10 @@ TP1 == INSTANCE TaskProcessing1
  *   - taskState is a function mapping each task to one of the defined states.
  *   - nextAttemptOf is a function mapping each task to another task or NULL.
  *)
-TypeInv == 
-    /\ agentTaskAlloc \in [AgentId -> SUBSET TaskId]
-    /\ taskState \in [TaskId -> {
-            TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED, 
-            TASK_SUCCEEDED, TASK_FAILED, TASK_CRASHED, TASK_COMPLETED,
-            TASK_RETRIED, TASK_ABORTED
-        }]
-    /\ nextAttemptOf \in [TaskId -> TaskId \union {NULL}]
+TypeOk == 
+    /\ agentTaskAlloc \in [Agent -> SUBSET Task]
+    /\ taskState \in [Task -> TP2State]
+    /\ nextAttemptOf \in [Task -> Task \union {NULL}]
 
 (**
  * The subset of FailedTasks for which a follow-up attempt (retry) 
@@ -70,12 +66,12 @@ UnretriedTask ==
  * This includes all previous attempts and all subsequent retries.
  * It uses the symmetric transitive closure of the nextAttemptOf relation.
  *)
-TaskAttempts(t) ==
+PreviousAttempts(t) ==
     LET
-        NextAttemptOfRel == {ss \in TaskId \X TaskId : nextAttemptOf[ss[1]] = ss[2]}
-        R                == TransitiveClosureOn(NextAttemptOfRel, TaskId)
+        NextAttemptOfRel == {ss \in Task \X Task : nextAttemptOf[ss[1]] = ss[2]}
+        R                == TransitiveClosureOn(NextAttemptOfRel, Task)
     IN
-        {u \in TaskId: <<u, t>> \in R \/ <<t, u>> \in R}
+        {u \in Task: <<u, t>> \in R}
 
 -------------------------------------------------------------------------------
 
@@ -90,7 +86,7 @@ TaskAttempts(t) ==
  *)
 Init ==
     /\ TP1!Init
-    /\ nextAttemptOf = [t \in TaskId |-> NULL]
+    /\ nextAttemptOf = [t \in Task |-> NULL]
 
 (**
  * TASK REGISTRATION
@@ -110,6 +106,18 @@ StageTasks(T) ==
     /\ UNCHANGED nextAttemptOf
 
 (**
+ * TASK BYPASS
+ * A set 'T' of registered or staged tasks is moved directly to the processed
+ * state, bypassing agent assignment and execution.
+ *)
+DiscardTasks(T) ==
+    /\ T /= {}
+    /\ T \subseteq RegisteredTask \union StagedTask
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
+    /\ UNCHANGED <<agentTaskAlloc, nextAttemptOf>>
+
+(**
  * TASK RETRIES RECORDING
  * Maps a set of failed tasks 'T' to a set of new, unknown tasks 'U'.
  * This effectively "links" the failure of 'T' to the future execution of 'U'.
@@ -118,10 +126,10 @@ SetTaskRetries(T, U) ==
     /\ T /= {}
     /\ T \subseteq UnretriedTask
     /\ U \subseteq UnknownTask
-    /\ \A u \in U: ~ \E t \in TaskId: nextAttemptOf[t] = u
+    /\ \A u \in U: ~ \E t \in Task: nextAttemptOf[t] = u
     /\ \E f \in Bijection(T, U):
         nextAttemptOf' =
-            [t \in TaskId |-> IF t \in T THEN f[t] ELSE nextAttemptOf[t]]
+            [t \in Task |-> IF t \in T THEN f[t] ELSE nextAttemptOf[t]]
     /\ UNCHANGED << agentTaskAlloc, taskState >>
 
 (**
@@ -151,17 +159,15 @@ ReleaseTasks(a, T) ==
  *)
 ProcessTasks(a, T) ==
     /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
-    /\ \E S, F, C \in SUBSET T :
-        /\ UNION {S, F, C} = T
-        /\ S \intersect F = {} /\ S \intersect C = {} /\ F \intersect C = {}
-        /\ \A t \in F: Cardinality(TaskAttempts(t)) < MaxRetries
-        /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
-        /\ taskState' =
-            [t \in TaskId |-> CASE t \in S -> TASK_SUCCEEDED
-                                [] t \in F -> TASK_FAILED
-                                [] t \in C -> TASK_CRASHED
-                                [] OTHER   -> taskState[t]]
-        /\ UNCHANGED nextAttemptOf
+    /\ \/ taskState' =
+            [t \in Task |-> IF t \in T THEN TASK_SUCCEEDED ELSE taskState[t]]
+       \/ taskState' =
+            [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
+       \/ /\ \A t \in T: Cardinality(PreviousAttempts(t)) < MaxRetries
+          /\ taskState' =
+            [t \in Task |-> IF t \in T THEN TASK_FAILED ELSE taskState[t]]
+    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
+    /\ UNCHANGED nextAttemptOf
 
 (**
  * TASK COMPLETION
@@ -170,7 +176,7 @@ ProcessTasks(a, T) ==
 CompleteTasks(T) ==
     /\ T /= {} /\ T \subseteq SucceededTask
     /\ taskState' =
-        [t \in TaskId |-> IF t \in T THEN TASK_COMPLETED ELSE taskState[t]]
+        [t \in Task |-> IF t \in T THEN TASK_COMPLETED ELSE taskState[t]]
     /\ UNCHANGED << agentTaskAlloc, nextAttemptOf >>
 
 (**
@@ -179,9 +185,9 @@ CompleteTasks(T) ==
  * Crashed tasks cannot be retried.
  *)
 AbortTasks(T) ==
-    /\ T /= {} /\ T \subseteq CrashedTask
+    /\ T /= {} /\ T \subseteq DiscardedTask
     /\ taskState' =
-        [t \in TaskId |-> IF t \in T THEN TASK_ABORTED ELSE taskState[t]]
+        [t \in Task |-> IF t \in T THEN TASK_ABORTED ELSE taskState[t]]
     /\ UNCHANGED << agentTaskAlloc, nextAttemptOf >>
 
 (**
@@ -194,7 +200,7 @@ RetryTasks(T) ==
     /\ T /= {} /\ T \subseteq FailedTask
     /\ T \intersect UnretriedTask = {}
     /\ taskState' =
-        [t \in TaskId |-> IF t \in T THEN TASK_RETRIED ELSE taskState[t]]
+        [t \in Task |-> IF t \in T THEN TASK_RETRIED ELSE taskState[t]]
     /\ UNCHANGED << agentTaskAlloc, nextAttemptOf >>
 
 (**
@@ -203,10 +209,10 @@ RetryTasks(T) ==
  * terminal states.
  *)
 Terminating ==
-    /\ TaskId = UNION {
-            UnknownTask, RegisteredTask, StagedTask, CompletedTask, RetriedTask,
-            AbortedTask
-        }
+    /\ AssignedTask = {}
+    /\ SucceededTask = {}
+    /\ FailedTask = {}
+    /\ DiscardedTask = {}
     /\ UNCHANGED vars
 
 -------------------------------------------------------------------------------
@@ -220,11 +226,12 @@ Terminating ==
  * Defines all possible atomic transitions of the system.
  *)
 Next ==
-    \/ \E T \in SUBSET TaskId:
+    \/ \E T \in SUBSET Task:
         \/ RegisterTasks(T)
         \/ StageTasks(T)
-        \/ \E U \in SUBSET TaskId: SetTaskRetries(T, U)
-        \/ \E a \in AgentId:
+        \/ DiscardTasks(T)
+        \/ \E U \in SUBSET Task: SetTaskRetries(T, U)
+        \/ \E a \in Agent:
             \/ AssignTasks(a, T)
             \/ ReleaseTasks(a, T)
             \/ ProcessTasks(a, T)
@@ -252,11 +259,11 @@ Next ==
  *     retried.
  *)
 Fairness ==
-    \A t \in TaskId:
-        /\ WF_vars(\E u \in TaskId : SetTaskRetries({t}, {u}))
+    \A t \in Task:
+        /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
         /\ WF_vars(RegisterTasks({nextAttemptOf[t]}))
         /\ WF_vars(StageTasks({nextAttemptOf[t]}))
-        /\ SF_vars(\E a \in AgentId : ProcessTasks(a, {t}))
+        /\ SF_vars(\E a \in Agent : ProcessTasks(a, {t}))
         /\ WF_vars(CompleteTasks({t}))
         /\ WF_vars(AbortTasks({t}))
         /\ WF_vars(RetryTasks({t}))
@@ -279,24 +286,30 @@ Spec ==
  * SAFETY
  * Ensures consistent relationship between a task's status and its retry chain.
  *)
-TaskStateIntegrity ==
-    \A t \in TaskId:
-        /\ t \in RetriedTask => nextAttemptOf[t] /= NULL 
-        /\ nextAttemptOf[t] /= NULL => t \in FailedTask \union RetriedTask
-        /\ t \in CompletedTask \union AbortedTask
-            => nextAttemptOf[t] = NULL
-        /\ \E u, v \in TaskId: nextAttemptOf[u] = t /\ nextAttemptOf[v] = t
-                               => u = v
+TaskAttemptsIntegrity ==
+    /\ RetriedTask \subseteq {t \in Task: nextAttemptOf[t] /= NULL}
+    /\ {t \in Task: nextAttemptOf[t] /= NULL} \subseteq FailedTask \union RetriedTask
+    /\ CompletedTask \union AbortedTask \subseteq {t \in Task: nextAttemptOf[t] = NULL}
+    /\ \A t \in Task :
+        /\ \E u, v \in Task: nextAttemptOf[u] = t /\ nextAttemptOf[v] = t
+                             => u = v
         /\ nextAttemptOf[t] /= t
-        /\ Cardinality(TaskAttempts(t)) <= MaxRetries
+
+(**
+ * SAFETY
+ * Ensures a task is never retried more than the maximum number allowed.
+ *)
+PreviousAttemptsIsBounded ==
+    \A t \in Task:
+        Cardinality(PreviousAttempts(t)) <= MaxRetries
 
 (**
  * SAFETY
  * Guarantees that the set of attempts for a task can only increase.
  *)
-TaskAttemptsIsIncreasing ==
-    \A t \in TaskId:
-        [][TaskAttempts(t) \subseteq TaskAttempts(t)']_nextAttemptOf
+PreviousAttemptsIsIncreasing ==
+    \A t \in Task:
+        [][PreviousAttempts(t) \subseteq PreviousAttempts(t)']_nextAttemptOf
 
 (**
  * SAFETY
@@ -304,7 +317,7 @@ TaskAttemptsIsIncreasing ==
  * the state cannot change.
  *)
 PermanentFinalization ==
-    \A t \in TaskId:
+    \A t \in Task:
         /\ [](t \in CompletedTask => [](t \in CompletedTask))
         /\ [](t \in RetriedTask => [](t \in RetriedTask))
         /\ [](t \in AbortedTask => [](t \in AbortedTask))
@@ -315,8 +328,10 @@ PermanentFinalization ==
  * being staged.
  *)
 FailedTaskEventualRetry ==
-    \A t \in TaskId:
-        t \in UnretriedTask ~> nextAttemptOf[t] \in StagedTask
+    \A t \in Task:
+        /\ t \in UnretriedTask ~> nextAttemptOf[t] \in RegisteredTask
+        /\ [](~ nextAttemptOf[t] \in DiscardedTask)
+           => nextAttemptOf[t] \in RegisteredTask ~> nextAttemptOf[t] \in StagedTask
 
 (**
  * LIVENESS
@@ -325,11 +340,11 @@ FailedTaskEventualRetry ==
  * stabilize. This means that the last attempt is eventually completed or
  * aborted.
  *)
-TaskAttempsIsBouded ==
-    \A t \in TaskId:
-        \E S \in SUBSET TaskId:
+PreviousAttemptsEventualStability ==
+    \A t \in Task:
+        \E S \in SUBSET Task:
             /\ Cardinality(S) <= MaxRetries
-            /\ <>[](TaskAttempts(t) = S)
+            /\ <>[](PreviousAttempts(t) = S)
 
 (**
  * LIVENESS
@@ -337,28 +352,28 @@ TaskAttempsIsBouded ==
  * always transition to terminal states.
  *)
 EventualFinalization ==
-    \A t \in TaskId:
+    \A t \in Task:
         /\ t \in SucceededTask ~> t \in CompletedTask
         /\ t \in FailedTask ~> t \in RetriedTask
-        /\ t \in CrashedTask ~> t \in AbortedTask
+        /\ t \in DiscardedTask ~> t \in AbortedTask
 
 (**
  * LIVENESS
  * This specification refines the TaskProcessing specification.
  *)
 taskStateBar ==
-    [t \in TaskId |->
+    [t \in Task |->
         CASE taskState[t] = TASK_SUCCEEDED -> TASK_PROCESSED
           [] taskState[t] = TASK_FAILED    -> TASK_PROCESSED
-          [] taskState[t] = TASK_CRASHED   -> TASK_PROCESSED
+          [] taskState[t] = TASK_DISCARDED -> TASK_PROCESSED
           [] taskState[t] = TASK_COMPLETED -> TASK_FINALIZED
           [] taskState[t] = TASK_RETRIED   -> TASK_FINALIZED
           [] taskState[t] = TASK_ABORTED   -> TASK_FINALIZED
           [] OTHER                         -> taskState[t]
     ]
 TP1Abs ==
-    INSTANCE TaskProcessing1_proofs
+    INSTANCE TaskProcessing1
         WITH taskState <- taskStateBar
-RefineTP1 == TP1Abs!Spec
+RefineTaskProcessing1 == TP1Abs!Spec
 
 ================================================================================

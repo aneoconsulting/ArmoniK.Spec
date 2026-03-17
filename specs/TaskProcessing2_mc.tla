@@ -11,7 +11,7 @@ EXTENDS TaskProcessing2, Relation
  * of retries is bounded because of the system and not by the constraint
  * of a finite number of task IDs.
  *)
-ASSUME Cardinality(TaskId) > MaxRetries
+ASSUME Cardinality(Task) > MaxRetries
 
 --------------------------------------------------------------------------------
 
@@ -20,12 +20,12 @@ ASSUME Cardinality(TaskId) > MaxRetries
  * based on the recursive implementation of transitive closure provided by the
  * Relation module.
  *)
-MCTaskAttempts(t) ==
+MCPreviousAttempts(t) ==
     LET
-        NextAttemptOfRel == [ss \in TaskId \X TaskId |-> nextAttemptOf[ss[1]] = ss[2]]
-        R                == TransitiveClosure(NextAttemptOfRel, TaskId)
+        NextAttemptOfRel == [ss \in Task \X Task |-> nextAttemptOf[ss[1]] = ss[2]]
+        R                == TransitiveClosure(NextAttemptOfRel, Task)
     IN
-        {u \in TaskId: R[u, t] \/ R[t, u]}
+        {u \in Task: R[u, t] \/ R[t, u]}
 
 (**
  * The finiteness of the task ID set can lead to a suttering when all task IDs

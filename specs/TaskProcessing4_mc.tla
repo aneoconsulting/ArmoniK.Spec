@@ -1,16 +1,16 @@
--------------------------- MODULE TaskProcessing3_mc ---------------------------
+-------------------------- MODULE TaskProcessing4_mc ---------------------------
 (*******************************************************************************)
-(* This specification adapts the TaskProcessing3 specification to make it      *)
+(* This specification adapts the TaskProcessing4 specification to make it      *)
 (* verifiable on finite models by TLC.                                         *)
 (*******************************************************************************)
 
-EXTENDS TaskProcessing3
+EXTENDS TaskProcessing4
 
 --------------------------------------------------------------------------------
 
-TP2MC == INSTANCE TaskProcessing2_mc
+TP3MC == INSTANCE TaskProcessing3_mc
 
-MCPreviousAttempts(t) == TP2MC!MCPreviousAttempts(t)
-ActionConstraint      == TP2MC!ActionConstraint
+MCPreviousAttempts(t) == TP3MC!MCPreviousAttempts(t)
+ActionConstraint      == TP3MC!ActionConstraint
 
 ================================================================================

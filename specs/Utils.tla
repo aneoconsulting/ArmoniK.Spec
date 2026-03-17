@@ -1,10 +1,10 @@
 --------------------------------- MODULE Utils ---------------------------------
-EXTENDS Naturals, FiniteSets
+EXTENDS Naturals, Sequences
 
 (**
  * Checks if a collection of sets (a set of sets) are all disjoint.
  *)
-IsPairwiseDisjoint(Collection) ==
-    \A s1, s2 \in Collection : (s1 /= s2) => (s1 \intersect s2 = {})
+IsPairwiseDisjoint(seq) ==
+    \A i, j \in 1..Len(seq) : (i /= j) => (seq[i] \intersect seq[j] = {})
 
 ================================================================================
