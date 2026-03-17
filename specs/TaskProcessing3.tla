@@ -160,17 +160,15 @@ ReleaseTasks(a, T) ==
  *)
 ProcessTasks(a, T) ==
     /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
-    /\ \E Succeeded, Failed, Discarded, Stopped \in SUBSET T :
-        /\ UNION {Succeeded, Failed, Discarded, Stopped} = T
-        /\ IsPairwiseDisjoint(<<Succeeded, Failed, Discarded, Stopped>>)
-        /\ Stopped = T \/ Stopped = {}
-        /\ \A t \in Failed: Cardinality(TP2!PreviousAttempts(t)) < MaxRetries
-        /\ taskState' =
-            [t \in Task |-> CASE t \in Succeeded -> TASK_SUCCEEDED
-                              [] t \in Failed    -> TASK_FAILED
-                              [] t \in Discarded -> TASK_DISCARDED
-                              [] t \in Stopped   -> TASK_STOPPED
-                              [] OTHER   -> taskState[t]]
+    /\ \/ taskState' =
+            [t \in Task |-> IF t \in T THEN TASK_SUCCEEDED ELSE taskState[t]]
+       \/ taskState' =
+            [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
+       \/ /\ \A t \in T: Cardinality(TP2!PreviousAttempts(t)) < MaxRetries
+          /\ taskState' =
+            [t \in Task |-> IF t \in T THEN TASK_FAILED ELSE taskState[t]]
+       \/ taskState' =
+            [t \in Task |-> IF t \in T THEN TASK_STOPPED ELSE taskState[t]]
     /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
     /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
 
