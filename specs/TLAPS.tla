@@ -1,0 +1,1 @@
+.tla/tools/tlapm/lib/tlapm/stdlib/TLAPS.tla
