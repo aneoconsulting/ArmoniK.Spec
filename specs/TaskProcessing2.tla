@@ -159,17 +159,15 @@ ReleaseTasks(a, T) ==
  *)
 ProcessTasks(a, T) ==
     /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
-    /\ \E Succeeded, Failed, Discarded \in SUBSET T :
-        /\ UNION {Succeeded, Failed, Discarded} = T
-        /\ IsPairwiseDisjoint(<<Succeeded, Failed, Discarded>>)
-        /\ \A t \in Failed: Cardinality(PreviousAttempts(t)) < MaxRetries
-        /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
-        /\ taskState' =
-            [t \in Task |-> CASE t \in Succeeded -> TASK_SUCCEEDED
-                              [] t \in Failed    -> TASK_FAILED
-                              [] t \in Discarded -> TASK_DISCARDED
-                              [] OTHER   -> taskState[t]]
-        /\ UNCHANGED nextAttemptOf
+    /\ \/ taskState' =
+            [t \in Task |-> IF t \in T THEN TASK_SUCCEEDED ELSE taskState[t]]
+       \/ taskState' =
+            [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
+       \/ /\ \A t \in T: Cardinality(PreviousAttempts(t)) < MaxRetries
+          /\ taskState' =
+            [t \in Task |-> IF t \in T THEN TASK_FAILED ELSE taskState[t]]
+    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
+    /\ UNCHANGED nextAttemptOf
 
 (**
  * TASK COMPLETION
