@@ -12,18 +12,20 @@
 (* together with its key safety and liveness properties.                     *)
 (*****************************************************************************)
 
-EXTENDS FiniteSets, Graphs, Naturals, Sequences
+EXTENDS DenumerableSets, FiniteSets, Graphs, Naturals, Sequences
 
 CONSTANTS
     Agent,   \* Set of agent identifiers (theoretically infinite)
     Object,  \* Set of object identifiers (theoretically infinite)
     Task     \* Set of task identifiers (theoretically infinite)
 
-ASSUME
-    \* Agent, task, and object identifiers are pairwise disjoint.
+ASSUMPTION GP1Assumptions ==
     /\ Agent \intersect Object = {}
     /\ Agent \intersect Task = {}
     /\ Object \intersect Task = {}
+    /\ IsFiniteSet(Agent)
+    /\ IsDenumerableSet(Object)
+    /\ IsDenumerableSet(Task)
 
 VARIABLES
     agentTaskAlloc, \* agentTaskAlloc[a] is the set of tasks currently assigned to agent a
@@ -75,22 +77,9 @@ OP1 == INSTANCE ObjectProcessing1
  *     and is a proper graph object (i.e., a record with 'node' and 'edge'
  *     as fields).
  *)
-TypeInv ==
-    /\ agentTaskAlloc \in [Agent -> SUBSET Task]
-    /\ objectState \in [Object -> {
-            OBJECT_UNKNOWN,
-            OBJECT_REGISTERED,
-            OBJECT_FINALIZED
-        }]
-    /\ objectTargets \subseteq Object
-    /\ taskState \in [Task -> {
-            TASK_UNKNOWN,
-            TASK_REGISTERED,
-            TASK_STAGED,
-            TASK_ASSIGNED,
-            TASK_PROCESSED,
-            TASK_FINALIZED
-        }]
+TypeOk ==
+    /\ TP1!TypeOk
+    /\ OP1!TypeOk
     /\ LET Nodes == Task \union Object IN
         deps \in {G \in [node: SUBSET Nodes, edge: SUBSET (Nodes \X Nodes)]: IsDirectedGraph(G)}
 
@@ -440,10 +429,11 @@ RefineObjectProcessing1 ==
 (* THEOREMS                                                                  *)
 (*****************************************************************************)
 
-THEOREM Spec => []TypeInv
+THEOREM Spec => []TypeOk
 THEOREM Spec => []DependencyGraphCompliant
 THEOREM Spec => []GraphStateIntegrity
 THEOREM Spec => []TaskDataDependenciesFinite
+THEOREM Spec => FinalizedSourcesInvariant
 THEOREM Spec => TaskDataDependenciesInvariant
 THEOREM Spec => OutputObjectsEventualFinalization
 THEOREM Spec => RefineTaskProcessing1
