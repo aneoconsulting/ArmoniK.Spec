@@ -15,15 +15,15 @@
 EXTENDS FiniteSets, Graphs, Naturals, Sequences
 
 CONSTANTS
-    AgentId,   \* Set of agent identifiers (theoretically infinite)
-    ObjectId,  \* Set of object identifiers (theoretically infinite)
-    TaskId     \* Set of task identifiers (theoretically infinite)
+    Agent,   \* Set of agent identifiers (theoretically infinite)
+    Object,  \* Set of object identifiers (theoretically infinite)
+    Task     \* Set of task identifiers (theoretically infinite)
 
 ASSUME
     \* Agent, task, and object identifiers are pairwise disjoint.
-    /\ AgentId \intersect ObjectId = {}
-    /\ AgentId \intersect TaskId = {}
-    /\ ObjectId \intersect TaskId = {}
+    /\ Agent \intersect Object = {}
+    /\ Agent \intersect Task = {}
+    /\ Object \intersect Task = {}
 
 VARIABLES
     agentTaskAlloc, \* agentTaskAlloc[a] is the set of tasks currently assigned to agent a
@@ -44,13 +44,13 @@ vars == << agentTaskAlloc, deps, objectState, objectTargets, taskState >>
  * Instance of the ObjectStates module with SetOfObjectsIn operator provided.
  *)
 INSTANCE ObjectStates
-    WITH SetOfObjectsIn <- LAMBDA s : {o \in ObjectId: objectState[o] = s}
+    WITH SetOfObjectsIn <- LAMBDA s : {o \in Object: objectState[o] = s}
 
 (**
  * Instance of the TaskStates module with SetOfTasksIn operator provided.
  *)
 INSTANCE TaskStates
-    WITH SetOfTasksIn <- LAMBDA s : {t \in TaskId: taskState[t] = s}
+    WITH SetOfTasksIn <- LAMBDA s : {t \in Task: taskState[t] = s}
 
 (**
  * Instance of the TaskProcessing specification.
@@ -76,14 +76,14 @@ OP1 == INSTANCE ObjectProcessing1
  *     as fields).
  *)
 TypeInv ==
-    /\ agentTaskAlloc \in [AgentId -> SUBSET TaskId]
-    /\ objectState \in [ObjectId -> {
+    /\ agentTaskAlloc \in [Agent -> SUBSET Task]
+    /\ objectState \in [Object -> {
             OBJECT_UNKNOWN,
             OBJECT_REGISTERED,
             OBJECT_FINALIZED
         }]
-    /\ objectTargets \subseteq ObjectId
-    /\ taskState \in [TaskId -> {
+    /\ objectTargets \subseteq Object
+    /\ taskState \in [Task -> {
             TASK_UNKNOWN,
             TASK_REGISTERED,
             TASK_STAGED,
@@ -91,33 +91,33 @@ TypeInv ==
             TASK_PROCESSED,
             TASK_FINALIZED
         }]
-    /\ LET Nodes == TaskId \union ObjectId IN
+    /\ LET Nodes == Task \union Object IN
         deps \in [node: SUBSET Nodes, edge: SUBSET (Nodes \X Nodes)]
 
 (**
  * Returns all nodes in graph 'G' labeled with task IDs.
  *)
-TaskNode(G) == G.node \intersect TaskId
+TaskNode(G) == G.node \intersect Task
 
 (**
  * Returns all nodes in graph 'G' labeled with object IDs.
  *)
-ObjectNode(G) == G.node \intersect ObjectId
+ObjectNode(G) == G.node \intersect Object
 
 (**
  * Checks whether a graph is ArmoniK-compliant for the given task/object sets.
  * A valid dependency graph must:
  *   - Be directed and acyclic.
- *   - Be bipartite with partitions (TaskId, ObjectId).
+ *   - Be bipartite with partitions (Task, Object).
  *   - Have roots and leaves labeled by object identifiers.
  *   - Contain no isolated task nodes.
  *   - Not necessarily be connected.
  *)
 IsACGraph(G) ==
     /\ IsDag(G)
-    /\ IsBipartiteWithPartitions(G, TaskId, ObjectId)
-    /\ Roots(G) \subseteq ObjectId
-    /\ Leaves(G) \subseteq ObjectId
+    /\ IsBipartiteWithPartitions(G, Task, Object)
+    /\ Roots(G) \subseteq Object
+    /\ Leaves(G) \subseteq Object
 
 (**
  * A directed graph is unilaterally connected if, for every pair of vertices u
@@ -164,12 +164,12 @@ RegisterGraph(G) ==
         /\ IsACGraph(newDeps)
         /\ deps' = newDeps
         /\ objectState' =
-            [o \in ObjectId |->
+            [o \in Object |->
                 IF o \in G.node \intersect UnknownObject
                     THEN OBJECT_REGISTERED
                     ELSE objectState[o]]
         /\ taskState' =
-            [t \in TaskId |->
+            [t \in Task |->
                 IF t \in G.node
                     THEN TASK_REGISTERED
                     ELSE taskState[t]]
@@ -210,12 +210,18 @@ FinalizeObjects(O) ==
  * are finalized.
  *)
 StageTasks(T) ==
-    /\ T /= {} /\ T \subseteq RegisteredTask
     /\ AllPredecessors(deps, T) \subseteq FinalizedObject
-    /\ taskState' =
-        [t \in TaskId |->
-            IF t \in T THEN TASK_STAGED ELSE taskState[t]]
-    /\ UNCHANGED << agentTaskAlloc, deps, objectState, objectTargets >>
+    /\ TP1!StageTasks(T)
+    /\ UNCHANGED << deps, objectState, objectTargets >>
+
+(**
+ * TASK BYPASS
+ * A set 'T' of registered or staged tasks is moved directly to the processed
+ * state, bypassing agent assignment and execution.
+ *)
+DiscardTasks(T) ==
+    /\ TP1!DiscardTasks(T)
+    /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
  * TASK ASSIGNMENT
@@ -256,7 +262,7 @@ FinalizeTasks(T) ==
         o \notin FinalizedObject
             => \E t \in (Predecessors(deps, o) \ T) : t \notin FinalizedTask
     /\ taskState' =
-        [t \in TaskId |->
+        [t \in Task |->
             IF t \in T THEN TASK_FINALIZED ELSE taskState[t]]
     /\ UNCHANGED << agentTaskAlloc, deps, objectState, objectTargets >>
 
@@ -280,14 +286,15 @@ Terminating ==
  * Defines all atomic transitions of the system.
  *)
 Next ==
-    \/ \E G \in Graphs(TaskId \union ObjectId): RegisterGraph(G)
-    \/ \E O \in SUBSET ObjectId:
+    \/ \E G \in Graphs(Task \union Object): RegisterGraph(G)
+    \/ \E O \in SUBSET Object:
         \/ TargetObjects(O)
         \/ UntargetObjects(O)
         \/ FinalizeObjects(O)
-    \/ \E T \in SUBSET TaskId:
+    \/ \E T \in SUBSET Task:
         \/ StageTasks(T)
-        \/ \E a \in AgentId:
+        \/ DiscardTasks(T)
+        \/ \E a \in Agent:
             \/ AssignTasks(a, T)
             \/ ReleaseTasks(a, T)
             \/ ProcessTasks(a, T)
@@ -309,8 +316,8 @@ IsTaskUpstreamOnOpenPathToTarget(t, o) ==
         /\ p[1] = t
         /\ p[Len(p)] = o
         /\ \A i \in 2..(Len(p) - 1) :
-            \/ (p[i] \in TaskId /\ p[i] \in RegisteredTask)
-            \/ (p[i] \in ObjectId /\ p[i] \in RegisteredObject)
+            \/ (p[i] \in Task /\ p[i] \in RegisteredTask)
+            \/ (p[i] \in Object /\ p[i] \in RegisteredObject)
 
 (**
  * FAIRNESS CONDITIONS
@@ -325,24 +332,15 @@ IsTaskUpstreamOnOpenPathToTarget(t, o) ==
  *     eventually finalized.
  *)
 Fairness ==
-    /\ \A o \in ObjectId :
+    /\ \A o \in Object :
         WF_vars(FinalizeObjects({o}))
-    /\ \A t \in TaskId :
-        WF_vars(StageTasks({t}))
-    /\ \A t \in TaskId :
-        WF_vars(
-            /\ \E o \in ObjectId :
-                IsTaskUpstreamOnOpenPathToTarget(t, o)
-            /\ \E a \in AgentId :
-                AssignTasks(a, {t})
-        )
-    /\ \A t \in TaskId :
-        SF_vars(
-            \E a \in AgentId :
-                ProcessTasks(a, {t})
-        )
-    /\ \A t \in TaskId :
-        WF_vars(FinalizeTasks({t}))
+    /\ \A t \in Task :
+        /\ WF_vars(StageTasks({t}))
+        /\ WF_vars(
+            /\ \E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)
+            /\ \E a \in Agent : AssignTasks(a, {t}))
+        /\ SF_vars(\E a \in Agent : ProcessTasks(a, {t}))
+        /\ WF_vars(FinalizeTasks({t}))
 
 (**
  * Full system specification.
@@ -373,29 +371,6 @@ DependencyGraphCompliant ==
 GraphStateConsistent ==
     /\ TaskNode(deps) \intersect UnknownTask = {}
     /\ ObjectNode(deps) \intersect UnknownObject = {}
-    /\ \A t \in TaskNode(deps):
-        t \notin RegisteredTask
-            => Predecessors(deps, t) \subseteq FinalizedObject
-    \* /\ \A o \in ObjectNode(deps) \ Roots(deps):
-    \*     o \in FinalizedObject
-    \*         => \E t \in Predecessors(deps, o):
-    \*             t \in (ProcessedTask \union FinalizedTask)
-
-(**
- * SAFETY
- * Ensures that all targeted objects derive from root objects through a
- * connected finalized subgraph.
- *)
-TargetsDerivedFromRoots ==
-    \A o \in objectTargets:
-        o \in FinalizedObject =>
-            \E subDeps \in DirectedSubgraph(deps):
-                /\ Roots(subDeps) \subseteq Roots(deps)
-                /\ Leaves(subDeps) = {o}
-                /\ IsUnilaterallyConnectedGraph(subDeps)
-                /\ (TaskNode(subDeps) \ Predecessors(subDeps, o)) \subseteq FinalizedTask
-                /\ Predecessors(subDeps, o) \subseteq (ProcessedTask \union FinalizedTask)
-                /\ ObjectNode(subDeps) \subseteq FinalizedObject
 
 (**
  * SAFETY
@@ -412,14 +387,14 @@ TaskDataDependenciesInvariant ==
  * LIVENESS
  * This specification refines the TaskProcessing specification.
  *)
-TaskProcessingRefined ==
+RefineTaskProcessing1 ==
     TP1!Spec
 
 (**
  * LIVENESS
  * This specification refines the ObjectProcessing specification.
  *)
-ObjectProcessingRefined ==
+RefineObjectProcessing1 ==
     OP1!Spec
 
 -------------------------------------------------------------------------------
@@ -431,9 +406,8 @@ ObjectProcessingRefined ==
 THEOREM Spec => []TypeInv
 THEOREM Spec => []DependencyGraphCompliant
 THEOREM Spec => []GraphStateConsistent
-THEOREM Spec => []TargetsDerivedFromRoots
 THEOREM Spec => TaskDataDependenciesInvariant
-THEOREM Spec => TaskProcessingRefined
-THEOREM Spec => ObjectProcessingRefined
+THEOREM Spec => RefineTaskProcessing1
+THEOREM Spec => RefineObjectProcessing1
 
 ================================================================================
