@@ -61,17 +61,22 @@ TypeOk ==
 UnretriedTask ==
     {t \in FailedTask: nextAttemptOf[t] = NULL}
 
+NextAttemptOfRel == {ss \in Task \X Task : nextAttemptOf[ss[1]] = ss[2]}
+TCNextAttemptOfRel == TransitiveClosureOn(NextAttemptOfRel, Task)
+
 (**
  * Set of all tasks connected to 't' via the retry chain.
  * This includes all previous attempts and all subsequent retries.
  * It uses the symmetric transitive closure of the nextAttemptOf relation.
  *)
 PreviousAttempts(t) ==
-    LET
-        NextAttemptOfRel == {ss \in Task \X Task : nextAttemptOf[ss[1]] = ss[2]}
-        R                == TransitiveClosureOn(NextAttemptOfRel, Task)
-    IN
-        {u \in Task: <<u, t>> \in R}
+    {u \in Task: <<u, t>> \in TCNextAttemptOfRel}
+
+NextAttempts(t) ==
+    {u \in Task: <<t, u>> \in TCNextAttemptOfRel}
+
+TaskAttempts(t) ==
+    PreviousAttempts(t) \union NextAttempts(t)
 
 -------------------------------------------------------------------------------
 
@@ -299,17 +304,17 @@ TaskAttemptsIntegrity ==
  * SAFETY
  * Ensures a task is never retried more than the maximum number allowed.
  *)
-PreviousAttemptsIsBounded ==
+AttemptsIsBounded ==
     \A t \in Task:
-        Cardinality(PreviousAttempts(t)) <= MaxRetries
+        Cardinality(TaskAttempts(t)) <= MaxRetries
 
 (**
  * SAFETY
  * Guarantees that the set of attempts for a task can only increase.
  *)
-PreviousAttemptsIsIncreasing ==
+AttemptsIsIncreasing ==
     \A t \in Task:
-        [][PreviousAttempts(t) \subseteq PreviousAttempts(t)']_nextAttemptOf
+        [][TaskAttempts(t) \subseteq TaskAttempts(t)']_nextAttemptOf
 
 (**
  * SAFETY
@@ -330,7 +335,7 @@ PermanentFinalization ==
 FailedTaskEventualRetry ==
     \A t \in Task:
         /\ t \in UnretriedTask ~> nextAttemptOf[t] \in RegisteredTask
-        /\ [](~ nextAttemptOf[t] \in DiscardedTask)
+        /\ [][~ \E T \in SUBSET Task: t \in T /\ DiscardTasks(T)]_vars
            => nextAttemptOf[t] \in RegisteredTask ~> nextAttemptOf[t] \in StagedTask
 
 (**
@@ -340,11 +345,11 @@ FailedTaskEventualRetry ==
  * stabilize. This means that the last attempt is eventually completed or
  * aborted.
  *)
-PreviousAttemptsEventualStability ==
+AttemptsEventualStability ==
     \A t \in Task:
         \E S \in SUBSET Task:
             /\ Cardinality(S) <= MaxRetries
-            /\ <>[](PreviousAttempts(t) = S)
+            /\ <>[](TaskAttempts(t) = S)
 
 (**
  * LIVENESS

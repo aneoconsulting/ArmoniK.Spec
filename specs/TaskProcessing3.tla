@@ -357,8 +357,8 @@ TaskStateIntegrity ==
 
 PermanentStopping ==
     \A t \in Task:
-        [](~ t \in DiscardedTask)
-        => [](t \in StoppedTask => [](t \in StoppedTask))
+        [](t \in StoppedTask /\ [][~ \E T \in SUBSET Task: t \in T /\ DiscardTasks(T)]_vars
+           => [](t \in StoppedTask))
 
 (**
  * LIVENESS

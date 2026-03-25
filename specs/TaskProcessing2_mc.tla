@@ -20,13 +20,23 @@ ASSUME Cardinality(Task) > MaxRetries
  * based on the recursive implementation of transitive closure provided by the
  * Relation module.
  *)
-MCPreviousAttempts(t) ==
-    LET
-        NextAttemptOfRel == [ss \in Task \X Task |-> nextAttemptOf[ss[1]] = ss[2]]
-        R                == TransitiveClosure(NextAttemptOfRel, Task)
-    IN
-        {u \in Task: R[u, t] \/ R[t, u]}
+MCNextAttemptOfRel == [ss \in Task \X Task |-> nextAttemptOf[ss[1]] = ss[2]]
+MCTCNextAttemptOfRel == TransitiveClosure(MCNextAttemptOfRel, Task)
 
+MCPreviousAttempts(t) ==
+    {u \in Task: MCTCNextAttemptOfRel[u, t]}
+
+MCNextAttempts(t) ==
+    {u \in Task: MCTCNextAttemptOfRel[t, u]}
+
+MCFailedTaskEventualRetry ==
+    \A t \in Task:
+        /\ t \in UnretriedTask ~> nextAttemptOf[t] \in RegisteredTask
+        /\ nextAttemptOf[t] \in RegisteredTask
+           ~> \/ nextAttemptOf[t] \in StagedTask
+              \/ \E T \in SUBSET Task: nextAttemptOf[t] \in T /\ T \subseteq DiscardedTask
+
+        
 (**
  * The finiteness of the task ID set can lead to a suttering when all task IDs
  * are "known" and a failed task cannot be retried because no new task can be

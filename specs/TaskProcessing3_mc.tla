@@ -13,4 +13,9 @@ TP2MC == INSTANCE TaskProcessing2_mc
 MCPreviousAttempts(t) == TP2MC!MCPreviousAttempts(t)
 ActionConstraint      == TP2MC!ActionConstraint
 
+MCPermanentStopping ==
+    \A t \in Task:
+        [](~ t \in DiscardedTask) =>
+        [](t \in StoppedTask => [](t \in StoppedTask))
+
 ================================================================================
