@@ -328,6 +328,10 @@ DeletionValidity ==
     /\ taskDeleted \intersect FailedTask = {}
     /\ taskDeleted \intersect DiscardedTask = {}
 
+DeletionPermanent ==
+    \A t \in Task:
+        [](t \in taskDeleted => [](t \in taskDeleted))
+
 (**
  * SAFETY
  * Once deleted, the state of a task does not change.
@@ -357,6 +361,7 @@ RefineTaskProcessing3 == TP3!Spec
 
 THEOREM Spec => []TypeOk
 THEOREM Spec => []DeletionValidity
+THEOREM Spec => DeletionPermanent
 THEOREM Spec => DeletionQuiescence
 THEOREM Spec => RefineTaskProcessing3
 

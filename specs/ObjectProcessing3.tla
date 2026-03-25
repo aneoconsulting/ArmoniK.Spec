@@ -190,6 +190,10 @@ RegisteredTargetsUndeleted ==
     \A o \in Object:
         o \in RegisteredObject /\ o \in objectTargets => ~ o \in objectDeleted
 
+DeletionPermanent ==
+    \A o \in Object:
+        [](o \in objectDeleted => [](o \in objectDeleted))
+
 (**
  * SAFETY
  * Once deleted, the state of an object does not change.
