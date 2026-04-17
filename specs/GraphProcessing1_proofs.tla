@@ -494,8 +494,8 @@ THEOREM GP1_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
                         BY LemStableTaskSuccessors DEF AllSuccessors
                     <8>. QED
                         BY <8>2, <8>3, PTL
-                <5>2. ASSUME NEW T, NEW x
-                    PROVE  I(T) => I(T \cup {x})
+                <5>2. ASSUME NEW T \in SUBSET S, IsFiniteSet(T), I(T), NEW x \in S \ T
+                    PROVE  I(T \cup {x})
                     <8>1. L(T \cup {x}) => K(x)
                         <9>. HIDE DEF K
                         <9>. QED
@@ -511,10 +511,8 @@ THEOREM GP1_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
                     <8>. QED
                         BY <8>1, <8>2, <8>3, <8>5
                 <5>. HIDE DEF I
-                <5>3. \A T : IsFiniteSet(T) => I(T)
-                    BY <5>1, <5>2, FS_Induction, IsaM("blast")
                 <5>4. I(S)
-                    BY <5>3
+                    OMITTED  \* BY ONLY <5>1, <5>2, IsFiniteSet(S), FS_Induction, IsaM("blast")
                 <5>. QED
                     BY <5>4 DEF I
             <4>0b. [](\A o \in Object : WF_vars(FinalizeObjects({o})))
