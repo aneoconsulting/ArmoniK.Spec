@@ -297,7 +297,7 @@ Next ==
 OpenPath(o) ==
     {p \in SimplePath(deps) :
         /\ ~ p[1] \in RegisteredTask
-        /\ ~ p[1] \in RegisteredObject
+        /\ p[1] \in Roots(deps) \/ ~ p[1] \in RegisteredObject
         /\ p[Len(p)] = o
         /\ \A i \in 2..(Len(p) - 1) :
             \/ p[i] \in RegisteredTask
@@ -419,8 +419,8 @@ ArgMinOp(S, Op(_)) ==
 INSTANCE FiniteSetTheorems
 INSTANCE FiniteSetsExtTheorems
 
-THEOREM ArgMinIntFinite ==
-        ASSUME NEW S, S /= {}, IsFiniteSet(S),
+THEOREM ArgMinNat ==
+        ASSUME NEW S, S /= {},
                NEW Op(_), \A x \in S: Op(x) \in Nat
         PROVE /\ ArgMinOp(S, Op) \in S
               /\ \A x \in S : Op(ArgMinOp(S, Op)) <= Op(x)

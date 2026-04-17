@@ -675,7 +675,7 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
 <1>3. [][Next]_vars /\ []GraphSafetyInv /\ []Fairness => OP1!Fairness
     <2>. SUFFICES ASSUME NEW o \in Object
                   PROVE [][Next]_vars /\ []GraphSafetyInv /\ []Fairness
-                            => WF_OP1!vars(o \in objectTargets /\ OP1!FinalizeObjects({o}))
+                        => WF_OP1!vars(o \in objectTargets /\ OP1!FinalizeObjects({o}))
         BY Isa DEF OP1!Fairness
     <2>. SUFFICES /\ [][Next]_vars /\ []GraphSafetyInv /\ []Fairness
                   /\ []ENABLED <<o \in objectTargets /\ OP1!FinalizeObjects({o})>>_OP1!vars
@@ -687,6 +687,15 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
     <2>1. ENABLED <<o \in objectTargets /\ OP1!FinalizeObjects({o})>>_OP1!vars => A(o)
         BY ExpandENABLED DEF OP1!FinalizeObjects, OP1!vars, RegisteredObject, OP1!RegisteredObject
     <2>2. GraphSafetyInv /\ A(o) => \E n \in Nat \ {0}: B(o, n)
+        <3>. SUFFICES ASSUME GraphSafetyInv, A(o)
+                      PROVE \E n \in Nat \ {0}: B(o, n)
+        <3>1. OpenPath(o) # {}
+        <3>2. \A p \in OpenPath(o) : Len(p) \in Nat \ {0}
+            \* BY EmptySeq DEF OpenPath, SimplePath, SeqOf
+        <3>3. ShortestOpenPath(o) \in OpenPath(o)
+            BY <3>1, <3>2, ArgMinNat DEF ShortestOpenPath
+        <3>. QED
+            BY <3>1, <3>2, <3>3
     <2>3. [][Next]_vars /\ []GraphSafetyInv /\ []Fairness /\ []A(o)
           => [](\A n \in Nat \ {0}: B(o, n) => FALSE)
         <3>. DEFINE I(n) == n /= 0 => ([][Next]_vars /\ []GraphSafetyInv /\ []Fairness /\ []A(o)
@@ -699,10 +708,16 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
             <4>. SUFFICES ASSUME NEW n \in Nat, I(n) PROVE I(n+1)
                 OBVIOUS
             <4>1. CASE n = 0
+                <5>0. [](B(o, n + 1) => FALSE) <=> [](B(o, 1) => FALSE)
+                    <6>. DEFINE P(x) == [](B(o, x) => FALSE)
+                    <6>. SUFFICES P(n + 1) <=> P(n)
+                        OBVIOUS
+                    <6>. HIDE DEF P
+                    <6>. QED BY <4>1
                 <5>. SUFFICES [][Next]_vars /\ []GraphSafetyInv /\ []Fairness /\ []A(o)
-                              => [](B(o, n + 1) => FALSE)
-                    BY <4>1
-                <5>1. B(o, n + 1) => o \in FinalizedObject
+                              => [](B(o, 1) => FALSE)
+                    BY <4>1, <5>0
+                <5>1. B(o, 1) /\ [Next]_vars => B(o, 1)'
                 <5>2. A(o) /\ o \in FinalizedObject => FALSE
                     BY DEF RegisteredObject, FinalizedObject
                 <5>3. o \in FinalizedObject /\ [Next]_vars => (o \in FinalizedObject)'
@@ -714,11 +729,8 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
                 <5>2. [][Next]_vars /\ []GraphSafetyInv /\ []Fairness /\ []A(o)
                     => [](B(o, n) => FALSE)
                     BY <3>2, <4>2
-                <5>3. [][Next]_vars /\ []GraphSafetyInv /\ []Fairness /\ []A(o)
-                    => [](B(o, n + 1) => FALSE)
-                    BY <5>1, <5>2, PTL
                 <5>. QED
-                    BY <5>3
+                    BY <5>1, <5>2, PTL
             <4>. QED
                 BY <4>1, <4>2
         <3>. HIDE DEF I
