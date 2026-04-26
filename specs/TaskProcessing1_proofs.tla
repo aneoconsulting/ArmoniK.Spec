@@ -44,13 +44,13 @@ LEMMA LemTaskSafetyInv == Init /\ [][Next]_vars => []TaskSafetyInv
         BY <2>3 DEF DiscardTasks, RegisteredTask, StagedTask
     <2>4. ASSUME NEW T \in SUBSET Task, NEW a \in Agent, AssignTasks(a, T)
           PROVE AssignedStateIntegrity' /\ ExclusiveAssignment'
-        BY <2>4 DEF AssignTasks, StagedTask
+        BY <2>4, ZenonT(15) DEF AssignTasks, StagedTask
     <2>5. ASSUME NEW T \in SUBSET Task, NEW a \in Agent, ReleaseTasks(a, T)
           PROVE AssignedStateIntegrity' /\ ExclusiveAssignment'
-        BY <2>5 DEF ReleaseTasks
+        BY <2>5, ZenonT(15) DEF ReleaseTasks
     <2>6. ASSUME NEW T \in SUBSET Task, NEW a \in Agent, ProcessTasks(a, T)
           PROVE AssignedStateIntegrity' /\ ExclusiveAssignment'
-        BY <2>6 DEF ProcessTasks
+        BY <2>6, ZenonT(15) DEF ProcessTasks
     <2>7. ASSUME NEW T \in SUBSET Task, FinalizeTasks(T)
           PROVE AssignedStateIntegrity' /\ ExclusiveAssignment'
         BY <2>7 DEF FinalizeTasks, ProcessedTask
