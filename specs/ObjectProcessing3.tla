@@ -27,7 +27,6 @@ vars == << objectState, objectTargets, objectDeleted >>
  * the same state.
  *)
 INSTANCE ObjectStates
-    WITH SetOfObjectsIn <- LAMBDA s : {o \in Object: objectState[o] = s}
 
 (**
  * Imports ObjectProcessing2 definitions.
@@ -57,7 +56,8 @@ TypeOk ==
  * Initially, all objects are unknown and none are marked as targets or deleted.
  *)
 Init ==
-    /\ OP2!OP1!Init
+    /\ objectState = [o \in Object |-> OBJECT_UNKNOWN]
+    /\ objectTargets = {}
     /\ objectDeleted = {}
 
 (**
@@ -66,8 +66,10 @@ Init ==
  * with the metadata provided and empty data.
  *)
 RegisterObjects(O) ==
-    /\ OP2!OP1!RegisterObjects(O)
-    /\ UNCHANGED objectDeleted
+    /\ O /= {} /\ O \subseteq UnknownObject
+    /\ objectState' =
+        [o \in Object |-> IF o \in O THEN OBJECT_REGISTERED ELSE objectState[o]]
+    /\ UNCHANGED << objectTargets, objectDeleted >>
 
 (**
  * OBJECT TARGETING
@@ -75,18 +77,20 @@ RegisterObjects(O) ==
  * wants these objects to be finalized (completed or aborted).
  *)
 TargetObjects(O) ==
+    /\ O # {} /\ O \subseteq UNION {RegisteredObject, CompletedObject, AbortedObject}
     /\ O \intersect objectDeleted = {}
-    /\ OP2!TargetObjects(O)
-    /\ UNCHANGED objectDeleted
+    /\ objectTargets' = objectTargets \union O
+    /\ UNCHANGED << objectState, objectDeleted >>
 
 (**
  * OBJECT UNTARGETING
  * A set 'O' of currently targeted objects is unmarked.
  *)
 UntargetObjects(O) ==
+    /\ O /= {} /\ O \subseteq objectTargets
     /\ O \intersect objectDeleted = {}
-    /\ OP2!OP1!UntargetObjects(O)
-    /\ UNCHANGED objectDeleted
+    /\ objectTargets' = objectTargets \ O
+    /\ UNCHANGED << objectState, objectDeleted >>
 
 (**
  * OBJECT FINALIZATION
@@ -94,9 +98,11 @@ UntargetObjects(O) ==
  * written and will never be modified.
  *)
 CompleteObjects(O) ==
+    /\ O /= {} /\ O \subseteq RegisteredObject
     /\ O \intersect objectDeleted = {}
-    /\ OP2!CompleteObjects(O)
-    /\ UNCHANGED objectDeleted
+    /\ objectState' =
+        [o \in Object |-> IF o \in O THEN OBJECT_COMPLETED ELSE objectState[o]]
+    /\ UNCHANGED << objectTargets, objectDeleted >>
 
 (**
  * OBJECT FINALIZATION
@@ -104,9 +110,11 @@ CompleteObjects(O) ==
  * generated with empty data and no data will never be provided.
  *)
 AbortObjects(O) ==
+    /\ O /= {} /\ O \subseteq RegisteredObject
     /\ O \intersect objectDeleted = {}
-    /\ OP2!AbortObjects(O)
-    /\ UNCHANGED objectDeleted
+    /\ objectState' =
+        [o \in Object |-> IF o \in O THEN OBJECT_ABORTED ELSE objectState[o]]
+    /\ UNCHANGED << objectTargets, objectDeleted >>
 
 (**
  * OBJECT FINALIZATION
@@ -190,7 +198,7 @@ RegisteredTargetsUndeleted ==
     \A o \in Object:
         o \in RegisteredObject /\ o \in objectTargets => ~ o \in objectDeleted
 
-DeletionPermanent ==
+PermanentDeletion ==
     \A o \in Object:
         [](o \in objectDeleted => [](o \in objectDeleted))
 
@@ -200,11 +208,9 @@ DeletionPermanent ==
  *)
 DeletionQuiescence ==
     \A o \in Object:
-        [][
-            (o \in objectDeleted => (
-                /\ objectState'[o] = objectState[o]
-                /\ o \in objectTargets' <=> o \in objectTargets))
-        ]_vars
+        []( o \in objectDeleted
+            => [][/\ objectState'[o] = objectState[o]
+                  /\ o \in objectTargets' <=> o \in objectTargets]_vars )
 
 (**
  * LIVENESS

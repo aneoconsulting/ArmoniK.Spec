@@ -4,7 +4,7 @@
 (* providing a detailed description of task execution and finalization.       *)
 (******************************************************************************)
 
-EXTENDS DenumerableSets, FiniteSets, Functions, Naturals, TLAPS, Utils, WellFoundedInduction
+EXTENDS DenumerableSetTheorems, FiniteSetTheorems, Functions, Naturals, TLAPS, Utils, WellFoundedInduction
 
 CONSTANTS
     Agent,    \* Set of agent identifiers
@@ -33,14 +33,7 @@ vars == << agentTaskAlloc, taskState, nextAttemptOf >>
  * Provides set-based views of tasks (e.g., SucceededTask, FailedTask) 
  * by filtering Task based on the current taskState.
  *)
-INSTANCE TaskStates
-    WITH SetOfTasksIn <- LAMBDA s : {t \in Task: taskState[t] = s}
-
-(**
- * Instance of the high-level TaskProcessing1 specification to re-use
- * action definitions.
- *)
-TP1 == INSTANCE TaskProcessing1
+INSTANCE TaskRetries
 
 (**
  * TYPE INVARIANT
@@ -54,30 +47,6 @@ TypeOk ==
     /\ taskState \in [Task -> TP2State]
     /\ nextAttemptOf \in [Task -> Task \union {NULL}]
 
-(**
- * The subset of FailedTasks for which a follow-up attempt (retry) 
- * has not yet been linked via nextAttemptOf.
- *)
-UnretriedTask ==
-    {t \in FailedTask: nextAttemptOf[t] = NULL}
-
-NextAttemptOfRel == {ss \in Task \X Task : nextAttemptOf[ss[1]] = ss[2]}
-TCNextAttemptOfRel == TransitiveClosureOn(NextAttemptOfRel, Task)
-
-(**
- * Set of all tasks connected to 't' via the retry chain.
- * This includes all previous attempts and all subsequent retries.
- * It uses the symmetric transitive closure of the nextAttemptOf relation.
- *)
-PreviousAttempts(t) ==
-    {u \in Task: <<u, t>> \in TCNextAttemptOfRel}
-
-NextAttempts(t) ==
-    {u \in Task: <<t, u>> \in TCNextAttemptOfRel}
-
-TaskAttempts(t) ==
-    PreviousAttempts(t) \union NextAttempts(t)
-
 -------------------------------------------------------------------------------
 
 (*****************************************************************************)
@@ -90,7 +59,8 @@ TaskAttempts(t) ==
  * task.
  *)
 Init ==
-    /\ TP1!Init
+    /\ agentTaskAlloc = [a \in Agent |-> {}]
+    /\ taskState = [t \in Task |-> TASK_UNKNOWN]
     /\ nextAttemptOf = [t \in Task |-> NULL]
 
 (**
@@ -98,17 +68,21 @@ Init ==
  * Introduces a finite set of tasks 'T' into the system (TASK_REGISTERED).
  *)
 RegisterTasks(T) ==
+    /\ T /= {} /\ T \subseteq UnknownTask
     /\ IsFiniteSet(T)
-    /\ TP1!RegisterTasks(T)
-    /\ UNCHANGED nextAttemptOf
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_REGISTERED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf >>
 
 (**
  * TASK STAGING
  * Moves tasks 'T' from REGISTERED to STAGED, making them available for assignment.
  *)
 StageTasks(T) ==
-    /\ TP1!StageTasks(T)
-    /\ UNCHANGED nextAttemptOf
+    /\ T /= {} /\ T \subseteq RegisteredTask
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf >>
 
 (**
  * TASK BYPASS
@@ -142,7 +116,10 @@ SetTaskRetries(T, U) ==
  * Agent 'a' claims set 'T' for processing.
  *)
 AssignTasks(a, T) ==
-    /\ TP1!AssignTasks(a, T)
+    /\ T /= {} /\ T \subseteq StagedTask
+    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \union T]
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
     /\ UNCHANGED nextAttemptOf
 
 (**
@@ -151,7 +128,10 @@ AssignTasks(a, T) ==
  * processing.
  *)
 ReleaseTasks(a, T) ==
-    /\ TP1!ReleaseTasks(a, T)
+    /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
+    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
     /\ UNCHANGED nextAttemptOf
 
 (**
@@ -376,9 +356,9 @@ taskStateBar ==
           [] taskState[t] = TASK_ABORTED   -> TASK_FINALIZED
           [] OTHER                         -> taskState[t]
     ]
-TP1Abs ==
-    INSTANCE TaskProcessing1
+TP1 ==
+    INSTANCE TaskProcessing1_proofs
         WITH taskState <- taskStateBar
-RefineTaskProcessing1 == TP1Abs!Spec
+RefineTaskProcessing1 == TP1!Spec
 
 ================================================================================

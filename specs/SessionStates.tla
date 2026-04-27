@@ -10,11 +10,11 @@
 (* the same lifecycle status.                                                *)
 (*****************************************************************************)
 
-(**
- * Abstract operator returning the set of sessions in a given state.
- *)
 CONSTANT
-    SetOfSessionsIn(_)
+    Session
+
+VARIABLE
+    sessionState
 
 (**
  * Session lifecycle states.
@@ -36,12 +36,12 @@ SP1State == {SESSION_UNKNOWN, SESSION_OPENED, SESSION_PAUSED, SESSION_ABORTED,
 (**
  * Sets of objects by state.
  *)
-UnknownSession  == SetOfSessionsIn(SESSION_UNKNOWN)
-OpenedSession   == SetOfSessionsIn(SESSION_OPENED)
-PausedSession   == SetOfSessionsIn(SESSION_PAUSED)
-AbortedSession == SetOfSessionsIn(SESSION_ABORTED)
-ClosedSession   == SetOfSessionsIn(SESSION_CLOSED)
-PurgedSession   == SetOfSessionsIn(SESSION_PURGED)
-DeletedSession  == SetOfSessionsIn(SESSION_DELETED)
+UnknownSession  == {s \in Session: sessionState[s] = SESSION_UNKNOWN}
+OpenedSession   == {s \in Session: sessionState[s] = SESSION_OPENED}
+PausedSession   == {s \in Session: sessionState[s] = SESSION_PAUSED}
+AbortedSession  == {s \in Session: sessionState[s] = SESSION_ABORTED}
+ClosedSession   == {s \in Session: sessionState[s] = SESSION_CLOSED}
+PurgedSession   == {s \in Session: sessionState[s] = SESSION_PURGED}
+DeletedSession  == {s \in Session: sessionState[s] = SESSION_DELETED}
 
 ==============================================================================

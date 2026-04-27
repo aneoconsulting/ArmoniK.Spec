@@ -8,9 +8,13 @@ EXTENDS TaskProcessing4
 
 --------------------------------------------------------------------------------
 
-TP3MC == INSTANCE TaskProcessing3_mc
-
-MCPreviousAttempts(t) == TP3MC!MCPreviousAttempts(t)
-ActionConstraint      == TP3MC!ActionConstraint
+(**
+ * The finiteness of the task ID set can lead to a suttering when all task IDs
+ * are "known" and a failed task cannot be retried because no new task can be
+ * found for retry. This constraint restricts system actions during model-checking
+ * to prevent such a wrong behavior.
+ *)
+ActionConstraint ==
+    Cardinality(UnknownTask') >= Cardinality(UnretriedTask')
 
 ================================================================================

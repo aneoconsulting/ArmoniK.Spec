@@ -63,7 +63,7 @@ THEOREM OP1_EventualTargetFinalizationCorrect == Spec => EventualTargetFinalizat
     BY DEF EventualTargetFinalization            
 <1>. DEFINE WF == WF_vars(o \in objectTargets /\ FinalizeObjects({o}))
 <1>1. Fairness => WF
-    BY DEF Fairness
+    BY Isa DEF Fairness
 <1>2. []ObjectSafetyInv /\ [][Next]_vars /\ WF /\ [](o \in objectTargets)
         => <>(o \in FinalizedObject)
     <2>. USE DEF FinalizedObject
@@ -94,7 +94,7 @@ THEOREM OP1_EventualTargetResolution == Spec => EventualTargetResolution
     BY ExpandENABLED, LemTargetsAreKnown DEF FinalizeObjects, vars,
     RegisteredObject, FinalizedObject
 <1>4. Fairness => WF_vars(o \in objectTargets /\ FinalizeObjects({o}))
-    BY DEF Fairness
+    BY Isa DEF Fairness
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, OP1_ObjectSafetyInv, PTL DEF Spec, ObjectSafetyInv
 

@@ -9,12 +9,11 @@
 (* lifecycle phase.                                                          *)
 (*****************************************************************************) 
 
-(**
- * Abstract operator returning the set of tasks in a given state.
- *)
 CONSTANT
-    SetOfTasksIn(_) \* To be implemented by modules extending this one with
-                    \* state variables.
+    Task
+
+VARIABLE
+    taskState
 
 (**
  * Task states in their lifecycle.
@@ -52,19 +51,19 @@ TP4State == {TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED,
 (**
  * Sets of tasks by state.
  *)
-UnknownTask    == SetOfTasksIn(TASK_UNKNOWN)
-RegisteredTask == SetOfTasksIn(TASK_REGISTERED)
-StagedTask     == SetOfTasksIn(TASK_STAGED)
-AssignedTask   == SetOfTasksIn(TASK_ASSIGNED)
-ProcessedTask  == SetOfTasksIn(TASK_PROCESSED)
-SucceededTask  == SetOfTasksIn(TASK_SUCCEEDED)
-FailedTask     == SetOfTasksIn(TASK_FAILED)
-DiscardedTask  == SetOfTasksIn(TASK_DISCARDED)
-FinalizedTask  == SetOfTasksIn(TASK_FINALIZED)
-CompletedTask  == SetOfTasksIn(TASK_COMPLETED)
-RetriedTask    == SetOfTasksIn(TASK_RETRIED)
-AbortedTask    == SetOfTasksIn(TASK_ABORTED)
-StoppedTask    == SetOfTasksIn(TASK_STOPPED)
-PausedTask     == SetOfTasksIn(TASK_PAUSED)
+UnknownTask    == {t \in Task: taskState[t] = TASK_UNKNOWN}
+RegisteredTask == {t \in Task: taskState[t] = TASK_REGISTERED}
+StagedTask     == {t \in Task: taskState[t] = TASK_STAGED}
+AssignedTask   == {t \in Task: taskState[t] = TASK_ASSIGNED}
+ProcessedTask  == {t \in Task: taskState[t] = TASK_PROCESSED}
+SucceededTask  == {t \in Task: taskState[t] = TASK_SUCCEEDED}
+FailedTask     == {t \in Task: taskState[t] = TASK_FAILED}
+DiscardedTask  == {t \in Task: taskState[t] = TASK_DISCARDED}
+FinalizedTask  == {t \in Task: taskState[t] = TASK_FINALIZED}
+CompletedTask  == {t \in Task: taskState[t] = TASK_COMPLETED}
+RetriedTask    == {t \in Task: taskState[t] = TASK_RETRIED}
+AbortedTask    == {t \in Task: taskState[t] = TASK_ABORTED}
+StoppedTask    == {t \in Task: taskState[t] = TASK_STOPPED}
+PausedTask     == {t \in Task: taskState[t] = TASK_PAUSED}
 
 ===============================================================================

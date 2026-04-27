@@ -16,7 +16,7 @@
 (* 'TaskProcessing', ensuring safety and liveness across the abstraction.     *)
 (******************************************************************************)
 
-EXTENDS DenumerableSets, FiniteSets, Naturals, TLAPS, Utils
+EXTENDS DenumerableSets, FiniteSets, Functions, Naturals
 
 CONSTANTS
     Agent,    \* Set of agent identifiers
@@ -45,13 +45,7 @@ vars == << agentTaskAlloc, taskState, nextAttemptOf, stoppingRequested, pausingR
 (**
  * Instance of the TaskStates module with SetOfTasksIn operator provided.
  *)
-INSTANCE TaskStates
-    WITH SetOfTasksIn <- LAMBDA s : {t \in Task: taskState[t] = s}
-
-(**
- * instance of the TaskProcessing specification.
- *)
-TP2 == INSTANCE TaskProcessing2
+INSTANCE TaskRetries
 
 (**
  * TYPE INVARIANT
@@ -81,7 +75,9 @@ TypeOk ==
  * addition, no tasks were retried or requested to be canceled or paused.
  *)
 Init ==
-    /\ TP2!Init
+    /\ agentTaskAlloc = [a \in Agent |-> {}]
+    /\ taskState = [t \in Task |-> TASK_UNKNOWN]
+    /\ nextAttemptOf = [t \in Task |-> NULL]
     /\ stoppingRequested = {}
     /\ pausingRequested = {}
 
@@ -91,16 +87,21 @@ Init ==
  * ready for processing.
  *)
 RegisterTasks(T) ==
-    /\ TP2!RegisterTasks(T)
-    /\ UNCHANGED << stoppingRequested, pausingRequested >>
+    /\ T /= {} /\ T \subseteq UnknownTask
+    /\ IsFiniteSet(T)
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_REGISTERED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, stoppingRequested, pausingRequested >>
 
 (**
  * TASK STAGING
  * A new set 'T' of tasks is staged i.e., made available to the system for processing.
  *)
 StageTasks(T) ==
-    /\ TP2!StageTasks(T)
-    /\ UNCHANGED << stoppingRequested, pausingRequested >>
+    /\ T /= {} /\ T \subseteq RegisteredTask
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, stoppingRequested, pausingRequested >>
 
 (**
  * TASK BYPASS
@@ -121,8 +122,14 @@ DiscardTasks(T) ==
  * single task in 'U' by the bijection 'f').
  *)
 SetTaskRetries(T, U) ==
-    /\ TP2!SetTaskRetries(T, U)
-    /\ UNCHANGED << stoppingRequested, pausingRequested >>
+    /\ T /= {}
+    /\ T \subseteq UnretriedTask
+    /\ U \subseteq UnknownTask
+    /\ \A u \in U: ~ \E t \in Task: nextAttemptOf[t] = u
+    /\ \E f \in Bijection(T, U):
+        nextAttemptOf' =
+            [t \in Task |-> IF t \in T THEN f[t] ELSE nextAttemptOf[t]]
+    /\ UNCHANGED << agentTaskAlloc, taskState, stoppingRequested, pausingRequested >>
 
 (**
  * TASK ASSIGNMENT
@@ -131,17 +138,23 @@ SetTaskRetries(T, U) ==
  * requested.
  *)
 AssignTasks(a, T) ==
+    /\ T /= {} /\ T \subseteq StagedTask
     /\ T \intersect stoppingRequested = {}
     /\ T \intersect pausingRequested = {}
-    /\ TP2!AssignTasks(a, T)
-    /\ UNCHANGED << stoppingRequested, pausingRequested >>
+    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \union T]
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
+    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
 
 (**
  * TASK RELEASE
  * An agent 'a' postpones a set 'T' of tasks it currently holds.
  *)
 ReleaseTasks(a, T) ==
-    /\ TP2!ReleaseTasks(a, T)
+    /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
+    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
 
 (**
@@ -164,7 +177,7 @@ ProcessTasks(a, T) ==
             [t \in Task |-> IF t \in T THEN TASK_SUCCEEDED ELSE taskState[t]]
        \/ taskState' =
             [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
-       \/ /\ \A t \in T: Cardinality(TP2!PreviousAttempts(t)) < MaxRetries
+       \/ /\ \A t \in T: Cardinality(PreviousAttempts(t)) < MaxRetries
           /\ taskState' =
             [t \in Task |-> IF t \in T THEN TASK_FAILED ELSE taskState[t]]
        \/ taskState' =
@@ -177,16 +190,23 @@ ProcessTasks(a, T) ==
  * A set 'T' of tasks is post-processed based on the task processing states.
  *)
 CompleteTasks(T) ==
-    /\ TP2!CompleteTasks(T)
-    /\ UNCHANGED << stoppingRequested, pausingRequested >>
+    /\ T /= {} /\ T \subseteq SucceededTask
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_COMPLETED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, stoppingRequested, pausingRequested >>
 
 AbortTasks(T) ==
-    /\ TP2!AbortTasks(T)
-    /\ UNCHANGED << stoppingRequested, pausingRequested >>
+    /\ T /= {} /\ T \subseteq DiscardedTask
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_ABORTED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, stoppingRequested, pausingRequested >>
 
 RetryTasks(T) ==
-    /\ TP2!RetryTasks(T)
-    /\ UNCHANGED << stoppingRequested, pausingRequested >>
+    /\ T /= {} /\ T \subseteq FailedTask
+    /\ T \intersect UnretriedTask = {}
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_RETRIED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, stoppingRequested, pausingRequested >>
 
 (**
  * TASK CANCELLATION REQUESTING
@@ -273,8 +293,11 @@ ResumeTasks(T) ==
  * yet finalized i.e., completed, retried, aborted or canceled).
  *)
 Terminating ==
-    /\ TP2!Terminating
-    /\ UNCHANGED << stoppingRequested, pausingRequested >>
+    /\ AssignedTask = {}
+    /\ SucceededTask = {}
+    /\ FailedTask = {}
+    /\ DiscardedTask = {}
+    /\ UNCHANGED vars
 
 -------------------------------------------------------------------------------
 
@@ -381,10 +404,10 @@ taskStateBar ==
           [] taskState[t] = TASK_PAUSED  -> TASK_STAGED
           [] OTHER                         -> taskState[t]
     ]
-TP2Abs ==
+TP2 ==
     INSTANCE TaskProcessing2
         WITH taskState <- taskStateBar
-RefineTaskProcessing2 == TP2Abs!Spec
+RefineTaskProcessing2 == TP2!Spec
 
 -------------------------------------------------------------------------------
 
@@ -394,6 +417,7 @@ RefineTaskProcessing2 == TP2Abs!Spec
 
 THEOREM Spec => []TypeOk
 THEOREM Spec => []TaskStateIntegrity
+THEOREM Spec => PermanentStopping
 THEOREM Spec => RequestedStoppingEventualAcknowledgment
 THEOREM Spec => RefineTaskProcessing2
 

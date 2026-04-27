@@ -26,7 +26,6 @@ vars == << sessionState >>
  * the same state.
  *)
 INSTANCE SessionStates
-    WITH SetOfSessionsIn <- LAMBDA STATUS: {s \in Session: sessionState[s] = STATUS}
 
 (**
  * TYPE INVARIANT
