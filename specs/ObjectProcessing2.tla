@@ -32,12 +32,6 @@ vars == << objectState, objectTargets >>
  * the same state.
  *)
 INSTANCE ObjectStates
-    WITH SetOfObjectsIn <- LAMBDA s : {o \in Object: objectState[o] = s}
-
-(**
- * Imports ObjectProcessing1 definitions.
- *)
-OP1 == INSTANCE ObjectProcessing1
 
 (**
  * TYPE INVARIANT
@@ -52,8 +46,27 @@ TypeOk ==
 -------------------------------------------------------------------------------
 
 (*****************************************************************************)
-(* SYSTEM TRANSITIONS                                                        *)
+(* SYSTEM INITIAL STATE AND TRANSITIONS                                      *)
 (*****************************************************************************)
+
+(**
+ * INITIAL STATE
+ * Initially, all objects are unknown and none are marked as targets.
+ *)
+Init ==
+    /\ objectState = [o \in Object |-> OBJECT_UNKNOWN]
+    /\ objectTargets = {}
+
+(**
+ * OBJECT REGISTRATION
+ * A new set 'O' of objects is registered in the system, i.e., it is created
+ * with the metadata provided and empty data.
+ *)
+RegisterObjects(O) ==
+    /\ O /= {} /\ O \subseteq UnknownObject
+    /\ objectState' =
+        [o \in Object |-> IF o \in O THEN OBJECT_REGISTERED ELSE objectState[o]]
+    /\ UNCHANGED objectTargets
 
 (**
  * OBJECT TARGETING
@@ -63,6 +76,15 @@ TypeOk ==
 TargetObjects(O) ==
     /\ O # {} /\ O \subseteq UNION {RegisteredObject, CompletedObject, AbortedObject}
     /\ objectTargets' = objectTargets \union O
+    /\ UNCHANGED objectState
+
+(**
+ * OBJECT UNTARGETING
+ * A set 'O' of currently targeted objects is unmarked.
+ *)
+UntargetObjects(O) ==
+    /\ O /= {} /\ O \subseteq objectTargets
+    /\ objectTargets' = objectTargets \ O
     /\ UNCHANGED objectState
 
 (**
@@ -108,9 +130,9 @@ Terminating ==
  *)
 Next ==
     \/ \E O \in SUBSET Object:
-        \/ OP1!RegisterObjects(O)
+        \/ RegisterObjects(O)
         \/ TargetObjects(O)
-        \/ OP1!UntargetObjects(O)
+        \/ UntargetObjects(O)
         \/ CompleteObjects(O)
         \/ AbortObjects(O)
     \/ Terminating
@@ -130,7 +152,7 @@ Fairness ==
  * Full system specification.
  *)
 Spec ==
-    /\ OP1!Init
+    /\ Init
     /\ [][Next]_vars
     /\ Fairness
 
@@ -160,7 +182,7 @@ objectStateBar ==
           [] objectState[o] = OBJECT_ABORTED   -> OBJECT_FINALIZED
           [] OTHER                             -> objectState[o]
     ]
-OP1Abs == INSTANCE ObjectProcessing1_proofs WITH objectState <- objectStateBar
-RefineObjectProcessing1 == OP1Abs!Spec
+OP1 == INSTANCE ObjectProcessing1_proofs WITH objectState <- objectStateBar
+RefineObjectProcessing1 == OP1!Spec
 
 ================================================================================

@@ -9,12 +9,11 @@
 (* the same lifecycle phase.                                                 *)
 (*****************************************************************************)
 
-(**
- * Abstract operator returning the set of objects in a given state.
- *)
 CONSTANT
-    SetOfObjectsIn(_) \* To be implemented by modules extending this one with
-                      \* state variables.
+    Object
+
+VARIABLE
+    objectState
 
 (**
  * Object lifecycle states.
@@ -37,10 +36,10 @@ OP3State == {OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_COMPLETED,
 (**
  * Sets of objects by state.
  *)
-UnknownObject    == SetOfObjectsIn(OBJECT_UNKNOWN)
-RegisteredObject == SetOfObjectsIn(OBJECT_REGISTERED)
-FinalizedObject  == SetOfObjectsIn(OBJECT_FINALIZED)
-CompletedObject  == SetOfObjectsIn(OBJECT_COMPLETED)
-AbortedObject    == SetOfObjectsIn(OBJECT_ABORTED)
+UnknownObject    == {o \in Object: objectState[o] = OBJECT_UNKNOWN}
+RegisteredObject == {o \in Object: objectState[o] = OBJECT_REGISTERED}
+FinalizedObject  == {o \in Object: objectState[o] = OBJECT_FINALIZED}
+CompletedObject  == {o \in Object: objectState[o] = OBJECT_COMPLETED}
+AbortedObject    == {o \in Object: objectState[o] = OBJECT_ABORTED}
 
 ===============================================================================

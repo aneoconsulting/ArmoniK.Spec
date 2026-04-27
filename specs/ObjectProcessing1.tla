@@ -29,7 +29,6 @@ vars == << objectState, objectTargets >>
  * the same state.
  *)
 INSTANCE ObjectStates
-    WITH SetOfObjectsIn <- LAMBDA s : {o \in Object: objectState[o] = s}
 
 (**
  * TYPE INVARIANT

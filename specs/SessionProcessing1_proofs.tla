@@ -48,7 +48,7 @@ THEOREM SP1_PausedSessionEventualResolution == Spec => PausedSessionEventualReso
 <1>3. <<ResumeSessions({s})>>_vars => (s \in OpenedSession)'
     BY DEF ResumeSessions, OpenedSession
 <1>4. Fairness => WF_vars(ResumeSessions({s}))
-    BY DEF Fairness
+    BY Isa DEF Fairness
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, PTL DEF Spec
 

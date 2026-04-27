@@ -36,10 +36,8 @@ vars == << agentTaskAlloc, deps, objectState, objectTargets, taskState, nextAtte
 (*****************************************************************************)
 
 INSTANCE ObjectStates
-    WITH SetOfObjectsIn <- LAMBDA s : {o \in Object: objectState[o] = s}
 
-INSTANCE TaskStates
-    WITH SetOfTasksIn <- LAMBDA s : {t \in Task: taskState[t] = s}
+INSTANCE TaskRetries
 
 TP2 == INSTANCE TaskProcessing2
 
@@ -50,10 +48,13 @@ GP1 == INSTANCE GraphProcessing1
 -------------------------------------------------------------------------------
 
 TypeOk ==
-    /\ TP2!TypeOk
-    /\ OP2!TypeOk
+    /\ agentTaskAlloc \in [Agent -> SUBSET Task]
+    /\ taskState \in [Task -> TP2State]
+    /\ nextAttemptOf \in [Task -> Task \union {NULL}]
+    /\ objectState \in [Object -> OP2State]
+    /\ objectTargets \in SUBSET Object
     /\ LET Nodes == Task \union Object IN
-        deps \in [node: SUBSET Nodes, edge: SUBSET (Nodes \X Nodes)]
+        deps \in {G \in [node: SUBSET Nodes, edge: SUBSET (Nodes \X Nodes)]: IsDirectedGraph(G)}
 
 -------------------------------------------------------------------------------
 
@@ -62,8 +63,11 @@ TypeOk ==
 (*****************************************************************************)
 
 Init ==
-    /\ TP2!Init
-    /\ OP2!OP1!Init
+    /\ agentTaskAlloc = [a \in Agent |-> {}]
+    /\ taskState = [t \in Task |-> TASK_UNKNOWN]
+    /\ nextAttemptOf = [t \in Task |-> NULL]
+    /\ objectState = [o \in Object |-> OBJECT_UNKNOWN]
+    /\ objectTargets = {}
     /\ deps = EmptyGraph
 
 RegisterGraph(G) ==
@@ -91,52 +95,83 @@ RegisterGraph(G) ==
         /\ UNCHANGED << agentTaskAlloc, objectTargets, nextAttemptOf >>
 
 TargetObjects(O) ==
-    /\ GP1!TargetObjects(O)
-    /\ UNCHANGED nextAttemptOf
+    /\ O /= {} /\ O \subseteq UNION (RegisteredObject, CompletedObject, AbortedObject)
+    /\ objectTargets' = objectTargets \union O
+    /\ UNCHANGED << agentTaskAlloc, deps, objectState, taskState, nextAttemptOf >>
 
 UntargetObjects(O) ==
-    /\ GP1!UntargetObjects(O)
-    /\ UNCHANGED nextAttemptOf
+    /\ O /= {} /\ O \subseteq objectTargets
+    /\ objectTargets' = objectTargets \ O
+    /\ UNCHANGED << agentTaskAlloc, deps, objectState, taskState, nextAttemptOf >>
 
 CompleteObjects(O) ==
+    /\ O /= {} /\ O \subseteq RegisteredObject
     /\ \/ O \subseteq Roots(deps)
        \/ \A o \in O: \E t \in Predecessors(deps, o): t \in SucceededTask
-    /\ OP2!CompleteObjects(O)
+    /\ objectState' =
+        [o \in Object |-> IF o \in O THEN OBJECT_COMPLETED ELSE objectState[o]]
     /\ UNCHANGED << agentTaskAlloc, deps, objectTargets, taskState, nextAttemptOf >>
 
 AbortObjects(O) ==
+    /\ O /= {} /\ O \subseteq RegisteredObject
     /\ \/ O \subseteq Roots(deps)
        \/ \A o \in O:
             \E t \in Predecessors(deps, o):
                 /\ t \in DiscardedTask
-                /\ Predecessors(deps, o) \ {t} \subseteq UNION {CompletedTask, AbortedTask, RetriedTask}
-    /\ OP2!AbortObjects(O)
+                /\ Predecessors(deps, o) \ {t} \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
+    /\ objectState' =
+        [o \in Object |-> IF o \in O THEN OBJECT_ABORTED ELSE objectState[o]]
     /\ UNCHANGED << agentTaskAlloc, deps, objectTargets, taskState, nextAttemptOf >>
 
 SetTaskRetries(T, U) ==
-    /\ TP2!SetTaskRetries(T, U)
-    /\ UNCHANGED << deps, objectState, objectTargets >>
+    /\ T /= {}
+    /\ T \subseteq UnretriedTask
+    /\ U \subseteq UnknownTask
+    /\ \A u \in U: ~ \E t \in Task: nextAttemptOf[t] = u
+    /\ \E f \in Bijection(T, U):
+        nextAttemptOf' =
+            [t \in Task |-> IF t \in T THEN f[t] ELSE nextAttemptOf[t]]
+    /\ UNCHANGED << agentTaskAlloc, taskState, deps, objectState, objectTargets >>
 
 StageTasks(T) ==
+    /\ T /= {} /\ T \subseteq RegisteredTask
     /\ AllPredecessors(deps, T) \subseteq CompletedObject
-    /\ TP2!StageTasks(T)
-    /\ UNCHANGED << deps, objectState, objectTargets >>
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, deps, objectState, objectTargets >>
 
 DiscardTasks(T) ==
-    /\ TP2!DiscardTasks(T)
-    /\ UNCHANGED << deps, objectState, objectTargets >>
+    /\ T /= {}
+    /\ T \subseteq RegisteredTask \union StagedTask
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, deps, objectState, objectTargets >>
 
 AssignTasks(a, T) ==
-    /\ TP2!AssignTasks(a, T)
-    /\ UNCHANGED << deps, objectState, objectTargets >>
+    /\ T /= {} /\ T \subseteq StagedTask
+    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \union T]
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
+    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets >>
 
 ReleaseTasks(a, T) ==
-    /\ TP2!ReleaseTasks(a, T)
-    /\ UNCHANGED << deps, objectState, objectTargets >>
+    /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
+    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
+    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets >>
 
 ProcessTasks(a, T) ==
-    /\ TP2!ProcessTasks(a, T)
-    /\ UNCHANGED << deps, objectState, objectTargets >>
+    /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
+    /\ \/ taskState' =
+            [t \in Task |-> IF t \in T THEN TASK_SUCCEEDED ELSE taskState[t]]
+       \/ taskState' =
+            [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
+       \/ /\ \A t \in T: Cardinality(PreviousAttempts(t)) < MaxRetries
+          /\ taskState' =
+            [t \in Task |-> IF t \in T THEN TASK_FAILED ELSE taskState[t]]
+    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
+    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets >>
 
 \* Guard future refactor
 \* HasRemainingProducer(T) ==
@@ -145,27 +180,37 @@ ProcessTasks(a, T) ==
 \*             => \E t \in (Predecessors(deps, o) \ T) : t \notin UNION {CompletedTask, AbortedTask, RetriedTask}
 
 CompleteTasks(T) ==
+    /\ T /= {} /\ T \subseteq SucceededTask
     /\ \A o \in AllSuccessors(deps, T) :
         o \in RegisteredObject
             => \E t \in (Predecessors(deps, o) \ T) : t \notin UNION {CompletedTask, AbortedTask, RetriedTask}
-    /\ TP2!CompleteTasks(T)
-    /\ UNCHANGED << deps, objectState, objectTargets >>
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_COMPLETED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, deps, objectState, objectTargets >>
 
 AbortTasks(T) ==
+    /\ T /= {} /\ T \subseteq DiscardedTask
     /\ \A o \in AllSuccessors(deps, T) :
         o \in RegisteredObject
             => \E t \in (Predecessors(deps, o) \ T) : t \notin UNION {CompletedTask, AbortedTask, RetriedTask}
-    /\ TP2!AbortTasks(T)
-    /\ UNCHANGED << deps, objectState, objectTargets >>
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_ABORTED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, deps, objectState, objectTargets >>
 
 RetryTasks(T) ==
-    /\ TP2!RetryTasks(T)
-    /\ UNCHANGED << deps, objectState, objectTargets >>
+    /\ T /= {} /\ T \subseteq FailedTask
+    /\ T \intersect UnretriedTask = {}
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_RETRIED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, deps, objectState, objectTargets >>
 
 Terminating ==
-    /\ OP2!Terminating
-    /\ TP2!Terminating
-    /\ UNCHANGED deps
+    /\ objectTargets \subseteq (CompletedObject \union AbortedObject)
+    /\ AssignedTask = {}
+    /\ SucceededTask = {}
+    /\ FailedTask = {}
+    /\ DiscardedTask = {}
+    /\ UNCHANGED vars
 
 -------------------------------------------------------------------------------
 

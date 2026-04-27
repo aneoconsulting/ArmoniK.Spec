@@ -5,7 +5,7 @@
 (* task deletion mechanism.                                                   *)
 (******************************************************************************)
 
-EXTENDS DenumerableSets, FiniteSets, TLAPS
+EXTENDS DenumerableSets, FiniteSets, Naturals, TLAPS
 
 CONSTANTS
     Agent,    \* Set of agent identifiers
@@ -36,13 +36,7 @@ vars == << agentTaskAlloc, taskState, nextAttemptOf, stoppingRequested,
 (**
  * Instance of the TaskStates module with SetOfTasksIn operator provided.
  *)
-INSTANCE TaskStates
-    WITH SetOfTasksIn <- LAMBDA s : {t \in Task: taskState[t] = s}
-
-(**
- * instance of the TaskProcessing specification.
- *)
-TP3 == INSTANCE TaskProcessing3
+INSTANCE TaskRetries
 
 (**
  * TYPE INVARIANT
@@ -73,7 +67,11 @@ TypeOk ==
  * addition, no tasks were retried or requested to be canceled or paused.
  *)
 Init ==
-    /\ TP3!Init
+    /\ agentTaskAlloc = [a \in Agent |-> {}]
+    /\ taskState = [t \in Task |-> TASK_UNKNOWN]
+    /\ nextAttemptOf = [t \in Task |-> NULL]
+    /\ stoppingRequested = {}
+    /\ pausingRequested = {}
     /\ taskDeleted = {}
 
 (**
@@ -82,17 +80,24 @@ Init ==
  * ready for processing.
  *)
 RegisterTasks(T) ==
-    /\ TP3!RegisterTasks(T)
-    /\ UNCHANGED taskDeleted
+    /\ T /= {} /\ T \subseteq UnknownTask
+    /\ IsFiniteSet(T)
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_REGISTERED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, stoppingRequested,
+                    pausingRequested, taskDeleted >>
 
 (**
  * TASK STAGING
  * A new set 'T' of tasks is staged i.e., made available to the system for processing.
  *)
 StageTasks(T) ==
+    /\ T /= {} /\ T \subseteq RegisteredTask
     /\ T \intersect taskDeleted = {}
-    /\ TP3!StageTasks(T)
-    /\ UNCHANGED taskDeleted
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, stoppingRequested,
+                    pausingRequested, taskDeleted >>
 
 (**
  * TASK BYPASS
@@ -100,9 +105,13 @@ StageTasks(T) ==
  * state, bypassing agent assignment and execution.
  *)
 DiscardTasks(T) ==
+    /\ T /= {}
+    /\ T \subseteq UNION {RegisteredTask, StagedTask, PausedTask}
     /\ T \intersect taskDeleted = {}
-    /\ TP3!DiscardTasks(T)
-    /\ UNCHANGED taskDeleted
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, stoppingRequested,
+                    pausingRequested, taskDeleted >>
 
 (**
  * TASK RETRIES RECORDING
@@ -111,8 +120,15 @@ DiscardTasks(T) ==
  * single task in 'U' by the bijection 'f').
  *)
 SetTaskRetries(T, U) ==
-    /\ TP3!SetTaskRetries(T, U)
-    /\ UNCHANGED taskDeleted
+    /\ T /= {}
+    /\ T \subseteq UnretriedTask
+    /\ U \subseteq UnknownTask
+    /\ \A u \in U: ~ \E t \in Task: nextAttemptOf[t] = u
+    /\ \E f \in Bijection(T, U):
+        nextAttemptOf' =
+            [t \in Task |-> IF t \in T THEN f[t] ELSE nextAttemptOf[t]]
+    /\ UNCHANGED << agentTaskAlloc, taskState, stoppingRequested,
+                    pausingRequested, taskDeleted >>
 
 (**
  * TASK ASSIGNMENT
@@ -121,18 +137,28 @@ SetTaskRetries(T, U) ==
  * requested.
  *)
 AssignTasks(a, T) ==
-    /\ T \intersect taskDeleted = {}   
-    /\ TP3!AssignTasks(a, T)
-    /\ UNCHANGED taskDeleted
+    /\ T /= {} /\ T \subseteq StagedTask
+    /\ T \intersect taskDeleted = {}
+    /\ T \intersect stoppingRequested = {}
+    /\ T \intersect pausingRequested = {}
+    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \union T]
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
+    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested,
+                    taskDeleted >>
 
 (**
  * TASK RELEASE
  * An agent 'a' postpones a set 'T' of tasks it currently holds.
  *)
 ReleaseTasks(a, T) ==
+    /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
     /\ T \intersect taskDeleted = {}
-    /\ TP3!ReleaseTasks(a, T)
-    /\ UNCHANGED taskDeleted
+    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
+    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested,
+                    taskDeleted >>
 
 (**
  * TASK PROCESSING
@@ -149,33 +175,56 @@ ReleaseTasks(a, T) ==
  * of the three possible states.
  *)
 ProcessTasks(a, T) ==
-    /\ TP3!ProcessTasks(a, T)
-    /\ UNCHANGED taskDeleted
+    /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
+    /\ \/ taskState' =
+            [t \in Task |-> IF t \in T THEN TASK_SUCCEEDED ELSE taskState[t]]
+       \/ taskState' =
+            [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
+       \/ /\ \A t \in T: Cardinality(PreviousAttempts(t)) < MaxRetries
+          /\ taskState' =
+            [t \in Task |-> IF t \in T THEN TASK_FAILED ELSE taskState[t]]
+       \/ taskState' =
+            [t \in Task |-> IF t \in T THEN TASK_STOPPED ELSE taskState[t]]
+    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
+    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested,
+                    taskDeleted >>
 
 (**
  * TASK POST-PROCESSING
  * A set 'T' of tasks is post-processed based on the task processing states.
  *)
 CompleteTasks(T) ==
-    /\ TP3!CompleteTasks(T)
-    /\ UNCHANGED taskDeleted
+    /\ T /= {} /\ T \subseteq SucceededTask
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_COMPLETED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, stoppingRequested,
+                    pausingRequested, taskDeleted >>
 
 AbortTasks(T) ==
-    /\ TP3!AbortTasks(T)
-    /\ UNCHANGED taskDeleted
+    /\ T /= {} /\ T \subseteq DiscardedTask
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_ABORTED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, stoppingRequested,
+                    pausingRequested, taskDeleted >>
 
 RetryTasks(T) ==
-    /\ TP3!RetryTasks(T)
-    /\ UNCHANGED taskDeleted
+    /\ T /= {} /\ T \subseteq FailedTask
+    /\ T \intersect UnretriedTask = {}
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_RETRIED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, stoppingRequested,
+                    pausingRequested, taskDeleted >>
 
 (**
  * TASK CANCELLATION REQUESTING
  * The cancellation of a set 'T' of tasks is requested.
  *)
 RequestTasksStopping(T) ==
+    /\ T /= {} /\ T \intersect UnknownTask = {}
     /\ T \intersect taskDeleted = {}
-    /\ TP3!RequestTasksStopping(T)
-    /\ UNCHANGED taskDeleted
+    /\ stoppingRequested' = stoppingRequested \union T
+    /\ UNCHANGED << agentTaskAlloc, taskState, nextAttemptOf, pausingRequested,
+                    taskDeleted >>
 
 (**
  * TASK CANCELLATION ACKNOWLEDGMENT
@@ -188,9 +237,18 @@ RequestTasksStopping(T) ==
  *     been completed (i.e., the tasks are in REGISTERED or STAGED states).
  *)
 StopTasks(T) ==
+    /\ T /= {}
+    /\ T \subseteq stoppingRequested
+    /\ T \intersect AssignedTask = {}
     /\ T \intersect taskDeleted = {}
-    /\ TP3!StopTasks(T)
-    /\ UNCHANGED taskDeleted
+    /\ taskState' =
+        [t \in Task |-> IF t \in T /\ (\/ t \in RegisteredTask
+                                       \/ t \in StagedTask
+                                       \/ t \in PausedTask)
+                            THEN TASK_STOPPED
+                            ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, stoppingRequested,
+                    pausingRequested, taskDeleted >>
 
 (**
  * TASK PAUSING REQUESTING
@@ -198,9 +256,12 @@ StopTasks(T) ==
  * provided that they have not been previously requested to be canceled.
  *)
 RequestTasksPausing(T) ==
+    /\ T /= {} /\ T \intersect UnknownTask = {}
+    /\ T \intersect stoppingRequested = {}
     /\ T \intersect taskDeleted = {}
-    /\ TP3!RequestTasksPausing(T)
-    /\ UNCHANGED taskDeleted
+    /\ pausingRequested' = pausingRequested \union T
+    /\ UNCHANGED << agentTaskAlloc, taskState, nextAttemptOf, stoppingRequested,
+                    taskDeleted >>
 
 (**
  * TASK PAUSING ACKNOWLEDGMENT
@@ -212,18 +273,35 @@ RequestTasksPausing(T) ==
  *     the PAUSED state and the other tasks remain in the same state.
  *)
 PauseTasks(T) ==
+    /\ T /= {} /\ T \subseteq pausingRequested
     /\ T \intersect taskDeleted = {}
-    /\ TP3!PauseTasks(T)
-    /\ UNCHANGED taskDeleted
+    /\ \/ \E a \in Agent:
+            /\ T \subseteq agentTaskAlloc[a]
+            /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
+       \/ /\ T \intersect AssignedTask = {}
+          /\ UNCHANGED agentTaskAlloc
+    /\ taskState' =
+        [t \in Task |-> IF t \in T /\ (t \in StagedTask \/ t \in AssignedTask)
+                            THEN TASK_PAUSED
+                            ELSE taskState[t]]
+    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested,
+                    taskDeleted >>
 
 (**
  * TASK RESUMING
  * A set 'T' of paused tasks is resumed.
  *)
 ResumeTasks(T) ==
+    /\ T /= {}
+    /\ T \subseteq pausingRequested
     /\ T \intersect taskDeleted = {}
-    /\ TP3!ResumeTasks(T)
-    /\ UNCHANGED taskDeleted
+    /\ taskState' =
+        [t \in Task |-> IF t \in (T \intersect PausedTask)
+                            THEN TASK_STAGED
+                            ELSE taskState[t]]
+    /\ pausingRequested' = pausingRequested \ T
+    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, stoppingRequested,
+                    taskDeleted >>
 
 DeleteTasks(T) ==
     /\ T /= {}
@@ -246,8 +324,11 @@ DeleteTasks(T) ==
  * yet finalized i.e., completed, retried, aborted or canceled).
  *)
 Terminating ==
-    /\ TP3!Terminating
-    /\ UNCHANGED taskDeleted
+    /\ AssignedTask = {}
+    /\ SucceededTask = {}
+    /\ FailedTask = {}
+    /\ DiscardedTask = {}
+    /\ UNCHANGED vars
 
 -------------------------------------------------------------------------------
 
@@ -328,7 +409,7 @@ DeletionValidity ==
     /\ taskDeleted \intersect FailedTask = {}
     /\ taskDeleted \intersect DiscardedTask = {}
 
-DeletionPermanent ==
+PermanentDeletion ==
     \A t \in Task:
         [](t \in taskDeleted => [](t \in taskDeleted))
 
@@ -338,19 +419,17 @@ DeletionPermanent ==
  *)
 DeletionQuiescence ==
     \A t \in Task:
-        [][
-            (t \in taskDeleted => (
-                /\ taskState'[t] = taskState[t]
-                /\ nextAttemptOf'[t] = nextAttemptOf[t]
-                /\ t \in stoppingRequested' <=> t \in stoppingRequested
-                /\ t \in pausingRequested' <=> t \in pausingRequested
-            ))
-        ]_vars
+        []( t \in taskDeleted
+            => [][/\ taskState'[t] = taskState[t]
+                  /\ nextAttemptOf'[t] = nextAttemptOf[t]
+                  /\ t \in stoppingRequested' <=> t \in stoppingRequested
+                  /\ t \in pausingRequested' <=> t \in pausingRequested]_vars )
 
 (**
  * LIVENESS
  * This specification refines the TaskProcessing3 specification.
  *)
+TP3 == INSTANCE TaskProcessing3
 RefineTaskProcessing3 == TP3!Spec
 
 -------------------------------------------------------------------------------
@@ -361,7 +440,7 @@ RefineTaskProcessing3 == TP3!Spec
 
 THEOREM Spec => []TypeOk
 THEOREM Spec => []DeletionValidity
-THEOREM Spec => DeletionPermanent
+THEOREM Spec => PermanentDeletion
 THEOREM Spec => DeletionQuiescence
 THEOREM Spec => RefineTaskProcessing3
 

@@ -32,7 +32,6 @@ vars == << agentTaskAlloc, taskState >>
  * the same state.
  *)
 INSTANCE TaskStates
-    WITH SetOfTasksIn <- LAMBDA s : {t \in Task: taskState[t] = s}
 
 (**
  * TYPE INVARIANT

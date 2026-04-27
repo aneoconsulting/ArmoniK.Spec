@@ -8,14 +8,18 @@ EXTENDS TaskProcessing3
 
 --------------------------------------------------------------------------------
 
-TP2MC == INSTANCE TaskProcessing2_mc
-
-MCPreviousAttempts(t) == TP2MC!MCPreviousAttempts(t)
-ActionConstraint      == TP2MC!ActionConstraint
-
 MCPermanentStopping ==
     \A t \in Task:
         [](~ t \in DiscardedTask) =>
         [](t \in StoppedTask => [](t \in StoppedTask))
+
+(**
+ * The finiteness of the task ID set can lead to a suttering when all task IDs
+ * are "known" and a failed task cannot be retried because no new task can be
+ * found for retry. This constraint restricts system actions during model-checking
+ * to prevent such a wrong behavior.
+ *)
+ActionConstraint ==
+    Cardinality(UnknownTask') >= Cardinality(UnretriedTask')
 
 ================================================================================

@@ -12,7 +12,7 @@
 (* together with its key safety and liveness properties.                     *)
 (*****************************************************************************)
 
-EXTENDS DenumerableSets, FiniteSets, Graphs, Naturals, Sequences
+EXTENDS DenumerableSets, FiniteSetTheorems, Graphs, Naturals, Sequences
 
 CONSTANTS
     Agent,   \* Set of agent identifiers (theoretically infinite)
@@ -46,13 +46,11 @@ vars == << agentTaskAlloc, deps, objectState, objectTargets, taskState >>
  * Instance of the ObjectStates module with SetOfObjectsIn operator provided.
  *)
 INSTANCE ObjectStates
-    WITH SetOfObjectsIn <- LAMBDA s : {o \in Object: objectState[o] = s}
 
 (**
  * Instance of the TaskStates module with SetOfTasksIn operator provided.
  *)
 INSTANCE TaskStates
-    WITH SetOfTasksIn <- LAMBDA s : {t \in Task: taskState[t] = s}
 
 (**
  * Instance of the TaskProcessing specification.
@@ -78,8 +76,10 @@ OP1 == INSTANCE ObjectProcessing1
  *     as fields).
  *)
 TypeOk ==
-    /\ TP1!TypeOk
-    /\ OP1!TypeOk
+    /\ agentTaskAlloc \in [Agent -> SUBSET Task]
+    /\ taskState \in [Task -> TP1State]
+    /\ objectState \in [Object -> OP1State]
+    /\ objectTargets \in SUBSET Object
     /\ LET Nodes == Task \union Object IN
         deps \in {G \in [node: SUBSET Nodes, edge: SUBSET (Nodes \X Nodes)]: IsDirectedGraph(G)}
 
@@ -134,8 +134,10 @@ MandatorySuccessors(G, t) ==
  * Initially, no tasks, objects, or dependencies exist.
  *)
 Init ==
-    /\ TP1!Init
-    /\ OP1!Init
+    /\ agentTaskAlloc = [a \in Agent |-> {}]
+    /\ taskState = [t \in Task |-> TASK_UNKNOWN]
+    /\ objectState = [o \in Object |-> OBJECT_UNKNOWN]
+    /\ objectTargets = {}
     /\ deps = EmptyGraph
 
 (**
@@ -174,7 +176,8 @@ RegisterGraph(G) ==
  * cannot be targeted.
  *)
 TargetObjects(O) ==
-    /\ OP1!TargetObjects(O)
+    /\ O /= {} /\ O \subseteq (RegisteredObject \union FinalizedObject)
+    /\ objectTargets' = objectTargets \union O
     /\ UNCHANGED << agentTaskAlloc, deps, objectState, taskState >>
 
 (**
@@ -182,7 +185,8 @@ TargetObjects(O) ==
  * A set 'O' of targeted objects is unmarked.
  *)
 UntargetObjects(O) ==
-    /\ OP1!UntargetObjects(O)
+    /\ O /= {} /\ O \subseteq objectTargets
+    /\ objectTargets' = objectTargets \ O
     /\ UNCHANGED << agentTaskAlloc, deps, objectState, taskState >>
 
 (**
@@ -192,9 +196,11 @@ UntargetObjects(O) ==
  *   - At least one of their producing tasks has been processed.
  *)
 FinalizeObjects(O) ==
+    /\ O /= {} /\ O \subseteq RegisteredObject
     /\ \/ O \subseteq Roots(deps)
        \/ \A o \in O: \E t \in Predecessors(deps, o): t \in ProcessedTask
-    /\ OP1!FinalizeObjects(O)
+    /\ objectState' =
+        [o \in Object |-> IF o \in O THEN OBJECT_FINALIZED ELSE objectState[o]]
     /\ UNCHANGED << agentTaskAlloc, deps, objectTargets, taskState >>
 
 (**
@@ -204,8 +210,10 @@ FinalizeObjects(O) ==
  *)
 StageTasks(T) ==
     /\ AllPredecessors(deps, T) \subseteq FinalizedObject
-    /\ TP1!StageTasks(T)
-    /\ UNCHANGED << deps, objectState, objectTargets >>
+    /\ T /= {} /\ T \subseteq RegisteredTask
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, deps, objectState, objectTargets >>
 
 (**
  * TASK BYPASS
@@ -213,15 +221,21 @@ StageTasks(T) ==
  * state, bypassing agent assignment and execution.
  *)
 DiscardTasks(T) ==
-    /\ TP1!DiscardTasks(T)
-    /\ UNCHANGED << deps, objectState, objectTargets >>
+    /\ T /= {}
+    /\ T \subseteq RegisteredTask \union StagedTask
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_PROCESSED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, deps, objectState, objectTargets >>
 
 (**
  * TASK ASSIGNMENT
  * An agent 'a' takes responsibility for processing a set 'T' of staged tasks.
  *)
 AssignTasks(a, T) ==
-    /\ TP1!AssignTasks(a, T)
+    /\ T /= {} /\ T \subseteq StagedTask
+    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \union T]
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
     /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
@@ -229,7 +243,10 @@ AssignTasks(a, T) ==
  * An agent 'a' postpones a set 'T' of tasks it currently holds.
  *)
 ReleaseTasks(a, T) ==
-    /\ TP1!ReleaseTasks(a, T)
+    /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
+    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
     /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
@@ -238,7 +255,10 @@ ReleaseTasks(a, T) ==
  * holds.
  *)
 ProcessTasks(a, T) ==
-    /\ TP1!ProcessTasks(a, T)
+    /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
+    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_PROCESSED ELSE taskState[t]]
     /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
@@ -250,11 +270,13 @@ ProcessTasks(a, T) ==
  * object and finalize.
  *)
 FinalizeTasks(T) ==
+    /\ T /= {} /\ T \subseteq ProcessedTask
     /\ \A o \in AllSuccessors(deps, T) :
         o \in RegisteredObject
             => \E t \in (Predecessors(deps, o) \ T) : t \notin FinalizedTask
-    /\ TP1!FinalizeTasks(T)
-    /\ UNCHANGED << deps, objectState, objectTargets >>
+    /\ taskState' =
+        [t \in Task |-> IF t \in T THEN TASK_FINALIZED ELSE taskState[t]]
+    /\ UNCHANGED << agentTaskAlloc, deps, objectState, objectTargets >>
 
 (**
  * TERMINAL STATE
@@ -262,9 +284,10 @@ FinalizeTasks(T) ==
  * targeted objects have been finalized.
  *)
 Terminating ==
-    /\ OP1!Terminating
-    /\ TP1!Terminating
-    /\ UNCHANGED deps
+    /\ objectTargets \subseteq FinalizedObject
+    /\ AssignedTask = {}
+    /\ ProcessedTask = {}
+    /\ UNCHANGED vars
 
 -------------------------------------------------------------------------------
 

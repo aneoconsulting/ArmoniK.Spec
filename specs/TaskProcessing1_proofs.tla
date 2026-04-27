@@ -44,13 +44,13 @@ LEMMA LemTaskSafetyInv == Init /\ [][Next]_vars => []TaskSafetyInv
         BY <2>3 DEF DiscardTasks, RegisteredTask, StagedTask
     <2>4. ASSUME NEW T \in SUBSET Task, NEW a \in Agent, AssignTasks(a, T)
           PROVE AssignedStateIntegrity' /\ ExclusiveAssignment'
-        BY <2>4, ZenonT(15) DEF AssignTasks, StagedTask
+        BY <2>4, ZenonT(30) DEF AssignTasks, StagedTask
     <2>5. ASSUME NEW T \in SUBSET Task, NEW a \in Agent, ReleaseTasks(a, T)
           PROVE AssignedStateIntegrity' /\ ExclusiveAssignment'
-        BY <2>5, ZenonT(15) DEF ReleaseTasks
+        BY <2>5, ZenonT(30) DEF ReleaseTasks
     <2>6. ASSUME NEW T \in SUBSET Task, NEW a \in Agent, ProcessTasks(a, T)
           PROVE AssignedStateIntegrity' /\ ExclusiveAssignment'
-        BY <2>6, ZenonT(15) DEF ProcessTasks
+        BY <2>6, ZenonT(30) DEF ProcessTasks
     <2>7. ASSUME NEW T \in SUBSET Task, FinalizeTasks(T)
           PROVE AssignedStateIntegrity' /\ ExclusiveAssignment'
         BY <2>7 DEF FinalizeTasks, ProcessedTask
@@ -127,7 +127,7 @@ THEOREM TP1_EventualDeallocation == Spec => EventualDeallocation
       => ENABLED <<\E a \in Agent : ProcessTasks(a, {t})>>_vars
     BY AssignmentEnablesProcessing
 <1>4. Fairness => SF_vars(\E a \in Agent : ProcessTasks(a, {t}))
-    BY DEF Fairness
+    BY Isa DEF Fairness
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, TP1_TaskSafetyInv, PTL DEF Spec
 
@@ -142,7 +142,7 @@ THEOREM TP1_EventualProcessing == Spec => EventualProcessing
       => (t \in ProcessedTask)'
     BY DEF ProcessTasks, ProcessedTask
 <1>3. Fairness => Fairness!EventuallyProcessed(t)
-    BY DEF Fairness
+    BY Isa DEF Fairness
 <1>. QED
     BY <1>1, <1>2, <1>3, TP1_TaskSafetyInv, PTL DEF Spec
 
@@ -161,7 +161,7 @@ THEOREM TP1_EventualFinalization == Spec => EventualFinalization
 <1>3. t \in ProcessedTask /\ <<FinalizeTasks({t})>>_vars => (t \in FinalizedTask)'
     BY DEF FinalizeTasks, ProcessedTask, FinalizedTask
 <1>4. Fairness => Fairness!EventuallyFinalized(t)
-    BY DEF Fairness
+    BY Isa DEF Fairness
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, TP1_TaskSafetyInv, PTL DEF Spec
 
