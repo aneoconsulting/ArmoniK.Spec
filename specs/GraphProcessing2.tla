@@ -95,7 +95,7 @@ RegisterGraph(G) ==
         /\ UNCHANGED << agentTaskAlloc, objectTargets, nextAttemptOf >>
 
 TargetObjects(O) ==
-    /\ O /= {} /\ O \subseteq UNION (RegisteredObject, CompletedObject, AbortedObject)
+    /\ O /= {} /\ O \subseteq UNION {RegisteredObject, CompletedObject, AbortedObject}
     /\ objectTargets' = objectTargets \union O
     /\ UNCHANGED << agentTaskAlloc, deps, objectState, taskState, nextAttemptOf >>
 
