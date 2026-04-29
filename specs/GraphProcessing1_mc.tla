@@ -2,10 +2,10 @@
 (*******************************************************************************)
 (* Bounded model-checking extension of GraphProcessing.                        *)
 (*                                                                             *)
-(* For model checking, the sets of task, objects and agent identifiers  must   *)
-(* be finite and explicitly materialized. Since the number of tasks and        *)
-(* objects are finite, the system eventually reaches a state where no new      *)
-(* graph can be registered, which leads to an artificial deadlock.             *)
+(* For model checking, the sets of task and object identifiers must be finite  *)
+(* and explicitly materialized. Since the number of tasks and objects are       *)
+(* finite, the system eventually reaches a state where no new graph can be     *)
+(* registered, which leads to an artificial deadlock.                           *)
 (*                                                                             *)
 (* To avoid this spurious deadlock, the next-state action is overridden to     *)
 (* include a dummy terminal state, allowing the model checker to terminate     *)
@@ -39,9 +39,9 @@ MCSpec ==
 --------------------------------------------------------------------------------
 
 (**
- * Symmetry relation between task, object and agent identifiers.
+ * Symmetry relation between task and object identifiers.
  *)
 Symmetry ==
-    Permutations(Task) \union Permutations(Object) \union Permutations(Agent)
+    Permutations(Task) \union Permutations(Object)
 
 ================================================================================

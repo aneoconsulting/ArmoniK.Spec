@@ -1,29 +1,24 @@
 ---------------------------- MODULE TaskProcessing1 ----------------------------
 (*****************************************************************************)
 (* This module specifies an abstract distributed task scheduling system.     *)
-(* Tasks are dynamically submitted and executed by a varying, unknown set of *)
-(* agents. The specification models the allowed behaviors of task assignment *)
-(* and processing, abstracting away from concrete scheduling or coordination *)
-(* mechanisms. It also defines and asserts key safety and liveness           *)
-(* properties of the system.                                                 *)
+(* Tasks are dynamically submitted and executed. The specification models    *)
+(* the allowed behaviors of task assignment and processing, abstracting away *)
+(* from concrete scheduling or coordination mechanisms. It also defines and  *)
+(* asserts key safety and liveness properties of the system.                 *)
 (*****************************************************************************)
 
 EXTENDS DenumerableSets, FiniteSets
 
 CONSTANTS
-    Agent,   \* Abstract set of all agents
     Task     \* Abstract set of all tasks
 
 ASSUMPTION TP1Assumptions ==
-    /\ Agent \intersect Task = {}
-    /\ IsFiniteSet(Agent)
-    /\ IsDenumerableSet(Task)
+    IsDenumerableSet(Task)
 
 VARIABLES
-    agentTaskAlloc, \* agentTaskAlloc[a] is the set of tasks currently assigned to agent a
     taskState       \* taskState[t] records the current lifecycle state of task t
 
-vars == << agentTaskAlloc, taskState >>
+vars == << taskState >>
 
 -------------------------------------------------------------------------------
 
@@ -36,12 +31,10 @@ INSTANCE TaskStates
 (**
  * TYPE INVARIANT
  * Claims that all state variables always take values of the expected form.
- *   - agentTaskAlloc is a function mapping each agent to a subset of tasks.
  *   - taskState is a function mapping each task to one of the defined states.
  *)
 TypeOk ==
-    /\ agentTaskAlloc \in [Agent -> SUBSET Task]
-    /\ taskState \in [Task -> TP1State]
+    taskState \in [Task -> TP1State]
 
 -------------------------------------------------------------------------------
 
@@ -51,11 +44,10 @@ TypeOk ==
 
 (**
  * INITIAL STATE
- * Initially, no task has been registered and no agent holds any task.
+ * Initially, no task has been registered.
  *)
 Init ==
-    /\ agentTaskAlloc = [a \in Agent |-> {}]
-    /\ taskState = [t \in Task |-> TASK_UNKNOWN]
+    taskState = [t \in Task |-> TASK_UNKNOWN]
 
 (**
  * TASK STAGING
@@ -66,7 +58,6 @@ RegisterTasks(T) ==
     /\ T /= {} /\ T \subseteq UnknownTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_REGISTERED ELSE taskState[t]]
-    /\ UNCHANGED agentTaskAlloc
 
 (**
  * TASK STAGING
@@ -76,49 +67,42 @@ StageTasks(T) ==
     /\ T /= {} /\ T \subseteq RegisteredTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
-    /\ UNCHANGED agentTaskAlloc
 
 (**
  * TASK BYPASS
  * A set 'T' of registered or staged tasks is moved directly to the processed
- * state, bypassing agent assignment and execution.
+ * state, bypassing assignment and execution.
  *)
 DiscardTasks(T) ==
     /\ T /= {} 
     /\ T \subseteq RegisteredTask \union StagedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_PROCESSED ELSE taskState[t]]
-    /\ UNCHANGED agentTaskAlloc
 
 (**
  * TASK ASSIGNMENT
- * An agent 'a' takes responsibility for processing a set 'T' of staged
- * tasks.
+ * A set 'T' of staged tasks is assigned for processing.
  *)
-AssignTasks(a, T) ==
+AssignTasks(T) ==
     /\ T /= {} /\ T \subseteq StagedTask
-    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \union T]
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
 
 (**
  * TASK RELEASE
- * An agent 'a' postpones a set 'T' of tasks it currently holds.
+ * A set 'T' of assigned tasks is released back to the staged pool.
  *)
-ReleaseTasks(a, T) ==
-    /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
-    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
+ReleaseTasks(T) ==
+    /\ T /= {} /\ T \subseteq AssignedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
 
 (**
  * TASK PROCESSING
- * An agent 'a' completes the processing of a set 'T' of tasks it currently
- * holds.
+ * A set 'T' of assigned tasks completes processing.
  *)
-ProcessTasks(a, T) ==
-    /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
-    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
+ProcessTasks(T) ==
+    /\ T /= {} /\ T \subseteq AssignedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_PROCESSED ELSE taskState[t]]
 
@@ -130,12 +114,11 @@ FinalizeTasks(T) ==
     /\ T /= {} /\ T \subseteq ProcessedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_FINALIZED ELSE taskState[t]]
-    /\ UNCHANGED agentTaskAlloc
 
 (**
  * TERMINAL STATE
  * Action representing the terminal state of the system, reached when
- * there are no more tasks being processed (i.e., assigned to an agent or not
+ * there are no more tasks being processed (i.e., assigned or not
  * yet finalized).
  *)
 Terminating ==
@@ -158,25 +141,24 @@ Next ==
         \/ RegisterTasks(T)
         \/ StageTasks(T)
         \/ DiscardTasks(T)
-        \/ \E a \in Agent:
-            \/ AssignTasks(a, T)
-            \/ ReleaseTasks(a, T)
-            \/ ProcessTasks(a, T)
+        \/ AssignTasks(T)
+        \/ ReleaseTasks(T)
+        \/ ProcessTasks(T)
         \/ FinalizeTasks(T)
     \/ Terminating
 
 (**
  * FAIRNESS CONDITIONS
  * Ensure that progress is eventually made for tasks that can act.
- *   - A task cannot be assigned to an agent an infinite number of times
+ *   - A task cannot be assigned an infinite number of times
  *     without eventually being processed.
  *   - A task cannot remain indefinitely processed without being eventually
  *     finalized.
  *)
 Fairness ==
     \A t \in Task:
-        /\ EventuallyProcessed(t) :: SF_vars(\E a \in Agent : ProcessTasks(a, {t}))
-        /\ EventuallyFinalized(t) :: WF_vars(FinalizeTasks({t}))
+        /\ SF_vars(ProcessTasks({t}))
+        /\ WF_vars(FinalizeTasks({t}))
 
 (**
  * Full system specification.
@@ -194,22 +176,6 @@ Spec ==
 
 (**
  * SAFETY
- * A task is assigned to an agent if and only if it is in the ASISGNED state.
- *)
-AssignedStateIntegrity ==
-    \A t \in Task:
-        t \in AssignedTask <=> \E a \in Agent: t \in agentTaskAlloc[a]
-
-(**
- * SAFETY
- * No task is held by multiple agents at the same time*
- *)
-ExclusiveAssignment ==
-    \A a, b \in Agent :
-        a /= b => agentTaskAlloc[a] \intersect agentTaskAlloc[b] = {}
-
-(**
- * SAFETY
  * Once a task reaches the FINALIZED state, it remains there permanently.
  *)
 PermanentFinalization ==
@@ -217,7 +183,7 @@ PermanentFinalization ==
 
 (**
  * LIVENESS
- * Any task assigned to an agent will eventually be either released back 
+ * Any task assigned will eventually be either released back 
  * to the staged pool or successfully processed.
  *)
 EventualDeallocation ==
@@ -226,7 +192,7 @@ EventualDeallocation ==
 
 (**
  * LIVENESS
- * If a task is repeatedly assigned to agents, it must eventually reach 
+ * If a task is repeatedly assigned, it must eventually reach 
  * the processed state.
  *)
 EventualProcessing ==

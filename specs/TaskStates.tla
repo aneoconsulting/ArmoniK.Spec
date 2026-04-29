@@ -21,7 +21,7 @@ VARIABLE
 TASK_UNKNOWN    == "TASK_UNKNOWN"    \* Task is virtual, not yet known to the system
 TASK_REGISTERED == "TASK_REGISTERED" \* Task is known to the system and pending readiness for processing
 TASK_STAGED     == "TASK_STAGED"     \* Task is ready for processing
-TASK_ASSIGNED   == "TASK_ASSIGNED"   \* Task is assigned to an agent for processing
+TASK_ASSIGNED   == "TASK_ASSIGNED"   \* Task is assigned for processing
 TASK_PROCESSED  == "TASK_PROCESSED"  \* Task processing completed
 TASK_SUCCEEDED  == "TASK_SUCCEEDED"  \* Task processing succeeded
 TASK_FAILED     == "TASK_FAILED"     \* Task processing failed, but the task can be retried

@@ -3,31 +3,26 @@
 EXTENDS DenumerableSets, FiniteSets, Graphs, Naturals, Sequences, Utils, TLC
 
 CONSTANTS
-    Agent,    \* Set of agent identifiers
     Object,   \* Set of object identifiers
     Task,     \* Set of task identifiers
     MaxRetries, \* Maximal number of retries for tasks
     NULL        \* Constant representing a null value
 
 ASSUMPTION GP2Assumptions ==
-    /\ Agent \intersect Object = {}
-    /\ Agent \intersect Task = {}
     /\ Object \intersect Task = {}
-    /\ IsFiniteSet(Agent)
     /\ IsDenumerableSet(Object)
     /\ IsDenumerableSet(Task)
     /\ MaxRetries \in Nat
     /\ NULL \notin Task
 
 VARIABLES
-    agentTaskAlloc,     \* agentTaskAlloc[a]: set of tasks assigned to agent a
     deps,               \* deps: the directed dependency graph over task and object identifiers
     objectState,        \* objectState[o]: current lifecycle state of object o
     objectTargets,      \* objectTargets: set of objects currently marked as targets
     taskState,         \* taskState[t]: current lifecycle state of task t
     nextAttemptOf
 
-vars == << agentTaskAlloc, deps, objectState, objectTargets, taskState, nextAttemptOf >>
+vars == << deps, objectState, objectTargets, taskState, nextAttemptOf >>
 
 -------------------------------------------------------------------------------
 
@@ -48,7 +43,6 @@ GP1 == INSTANCE GraphProcessing1
 -------------------------------------------------------------------------------
 
 TypeOk ==
-    /\ agentTaskAlloc \in [Agent -> SUBSET Task]
     /\ taskState \in [Task -> TP2State]
     /\ nextAttemptOf \in [Task -> Task \union {NULL}]
     /\ objectState \in [Object -> OP2State]
@@ -63,7 +57,6 @@ TypeOk ==
 (*****************************************************************************)
 
 Init ==
-    /\ agentTaskAlloc = [a \in Agent |-> {}]
     /\ taskState = [t \in Task |-> TASK_UNKNOWN]
     /\ nextAttemptOf = [t \in Task |-> NULL]
     /\ objectState = [o \in Object |-> OBJECT_UNKNOWN]
@@ -92,17 +85,17 @@ RegisterGraph(G) ==
                 IF t \in G.node
                     THEN TASK_REGISTERED
                     ELSE taskState[t]]
-        /\ UNCHANGED << agentTaskAlloc, objectTargets, nextAttemptOf >>
+        /\ UNCHANGED << objectTargets, nextAttemptOf >>
 
 TargetObjects(O) ==
     /\ O /= {} /\ O \subseteq UNION {RegisteredObject, CompletedObject, AbortedObject}
     /\ objectTargets' = objectTargets \union O
-    /\ UNCHANGED << agentTaskAlloc, deps, objectState, taskState, nextAttemptOf >>
+    /\ UNCHANGED << deps, objectState, taskState, nextAttemptOf >>
 
 UntargetObjects(O) ==
     /\ O /= {} /\ O \subseteq objectTargets
     /\ objectTargets' = objectTargets \ O
-    /\ UNCHANGED << agentTaskAlloc, deps, objectState, taskState, nextAttemptOf >>
+    /\ UNCHANGED << deps, objectState, taskState, nextAttemptOf >>
 
 CompleteObjects(O) ==
     /\ O /= {} /\ O \subseteq RegisteredObject
@@ -110,7 +103,7 @@ CompleteObjects(O) ==
        \/ \A o \in O: \E t \in Predecessors(deps, o): t \in SucceededTask
     /\ objectState' =
         [o \in Object |-> IF o \in O THEN OBJECT_COMPLETED ELSE objectState[o]]
-    /\ UNCHANGED << agentTaskAlloc, deps, objectTargets, taskState, nextAttemptOf >>
+    /\ UNCHANGED << deps, objectTargets, taskState, nextAttemptOf >>
 
 AbortObjects(O) ==
     /\ O /= {} /\ O \subseteq RegisteredObject
@@ -121,7 +114,7 @@ AbortObjects(O) ==
                 /\ Predecessors(deps, o) \ {t} \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
     /\ objectState' =
         [o \in Object |-> IF o \in O THEN OBJECT_ABORTED ELSE objectState[o]]
-    /\ UNCHANGED << agentTaskAlloc, deps, objectTargets, taskState, nextAttemptOf >>
+    /\ UNCHANGED << deps, objectTargets, taskState, nextAttemptOf >>
 
 SetTaskRetries(T, U) ==
     /\ T /= {}
@@ -131,38 +124,36 @@ SetTaskRetries(T, U) ==
     /\ \E f \in Bijection(T, U):
         nextAttemptOf' =
             [t \in Task |-> IF t \in T THEN f[t] ELSE nextAttemptOf[t]]
-    /\ UNCHANGED << agentTaskAlloc, taskState, deps, objectState, objectTargets >>
+    /\ UNCHANGED << taskState, deps, objectState, objectTargets >>
 
 StageTasks(T) ==
     /\ T /= {} /\ T \subseteq RegisteredTask
     /\ AllPredecessors(deps, T) \subseteq CompletedObject
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
-    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, deps, objectState, objectTargets >>
+    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets >>
 
 DiscardTasks(T) ==
     /\ T /= {}
     /\ T \subseteq RegisteredTask \union StagedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
-    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, deps, objectState, objectTargets >>
+    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets >>
 
-AssignTasks(a, T) ==
+AssignTasks(T) ==
     /\ T /= {} /\ T \subseteq StagedTask
-    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \union T]
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets >>
 
-ReleaseTasks(a, T) ==
-    /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
-    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
+ReleaseTasks(T) ==
+    /\ T /= {} /\ T \subseteq AssignedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets >>
 
-ProcessTasks(a, T) ==
-    /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
+ProcessTasks(T) ==
+    /\ T /= {} /\ T \subseteq AssignedTask
     /\ \/ taskState' =
             [t \in Task |-> IF t \in T THEN TASK_SUCCEEDED ELSE taskState[t]]
        \/ taskState' =
@@ -170,7 +161,6 @@ ProcessTasks(a, T) ==
        \/ /\ \A t \in T: Cardinality(PreviousAttempts(t)) < MaxRetries
           /\ taskState' =
             [t \in Task |-> IF t \in T THEN TASK_FAILED ELSE taskState[t]]
-    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
     /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets >>
 
 \* Guard future refactor
@@ -186,7 +176,7 @@ CompleteTasks(T) ==
             => \E t \in (Predecessors(deps, o) \ T) : t \notin UNION {CompletedTask, AbortedTask, RetriedTask}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_COMPLETED ELSE taskState[t]]
-    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, deps, objectState, objectTargets >>
+    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets >>
 
 AbortTasks(T) ==
     /\ T /= {} /\ T \subseteq DiscardedTask
@@ -195,14 +185,14 @@ AbortTasks(T) ==
             => \E t \in (Predecessors(deps, o) \ T) : t \notin UNION {CompletedTask, AbortedTask, RetriedTask}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_ABORTED ELSE taskState[t]]
-    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, deps, objectState, objectTargets >>
+    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets >>
 
 RetryTasks(T) ==
     /\ T /= {} /\ T \subseteq FailedTask
     /\ T \intersect UnretriedTask = {}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_RETRIED ELSE taskState[t]]
-    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf, deps, objectState, objectTargets >>
+    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets >>
 
 Terminating ==
     /\ objectTargets \subseteq (CompletedObject \union AbortedObject)
@@ -233,10 +223,9 @@ Next ==
         \/ StageTasks(T)
         \/ DiscardTasks(T)
         \/ \E U \in SUBSET Task: SetTaskRetries(T, U)
-        \/ \E a \in Agent:
-            \/ AssignTasks(a, T)
-            \/ ReleaseTasks(a, T)
-            \/ ProcessTasks(a, T)
+        \/ AssignTasks(T)
+        \/ ReleaseTasks(T)
+        \/ ProcessTasks(T)
         \/ CompleteTasks(T)
         \/ AbortTasks(T)
         \/ RetryTasks(T)
@@ -264,8 +253,8 @@ Fairness ==
         /\ WF_vars(Predecessors(deps, t) \intersect AbortedObject /= {} /\ DiscardTasks({t}))
         /\ SF_vars(
             /\ \E o \in Object : GP1!IsTaskUpstreamOnOpenPathToTarget(t, o)
-            /\ \E a \in Agent : AssignTasks(a, {t}))
-        /\ SF_vars(\E a \in Agent : ProcessTasks(a, {t}))
+            /\ AssignTasks({t}))
+        /\ SF_vars(ProcessTasks({t}))
         /\ WF_vars(CompleteTasks({t}))
         /\ WF_vars(AbortTasks({t}))
         /\ WF_vars(RetryTasks({t}))

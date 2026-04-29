@@ -7,24 +7,20 @@
 EXTENDS DenumerableSetTheorems, FiniteSetTheorems, Functions, Naturals, TLAPS, Utils, WellFoundedInduction
 
 CONSTANTS
-    Agent,    \* Set of agent identifiers
     Task,     \* Set of task identifiers
     MaxRetries, \* Maximal number of retries for tasks
     NULL        \* Constant representing a null value
 
 ASSUME TP2Assumptions ==
-    /\ Agent \intersect Task = {}
-    /\ IsFiniteSet(Agent)
     /\ IsDenumerableSet(Task)
     /\ MaxRetries \in Nat
     /\ NULL \notin Task
 
 VARIABLES
-    agentTaskAlloc,   \* agentTaskAlloc[a]: set of tasks assigned to agent a
     taskState,        \* taskState[t]: current lifecycle state of task t
     nextAttemptOf     \* nextAttemptOf[t]: ID of the task retrying t (NULL if none)
 
-vars == << agentTaskAlloc, taskState, nextAttemptOf >>
+vars == << taskState, nextAttemptOf >>
 
 -------------------------------------------------------------------------------
 
@@ -38,12 +34,10 @@ INSTANCE TaskRetries
 (**
  * TYPE INVARIANT
  * Claims that all state variables always take values of the expected form.
- *   - agentTaskAlloc is a function mapping each agent to a subset of tasks.
  *   - taskState is a function mapping each task to one of the defined states.
  *   - nextAttemptOf is a function mapping each task to another task or NULL.
  *)
 TypeOk == 
-    /\ agentTaskAlloc \in [Agent -> SUBSET Task]
     /\ taskState \in [Task -> TP2State]
     /\ nextAttemptOf \in [Task -> Task \union {NULL}]
 
@@ -55,11 +49,9 @@ TypeOk ==
 
 (**
  * INITIAL STATE
- * Initially, no task has been registered and retried and no agent holds any
- * task.
+ * Initially, no task has been registered and retried.
  *)
 Init ==
-    /\ agentTaskAlloc = [a \in Agent |-> {}]
     /\ taskState = [t \in Task |-> TASK_UNKNOWN]
     /\ nextAttemptOf = [t \in Task |-> NULL]
 
@@ -72,7 +64,7 @@ RegisterTasks(T) ==
     /\ IsFiniteSet(T)
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_REGISTERED ELSE taskState[t]]
-    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf >>
+    /\ UNCHANGED nextAttemptOf
 
 (**
  * TASK STAGING
@@ -82,19 +74,19 @@ StageTasks(T) ==
     /\ T /= {} /\ T \subseteq RegisteredTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
-    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf >>
+    /\ UNCHANGED nextAttemptOf
 
 (**
  * TASK BYPASS
  * A set 'T' of registered or staged tasks is moved directly to the processed
- * state, bypassing agent assignment and execution.
+ * state, bypassing assignment and execution.
  *)
 DiscardTasks(T) ==
     /\ T /= {}
     /\ T \subseteq RegisteredTask \union StagedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
-    /\ UNCHANGED <<agentTaskAlloc, nextAttemptOf>>
+    /\ UNCHANGED nextAttemptOf
 
 (**
  * TASK RETRIES RECORDING
@@ -109,41 +101,38 @@ SetTaskRetries(T, U) ==
     /\ \E f \in Bijection(T, U):
         nextAttemptOf' =
             [t \in Task |-> IF t \in T THEN f[t] ELSE nextAttemptOf[t]]
-    /\ UNCHANGED << agentTaskAlloc, taskState >>
+    /\ UNCHANGED taskState
 
 (**
  * TASK ASSIGNMENT
- * Agent 'a' claims set 'T' for processing.
+ * A set 'T' of staged tasks is assigned for processing.
  *)
-AssignTasks(a, T) ==
+AssignTasks(T) ==
     /\ T /= {} /\ T \subseteq StagedTask
-    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \union T]
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
     /\ UNCHANGED nextAttemptOf
 
 (**
  * TASK RELEASE
- * Agent 'a' returns tasks 'T' to the STAGED state without completing their
- * processing.
+ * A set 'T' of assigned tasks is released back to the STAGED state.
  *)
-ReleaseTasks(a, T) ==
-    /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
-    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
+ReleaseTasks(T) ==
+    /\ T /= {} /\ T \subseteq AssignedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
     /\ UNCHANGED nextAttemptOf
 
 (**
  * TASK PROCESSING
- * Agent 'a' finishes tasks 'T', sorting them according to the possible
- * processing states i.e., Success (S), Failure (F), or Crash (C). 
+ * A set 'T' of assigned tasks finishes processing, sorted according to the
+ * possible processing states i.e., Success (S), Failure (F), or Crash (C). 
  * Failed tasks are tasks that can be retried (their execution will be retried
  * by another task), while crashed tasks will simply be aborted.  A task can
  * only fail (F) if it hasn't exceeded the maximum number of retries.
  *)
-ProcessTasks(a, T) ==
-    /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
+ProcessTasks(T) ==
+    /\ T /= {} /\ T \subseteq AssignedTask
     /\ \/ taskState' =
             [t \in Task |-> IF t \in T THEN TASK_SUCCEEDED ELSE taskState[t]]
        \/ taskState' =
@@ -151,7 +140,6 @@ ProcessTasks(a, T) ==
        \/ /\ \A t \in T: Cardinality(PreviousAttempts(t)) < MaxRetries
           /\ taskState' =
             [t \in Task |-> IF t \in T THEN TASK_FAILED ELSE taskState[t]]
-    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
     /\ UNCHANGED nextAttemptOf
 
 (**
@@ -162,7 +150,7 @@ CompleteTasks(T) ==
     /\ T /= {} /\ T \subseteq SucceededTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_COMPLETED ELSE taskState[t]]
-    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf >>
+    /\ UNCHANGED nextAttemptOf
 
 (**
  * TASK ABORTION
@@ -173,7 +161,7 @@ AbortTasks(T) ==
     /\ T /= {} /\ T \subseteq DiscardedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_ABORTED ELSE taskState[t]]
-    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf >>
+    /\ UNCHANGED nextAttemptOf
 
 (**
  * TASK RETRY FINALIZATION
@@ -186,7 +174,7 @@ RetryTasks(T) ==
     /\ T \intersect UnretriedTask = {}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_RETRIED ELSE taskState[t]]
-    /\ UNCHANGED << agentTaskAlloc, nextAttemptOf >>
+    /\ UNCHANGED nextAttemptOf
 
 (**
  * TERMINAL STATE
@@ -216,10 +204,9 @@ Next ==
         \/ StageTasks(T)
         \/ DiscardTasks(T)
         \/ \E U \in SUBSET Task: SetTaskRetries(T, U)
-        \/ \E a \in Agent:
-            \/ AssignTasks(a, T)
-            \/ ReleaseTasks(a, T)
-            \/ ProcessTasks(a, T)
+        \/ AssignTasks(T)
+        \/ ReleaseTasks(T)
+        \/ ProcessTasks(T)
         \/ CompleteTasks(T)
         \/ AbortTasks(T)
         \/ RetryTasks(T)
@@ -234,7 +221,7 @@ Next ==
  *     eventually registered.
  *   - A new task attempt cannot reamin indefinitely staged without being
  *     eventually staged.
- *   - A task cannot be assigned to an agent an infinite number of times
+ *   - A task cannot be assigned an infinite number of times
  *     without eventually being processed.
  *   - A task cannot remain indefinitely succeeded without being eventually
  *     completed.
@@ -248,7 +235,7 @@ Fairness ==
         /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
         /\ WF_vars(RegisterTasks({nextAttemptOf[t]}))
         /\ WF_vars(StageTasks({nextAttemptOf[t]}))
-        /\ SF_vars(\E a \in Agent : ProcessTasks(a, {t}))
+        /\ SF_vars(ProcessTasks({t}))
         /\ WF_vars(CompleteTasks({t}))
         /\ WF_vars(AbortTasks({t}))
         /\ WF_vars(RetryTasks({t}))

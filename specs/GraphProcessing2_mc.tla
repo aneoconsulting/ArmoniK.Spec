@@ -10,10 +10,10 @@ MCGraphs(Nodes) ==
 --------------------------------------------------------------------------------
 
 (**
- * Symmetry relation between task, object and agent identifiers.
+ * Symmetry relation between task and object identifiers.
  *)
 Symmetry ==
-    Permutations(Task) \union Permutations(Object) \union Permutations(Agent)
+    Permutations(Task) \union Permutations(Object)
 
 (**
  * The finiteness of the task ID set can lead to a suttering when all task IDs
