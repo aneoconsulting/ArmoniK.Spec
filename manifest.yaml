@@ -1,0 +1,185 @@
+modules:
+
+  - path: specs/TaskProcessing1.tla
+    dependencies:
+      community_modules: true
+    models:
+      - name: small
+        checks:
+          success: true
+          total_states: 1123
+          distinct_states: 216
+          state_depth: 6
+
+  - path: specs/TaskProcessing1_proofs.tla
+    dependencies:
+      community_modules: true
+    proofs:
+      - name: all
+        checks:
+          success: true
+          num_obligations: 78
+          num_omitted: 0
+          num_unproved: 0
+
+  - path: specs/TaskProcessing2_mc.tla
+    dependencies:
+      community_modules: true
+      tlaps_stdlib: true
+    models:
+      - name: small
+        settings:
+          workers: auto
+        checks:
+          success: true
+          total_states: 285
+          distinct_states: 98
+          state_depth: 12
+
+  - path: specs/TaskProcessing3_mc.tla
+    dependencies:
+      community_modules: true
+      tlaps_stdlib: true
+    models:
+      - name: small
+        settings:
+          workers: auto
+        checks:
+          success: true
+          total_states: 18842
+          distinct_states: 1793
+          state_depth: 14
+
+  - path: specs/TaskProcessing4_mc.tla
+    dependencies:
+      community_modules: true
+      tlaps_stdlib: true
+    models:
+      - name: small
+        settings:
+          workers: auto
+        checks:
+          success: true
+          total_states: 25106
+          distinct_states: 2697
+          state_depth: 15
+
+  - path: specs/ObjectProcessing1.tla
+    dependencies:
+      community_modules: true
+    models:
+      - name: small
+        checks:
+          success: true
+          total_states: 1196
+          distinct_states: 125
+          state_depth: 4
+
+  - path: specs/ObjectProcessing1_proofs.tla
+    dependencies:
+      community_modules: true
+    proofs:
+      - name: all
+        checks:
+          success: true
+          num_obligations: 61
+          num_omitted: 0
+          num_unproved: 0
+
+  - path: specs/ObjectProcessing2.tla
+    dependencies:
+      community_modules: true
+      tlaps_stdlib: true
+    models:
+      - name: small
+        checks:
+          success: true
+          total_states: 3669
+          distinct_states: 343
+          state_depth: 5
+
+  - path: specs/ObjectProcessing2_proofs.tla
+    dependencies:
+      community_modules: true
+      tlaps_stdlib: true
+    proofs:
+      - name: all
+        checks:
+          success: true
+          num_obligations: 80
+          num_omitted: 0
+          num_unproved: 0
+
+  - path: specs/ObjectProcessing3.tla
+    dependencies:
+      community_modules: true
+      tlaps_stdlib: true
+    models:
+      - name: small
+        checks:
+          success: true
+          total_states: 18504
+          distinct_states: 1728
+          state_depth: 6
+
+  - path: specs/ObjectProcessing3_proofs.tla
+    dependencies:
+      community_modules: true
+      tlaps_stdlib: true
+    proofs:
+      - name: all
+        checks:
+          success: true
+          num_obligations: 154
+          num_omitted: 0
+          num_unproved: 0
+
+  - path: specs/SessionProcessing1.tla
+    models:
+      - name: small
+        checks:
+          success: true
+          total_states: 2232
+          distinct_states: 343
+          state_depth: 7
+
+  - path: specs/SessionProcessing1_proofs.tla
+    proofs:
+      - name: all
+        checks:
+          success: true
+          num_obligations: 26
+          num_omitted: 0
+          num_unproved: 0
+
+  - path: specs/GraphProcessing1_mc.tla
+    dependencies:
+      community_modules: true
+      tlaps_stdlib: true
+      external_modules:
+        - modules/dist/ArmoniKSpecModules-deps.jar
+    models:
+      - name: small
+        settings:
+          worker: auto
+        checks:
+          success: true
+          total_states: 4444
+          distinct_states: 609
+          state_depth: 10
+
+  - path: specs/GraphProcessing2_mc.tla
+    dependencies:
+      community_modules: true
+      tlaps_stdlib: true
+      external_modules:
+        - modules/dist/ArmoniKSpecModules-deps.jar
+    models:
+      - name: small
+        settings:
+          worker: auto
+        checks:
+          success: true
+          total_states: 824
+          distinct_states: 137
+          state_depth: 9

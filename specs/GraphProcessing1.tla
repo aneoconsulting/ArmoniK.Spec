@@ -5,7 +5,7 @@
 (*                                                                           *)
 (*   - Tasks produce and consume data objects.                               *)
 (*   - Task and object dependencies form a directed acyclic bipartite graph. *)
-(*   - Agents (workers) dynamically process tasks.                           *)
+(*   - Tasks are dynamically processed.                                      *)
 (*   - Tasks and objects may be dynamically registred over time.             *)
 (*                                                                           *)
 (* The specification defines the allowable transitions of the system,        *)
@@ -15,26 +15,21 @@
 EXTENDS DenumerableSets, FiniteSetTheorems, Graphs, Naturals, Sequences
 
 CONSTANTS
-    Agent,   \* Set of agent identifiers (theoretically infinite)
     Object,  \* Set of object identifiers (theoretically infinite)
     Task     \* Set of task identifiers (theoretically infinite)
 
 ASSUMPTION GP1Assumptions ==
-    /\ Agent \intersect Object = {}
-    /\ Agent \intersect Task = {}
     /\ Object \intersect Task = {}
-    /\ IsFiniteSet(Agent)
     /\ IsDenumerableSet(Object)
     /\ IsDenumerableSet(Task)
 
 VARIABLES
-    agentTaskAlloc, \* agentTaskAlloc[a] is the set of tasks currently assigned to agent a
     deps,           \* deps is the directed dependency graph over task and object identifiers
     objectState,    \* objectState[o] records the current lifecycle state of object o
     objectTargets,  \* objectTargets is the set of objects currently marked as targets
     taskState       \* taskState[t] records the current lifecycle state of task t
 
-vars == << agentTaskAlloc, deps, objectState, objectTargets, taskState >>
+vars == << deps, objectState, objectTargets, taskState >>
 
 -------------------------------------------------------------------------------
 
@@ -67,7 +62,6 @@ OP1 == INSTANCE ObjectProcessing1
 (**
  * TYPE INVARIANT
  * Claims that all state variables always take values of the expected form.
- *   - Each agent is associated with a subset of tasks.
  *   - Each object has one of the defined object lifecycle states.
  *   - Targeted objects are valid object identifiers.
  *   - Each task has one of the defined task lifecycle states.
@@ -76,7 +70,6 @@ OP1 == INSTANCE ObjectProcessing1
  *     as fields).
  *)
 TypeOk ==
-    /\ agentTaskAlloc \in [Agent -> SUBSET Task]
     /\ taskState \in [Task -> TP1State]
     /\ objectState \in [Object -> OP1State]
     /\ objectTargets \in SUBSET Object
@@ -134,7 +127,6 @@ MandatorySuccessors(G, t) ==
  * Initially, no tasks, objects, or dependencies exist.
  *)
 Init ==
-    /\ agentTaskAlloc = [a \in Agent |-> {}]
     /\ taskState = [t \in Task |-> TASK_UNKNOWN]
     /\ objectState = [o \in Object |-> OBJECT_UNKNOWN]
     /\ objectTargets = {}
@@ -168,7 +160,7 @@ RegisterGraph(G) ==
                 IF t \in G.node
                     THEN TASK_REGISTERED
                     ELSE taskState[t]]
-        /\ UNCHANGED << agentTaskAlloc, objectTargets >>
+        /\ UNCHANGED objectTargets
 
 (**
  * OBJECT TARGETING
@@ -178,7 +170,7 @@ RegisterGraph(G) ==
 TargetObjects(O) ==
     /\ O /= {} /\ O \subseteq (RegisteredObject \union FinalizedObject)
     /\ objectTargets' = objectTargets \union O
-    /\ UNCHANGED << agentTaskAlloc, deps, objectState, taskState >>
+    /\ UNCHANGED << deps, objectState, taskState >>
 
 (**
  * OBJECT UNTARGETING
@@ -187,7 +179,7 @@ TargetObjects(O) ==
 UntargetObjects(O) ==
     /\ O /= {} /\ O \subseteq objectTargets
     /\ objectTargets' = objectTargets \ O
-    /\ UNCHANGED << agentTaskAlloc, deps, objectState, taskState >>
+    /\ UNCHANGED << deps, objectState, taskState >>
 
 (**
  * OBJECT FINALIZATION
@@ -201,7 +193,7 @@ FinalizeObjects(O) ==
        \/ \A o \in O: \E t \in Predecessors(deps, o): t \in ProcessedTask
     /\ objectState' =
         [o \in Object |-> IF o \in O THEN OBJECT_FINALIZED ELSE objectState[o]]
-    /\ UNCHANGED << agentTaskAlloc, deps, objectTargets, taskState >>
+    /\ UNCHANGED << deps, objectTargets, taskState >>
 
 (**
  * TASK STAGING
@@ -213,50 +205,46 @@ StageTasks(T) ==
     /\ T /= {} /\ T \subseteq RegisteredTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
-    /\ UNCHANGED << agentTaskAlloc, deps, objectState, objectTargets >>
+    /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
  * TASK BYPASS
  * A set 'T' of registered or staged tasks is moved directly to the processed
- * state, bypassing agent assignment and execution.
+ * state, bypassing assignment and execution.
  *)
 DiscardTasks(T) ==
     /\ T /= {}
     /\ T \subseteq RegisteredTask \union StagedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_PROCESSED ELSE taskState[t]]
-    /\ UNCHANGED << agentTaskAlloc, deps, objectState, objectTargets >>
+    /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
  * TASK ASSIGNMENT
- * An agent 'a' takes responsibility for processing a set 'T' of staged tasks.
+ * A set 'T' of staged tasks is assigned for processing.
  *)
-AssignTasks(a, T) ==
+AssignTasks(T) ==
     /\ T /= {} /\ T \subseteq StagedTask
-    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \union T]
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
     /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
  * TASK RELEASE
- * An agent 'a' postpones a set 'T' of tasks it currently holds.
+ * A set 'T' of assigned tasks is released back to the staged pool.
  *)
-ReleaseTasks(a, T) ==
-    /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
-    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
+ReleaseTasks(T) ==
+    /\ T /= {} /\ T \subseteq AssignedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
     /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
  * TASK PROCESSING
- * An agent 'a' completes the processing of a set 'T' of tasks it currently
- * holds.
+ * A set 'T' of assigned tasks completes processing.
  *)
-ProcessTasks(a, T) ==
-    /\ T /= {} /\ T \subseteq agentTaskAlloc[a]
-    /\ agentTaskAlloc' = [agentTaskAlloc EXCEPT ![a] = @ \ T]
+ProcessTasks(T) ==
+    /\ T /= {} /\ T \subseteq AssignedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_PROCESSED ELSE taskState[t]]
     /\ UNCHANGED << deps, objectState, objectTargets >>
@@ -276,7 +264,7 @@ FinalizeTasks(T) ==
             => \E t \in (Predecessors(deps, o) \ T) : t \notin FinalizedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_FINALIZED ELSE taskState[t]]
-    /\ UNCHANGED << agentTaskAlloc, deps, objectState, objectTargets >>
+    /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
  * TERMINAL STATE
@@ -308,10 +296,9 @@ Next ==
     \/ \E T \in SUBSET Task:
         \/ StageTasks(T)
         \/ DiscardTasks(T)
-        \/ \E a \in Agent:
-            \/ AssignTasks(a, T)
-            \/ ReleaseTasks(a, T)
-            \/ ProcessTasks(a, T)
+        \/ AssignTasks(T)
+        \/ ReleaseTasks(T)
+        \/ ProcessTasks(T)
         \/ FinalizeTasks(T)
     \/ Terminating
 
@@ -370,8 +357,8 @@ IsTaskUpstreamOnOpenPathToTarget(t, o) ==
  *   - Every object that becomes eligible for finalization is eventually finalized.
  *   - Every registered task whose input objects are finalized is eventually staged.
  *   - Every task that lies upstream on an open path toward some unfinalized
- *     target object is eventually assigned to an agent.
- *   - Every assigned task is eventually processed by some agent.
+ *     target object is eventually assigned.
+ *   - Every assigned task is eventually processed.
  *   - Every processed task whose outputs become eligible for finalization is
  *     eventually finalized.
  *)
@@ -382,8 +369,8 @@ Fairness ==
         /\ WF_vars(StageTasks({t}))
         /\ WF_vars(
             /\ \E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)
-            /\ \E a \in Agent : AssignTasks(a, {t}))
-        /\ SF_vars(\E a \in Agent : ProcessTasks(a, {t}))
+            /\ AssignTasks({t}))
+        /\ SF_vars(ProcessTasks({t}))
         /\ WF_vars(FinalizeTasks({t}))
 
 (**
@@ -458,11 +445,6 @@ FinalizedSourcesInvariant ==
  * SAFETY
  * The data dependencies of each task remain immutable throughout execution.
  *)
-\* TaskDataDependenciesInvariant ==
-\*     \A t \in Task:
-\*         [][ t \notin UnknownTask => 
-\*                 /\ Predecessors(deps, t) = Predecessors(deps', t)
-\*                 /\ Successors(deps, t) = Successors(deps', t) ]_deps
 TaskDataDependenciesInvariant ==
     \A t \in Task:
         [](t \notin UnknownTask =>
