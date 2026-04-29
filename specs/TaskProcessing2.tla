@@ -4,7 +4,7 @@
 (* providing a detailed description of task execution and finalization.       *)
 (******************************************************************************)
 
-EXTENDS DenumerableSetTheorems, FiniteSetTheorems, Functions, Naturals, TLAPS, Utils, WellFoundedInduction
+EXTENDS DenumerableSets, FiniteSets, Functions, Naturals
 
 CONSTANTS
     Task,     \* Set of task identifiers
@@ -344,7 +344,7 @@ taskStateBar ==
           [] OTHER                         -> taskState[t]
     ]
 TP1 ==
-    INSTANCE TaskProcessing1_proofs
+    INSTANCE TaskProcessing1
         WITH taskState <- taskStateBar
 RefineTaskProcessing1 == TP1!Spec
 
