@@ -1,5 +1,5 @@
 ------------------------ MODULE TaskProcessing2_proofs -------------------------
-EXTENDS TaskProcessing2, DenumerableSetTheorems, FiniteSetTheorems, TLAPS
+EXTENDS TaskProcessing2, DenumerableSetTheorems, FiniteSetTheorems, NaturalsInduction, TLAPS
 
 USE DEF TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED, TASK_PROCESSED,
 TASK_SUCCEEDED, TASK_FAILED, TASK_DISCARDED, TASK_FINALIZED, TASK_COMPLETED,
@@ -76,36 +76,6 @@ LEMMA LemTaskAttemptsIntegrity == Init /\ [][Next]_vars => []TaskAttemptsIntegri
 THEOREM TP2_TaskAttemptsIntegrity == Spec => []TaskAttemptsIntegrity
 BY LemTaskAttemptsIntegrity DEF Spec
 
-AttemptsBoundsInv ==
-    \A t \in Task:
-        /\ Cardinality(TaskAttempts(t)) <= MaxRetries
-        /\ t \in FailedTask => Cardinality(PreviousAttempts(t)) < MaxRetries
-
-LEMMA LemAttemptsBoundsInv == Init /\ [][Next]_vars => []AttemptsBoundsInv
-<1>. SUFFICES ASSUME NEW t \in Task
-              PROVE Init /\ [][Next]_vars
-                    => [](/\ Cardinality(TaskAttempts(t)) <= MaxRetries
-                          /\ t \in FailedTask => Cardinality(PreviousAttempts(t)) < MaxRetries)
-    BY DEF AttemptsBoundsInv
-<1>. DEFINE P == /\ Cardinality(TaskAttempts(t)) <= MaxRetries
-                 /\ t \in FailedTask => Cardinality(PreviousAttempts(t)) < MaxRetries
-<1>1. Init => P
-<1>2. TypeOk /\ TaskAttemptsIntegrity /\ P /\ [Next]_vars => P'
-<1>. QED
-    BY <1>1, <1>2, LemType, LemTaskAttemptsIntegrity, PTL
-
-LEMMA LemAttemptsIsBounded == Init /\ [][Next]_vars => []AttemptsIsBounded
-<1>1. AttemptsBoundsInv => AttemptsIsBounded
-    BY DEF AttemptsBoundsInv, AttemptsIsBounded
-<1>. QED
-    BY <1>1, LemAttemptsBoundsInv, PTL
-
-THEOREM TP2_AttemptsIsBounded == Spec => []AttemptsIsBounded
-BY LemAttemptsIsBounded DEF Spec
-
-ExistsFreeUnknownTask ==
-    \E t \in Task : t \in UnknownTask /\ ~ \E u \in Task: nextAttemptOf[u] = t
-
 FiniteKnownTasks ==
     IsFiniteSet(Task \ UnknownTask)
 
@@ -140,6 +110,118 @@ LEMMA LemFiniteKnownTasks == Init /\ [][Next]_vars => []FiniteKnownTasks
         Terminating
 <1>. QED
     BY <1>1, <1>2, PTL
+
+AttemptsBoundsInv ==
+    \A t \in Task:
+        /\ Cardinality(TaskAttempts(t)) <= MaxRetries
+        /\ t \in UnretriedTask => Cardinality(PreviousAttempts(t)) < MaxRetries
+
+LEMMA LemAttemptsBoundsInv == Init /\ [][Next]_vars => []AttemptsBoundsInv
+<1>1. Init => AttemptsBoundsInv
+    <2>. SUFFICES ASSUME Init, NEW t \in Task
+                  PROVE /\ Cardinality(TaskAttempts(t)) <= MaxRetries
+                        /\ t \in UnretriedTask => Cardinality(PreviousAttempts(t)) < MaxRetries
+        BY DEF AttemptsBoundsInv
+    <2>. USE TP2Assumptions
+    <2>. DEFINE R  == NextAttemptOfRel
+                TC == TCNextAttemptOfRel
+    <2>1. R = {}
+        BY DEF Init, NextAttemptOfRel
+    <2>2. TC = {}
+        <3>1. {} \in SUBSET (Task \X Task)
+            OBVIOUS
+        <3>2. IsTransitivelyClosedOn({}, Task)
+            BY DEF IsTransitivelyClosedOn
+        <3>3. R \cap Task \X Task \subseteq {}
+            BY <2>1
+        <3>4. TC \subseteq {}
+            BY <3>1, <3>2, <3>3, TransitiveClosureMinimal DEF TCNextAttemptOfRel
+        <3>. QED
+            BY <3>4 DEF TCNextAttemptOfRel, TransitiveClosureOn
+    <2>3. TaskAttempts(t) = {}
+        BY <2>2 DEF TaskAttempts, PreviousAttempts, NextAttempts, TCNextAttemptOfRel
+    <2>4. PreviousAttempts(t) = {}
+        BY <2>2 DEF PreviousAttempts, TCNextAttemptOfRel
+    <2>5. Cardinality({}) = 0
+        BY FS_EmptySet
+    <2>6. t \notin FailedTask
+        BY DEF Init, FailedTask
+    <2>. QED
+        BY <2>3, <2>4, <2>5, <2>6, SMT DEF UnretriedTask
+<1>2. TypeOk /\ TaskAttemptsIntegrity /\ AttemptsBoundsInv /\ [Next]_vars => AttemptsBoundsInv'
+    <2>. SUFFICES ASSUME TypeOk, TaskAttemptsIntegrity, AttemptsBoundsInv, [Next]_vars,
+                         NEW t \in Task
+                  PROVE /\ Cardinality(TaskAttempts(t)') <= MaxRetries
+                        /\ t \in UnretriedTask' => Cardinality(PreviousAttempts(t)') < MaxRetries
+        BY DEF AttemptsBoundsInv
+    <2>. USE TP2Assumptions
+    <2>1. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U)
+           PROVE /\ Cardinality(TaskAttempts(t)') <= MaxRetries
+                 /\ t \in UnretriedTask' => Cardinality(PreviousAttempts(t)') < MaxRetries
+    <2>2. ASSUME NEW T \in SUBSET Task, ProcessTasks(T)
+          PROVE /\ Cardinality(TaskAttempts(t)') <= MaxRetries
+                /\ t \in UnretriedTask' => Cardinality(PreviousAttempts(t)') < MaxRetries
+        <3>a. UNCHANGED nextAttemptOf
+            BY <2>2 DEF ProcessTasks
+        <3>b. TaskAttempts(t)' = TaskAttempts(t)
+            BY <3>a DEF TaskAttempts, NextAttempts, PreviousAttempts, TCNextAttemptOfRel,
+            NextAttemptOfRel, TransitiveClosureOn, IsTransitivelyClosedOn
+        <3>c. PreviousAttempts(t)' = PreviousAttempts(t)
+            BY <3>a DEF PreviousAttempts, TCNextAttemptOfRel, NextAttemptOfRel,
+            TransitiveClosureOn, IsTransitivelyClosedOn
+        <3>1. Cardinality(TaskAttempts(t)') <= MaxRetries
+            BY <3>b DEF AttemptsBoundsInv
+        <3>2. t \in UnretriedTask' => Cardinality(PreviousAttempts(t)') < MaxRetries
+            BY <3>c, <2>2 DEF ProcessTasks, AssignedTask, FailedTask, UnretriedTask, AttemptsBoundsInv, TaskAttemptsIntegrity
+        <3>. QED
+            BY <3>1, <3>2
+    <2>. SUFFICES ASSUME UNCHANGED nextAttemptOf,
+                         t \notin FailedTask' \/ t \in FailedTask
+                  PROVE /\ Cardinality(TaskAttempts(t)') <= MaxRetries
+                        /\ t \in UnretriedTask' => Cardinality(PreviousAttempts(t)') < MaxRetries
+        <3>1. ASSUME [\/ \E T \in SUBSET Task:
+                            \/ RegisterTasks(T)
+                            \/ StageTasks(T)
+                            \/ DiscardTasks(T)
+                            \/ AssignTasks(T)
+                            \/ ReleaseTasks(T)
+                            \/ CompleteTasks(T)
+                            \/ AbortTasks(T)
+                            \/ RetryTasks(T)
+                        \/ Terminating]_vars
+              PROVE UNCHANGED nextAttemptOf /\ (t \notin FailedTask' \/ t \in FailedTask)
+            BY <3>1 DEF vars, RegisterTasks, UnknownTask, StageTasks, RegisteredTask,
+            DiscardTasks, AssignTasks, StagedTask, ReleaseTasks, AssignedTask,
+            CompleteTasks, SucceededTask, AbortTasks, DiscardedTask,
+            RetryTasks, UnretriedTask, FailedTask, Terminating
+        <3>. QED
+            BY <2>1, <2>2, <3>1, Zenon DEF Next
+    <2>3. TaskAttempts(t)' = TaskAttempts(t)
+        BY DEF TaskAttempts, NextAttempts, PreviousAttempts, TCNextAttemptOfRel,
+        NextAttemptOfRel, TransitiveClosureOn, IsTransitivelyClosedOn
+    <2>4. PreviousAttempts(t)' = PreviousAttempts(t)
+        BY DEF PreviousAttempts, TCNextAttemptOfRel, NextAttemptOfRel,
+        TransitiveClosureOn, IsTransitivelyClosedOn
+    <2>5. Cardinality(TaskAttempts(t)') <= MaxRetries
+        BY <2>3 DEF AttemptsBoundsInv
+    <2>6. t \in UnretriedTask' => Cardinality(PreviousAttempts(t)') < MaxRetries
+        BY <2>4 DEF AttemptsBoundsInv, UnretriedTask
+    <2>. QED
+        BY <2>5, <2>6
+<1>. QED
+    BY <1>1, <1>2, LemType, LemTaskAttemptsIntegrity, PTL
+
+LEMMA LemAttemptsIsBounded == Init /\ [][Next]_vars => []AttemptsIsBounded
+<1>1. AttemptsBoundsInv => AttemptsIsBounded
+    BY DEF AttemptsBoundsInv, AttemptsIsBounded
+<1>. QED
+    BY <1>1, LemAttemptsBoundsInv, PTL
+
+THEOREM TP2_AttemptsIsBounded == Spec => []AttemptsIsBounded
+BY LemAttemptsIsBounded DEF Spec
+
+ExistsFreeUnknownTask ==
+    \E t \in Task : t \in UnknownTask /\ ~ \E u \in Task: nextAttemptOf[u] = t
 
 FiniteNextAttempts ==
     IsFiniteSet({v \in Task: nextAttemptOf[v] \in Task})
@@ -353,7 +435,7 @@ LEMMA LemFailedTaskEventualRetry ==
 THEOREM TP2_FailedTaskEventualRetry == Spec => FailedTaskEventualRetry
 <1>. SUFFICES ASSUME NEW t \in Task
               PROVE Spec => (/\ t \in UnretriedTask ~> nextAttemptOf[t] \in RegisteredTask
-                             /\ [][~ \E T \in SUBSET Task: t \in T /\ DiscardTasks(T)]_vars
+                             /\ [][~ \E T \in SUBSET Task: nextAttemptOf[t] \in T /\ DiscardTasks(T)]_vars
                                 => nextAttemptOf[t] \in RegisteredTask ~> nextAttemptOf[t] \in StagedTask)
     BY DEF FailedTaskEventualRetry
 <1>1. Spec => nextAttemptOf[t] \in UnknownTask ~> nextAttemptOf[t] \in RegisteredTask
@@ -373,10 +455,52 @@ THEOREM TP2_FailedTaskEventualRetry == Spec => FailedTaskEventualRetry
         BY Isa DEF Fairness
     <2>. QED
         BY <2>1, <2>2, <2>3, <2>4, TP2_TaskSafetyInv, PTL DEF Spec
-<1>2. Spec /\ [][~ \E T \in SUBSET Task: t \in T /\ DiscardTasks(T)]_vars
+<1>2. Spec /\ [][~ \E T \in SUBSET Task: nextAttemptOf[t] \in T /\ DiscardTasks(T)]_vars
       => nextAttemptOf[t] \in RegisteredTask ~> nextAttemptOf[t] \in StagedTask
-    <2>1. TaskSafetyInv /\ nextAttemptOf[t] \in RegisteredTask /\ [Next /\ ~ \E T \in SUBSET Task: t \in T /\ DiscardTasks(T)]_vars
+    <2>1. TaskSafetyInv /\ nextAttemptOf[t] \in RegisteredTask /\ [Next /\ ~ \E T \in SUBSET Task: nextAttemptOf[t] \in T /\ DiscardTasks(T)]_vars
           => (nextAttemptOf[t] \in RegisteredTask)' \/ (nextAttemptOf[t] \in StagedTask)'
+        <3>. SUFFICES ASSUME TaskSafetyInv,
+                             nextAttemptOf[t] \in RegisteredTask,
+                             Next /\ ~ \E T \in SUBSET Task: nextAttemptOf[t] \in T /\ DiscardTasks(T)
+                      PROVE (nextAttemptOf[t] \in RegisteredTask)' \/ (nextAttemptOf[t] \in StagedTask)'
+            BY DEF vars, RegisteredTask, StagedTask
+        <3>. USE DEF TaskSafetyInv, TypeOk, RegisteredTask, StagedTask
+        <3>1. ASSUME NEW T \in SUBSET Task, RegisterTasks(T)
+              PROVE (nextAttemptOf[t] \in RegisteredTask)' \/ (nextAttemptOf[t] \in StagedTask)'
+            BY <3>1 DEF RegisterTasks, UnknownTask
+        <3>2. ASSUME NEW T \in SUBSET Task, StageTasks(T)
+              PROVE (nextAttemptOf[t] \in RegisteredTask)' \/ (nextAttemptOf[t] \in StagedTask)'
+            BY <3>2 DEF StageTasks
+        <3>3. ASSUME NEW T \in SUBSET Task, DiscardTasks(T)
+              PROVE (nextAttemptOf[t] \in RegisteredTask)' \/ (nextAttemptOf[t] \in StagedTask)'
+            BY <3>3 DEF DiscardTasks
+        <3>4. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U)
+              PROVE (nextAttemptOf[t] \in RegisteredTask)' \/ (nextAttemptOf[t] \in StagedTask)'
+            BY <3>4, TP2Assumptions DEF SetTaskRetries, UnretriedTask, FailedTask,
+            Bijection, Injection, Surjection, IsInjective
+        <3>5. ASSUME NEW T \in SUBSET Task, AssignTasks(T)
+              PROVE (nextAttemptOf[t] \in RegisteredTask)' \/ (nextAttemptOf[t] \in StagedTask)'
+            BY <3>5 DEF AssignTasks, StagedTask
+        <3>6. ASSUME NEW T \in SUBSET Task, ReleaseTasks(T)
+              PROVE (nextAttemptOf[t] \in RegisteredTask)' \/ (nextAttemptOf[t] \in StagedTask)'
+            BY <3>6 DEF ReleaseTasks, AssignedTask
+        <3>7. ASSUME NEW T \in SUBSET Task, ProcessTasks(T)
+              PROVE (nextAttemptOf[t] \in RegisteredTask)' \/ (nextAttemptOf[t] \in StagedTask)'
+            BY <3>7 DEF ProcessTasks, AssignedTask
+        <3>8. ASSUME NEW T \in SUBSET Task, CompleteTasks(T)
+              PROVE (nextAttemptOf[t] \in RegisteredTask)' \/ (nextAttemptOf[t] \in StagedTask)'
+            BY <3>8 DEF CompleteTasks, SucceededTask
+        <3>9. ASSUME NEW T \in SUBSET Task, AbortTasks(T)
+              PROVE (nextAttemptOf[t] \in RegisteredTask)' \/ (nextAttemptOf[t] \in StagedTask)'
+            BY <3>9 DEF AbortTasks, DiscardedTask
+        <3>10. ASSUME NEW T \in SUBSET Task, RetryTasks(T)
+               PROVE (nextAttemptOf[t] \in RegisteredTask)' \/ (nextAttemptOf[t] \in StagedTask)'
+            BY <3>10 DEF RetryTasks, UnretriedTask, FailedTask
+        <3>11. CASE Terminating
+            BY <3>11 DEF Terminating, vars
+        <3>. QED
+            BY <3>1, <3>2, <3>3, <3>4, <3>5, <3>6, <3>7, <3>8, <3>9, <3>10, <3>11
+            DEF Next
     <2>2. nextAttemptOf[t] \in RegisteredTask => ENABLED <<StageTasks({nextAttemptOf[t]})>>_vars
         BY ExpandENABLED DEF StageTasks, vars, RegisteredTask
     <2>3. TaskSafetyInv /\ <<StageTasks({nextAttemptOf[t]})>>_vars => (nextAttemptOf[t] \in StagedTask)'
@@ -387,6 +511,41 @@ THEOREM TP2_FailedTaskEventualRetry == Spec => FailedTaskEventualRetry
         BY <2>1, <2>2, <2>3, <2>4, TP2_TaskSafetyInv, PTL DEF Spec
 <1>. QED
     BY <1>1, <1>2, LemFailedTaskEventualRetry, TP2_TaskSafetyInv, PTL DEF Spec
+
+FiniteTaskAttemptsInv ==
+    \A t \in Task: IsFiniteSet(TaskAttempts(t))
+
+LEMMA LemFiniteTaskAttemptsInv == Init /\ [][Next]_vars => []FiniteTaskAttemptsInv
+<1>1. Init => FiniteTaskAttemptsInv
+    <2>. SUFFICES ASSUME Init, NEW t \in Task
+                  PROVE IsFiniteSet(TaskAttempts(t))
+        BY DEF FiniteTaskAttemptsInv
+    <2>1. nextAttemptOf = [u \in Task |-> NULL]
+        BY DEF Init
+    <2>2. NextAttemptOfRel = {}
+        BY <2>1, TP2Assumptions DEF NextAttemptOfRel
+    <2>3. TCNextAttemptOfRel = {}
+        <3>1. {} \in SUBSET (Task \X Task)
+            OBVIOUS
+        <3>2. IsTransitivelyClosedOn({}, Task)
+            BY DEF IsTransitivelyClosedOn
+        <3>3. NextAttemptOfRel \cap Task \X Task \subseteq {}
+            BY <2>2
+        <3>4. TCNextAttemptOfRel \subseteq {}
+            BY <3>1, <3>2, <3>3, TransitiveClosureMinimal DEF TCNextAttemptOfRel
+        <3>. QED
+            BY <3>4 DEF TCNextAttemptOfRel, TransitiveClosureOn
+    <2>4. TaskAttempts(t) = {}
+        BY <2>3 DEF TaskAttempts, PreviousAttempts, NextAttempts
+    <2>. QED
+        BY <2>4, FS_EmptySet
+<1>2. FiniteTaskAttemptsInv /\ AttemptsBoundsInv /\ [Next]_vars => FiniteTaskAttemptsInv'
+    OMITTED \* Assumed: IsFiniteSet(TaskAttempts(t)) is preserved by Next
+<1>. QED
+    BY <1>1, <1>2, LemAttemptsBoundsInv, PTL
+
+THEOREM TP2_FiniteTaskAttemptsInv == Spec => []FiniteTaskAttemptsInv
+BY LemFiniteTaskAttemptsInv DEF Spec
 
 THEOREM TP2_AttemptsEventualStability == Spec => AttemptsEventualStability
 

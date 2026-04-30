@@ -302,7 +302,7 @@ PermanentFinalization ==
 FailedTaskEventualRetry ==
     \A t \in Task:
         /\ t \in UnretriedTask ~> nextAttemptOf[t] \in RegisteredTask
-        /\ [][~ \E T \in SUBSET Task: t \in T /\ DiscardTasks(T)]_vars
+        /\ [][~ \E T \in SUBSET Task: nextAttemptOf[t] \in T /\ DiscardTasks(T)]_vars
            => nextAttemptOf[t] \in RegisteredTask ~> nextAttemptOf[t] \in StagedTask
 
 (**
