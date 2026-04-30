@@ -62,6 +62,18 @@ modules:
           distinct_states: 1793
           state_depth: 14
 
+  - path: specs/TaskProcessing3_proofs.tla
+    dependencies:
+      community_modules: true
+      tlaps_stdlib: true
+    proofs:
+      - name: all
+        checks:
+          success: true
+          num_obligations: 402
+          num_omitted: 0
+          num_unproved: 0
+
   - path: specs/TaskProcessing4_mc.tla
     dependencies:
       community_modules: true
