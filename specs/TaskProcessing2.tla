@@ -281,7 +281,7 @@ AttemptsIsBounded ==
  *)
 AttemptsIsIncreasing ==
     \A t \in Task:
-        [][TaskAttempts(t) \subseteq TaskAttempts(t)']_nextAttemptOf
+        [][TaskAttempts(t) \subseteq TaskAttempts(t)']_(TaskAttempts(t))
 
 (**
  * SAFETY
@@ -315,6 +315,7 @@ FailedTaskEventualRetry ==
 AttemptsEventualStability ==
     \A t \in Task:
         \E S \in SUBSET Task:
+            /\ IsFiniteSet(S)
             /\ Cardinality(S) <= MaxRetries
             /\ <>[](TaskAttempts(t) = S)
 

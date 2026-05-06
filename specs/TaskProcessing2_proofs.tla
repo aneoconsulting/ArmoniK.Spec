@@ -116,6 +116,92 @@ AttemptsBoundsInv ==
         /\ Cardinality(TaskAttempts(t)) <= MaxRetries
         /\ t \in UnretriedTask => Cardinality(PreviousAttempts(t)) < MaxRetries
 
+(******************************************************************************)
+(* Helper lemmas about transitive closure after a SetTaskRetries step.        *)
+(* These state how TransitiveClosureOn(NextAttemptOfRel', Task) relates to    *)
+(* TransitiveClosureOn(NextAttemptOfRel, Task). They are left unproved; the   *)
+(* proofs would proceed by TransitiveClosureMinimal / TransitiveClosureThm    *)
+(* arguments over the new edges {(s, f[s]) : s \in T}.                        *)
+(*                                                                            *)
+(* Throughout these lemmas, the hypotheses encode exactly what SetTaskRetries *)
+(* guarantees (T is unretried hence no outgoing edges, U is unknown hence no  *)
+(* edges at all, f is a bijection T -> U).                                    *)
+(******************************************************************************)
+
+(**
+ * A task without an outgoing edge has no forward chain.
+ *)
+LEMMA LemUnretriedHasNoNextAttempts ==
+    ASSUME TypeOk, NEW t \in Task, t \in UnretriedTask
+    PROVE  NextAttempts(t) = {}
+OMITTED
+
+(**
+ * For an element of U (unknown, with no incoming edges pre-update), the new
+ * set of predecessors after SetTaskRetries is exactly {s} \cup PreviousAttempts(s)
+ * for the unique s \in T with f[s] = t, and the forward chain stays empty.
+ *)
+LEMMA LemPreviousAttemptsInU ==
+    ASSUME TypeOk, TaskAttemptsIntegrity,
+           NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U),
+           NEW t \in U,
+           NEW f \in Bijection(T, U),
+           nextAttemptOf' = [s \in Task |-> IF s \in T THEN f[s] ELSE nextAttemptOf[s]],
+           NEW s \in T, f[s] = t
+    PROVE  /\ PreviousAttempts(t)' = {s} \cup PreviousAttempts(s)
+           /\ NextAttempts(t)' = {}
+           /\ s \notin PreviousAttempts(s)
+OMITTED
+
+(**
+ * For t \in T, the forward chain after the update is {f[t]}, and the backward
+ * chain is unchanged. f[t] is fresh and not in PreviousAttempts(t).
+ *)
+LEMMA LemTaskAttemptsInT ==
+    ASSUME TypeOk, TaskAttemptsIntegrity,
+           NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U),
+           NEW t \in T,
+           NEW f \in Bijection(T, U),
+           nextAttemptOf' = [s \in Task |-> IF s \in T THEN f[s] ELSE nextAttemptOf[s]]
+    PROVE  /\ NextAttempts(t)' = {f[t]}
+           /\ PreviousAttempts(t)' = PreviousAttempts(t)
+           /\ f[t] \notin PreviousAttempts(t)
+OMITTED
+
+(**
+ * For t \notin T \cup U: the backward chain is unchanged. The forward chain
+ * either is unchanged (if it doesn't reach any element of T) or gains exactly
+ * the new retry f[s0] of its tail s0 \in T; in the latter case TaskAttempts(t)
+ * and PreviousAttempts(s0) have the same cardinality before the update.
+ *)
+LEMMA LemTaskAttemptsOutTU ==
+    ASSUME TypeOk, TaskAttemptsIntegrity,
+           NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U),
+           NEW t \in Task, t \notin T, t \notin U,
+           NEW f \in Bijection(T, U),
+           nextAttemptOf' = [s \in Task |-> IF s \in T THEN f[s] ELSE nextAttemptOf[s]]
+    PROVE  /\ PreviousAttempts(t)' = PreviousAttempts(t)
+           /\ \/ /\ NextAttempts(t) \cap T = {}
+                 /\ NextAttempts(t)' = NextAttempts(t)
+              \/ \E s0 \in NextAttempts(t) \cap T :
+                    /\ NextAttempts(t)' = NextAttempts(t) \cup {f[s0]}
+                    /\ f[s0] \notin TaskAttempts(t)
+                    /\ IsFiniteSet(TaskAttempts(t))
+                    /\ IsFiniteSet(PreviousAttempts(s0))
+                    /\ Cardinality(TaskAttempts(t))
+                       = Cardinality(PreviousAttempts(s0))
+OMITTED
+
+(**
+ * Finiteness of TaskAttempts / PreviousAttempts (follows from their
+ * cardinalities being bounded by MaxRetries in AttemptsBoundsInv).
+ *)
+LEMMA LemTaskAttemptsFinite ==
+    ASSUME AttemptsBoundsInv, MaxRetries \in Nat, NEW t \in Task
+    PROVE  /\ IsFiniteSet(TaskAttempts(t))
+           /\ IsFiniteSet(PreviousAttempts(t))
+OMITTED
+
 LEMMA LemAttemptsBoundsInv == Init /\ [][Next]_vars => []AttemptsBoundsInv
 <1>1. Init => AttemptsBoundsInv
     <2>. SUFFICES ASSUME Init, NEW t \in Task
@@ -158,6 +244,130 @@ LEMMA LemAttemptsBoundsInv == Init /\ [][Next]_vars => []AttemptsBoundsInv
     <2>1. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U)
            PROVE /\ Cardinality(TaskAttempts(t)') <= MaxRetries
                  /\ t \in UnretriedTask' => Cardinality(PreviousAttempts(t)') < MaxRetries
+        (* ---------- Unpack the action's structural consequences. ---------- *)
+        <3>1. T \subseteq UnretriedTask
+            BY <2>1 DEF SetTaskRetries
+        <3>2. U \subseteq UnknownTask
+            BY <2>1 DEF SetTaskRetries
+        <3>3. FailedTask' = FailedTask
+            BY <2>1 DEF SetTaskRetries, FailedTask
+        <3>4. T \cap U = {}
+            BY <3>1, <3>2 DEF UnretriedTask, FailedTask, UnknownTask
+        <3>5. PICK f \in Bijection(T, U) :
+                  nextAttemptOf'
+                  = [s \in Task |-> IF s \in T THEN f[s] ELSE nextAttemptOf[s]]
+            BY <2>1 DEF SetTaskRetries
+        <3>6. /\ \A s \in T : f[s] \in U
+              /\ \A u \in U : \E s \in T : f[s] = u
+            BY <3>5 DEF Bijection, Injection, Surjection
+        <3>7. MaxRetries \in Nat
+            BY TP2Assumptions
+
+        (* ---------- Case A: t \in T. t gains a single new successor f[t]. ---------- *)
+        <3>8. CASE t \in T
+            <4>1. /\ NextAttempts(t)' = {f[t]}
+                  /\ PreviousAttempts(t)' = PreviousAttempts(t)
+                  /\ f[t] \notin PreviousAttempts(t)
+                  /\ t \in UnretriedTask
+                  /\ NextAttempts(t) = {}
+                  /\ Cardinality(PreviousAttempts(t)) < MaxRetries
+                  /\ IsFiniteSet(PreviousAttempts(t))
+                BY <2>1, <3>8, <3>5, <3>1, <3>7,
+                   LemTaskAttemptsInT, LemUnretriedHasNoNextAttempts,
+                   LemTaskAttemptsFinite
+                   DEF AttemptsBoundsInv
+            <4>2. Cardinality(TaskAttempts(t)') <= MaxRetries
+                <5>1. TaskAttempts(t)' = PreviousAttempts(t) \cup {f[t]}
+                    BY <4>1 DEF TaskAttempts
+                <5>. QED
+                    BY <4>1, <5>1, <3>7, FS_AddElement, FS_CardinalityType
+            <4>3. t \notin UnretriedTask'
+                <5>1. f[t] \in Task
+                    BY <3>6, <3>8, <3>2 DEF UnknownTask
+                <5>. QED
+                    BY <5>1, <3>8, <3>5, TP2Assumptions DEF UnretriedTask
+            <4>. QED
+                BY <4>2, <4>3
+
+        (* ---------- Case B: t \in U. t gains a unique predecessor s \in T. ---------- *)
+        <3>9. CASE t \in U
+            <4>1. PICK s \in T : f[s] = t
+                BY <3>6, <3>9
+            <4>2. /\ PreviousAttempts(t)' = {s} \cup PreviousAttempts(s)
+                  /\ NextAttempts(t)' = {}
+                  /\ s \notin PreviousAttempts(s)
+                  /\ s \in UnretriedTask
+                  /\ Cardinality(PreviousAttempts(s)) < MaxRetries
+                  /\ IsFiniteSet(PreviousAttempts(s))
+                BY <2>1, <3>9, <3>5, <4>1, <3>1, <3>7,
+                   LemPreviousAttemptsInU, LemTaskAttemptsFinite
+                   DEF AttemptsBoundsInv
+            <4>3. Cardinality(TaskAttempts(t)') <= MaxRetries
+                <5>1. TaskAttempts(t)' = PreviousAttempts(s) \cup {s}
+                    BY <4>2 DEF TaskAttempts
+                <5>. QED
+                    BY <4>2, <5>1, <3>7, FS_AddElement, FS_CardinalityType
+            <4>4. t \notin UnretriedTask'
+                BY <3>2, <3>9, <3>3 DEF UnknownTask, FailedTask, UnretriedTask
+            <4>. QED
+                BY <4>3, <4>4
+
+        (* ---------- Case C: t \notin T \cup U. TaskAttempts may gain one element. ---------- *)
+        <3>10. CASE t \notin T /\ t \notin U
+            <4>1. /\ PreviousAttempts(t)' = PreviousAttempts(t)
+                  /\ \/ /\ NextAttempts(t) \cap T = {}
+                        /\ NextAttempts(t)' = NextAttempts(t)
+                     \/ \E s0 \in NextAttempts(t) \cap T :
+                            /\ NextAttempts(t)' = NextAttempts(t) \cup {f[s0]}
+                            /\ f[s0] \notin TaskAttempts(t)
+                            /\ IsFiniteSet(TaskAttempts(t))
+                            /\ IsFiniteSet(PreviousAttempts(s0))
+                            /\ Cardinality(TaskAttempts(t))
+                               = Cardinality(PreviousAttempts(s0))
+                BY <2>1, <3>10, <3>5, LemTaskAttemptsOutTU
+            (* Since t \notin T, nextAttemptOf' matches nextAttemptOf at t. *)
+            <4>2. t \in UnretriedTask' <=> t \in UnretriedTask
+                <5>1. nextAttemptOf'[t] = nextAttemptOf[t]
+                    BY <3>10, <3>5
+                <5>. QED
+                    BY <5>1, <3>3 DEF UnretriedTask
+            <4>3. Cardinality(TaskAttempts(t)') <= MaxRetries
+                <5>1. CASE /\ NextAttempts(t) \cap T = {}
+                           /\ NextAttempts(t)' = NextAttempts(t)
+                    <6>1. TaskAttempts(t)' = TaskAttempts(t)
+                        BY <4>1, <5>1 DEF TaskAttempts
+                    <6>. QED
+                        BY <6>1 DEF AttemptsBoundsInv
+                <5>2. CASE \E s0 \in NextAttempts(t) \cap T :
+                                /\ NextAttempts(t)' = NextAttempts(t) \cup {f[s0]}
+                                /\ f[s0] \notin TaskAttempts(t)
+                                /\ IsFiniteSet(TaskAttempts(t))
+                                /\ IsFiniteSet(PreviousAttempts(s0))
+                                /\ Cardinality(TaskAttempts(t))
+                                   = Cardinality(PreviousAttempts(s0))
+                    <6>1. PICK s0 \in NextAttempts(t) \cap T :
+                              /\ NextAttempts(t)' = NextAttempts(t) \cup {f[s0]}
+                              /\ f[s0] \notin TaskAttempts(t)
+                              /\ IsFiniteSet(TaskAttempts(t))
+                              /\ IsFiniteSet(PreviousAttempts(s0))
+                              /\ Cardinality(TaskAttempts(t))
+                                 = Cardinality(PreviousAttempts(s0))
+                        BY <5>2
+                    <6>2. TaskAttempts(t)' = TaskAttempts(t) \cup {f[s0]}
+                        BY <4>1, <6>1 DEF TaskAttempts
+                    <6>3. Cardinality(TaskAttempts(t)) < MaxRetries
+                        BY <3>1, <6>1 DEF AttemptsBoundsInv
+                    <6>. QED
+                        BY <6>1, <6>2, <6>3, <3>7, FS_AddElement, FS_CardinalityType
+                <5>. QED
+                    BY <4>1, <5>1, <5>2
+            <4>4. t \in UnretriedTask' => Cardinality(PreviousAttempts(t)') < MaxRetries
+                BY <4>1, <4>2 DEF AttemptsBoundsInv
+            <4>. QED
+                BY <4>3, <4>4
+
+        <3>. QED
+            BY <3>8, <3>9, <3>10
     <2>2. ASSUME NEW T \in SUBSET Task, ProcessTasks(T)
           PROVE /\ Cardinality(TaskAttempts(t)') <= MaxRetries
                 /\ t \in UnretriedTask' => Cardinality(PreviousAttempts(t)') < MaxRetries
@@ -325,14 +535,17 @@ BY LemTaskSafetyInv DEF Spec
 
 THEOREM TP2_AttemptsIsIncreasing == Spec => AttemptsIsIncreasing
 <1>. SUFFICES ASSUME NEW t \in Task
-              PROVE Spec => [][TaskAttempts(t) \subseteq TaskAttempts(t)']_nextAttemptOf
+              PROVE Spec => [][TaskAttempts(t) \subseteq TaskAttempts(t)']_(TaskAttempts(t))
     BY DEF AttemptsIsIncreasing
 <1>. SUFFICES ASSUME [Next]_vars
-              PROVE [TaskAttempts(t) \subseteq TaskAttempts(t)']_nextAttemptOf
+              PROVE [TaskAttempts(t) \subseteq TaskAttempts(t)']_(TaskAttempts(t))
     BY PTL DEF Spec, vars
+<1>0. UNCHANGED nextAttemptOf => UNCHANGED TaskAttempts(t)
+    BY DEF TaskAttempts, PreviousAttempts, NextAttempts, TCNextAttemptOfRel,
+    NextAttemptOfRel, TransitiveClosureOn
 <1>1. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U)
-      PROVE [TaskAttempts(t) \subseteq TaskAttempts(t)']_nextAttemptOf
-    BY <1>1, TP2Assumptions DEF TaskAttempts, NextAttempts, PreviousAttempts,
+      PROVE [TaskAttempts(t) \subseteq TaskAttempts(t)']_(TaskAttempts(t))
+    BY <1>0, <1>1, TP2Assumptions DEF TaskAttempts, NextAttempts, PreviousAttempts,
     TransitiveClosureOn, IsTransitivelyClosedOn, TCNextAttemptOfRel, NextAttemptOfRel,
     SetTaskRetries, UnknownTask, UnretriedTask, FailedTask
 <1>. SUFFICES ASSUME [\/ \E T \in SUBSET Task:
@@ -347,7 +560,7 @@ THEOREM TP2_AttemptsIsIncreasing == Spec => AttemptsIsIncreasing
                             \/ RetryTasks(T)
                         \/ Terminating]_vars
             PROVE UNCHANGED nextAttemptOf
-        BY <1>1, Zenon DEF Next, TaskAttempts, NextAttempts, PreviousAttempts,
+        BY <1>0, <1>1, Zenon DEF Next, TaskAttempts, NextAttempts, PreviousAttempts,
         TransitiveClosureOn
 <1>. QED
     BY DEF vars, RegisterTasks, UnknownTask, StageTasks, RegisteredTask, DiscardTasks,
@@ -547,7 +760,155 @@ LEMMA LemFiniteTaskAttemptsInv == Init /\ [][Next]_vars => []FiniteTaskAttemptsI
 THEOREM TP2_FiniteTaskAttemptsInv == Spec => []FiniteTaskAttemptsInv
 BY LemFiniteTaskAttemptsInv DEF Spec
 
+(**
+ * Helper lemma: if Cardinality(TaskAttempts(t)) is bounded by n+1 but not
+ * always by n, then eventually Cardinality stabilizes at n+1.
+ *
+ * Extracted as a standalone lemma because LS4 (PTL) struggles when the
+ * induction hypothesis P(n) is in scope alongside an action formula over
+ * a derived set. Keeping this lemma P(n)-free makes LS4 discharge it.
+ *)
+LEMMA LemCardReachesNp1 ==
+    ASSUME NEW t \in Task, NEW n \in Nat
+    PROVE  LET A    == TaskAttempts(t)
+               I(m) == IsFiniteSet(A) /\ Cardinality(A) <= m
+           IN  ~[]I(n) /\ []I(n + 1) /\ [][A \subseteq A']_A
+               => <>[](IsFiniteSet(A) /\ Cardinality(A) = n + 1)
+<1>. DEFINE A    == TaskAttempts(t)
+            I(m) == IsFiniteSet(A) /\ Cardinality(A) <= m
+            K    == IsFiniteSet(A) /\ Cardinality(A) = n + 1
+<1>1. ~I(n) /\ I(n + 1) => K
+    BY FS_CardinalityType
+<1>2. K /\ I(n + 1)' /\ [A \subseteq A']_A => K'
+    BY FS_Subset, FS_CardinalityType
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+(**
+ * Helper lemma: once Cardinality(TaskAttempts(t)) stabilizes at n+1 and
+ * TaskAttempts(t) is monotonically growing, the set itself stabilizes.
+ *
+ * Extracted as a standalone lemma for the same LS4-scoping reason as above.
+ *)
+LEMMA LemCardFixedImpliesSetFixed ==
+    ASSUME NEW t \in Task, NEW n \in Nat
+    PROVE  LET A == TaskAttempts(t)
+           IN  <>[](IsFiniteSet(A) /\ Cardinality(A) = n + 1) /\ [][A \subseteq A']_A
+               => <>[][A = A']_A
+<1>. DEFINE A == TaskAttempts(t)
+            J == IsFiniteSet(A) /\ Cardinality(A) = n + 1
+<1>1. J /\ J' /\ [A \subseteq A']_A => [A = A']_A
+    BY FS_Subset
+<1>. QED
+    BY <1>1, PTL
+
 THEOREM TP2_AttemptsEventualStability == Spec => AttemptsEventualStability
+<1>. SUFFICES ASSUME NEW t \in Task
+              PROVE Spec => \E S \in SUBSET Task :
+                                IsFiniteSet(S) /\ Cardinality(S) <= MaxRetries /\ <>[](TaskAttempts(t) = S)
+    BY DEF AttemptsEventualStability
+<1>. DEFINE A == TaskAttempts(t)
+<1>1. Spec => [](A \in SUBSET Task) /\ [](IsFiniteSet(A) /\ Cardinality(A) <= MaxRetries) /\ [][A \subseteq A']_A
+    <2>1. Spec => []IsFiniteSet(A)
+        BY TP2_FiniteTaskAttemptsInv DEF FiniteTaskAttemptsInv
+    <2>2. Spec => [](Cardinality(A) <= MaxRetries)
+        BY TP2_AttemptsIsBounded DEF AttemptsIsBounded
+    <2>3. Spec => [][A \subseteq A']_A
+        BY TP2_AttemptsIsIncreasing DEF AttemptsIsIncreasing
+    <2>4. Spec => [](TaskAttempts(t) \in SUBSET Task)
+        <3>1. TaskAttempts(t) \in SUBSET Task
+            BY DEF TaskAttempts, NextAttempts, PreviousAttempts
+        <3>. QED
+            BY <3>1, PTL
+    <2>. QED
+        BY <2>1, <2>2, <2>3, <2>4, PTL
+<1>2. [](TaskAttempts(t) \in SUBSET Task) /\ [](IsFiniteSet(A) /\ Cardinality(A) <= MaxRetries) /\ [][A \subseteq A']_A
+      => [](TaskAttempts(t) \in SUBSET Task) /\ <>[](IsFiniteSet(A) /\ Cardinality(A) <= MaxRetries) /\ <>[][A = A']_A
+    <2>. SUFFICES [](TaskAttempts(t) \in SUBSET Task) /\ [](IsFiniteSet(A) /\ Cardinality(A) <= MaxRetries) /\ [][A \subseteq A']_A
+                  => <>[][A = A']_A
+        BY PTL
+    <2>. DEFINE I(n) == IsFiniteSet(A) /\ Cardinality(A) <= n
+                P(n) == []I(n) /\ [][A \subseteq A']_A
+                        => <>[][A = A']_A
+    <2>1. P(0)
+        <3>1. I(0) /\ I(0)' => [A = A']_A
+            BY FS_EmptySet, FS_CardinalityType
+        <3>. QED
+            BY <3>1, PTL
+    <2>2. ASSUME NEW n \in Nat, P(n)
+          PROVE  P(n + 1)
+        <3>1. ~[]I(n) /\ []I(n + 1) /\ [][A \subseteq A']_A
+              => <>[](IsFiniteSet(A) /\ Cardinality(A) = n + 1)
+            BY LemCardReachesNp1
+        <3>2. <>[](IsFiniteSet(A) /\ Cardinality(A) = n + 1) /\ [][A \subseteq A']_A
+              => <>[][A = A']_A
+            BY LemCardFixedImpliesSetFixed
+        <3>. QED
+            BY <2>2, <3>1, <3>2, PTL
+    <2>3. \A n \in Nat : P(n)
+        <3>. HIDE DEF P
+        <3>. QED
+            BY <2>1, <2>2, NatInduction, Isa
+    <2>4. P(MaxRetries)
+        <3>. HIDE DEF P
+        <3>. QED
+            BY <2>3, TP2Assumptions
+    <2>. QED
+        BY <2>4
+<1>3. [](A \in SUBSET Task) /\ [](IsFiniteSet(A) /\ Cardinality(A) <= MaxRetries) /\ [][A = A']_A
+      => \E S \in SUBSET Task : IsFiniteSet(S) /\ Cardinality(S) <= MaxRetries /\ [](A = S)
+    <2>1. [](A \in SUBSET Task) /\ [](IsFiniteSet(A) /\ Cardinality(A) <= MaxRetries)
+          => \E S \in SUBSET Task : IsFiniteSet(S) /\ Cardinality(S) <= MaxRetries /\ A = S
+        <3>1. [](A \in SUBSET Task) /\ [](IsFiniteSet(A) /\ Cardinality(A) <= MaxRetries)
+              => IsFiniteSet(A) /\ Cardinality(A) <= MaxRetries /\ A \in SUBSET Task
+            BY PTL
+        <3>. QED
+            BY <3>1
+    <2>2. (\E S \in SUBSET Task : IsFiniteSet(S) /\ Cardinality(S) <= MaxRetries /\ A = S) /\ [][A = A']_A
+          => \E S \in SUBSET Task : IsFiniteSet(S) /\ Cardinality(S) <= MaxRetries /\ [](A = S)
+        <3>. SUFFICES ASSUME NEW T \in SUBSET Task
+                      PROVE IsFiniteSet(T) /\ Cardinality(T) <= MaxRetries /\ A = T /\ [][A = A']_A
+                            => \E S \in SUBSET Task : IsFiniteSet(S) /\ Cardinality(S) <= MaxRetries /\ [](A = S)
+            OBVIOUS
+        <3>1. IsFiniteSet(T) /\ Cardinality(T) <= MaxRetries /\ A = T /\ [][A = A']_A
+              => IsFiniteSet(T) /\ Cardinality(T) <= MaxRetries /\ [](A = T)
+            <4>. SUFFICES A = T /\ [][A = A']_A => [](A = T)
+                OBVIOUS
+            <4>. A = T /\ [A = A']_A => (A = T)'
+                OBVIOUS
+            <4>. QED 
+                BY PTL
+        <3>2. IsFiniteSet(T) /\ Cardinality(T) <= MaxRetries /\ [](A = T)
+              => \E S \in SUBSET Task : IsFiniteSet(S) /\ Cardinality(S) <= MaxRetries /\ [](A = S)
+            <4>. DEFINE Q(T) == IsFiniteSet(T) /\ Cardinality(T) <= MaxRetries /\ [](A = T)
+            <4>. HIDE DEF Q
+            <4>. Q(T) => \E S \in SUBSET Task : Q(S)
+                OBVIOUS
+            <4>. QED
+                BY DEF Q
+        <3>. QED
+            BY <3>1, <3>2
+    <2>. QED
+        BY <2>1, <2>2
+<1>4. <>(\E S \in SUBSET Task : IsFiniteSet(S) /\ Cardinality(S) <= MaxRetries /\ [](A = S))
+    => \E S \in SUBSET Task : IsFiniteSet(S) /\ Cardinality(S) <= MaxRetries /\ <>[](A = S)
+    <2>1. <>(\E S \in SUBSET Task : IsFiniteSet(S) /\ Cardinality(S) <= MaxRetries /\ [](A = S))
+          => \E S \in SUBSET Task : <>(IsFiniteSet(S) /\ Cardinality(S) <= MaxRetries /\ [](A = S) )
+        OBVIOUS
+    <2>. SUFFICES ASSUME NEW S \in SUBSET Task
+                  PROVE <>(IsFiniteSet(S) /\ Cardinality(S) <= MaxRetries /\ [](A = S))
+                        => IsFiniteSet(S) /\ Cardinality(S) <= MaxRetries /\ <>[](A = S)
+        BY <2>1
+    <2>2. <>(IsFiniteSet(S) /\ Cardinality(S) <= MaxRetries /\ [](A = S))
+          => <>(IsFiniteSet(S) /\ Cardinality(S) <= MaxRetries) /\ <>[](A = S)
+        BY PTL
+    <2>3. <>(IsFiniteSet(S) /\ Cardinality(S) <= MaxRetries)
+          => IsFiniteSet(S) /\ Cardinality(S) <= MaxRetries
+        OBVIOUS
+    <2>. QED
+        BY <2>2, <2>3
+<1>. QED
+    BY <1>1, <1>2, <1>3, <1>4, PTL
 
 LEMMA LemFailedTaskEventualFinalization ==
     ASSUME NEW t \in Task

@@ -12,7 +12,7 @@
 (* together with its key safety and liveness properties.                     *)
 (*****************************************************************************)
 
-EXTENDS DenumerableSets, FiniteSetTheorems, Graphs, Naturals, Sequences
+EXTENDS DenumerableSets, DiGraphs
 
 CONSTANTS
     Object,  \* Set of object identifiers (theoretically infinite)
@@ -145,6 +145,7 @@ RegisterGraph(G) ==
         newDeps == GraphUnion(deps, G)
     IN
         /\ G /= EmptyGraph
+        /\ IsFiniteSet(G.node)
         /\ TaskNode(G) \subseteq UnknownTask
         /\ \A t \in TaskNode(G):
             Successors(G, t) \intersect Roots(deps) \intersect FinalizedObject = {}
@@ -429,10 +430,8 @@ GraphStateIntegrity ==
  * SAFETY
  * Ensure that the number of input and output data dependencies for tasks is finite.
  *)
-TaskDependenciesImmutable ==
-    \A t \in Task :
-        /\ IsFiniteSet(Predecessors(deps, t))
-        /\ IsFiniteSet(Successors(deps, t))
+DepsIsFinite ==
+    IsFiniteSet(deps.node)
 
 (**
  * Ensures that a finalized source object remains a source forever.
@@ -492,7 +491,7 @@ RefineObjectProcessing1 ==
 THEOREM Spec => []TypeOk
 THEOREM Spec => []DependencyGraphCompliant
 THEOREM Spec => []GraphStateIntegrity
-THEOREM Spec => []TaskDependenciesImmutable
+THEOREM Spec => []DepsIsFinite
 THEOREM Spec => FinalizedSourcesInvariant
 THEOREM Spec => TaskDataDependenciesInvariant
 THEOREM Spec => []OpenSubGraphEquivalence
