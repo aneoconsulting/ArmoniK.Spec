@@ -1123,5 +1123,170 @@ THEOREM GP1_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
     BY <1>1, <1>2, <1>3, GP1_GraphSafetyInv, PTL DEF Spec, TP1!Spec, RefineTaskProcessing1
 
 THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
+<1>. USE DEF OP1!OBJECT_UNKNOWN, OP1!OBJECT_REGISTERED, OP1!OBJECT_FINALIZED
+<1>1. Init => OP1!Init
+    BY DEF Init, OP1!Init
+<1>2. GraphSafetyInv /\ [Next]_vars => [OP1!Next]_OP1!vars
+    <2>. SUFFICES ASSUME TypeOk
+                  PROVE [Next]_vars => [OP1!Next]_(OP1!vars)
+        BY DEF GraphSafetyInv
+    <2>1. ASSUME NEW G \in Graphs(Task \union Object)
+          PROVE RegisterGraph(G) =>
+                    \/ \E O \in SUBSET Object: OP1!RegisterObjects(O)
+                    \/ UNCHANGED OP1!vars
+        BY DEF TypeOk, RegisterGraph, OP1!vars, OP1!RegisterObjects, UnknownObject,
+        OP1!UnknownObject
+    <2>2. ASSUME NEW O \in SUBSET Object
+          PROVE TargetObjects(O) => OP1!TargetObjects(O)
+        BY DEF TargetObjects, OP1!TargetObjects, RegisteredObject, FinalizedObject,
+        OP1!RegisteredObject, OP1!FinalizedObject
+    <2>3. ASSUME NEW O \in SUBSET Object
+          PROVE UntargetObjects(O) => OP1!UntargetObjects(O)
+        BY DEF  UntargetObjects, OP1!UntargetObjects
+    <2>4. ASSUME NEW O \in SUBSET Object
+          PROVE FinalizeObjects(O) => OP1!FinalizeObjects(O)
+        BY DEF FinalizeObjects, OP1!FinalizeObjects, RegisteredObject,
+        OP1!RegisteredObject
+    <2>5. ASSUME NEW T \in SUBSET Task
+            PROVE StageTasks(T) => UNCHANGED OP1!vars
+        BY DEF StageTasks, OP1!vars
+    <2>6. ASSUME NEW T \in SUBSET Task
+            PROVE DiscardTasks(T) => UNCHANGED OP1!vars
+        BY DEF DiscardTasks, OP1!vars
+    <2>7. ASSUME NEW T \in SUBSET Task
+            PROVE AssignTasks(T) => UNCHANGED OP1!vars
+        BY DEF AssignTasks, OP1!vars
+    <2>8. ASSUME NEW T \in SUBSET Task
+            PROVE ReleaseTasks(T) => UNCHANGED OP1!vars
+        BY DEF ReleaseTasks, OP1!vars
+    <2>9. ASSUME NEW T \in SUBSET Task
+            PROVE ProcessTasks(T) => UNCHANGED OP1!vars
+        BY DEF ProcessTasks, OP1!vars
+    <2>10. ASSUME NEW T \in SUBSET Task
+            PROVE FinalizeTasks(T) => UNCHANGED OP1!vars
+        BY DEF FinalizeTasks, OP1!vars
+    <2>11. Terminating => OP1!Terminating
+        BY DEF Terminating, OP1!Terminating, vars, OP1!vars, FinalizedObject,
+        OP1!FinalizedObject
+    <2>12. UNCHANGED vars => UNCHANGED OP1!vars
+        BY DEF vars, OP1!vars
+    <2>. QED
+        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11, <2>12
+        DEF Next, OP1!Next
+<1>3. []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ OpenUpstreamStopsGrowing => OP1!Fairness
+    <2>0a. Fairness => []Fairness
+        <3>1. (\A o \in Object : WF_vars(FinalizeObjects({o})))
+               => [](\A o \in Object : WF_vars(FinalizeObjects({o})))
+            <4>1. [](\A o \in Object : WF_vars(FinalizeObjects({o})))
+                  <=> \A o \in Object : [](WF_vars(FinalizeObjects({o})))
+                OBVIOUS
+            <4>2. ASSUME NEW o \in Object
+                  PROVE [](WF_vars(FinalizeObjects({o})))
+                        <=> WF_vars(FinalizeObjects({o}))
+                BY PTL
+            <4>. QED
+                BY <4>1, <4>2
+        <3>. DEFINE TaskFairness(t) ==
+                        /\ WF_vars(StageTasks({t}))
+                        /\ WF_vars(
+                            /\ \E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)
+                            /\ AssignTasks({t}))
+                        /\ SF_vars(ProcessTasks({t}))
+                        /\ WF_vars(FinalizeTasks({t}))
+        <3>2. (\A t \in Task : TaskFairness(t))
+               => [](\A t \in Task : TaskFairness(t))
+            <4>1. [](\A t \in Task : TaskFairness(t))
+                  <=> \A t \in Task : []TaskFairness(t)
+                OBVIOUS
+            <4>2. ASSUME NEW t \in Task
+                  PROVE []TaskFairness(t)
+                        <=> TaskFairness(t)
+                BY PTL
+            <4>. QED
+                BY <4>1, <4>2
+        <3>. QED
+            BY <3>1, <3>2, PTL DEF Fairness
+    <2>0b. OpenUpstreamStopsGrowing => []OpenUpstreamStopsGrowing
+        <3>. DEFINE P(o) == [](o \in objectTargets
+                               => <>[][(OpenSubGraph(o).node)' \subseteq OpenSubGraph(o).node]_vars)
+        <3>1. (\A o \in Object: []P(o)) <=> [](\A o \in Object: P(o))
+            OBVIOUS
+        <3>2. ASSUME NEW o \in Object
+              PROVE P(o) <=> []P(o)
+            BY PTL
+        <3>. QED
+            BY <3>1, <3>2 DEF OpenUpstreamStopsGrowing
+    <2>. DEFINE GP(o) == o \in objectTargets
+                         => <>[][(OpenSubGraph(o).node)' \subseteq OpenSubGraph(o).node]_vars
+    <2>. SUFFICES ASSUME NEW o \in Object
+                  PROVE [][Next]_vars /\ []GraphSafetyInv /\ []Fairness /\ []OpenUpstreamStopsGrowing
+                        => WF_OP1!vars(o \in objectTargets /\ OP1!FinalizeObjects({o}))
+        BY <2>0a, <2>0b, Isa DEF OP1!Fairness
+    <2>. SUFFICES /\ [][Next]_vars /\ []GraphSafetyInv /\ []Fairness /\ []OpenUpstreamStopsGrowing
+                  /\ []ENABLED <<o \in objectTargets /\ OP1!FinalizeObjects({o})>>_OP1!vars
+                  => FALSE
+        BY PTL
+    \* <2>. DEFINE A(o) == o \in objectTargets /\ o \in RegisteredObject
+    \*             M(o) == Len(ShortestOpenPath(o))
+    \*             B(o, n) == M(o) = n
+    \* <2>1. ENABLED <<o \in objectTargets /\ OP1!FinalizeObjects({o})>>_OP1!vars => A(o)
+    \*     BY ExpandENABLED DEF OP1!FinalizeObjects, OP1!vars, RegisteredObject, OP1!RegisteredObject
+    \* <2>2. GraphSafetyInv /\ A(o) => \E n \in Nat \ {0}: B(o, n)
+    \*     <3>. SUFFICES ASSUME GraphSafetyInv, A(o)
+    \*                   PROVE \E n \in Nat \ {0}: B(o, n)
+    \*     <3>1. OpenPath(o) # {}
+    \*     <3>2. \A p \in OpenPath(o) : Len(p) \in Nat \ {0}
+    \*         \* BY EmptySeq DEF OpenPath, SimplePath, SeqOf
+    \*     <3>3. ShortestOpenPath(o) \in OpenPath(o)
+    \*         BY <3>1, <3>2, ArgMinNat DEF ShortestOpenPath
+    \*     <3>. QED
+    \*         BY <3>1, <3>2, <3>3
+    \* <2>3. [][Next]_vars /\ []GraphSafetyInv /\ []Fairness /\ []A(o)
+    \*       => [](\A n \in Nat \ {0}: B(o, n) => FALSE)
+    \*     <3>. DEFINE I(n) == n /= 0 => ([][Next]_vars /\ []GraphSafetyInv /\ []Fairness /\ []A(o)
+    \*                                    => [](B(o, n) => FALSE))
+    \*     <3>. SUFFICES \A n \in Nat: I(n)
+    \*         OBVIOUS
+    \*     <3>1. I(0)
+    \*         OBVIOUS
+    \*     <3>2. \A n \in Nat : I(n) => I(n+1)
+    \*         <4>. SUFFICES ASSUME NEW n \in Nat, I(n) PROVE I(n+1)
+    \*             OBVIOUS
+    \*         <4>1. CASE n = 0
+    \*             <5>0. [](B(o, n + 1) => FALSE) <=> [](B(o, 1) => FALSE)
+    \*                 <6>. DEFINE P(x) == [](B(o, x) => FALSE)
+    \*                 <6>. SUFFICES P(n + 1) <=> P(n)
+    \*                     OBVIOUS
+    \*                 <6>. HIDE DEF P
+    \*                 <6>. QED BY <4>1
+    \*             <5>. SUFFICES [][Next]_vars /\ []GraphSafetyInv /\ []Fairness /\ []A(o)
+    \*                           => [](B(o, 1) => FALSE)
+    \*                 BY <4>1, <5>0
+    \*             <5>1. B(o, 1) /\ [Next]_vars => B(o, 1)'
+    \*             <5>2. A(o) /\ o \in FinalizedObject => FALSE
+    \*                 BY DEF RegisteredObject, FinalizedObject
+    \*             <5>3. o \in FinalizedObject /\ [Next]_vars => (o \in FinalizedObject)'
+    \*             <5>. QED
+    \*                 BY <5>1, <5>2, <5>3, PTL
+    \*         <4>2. CASE n /= 0
+    \*             <5>1. [][Next]_vars /\ []GraphSafetyInv /\ []Fairness /\ []A(o)
+    \*                 => [](B(o, n+1) => <>B(o, n))
+    \*             <5>2. [][Next]_vars /\ []GraphSafetyInv /\ []Fairness /\ []A(o)
+    \*                 => [](B(o, n) => FALSE)
+    \*                 BY <3>2, <4>2
+    \*             <5>. QED
+    \*                 BY <5>1, <5>2, PTL
+    \*         <4>. QED
+    \*             BY <4>1, <4>2
+    \*     <3>. HIDE DEF I
+    \*     <3>. QED
+    \*         BY <3>1, <3>2, NatInduction, IsaM("blast")
+    \* <2>4. (\A n \in Nat \ {0}: B(o, n) => FALSE)
+    \*         => ((\E n \in Nat \ {0}: B(o, n)) => FALSE)
+    \*     OBVIOUS
+    <2>. QED
+        \* BY <2>1, <2>2, <2>3, <2>4, PTL
+<1>. QED
+    BY <1>1, <1>2, <1>3, GP1_GraphSafetyInv, PTL DEF Spec, OP1!Spec, RefineObjectProcessing1
 
 ================================================================================
