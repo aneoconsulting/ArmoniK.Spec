@@ -464,23 +464,25 @@ THEOREM TP3_RefineTaskProcessing2 == Spec => RefineTaskProcessing2
                 OBVIOUS
             <4>1. ENABLED <<AbsA>>_TP2!vars <=> \E u \in Task : /\ t \in TP2!UnretriedTask
                                                                 /\ u \in TP2!UnknownTask
-                                                                /\ ~ \E t \in Task : nextAttemptOf[t] = u
+                                                                /\ ~ \E v \in Task : nextAttemptOf[v] = u
                 \* <5>1. AbsA => taskStateBar' /= taskStateBar
                 \*     BY DEF TP2!RegisterTasks, TP2!UnknownTask, taskStateBar
                 \* <5>2. <<AbsA>>_TP2!vars <=> AbsA
                 \*     BY <5>1 DEF TP2!vars
                 \* <5>3. ENABLED <<AbsA>>_TP2!vars <=> ENABLED AbsA
                 \*     BY <5>2, ENABLEDaxioms
-                \* <5>4. ENABLED AbsA <=> nextAttemptOf[t] \in TP2!UnknownTask
+                <5>4. ASSUME TypeOk PROVE ENABLED AbsA <=> \E u \in Task : /\ t \in TP2!UnretriedTask
+                                                       /\ u \in TP2!UnknownTask
+                                                       /\ ~ \E v \in Task : nextAttemptOf[v] = u
                 \*     <6>1. TP2!IsFiniteSet({nextAttemptOf[t]}) <=> IsFiniteSet({nextAttemptOf[t]})
                 \*         BY DEF TP2!IsFiniteSet, IsFiniteSet
                 \*     <6>. QED
                 \*         BY ExpandENABLED, <6>1, FS_Singleton DEF TP2!RegisterTasks, TP2!UnknownTask, taskStateBar
-                \* <5>. QED
+                <5>. QED
                 \*     BY <5>3, <5>4
             <4>2. ENABLED <<A>>_vars <=> \E u \in Task : /\ t \in UnretriedTask
                                                          /\ u \in UnknownTask
-                                                         /\ ~ \E t \in Task : nextAttemptOf[t] = u
+                                                         /\ ~ \E v \in Task : nextAttemptOf[v] = u
                 \* <5>1. <<A>>_vars <=> A
                 \*     BY DEF RegisterTasks, UnknownTask, vars
                 \* <5>2. ENABLED <<A>>_vars <=> ENABLED A
@@ -490,7 +492,8 @@ THEOREM TP3_RefineTaskProcessing2 == Spec => RefineTaskProcessing2
                 \* <5>. QED
                 \*     BY <5>2, <5>3
             <4>. QED
-                BY <4>1, <4>2, UnretriedTask, UnknownTask, TP2!UnretriedTask, TP2!UnknownTask
+                BY <4>1, <4>2 DEF UnretriedTask, UnknownTask, TP2!UnretriedTask,
+                TP2!UnknownTask, taskStateBar, FailedTask, TP2!FailedTask
         <3>2. <<A>>_vars => <<AbsA>>_TP2!vars
             BY DEF SetTaskRetries, vars, TP2!SetTaskRetries, TP2!vars,
             UnretriedTask, TP2!UnretriedTask, FailedTask, TP2!FailedTask,

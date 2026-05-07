@@ -23,7 +23,7 @@ LEMMA LemType == Init /\ [][Next]_vars => []TypeOk
 
 THEOREM TP2_Type == Spec => []TypeOk
 BY LemType DEF Spec
-
+    
 LEMMA LemTaskAttemptsIntegrity == Init /\ [][Next]_vars => []TaskAttemptsIntegrity
 <1>. USE DEF TaskAttemptsIntegrity, FailedTask, RetriedTask, CompletedTask, AbortedTask
 <1>1. Init => TaskAttemptsIntegrity
@@ -118,14 +118,17 @@ AttemptsBoundsInv ==
 
 (******************************************************************************)
 (* Helper lemmas about transitive closure after a SetTaskRetries step.        *)
-(* These state how TransitiveClosureOn(NextAttemptOfRel', Task) relates to    *)
-(* TransitiveClosureOn(NextAttemptOfRel, Task). They are left unproved; the   *)
-(* proofs would proceed by TransitiveClosureMinimal / TransitiveClosureThm    *)
-(* arguments over the new edges {(s, f[s]) : s \in T}.                        *)
 (*                                                                            *)
-(* Throughout these lemmas, the hypotheses encode exactly what SetTaskRetries *)
-(* guarantees (T is unretried hence no outgoing edges, U is unknown hence no  *)
-(* edges at all, f is a bijection T -> U).                                    *)
+(* The key technical lemma is LemTC_AfterSetTaskRetries, which characterizes  *)
+(* TCNextAttemptOfRel' in terms of TCNextAttemptOfRel plus the new edges      *)
+(* <<s, f[s]>> for s \in T. Its proof (left OMITTED) uses TransitiveClosure-  *)
+(* Minimal with the closure U of the RHS set and exploits the key properties  *)
+(* of the isolated new edges: elements of T have no outgoing R-edges and      *)
+(* elements of U have neither incoming nor outgoing R-edges.                  *)
+(*                                                                            *)
+(* The three specific lemmas (LemPreviousAttemptsInU, LemTaskAttemptsInT,     *)
+(* LemTaskAttemptsOutTU) are then derived from this characterization via      *)
+(* set-theoretic case analysis on t's role in the update.                     *)
 (******************************************************************************)
 
 (**
@@ -134,7 +137,261 @@ AttemptsBoundsInv ==
 LEMMA LemUnretriedHasNoNextAttempts ==
     ASSUME TypeOk, NEW t \in Task, t \in UnretriedTask
     PROVE  NextAttempts(t) = {}
-OMITTED
+<1>. USE TP2Assumptions
+<1>. DEFINE V == {ss \in Task \X Task : ss[1] # t}
+<1>1. nextAttemptOf[t] = NULL
+    BY DEF UnretriedTask
+<1>2. NextAttemptOfRel \cap (Task \X Task) \subseteq V
+    BY <1>1 DEF NextAttemptOfRel
+<1>3. IsTransitivelyClosedOn(V, Task)
+    BY DEF IsTransitivelyClosedOn
+<1>4. TCNextAttemptOfRel \subseteq V
+    BY <1>2, <1>3, TransitiveClosureMinimal DEF TCNextAttemptOfRel
+<1>. QED
+    BY <1>4 DEF NextAttempts
+
+(**
+ * Characterization of TCNextAttemptOfRel' after a SetTaskRetries(T, U) step.
+ * Left unproved -- the proof would proceed by
+ *   - showing NextAttemptOfRel' = NextAttemptOfRel \cup {<<s, f[s]>>: s \in T}
+ *     (because T elements have no outgoing R-edges);
+ *   - defining W as the right-hand side of the <=> and showing that W contains
+ *     NextAttemptOfRel' \cap (Task \X Task) and is transitively closed on Task
+ *     (using that U elements have no incoming or outgoing R-edges, so new
+ *     edges do not compose with old ones except as described);
+ *   - applying TransitiveClosureMinimal to get TCNextAttemptOfRel' \subseteq W,
+ *     and the reverse containment by direct construction.
+ *)
+LEMMA LemTC_AfterSetTaskRetries ==
+    ASSUME TypeOk, TaskAttemptsIntegrity,
+           NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U),
+           NEW f \in Bijection(T, U),
+           nextAttemptOf' = [s \in Task |-> IF s \in T THEN f[s] ELSE nextAttemptOf[s]]
+    PROVE  \A x, y \in Task :
+              <<x, y>> \in TCNextAttemptOfRel'
+              <=> \/ <<x, y>> \in TCNextAttemptOfRel
+                  \/ \E s \in T : /\ y = f[s]
+                                  /\ \/ x = s
+                                     \/ <<x, s>> \in TCNextAttemptOfRel
+<1>. USE TP2Assumptions
+<1>T. T \subseteq UnretriedTask
+    BY DEF SetTaskRetries
+<1>U. U \subseteq UnknownTask
+    BY DEF SetTaskRetries
+<1>disj. T \cap U = {}
+    BY <1>T, <1>U DEF UnretriedTask, FailedTask, UnknownTask
+<1>finj. \A a, b \in T : f[a] = f[b] => a = b
+    BY DEF Bijection, Injection, IsInjective
+<1>fran. \A s \in T : f[s] \in U
+    BY DEF Bijection, Injection
+(* Key structural facts about the old relation. *)
+<1>TnoOut. \A s \in T : nextAttemptOf[s] = NULL
+    BY <1>T DEF UnretriedTask
+<1>UnoOut. \A u \in U : nextAttemptOf[u] = NULL
+    BY <1>U DEF UnknownTask, FailedTask, RetriedTask, TaskAttemptsIntegrity
+<1>UnoIn. \A u \in U : \A v \in Task : nextAttemptOf[v] # u
+    BY DEF SetTaskRetries
+(* NextAttemptOfRel' = NextAttemptOfRel ∪ {<<s, f[s]>> : s ∈ T}. *)
+<1>Rprime. \A a, b \in Task :
+              <<a, b>> \in NextAttemptOfRel'
+              <=> \/ <<a, b>> \in NextAttemptOfRel
+                  \/ a \in T /\ b = f[a]
+    <2>. SUFFICES ASSUME NEW a \in Task, NEW b \in Task
+                  PROVE  <<a, b>> \in NextAttemptOfRel'
+                         <=> \/ <<a, b>> \in NextAttemptOfRel
+                             \/ a \in T /\ b = f[a]
+        OBVIOUS
+    <2>1. <<a, b>> \in NextAttemptOfRel' <=> nextAttemptOf'[a] = b
+        BY DEF NextAttemptOfRel
+    <2>2. nextAttemptOf'[a] = (IF a \in T THEN f[a] ELSE nextAttemptOf[a])
+        OBVIOUS
+    <2>3. CASE a \in T
+        <3>1. nextAttemptOf'[a] = f[a]
+            BY <2>2, <2>3
+        <3>2. <<a, b>> \notin NextAttemptOfRel
+            BY <1>TnoOut, <2>3 DEF NextAttemptOfRel
+        <3>. QED
+            BY <2>1, <2>3, <3>1, <3>2
+    <2>4. CASE a \notin T
+        <3>1. nextAttemptOf'[a] = nextAttemptOf[a]
+            BY <2>2, <2>4
+        <3>. QED
+            BY <2>1, <3>1, <2>4 DEF NextAttemptOfRel
+    <2>. QED
+        BY <2>3, <2>4
+(* Define W as the set of pairs satisfying the RHS. *)
+<1>. DEFINE W == {ss \in Task \X Task :
+                    \/ ss \in TCNextAttemptOfRel
+                    \/ \E s \in T : /\ ss[2] = f[s]
+                                    /\ \/ ss[1] = s
+                                       \/ <<ss[1], s>> \in TCNextAttemptOfRel}
+(* Direction 1: TCNextAttemptOfRel' ⊆ W via TransitiveClosureMinimal. *)
+<1>contains. NextAttemptOfRel' \cap (Task \X Task) \subseteq W
+    <2>. SUFFICES ASSUME NEW a \in Task, NEW b \in Task,
+                         <<a, b>> \in NextAttemptOfRel'
+                  PROVE  <<a, b>> \in W
+        OBVIOUS
+    <2>1. \/ <<a, b>> \in NextAttemptOfRel
+          \/ a \in T /\ b = f[a]
+        BY <1>Rprime
+    <2>2. CASE <<a, b>> \in NextAttemptOfRel
+        <3>1. <<a, b>> \in TCNextAttemptOfRel
+            BY <2>2, TransitiveClosureThm DEF TCNextAttemptOfRel
+        <3>. QED
+            BY <3>1
+    <2>3. CASE a \in T /\ b = f[a]
+        BY <2>3
+    <2>. QED
+        BY <2>1, <2>2, <2>3
+<1>closed. IsTransitivelyClosedOn(W, Task)
+    <2>. SUFFICES ASSUME NEW i \in Task, NEW j \in Task, NEW k \in Task,
+                         <<i, j>> \in W, <<j, k>> \in W
+                  PROVE  <<i, k>> \in W
+        BY DEF IsTransitivelyClosedOn
+    (* Case analysis on the two pairs. *)
+    <2>1. CASE <<i, j>> \in TCNextAttemptOfRel /\ <<j, k>> \in TCNextAttemptOfRel
+        BY <2>1, TCTCTC DEF TCNextAttemptOfRel
+    <2>2. CASE <<i, j>> \in TCNextAttemptOfRel
+              /\ \E s \in T : k = f[s] /\ (j = s \/ <<j, s>> \in TCNextAttemptOfRel)
+        <3>1. PICK s \in T : k = f[s] /\ (j = s \/ <<j, s>> \in TCNextAttemptOfRel)
+            BY <2>2
+        <3>2. <<i, s>> \in TCNextAttemptOfRel
+            <4>1. CASE j = s
+                BY <4>1, <2>2
+            <4>2. CASE <<j, s>> \in TCNextAttemptOfRel
+                BY <4>2, <2>2, TCTCTC DEF TCNextAttemptOfRel
+            <4>. QED
+                BY <3>1, <4>1, <4>2
+        <3>. QED
+            BY <3>1, <3>2
+    <2>3. CASE \E s \in T : j = f[s] /\ (i = s \/ <<i, s>> \in TCNextAttemptOfRel)
+              /\ <<j, k>> \in TCNextAttemptOfRel
+        (* j = f[s] ∈ U. But U elements have no outgoing old edges,
+           so <<j, k>> ∈ TCNextAttemptOfRel is impossible. *)
+        <3>1. PICK s \in T : j = f[s]
+            BY <2>3
+        <3>2. j \in U
+            BY <3>1, <1>fran
+        <3>3. \A z \in Task : <<j, z>> \notin NextAttemptOfRel
+            BY <3>2, <1>UnoOut DEF NextAttemptOfRel
+        <3>. DEFINE V == {ss \in Task \X Task : ss[1] # j}
+        <3>4. NextAttemptOfRel \cap (Task \X Task) \subseteq V
+            BY <3>3
+        <3>5. IsTransitivelyClosedOn(V, Task)
+            BY DEF IsTransitivelyClosedOn
+        <3>6. TCNextAttemptOfRel \subseteq V
+            BY <3>4, <3>5, TransitiveClosureMinimal DEF TCNextAttemptOfRel
+        <3>7. <<j, k>> \notin TCNextAttemptOfRel
+            BY <3>6
+        <3>. QED
+            BY <2>3, <3>7
+    <2>4. CASE \E s1 \in T : j = f[s1] /\ (i = s1 \/ <<i, s1>> \in TCNextAttemptOfRel)
+              /\ \E s2 \in T : k = f[s2] /\ (j = s2 \/ <<j, s2>> \in TCNextAttemptOfRel)
+        (* j = f[s1] ∈ U. For j = s2 we'd need f[s1] ∈ T, but U ∩ T = {}.
+           For <<j, s2>> ∈ TC, j ∈ U has no outgoing edges — impossible. *)
+        <3>1. PICK s1 \in T : j = f[s1]
+            BY <2>4
+        <3>2. j \in U
+            BY <3>1, <1>fran
+        <3>3. PICK s2 \in T : k = f[s2] /\ (j = s2 \/ <<j, s2>> \in TCNextAttemptOfRel)
+            BY <2>4
+        <3>4. j # s2
+            BY <3>2, <1>disj, <3>3
+        <3>5. \A z \in Task : <<j, z>> \notin NextAttemptOfRel
+            BY <3>2, <1>UnoOut DEF NextAttemptOfRel
+        <3>. DEFINE V == {ss \in Task \X Task : ss[1] # j}
+        <3>6. NextAttemptOfRel \cap (Task \X Task) \subseteq V
+            BY <3>5
+        <3>7. IsTransitivelyClosedOn(V, Task)
+            BY DEF IsTransitivelyClosedOn
+        <3>8. TCNextAttemptOfRel \subseteq V
+            BY <3>6, <3>7, TransitiveClosureMinimal DEF TCNextAttemptOfRel
+        <3>9. <<j, s2>> \notin TCNextAttemptOfRel
+            BY <3>8
+        <3>. QED
+            BY <3>3, <3>4, <3>9
+    <2>. QED
+        BY <2>1, <2>2, <2>3, <2>4
+<1>Wsub. W \in SUBSET (Task \X Task)
+    OBVIOUS
+<1>forward. TCNextAttemptOfRel' \subseteq W
+    BY <1>contains, <1>closed, <1>Wsub, TransitiveClosureMinimal
+    DEF TCNextAttemptOfRel
+(* Direction 2: W ⊆ TCNextAttemptOfRel'. *)
+<1>backward. W \subseteq TCNextAttemptOfRel'
+    <2>. SUFFICES ASSUME NEW x \in Task, NEW y \in Task, <<x, y>> \in W
+                  PROVE  <<x, y>> \in TCNextAttemptOfRel'
+        OBVIOUS
+    <2>1. CASE <<x, y>> \in TCNextAttemptOfRel
+        (* Old TC pairs are preserved: NextAttemptOfRel ⊆ NextAttemptOfRel',
+           so TCNextAttemptOfRel ⊆ TCNextAttemptOfRel'. *)
+        <3>1. NextAttemptOfRel \cap (Task \X Task) \subseteq NextAttemptOfRel'
+            BY <1>Rprime, TransitiveClosureThm DEF TCNextAttemptOfRel
+        <3>2. NextAttemptOfRel' \cap (Task \X Task)
+              \subseteq TransitiveClosureOn(NextAttemptOfRel', Task)
+            BY TransitiveClosureThm
+        <3>3. IsTransitivelyClosedOn(TransitiveClosureOn(NextAttemptOfRel', Task), Task)
+            BY TransitiveClosureThm
+        <3>4. TransitiveClosureOn(NextAttemptOfRel', Task) \in SUBSET (Task \X Task)
+            BY DEF TransitiveClosureOn
+        <3>5. NextAttemptOfRel \cap (Task \X Task)
+              \subseteq TransitiveClosureOn(NextAttemptOfRel', Task)
+            BY <3>1, <3>2
+        <3>6. TCNextAttemptOfRel \subseteq TransitiveClosureOn(NextAttemptOfRel', Task)
+            BY <3>5, <3>3, <3>4, TransitiveClosureMinimal DEF TCNextAttemptOfRel
+        <3>. QED
+            BY <2>1, <3>6 DEF TCNextAttemptOfRel
+    <2>2. CASE \E s \in T : y = f[s] /\ (x = s \/ <<x, s>> \in TCNextAttemptOfRel)
+        <3>1. PICK s \in T : y = f[s] /\ (x = s \/ <<x, s>> \in TCNextAttemptOfRel)
+            BY <2>2
+        <3>2. <<s, f[s]>> \in NextAttemptOfRel'
+            BY <1>Rprime, <1>T, <1>fran, <1>U DEF UnretriedTask, FailedTask, UnknownTask
+        <3>3. <<s, y>> \in TCNextAttemptOfRel'
+            BY <3>1, <3>2, TransitiveClosureThm DEF TCNextAttemptOfRel
+        <3>4. CASE x = s
+            BY <3>4, <3>3
+        <3>5. CASE <<x, s>> \in TCNextAttemptOfRel
+            <4>1. <<x, s>> \in TCNextAttemptOfRel'
+                (* Same argument as <2>1: old TC ⊆ new TC. *)
+                <5>1. NextAttemptOfRel \cap (Task \X Task) \subseteq NextAttemptOfRel'
+                    BY <1>Rprime, TransitiveClosureThm DEF TCNextAttemptOfRel
+                <5>2. NextAttemptOfRel' \cap (Task \X Task)
+                      \subseteq TransitiveClosureOn(NextAttemptOfRel', Task)
+                    BY TransitiveClosureThm
+                <5>3. IsTransitivelyClosedOn(TransitiveClosureOn(NextAttemptOfRel', Task), Task)
+                    BY TransitiveClosureThm
+                <5>4. TransitiveClosureOn(NextAttemptOfRel', Task) \in SUBSET (Task \X Task)
+                    BY DEF TransitiveClosureOn
+                <5>5. NextAttemptOfRel \cap (Task \X Task)
+                      \subseteq TransitiveClosureOn(NextAttemptOfRel', Task)
+                    BY <5>1, <5>2
+                <5>6. TCNextAttemptOfRel \subseteq TransitiveClosureOn(NextAttemptOfRel', Task)
+                    BY <5>5, <5>3, <5>4, TransitiveClosureMinimal DEF TCNextAttemptOfRel
+                <5>. QED
+                    BY <3>5, <5>6 DEF TCNextAttemptOfRel
+            <4>2. s \in Task
+                BY <1>T DEF UnretriedTask, FailedTask
+            <4>. QED
+                BY <4>1, <3>3, <4>2, TCTCTC DEF TCNextAttemptOfRel
+        <3>. QED
+            BY <3>1, <3>4, <3>5
+    <2>. QED
+        BY <2>1, <2>2
+(* Combine both directions. *)
+<1>. QED
+    <2>. SUFFICES ASSUME NEW x \in Task, NEW y \in Task
+                  PROVE  <<x, y>> \in TCNextAttemptOfRel'
+                         <=> \/ <<x, y>> \in TCNextAttemptOfRel
+                             \/ \E s \in T : /\ y = f[s]
+                                             /\ \/ x = s
+                                                \/ <<x, s>> \in TCNextAttemptOfRel
+        OBVIOUS
+    <2>1. <<x, y>> \in TCNextAttemptOfRel' => <<x, y>> \in W
+        BY <1>forward
+    <2>2. <<x, y>> \in W => <<x, y>> \in TCNextAttemptOfRel'
+        BY <1>backward
+    <2>. QED
+        BY <2>1, <2>2
 
 (**
  * For an element of U (unknown, with no incoming edges pre-update), the new
@@ -151,7 +408,129 @@ LEMMA LemPreviousAttemptsInU ==
     PROVE  /\ PreviousAttempts(t)' = {s} \cup PreviousAttempts(s)
            /\ NextAttempts(t)' = {}
            /\ s \notin PreviousAttempts(s)
-OMITTED
+<1>. USE TP2Assumptions
+<1>T. T \subseteq UnretriedTask
+    BY DEF SetTaskRetries
+<1>U. U \subseteq UnknownTask
+    BY DEF SetTaskRetries
+<1>disj. T \cap U = {}
+    BY <1>T, <1>U DEF UnretriedTask, FailedTask, UnknownTask
+<1>sUnr. s \in UnretriedTask
+    BY <1>T
+<1>sNoOut. NextAttempts(s) = {}
+    BY <1>sUnr, LemUnretriedHasNoNextAttempts
+<1>finj. \A a, b \in T : f[a] = f[b] => a = b
+    BY DEF Bijection, Injection, IsInjective
+<1>tTask. t \in Task
+    BY <1>U DEF UnknownTask
+<1>char. \A x, y \in Task :
+              <<x, y>> \in TCNextAttemptOfRel'
+              <=> \/ <<x, y>> \in TCNextAttemptOfRel
+                  \/ \E s1 \in T : /\ y = f[s1]
+                                   /\ \/ x = s1
+                                      \/ <<x, s1>> \in TCNextAttemptOfRel
+    BY LemTC_AfterSetTaskRetries
+(* Facts about t (in U). *)
+<1>tNoIn. \A x \in Task : <<x, t>> \notin NextAttemptOfRel
+    (* Precondition of SetTaskRetries: no v with nextAttemptOf[v] = t for t in U. *)
+    <2>. SUFFICES ASSUME NEW x \in Task
+                  PROVE  <<x, t>> \notin NextAttemptOfRel
+        OBVIOUS
+    <2>1. \A v \in Task : nextAttemptOf[v] # t
+        BY DEF SetTaskRetries
+    <2>. QED
+        BY <2>1 DEF NextAttemptOfRel
+<1>tNoPrev. \A x \in Task : <<x, t>> \notin TCNextAttemptOfRel
+    (* No incoming edges means no TC predecessors. *)
+    <2>. DEFINE W == {ss \in Task \X Task : ss[2] # t}
+    <2>1. NextAttemptOfRel \cap (Task \X Task) \subseteq W
+        BY <1>tNoIn DEF NextAttemptOfRel
+    <2>2. IsTransitivelyClosedOn(W, Task)
+        BY DEF IsTransitivelyClosedOn
+    <2>3. TCNextAttemptOfRel \subseteq W
+        BY <2>1, <2>2, TransitiveClosureMinimal DEF TCNextAttemptOfRel
+    <2>. QED
+        BY <2>3
+<1>tNoOut. \A y \in Task : <<t, y>> \notin NextAttemptOfRel
+    <2>1. nextAttemptOf[t] = NULL
+        <3>1. t \in UnknownTask
+            BY <1>U
+        <3>. QED
+            BY <3>1 DEF UnknownTask, FailedTask, RetriedTask, TaskAttemptsIntegrity
+    <2>. QED
+        BY <2>1 DEF NextAttemptOfRel
+<1>tNoNext. \A y \in Task : <<t, y>> \notin TCNextAttemptOfRel
+    <2>. DEFINE V == {ss \in Task \X Task : ss[1] # t}
+    <2>1. NextAttemptOfRel \cap (Task \X Task) \subseteq V
+        BY <1>tNoOut DEF NextAttemptOfRel
+    <2>2. IsTransitivelyClosedOn(V, Task)
+        BY DEF IsTransitivelyClosedOn
+    <2>3. TCNextAttemptOfRel \subseteq V
+        BY <2>1, <2>2, TransitiveClosureMinimal DEF TCNextAttemptOfRel
+    <2>. QED
+        BY <2>3
+(* (1) PreviousAttempts(t)' = {s} \cup PreviousAttempts(s). *)
+<1>1. PreviousAttempts(t)' = {s} \cup PreviousAttempts(s)
+    <2>. SUFFICES ASSUME NEW x \in Task
+                  PROVE  x \in PreviousAttempts(t)'
+                         <=> x \in {s} \cup PreviousAttempts(s)
+        BY <1>T DEF PreviousAttempts
+    <2>1. x \in PreviousAttempts(t)' <=> <<x, t>> \in TCNextAttemptOfRel'
+        BY DEF PreviousAttempts
+    <2>2. <<x, t>> \in TCNextAttemptOfRel'
+          <=> \/ <<x, t>> \in TCNextAttemptOfRel
+              \/ \E s1 \in T : /\ t = f[s1]
+                               /\ \/ x = s1
+                                  \/ <<x, s1>> \in TCNextAttemptOfRel
+        BY <1>char, <1>tTask
+    <2>3. <<x, t>> \notin TCNextAttemptOfRel
+        BY <1>tNoPrev
+    <2>4. \A s1 \in T : t = f[s1] => s1 = s
+        BY <1>finj
+    <2>5. <<x, t>> \in TCNextAttemptOfRel'
+          <=> \/ x = s
+              \/ <<x, s>> \in TCNextAttemptOfRel
+        BY <2>2, <2>3, <2>4
+    <2>. QED
+        BY <2>1, <2>5, <1>T DEF PreviousAttempts
+(* (2) NextAttempts(t)' = {}. *)
+<1>2. NextAttempts(t)' = {}
+    <2>. SUFFICES ASSUME NEW y \in Task, <<t, y>> \in TCNextAttemptOfRel'
+                  PROVE  FALSE
+        BY DEF NextAttempts
+    <2>1. \/ <<t, y>> \in TCNextAttemptOfRel
+          \/ \E s1 \in T : /\ y = f[s1]
+                           /\ \/ t = s1
+                              \/ <<t, s1>> \in TCNextAttemptOfRel
+        BY <1>char, <1>tTask
+    <2>2. <<t, y>> \notin TCNextAttemptOfRel
+        BY <1>tNoNext
+    <2>3. PICK s1 \in T : /\ y = f[s1]
+                          /\ \/ t = s1
+                             \/ <<t, s1>> \in TCNextAttemptOfRel
+        BY <2>1, <2>2
+    <2>4. t # s1
+        BY <1>disj, <2>3
+    <2>5. <<t, s1>> \notin TCNextAttemptOfRel
+        BY <1>tNoNext, <1>T
+    <2>. QED
+        BY <2>3, <2>4, <2>5
+(* (3) s \notin PreviousAttempts(s). *)
+<1>3. s \notin PreviousAttempts(s)
+    (* s \in UnretriedTask has no outgoing edges, so no TC-path from s. *)
+    <2>. DEFINE V == {ss \in Task \X Task : ss[1] # s}
+    <2>1. nextAttemptOf[s] = NULL
+        BY <1>sUnr DEF UnretriedTask
+    <2>2. NextAttemptOfRel \cap (Task \X Task) \subseteq V
+        BY <2>1 DEF NextAttemptOfRel
+    <2>3. IsTransitivelyClosedOn(V, Task)
+        BY DEF IsTransitivelyClosedOn
+    <2>4. TCNextAttemptOfRel \subseteq V
+        BY <2>2, <2>3, TransitiveClosureMinimal DEF TCNextAttemptOfRel
+    <2>. QED
+        BY <2>4, <1>T DEF PreviousAttempts
+<1>. QED
+    BY <1>1, <1>2, <1>3
 
 (**
  * For t \in T, the forward chain after the update is {f[t]}, and the backward
@@ -166,7 +545,106 @@ LEMMA LemTaskAttemptsInT ==
     PROVE  /\ NextAttempts(t)' = {f[t]}
            /\ PreviousAttempts(t)' = PreviousAttempts(t)
            /\ f[t] \notin PreviousAttempts(t)
-OMITTED
+<1>. USE TP2Assumptions
+<1>T. T \subseteq UnretriedTask
+    BY DEF SetTaskRetries
+<1>U. U \subseteq UnknownTask
+    BY DEF SetTaskRetries
+<1>disj. T \cap U = {}
+    BY <1>T, <1>U DEF UnretriedTask, FailedTask, UnknownTask
+<1>ft. f[t] \in U
+    BY DEF Bijection, Injection
+<1>tUnr. t \in UnretriedTask
+    BY <1>T
+<1>tNoOut. NextAttempts(t) = {}
+    BY <1>tUnr, LemUnretriedHasNoNextAttempts
+<1>ftTask. f[t] \in Task
+    BY <1>ft, <1>U DEF UnknownTask
+<1>char. \A x, y \in Task :
+              <<x, y>> \in TCNextAttemptOfRel'
+              <=> \/ <<x, y>> \in TCNextAttemptOfRel
+                  \/ \E s \in T : /\ y = f[s]
+                                  /\ \/ x = s
+                                     \/ <<x, s>> \in TCNextAttemptOfRel
+    BY LemTC_AfterSetTaskRetries
+(* (1) NextAttempts(t)' = {f[t]}. *)
+<1>1. NextAttempts(t)' = {f[t]}
+    <2>1. f[t] \in NextAttempts(t)'
+        <3>1. <<t, f[t]>> \in TCNextAttemptOfRel'
+            BY <1>char, <1>ftTask
+        <3>. QED
+            BY <3>1, <1>ftTask DEF NextAttempts
+    <2>2. \A y \in Task : <<t, y>> \in TCNextAttemptOfRel' => y = f[t]
+        <3>. SUFFICES ASSUME NEW y \in Task, <<t, y>> \in TCNextAttemptOfRel'
+                      PROVE  y = f[t]
+            OBVIOUS
+        <3>1. \/ <<t, y>> \in TCNextAttemptOfRel
+              \/ \E s \in T : /\ y = f[s]
+                              /\ \/ t = s
+                                 \/ <<t, s>> \in TCNextAttemptOfRel
+            BY <1>char
+        <3>2. <<t, y>> \notin TCNextAttemptOfRel
+            BY <1>tNoOut DEF NextAttempts
+        <3>3. PICK s \in T : /\ y = f[s]
+                             /\ \/ t = s
+                                \/ <<t, s>> \in TCNextAttemptOfRel
+            BY <3>1, <3>2
+        <3>4. t = s
+            <4>. SUFFICES ASSUME <<t, s>> \in TCNextAttemptOfRel
+                          PROVE  FALSE
+                BY <3>3
+            <4>. QED
+                BY <1>tNoOut DEF NextAttempts
+        <3>. QED
+            BY <3>3, <3>4
+    <2>. QED
+        BY <2>1, <2>2, <1>ftTask DEF NextAttempts
+(* (2) PreviousAttempts(t)' = PreviousAttempts(t). *)
+<1>2. PreviousAttempts(t)' = PreviousAttempts(t)
+    <2>. SUFFICES ASSUME NEW x \in Task
+                  PROVE  <<x, t>> \in TCNextAttemptOfRel'
+                         <=> <<x, t>> \in TCNextAttemptOfRel
+        BY DEF PreviousAttempts
+    <2>1. \/ <<x, t>> \in TCNextAttemptOfRel
+          \/ \E s \in T : /\ t = f[s]
+                          /\ \/ x = s
+                             \/ <<x, s>> \in TCNextAttemptOfRel
+          \/ <<x, t>> \notin TCNextAttemptOfRel'
+        BY <1>char
+    <2>2. \A s \in T : t # f[s]
+        (* t \in T \subseteq FailedTask, f[s] \in U \subseteq UnknownTask. *)
+        <3>. SUFFICES ASSUME NEW s \in T
+                      PROVE  t # f[s]
+            OBVIOUS
+        <3>1. f[s] \in U
+            BY DEF Bijection, Injection
+        <3>. QED
+            BY <1>disj, <3>1
+    <2>3. <<x, t>> \in TCNextAttemptOfRel' => <<x, t>> \in TCNextAttemptOfRel
+        BY <2>1, <2>2
+    <2>4. <<x, t>> \in TCNextAttemptOfRel => <<x, t>> \in TCNextAttemptOfRel'
+        BY <1>char
+    <2>. QED
+        BY <2>3, <2>4
+(* (3) f[t] \notin PreviousAttempts(t). *)
+<1>3. f[t] \notin PreviousAttempts(t)
+    (* f[t] \in U has no outgoing edges in R, so no TC-successors. *)
+    <2>. DEFINE V == {ss \in Task \X Task : ss[1] # f[t]}
+    <2>1. nextAttemptOf[f[t]] = NULL
+        <3>1. f[t] \in UnknownTask
+            BY <1>ft, <1>U
+        <3>. QED
+            BY <3>1 DEF UnknownTask, FailedTask, RetriedTask, TaskAttemptsIntegrity
+    <2>2. NextAttemptOfRel \cap (Task \X Task) \subseteq V
+        BY <2>1 DEF NextAttemptOfRel
+    <2>3. IsTransitivelyClosedOn(V, Task)
+        BY DEF IsTransitivelyClosedOn
+    <2>4. TCNextAttemptOfRel \subseteq V
+        BY <2>2, <2>3, TransitiveClosureMinimal DEF TCNextAttemptOfRel
+    <2>. QED
+        BY <2>4 DEF PreviousAttempts
+<1>. QED
+    BY <1>1, <1>2, <1>3
 
 (**
  * For t \notin T \cup U: the backward chain is unchanged. The forward chain
@@ -193,14 +671,141 @@ LEMMA LemTaskAttemptsOutTU ==
 OMITTED
 
 (**
- * Finiteness of TaskAttempts / PreviousAttempts (follows from their
- * cardinalities being bounded by MaxRetries in AttemptsBoundsInv).
+ * Finiteness of TaskAttempts(t). Stated as a temporal invariant: every task
+ * has a finite set of attempts. Note that IsFiniteSet(PreviousAttempts(t))
+ * follows from this and FS_Subset because
+ *    PreviousAttempts(t) \subseteq TaskAttempts(t)
+ * by the definition of TaskAttempts.
  *)
-LEMMA LemTaskAttemptsFinite ==
-    ASSUME AttemptsBoundsInv, MaxRetries \in Nat, NEW t \in Task
-    PROVE  /\ IsFiniteSet(TaskAttempts(t))
-           /\ IsFiniteSet(PreviousAttempts(t))
-OMITTED
+FiniteTaskAttemptsInv ==
+    \A t \in Task: IsFiniteSet(TaskAttempts(t))
+
+LEMMA LemTaskAttemptsFinite == Init /\ [][Next]_vars => []FiniteTaskAttemptsInv
+<1>1. Init => FiniteTaskAttemptsInv
+    <2>. SUFFICES ASSUME Init, NEW t \in Task
+                  PROVE IsFiniteSet(TaskAttempts(t))
+        BY DEF FiniteTaskAttemptsInv
+    <2>. USE TP2Assumptions
+    <2>1. NextAttemptOfRel = {}
+        BY DEF Init, NextAttemptOfRel
+    <2>2. TCNextAttemptOfRel = {}
+        <3>1. {} \in SUBSET (Task \X Task)
+            OBVIOUS
+        <3>2. IsTransitivelyClosedOn({}, Task)
+            BY DEF IsTransitivelyClosedOn
+        <3>. QED
+            BY <2>1, <3>1, <3>2, TransitiveClosureMinimal
+            DEF TCNextAttemptOfRel
+    <2>3. TaskAttempts(t) = {}
+        BY <2>2 DEF TaskAttempts, PreviousAttempts, NextAttempts
+    <2>. QED
+        BY <2>3, FS_EmptySet
+<1>2. TypeOk /\ TaskAttemptsIntegrity /\ FiniteTaskAttemptsInv /\ [Next]_vars
+      => FiniteTaskAttemptsInv'
+    <2>. SUFFICES ASSUME TypeOk, TaskAttemptsIntegrity, FiniteTaskAttemptsInv,
+                         [Next]_vars, NEW t \in Task
+                  PROVE IsFiniteSet(TaskAttempts(t)')
+        BY DEF FiniteTaskAttemptsInv
+    <2>. USE TP2Assumptions
+    (* SetTaskRetries is the only action that changes nextAttemptOf. *)
+    <2>1. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U)
+           PROVE IsFiniteSet(TaskAttempts(t)')
+        <3>1. T \subseteq UnretriedTask
+            BY <2>1 DEF SetTaskRetries
+        <3>2. PICK f \in Bijection(T, U) :
+                  nextAttemptOf'
+                  = [s \in Task |-> IF s \in T THEN f[s] ELSE nextAttemptOf[s]]
+            BY <2>1 DEF SetTaskRetries
+        <3>3. \A u \in U : \E s \in T : f[s] = u
+            BY <3>2 DEF Bijection, Surjection
+        <3>4. IsFiniteSet(TaskAttempts(t))
+            BY DEF FiniteTaskAttemptsInv
+        <3>5. \A s \in Task : IsFiniteSet(PreviousAttempts(s))
+            (* PreviousAttempts(s) \subseteq TaskAttempts(s), which is finite. *)
+            <4>. SUFFICES ASSUME NEW s \in Task
+                          PROVE  IsFiniteSet(PreviousAttempts(s))
+                OBVIOUS
+            <4>1. IsFiniteSet(TaskAttempts(s))
+                BY DEF FiniteTaskAttemptsInv
+            <4>. QED
+                BY <4>1, FS_Subset DEF TaskAttempts
+        <3>6. CASE t \in T
+            <4>1. /\ NextAttempts(t)' = {f[t]}
+                  /\ PreviousAttempts(t)' = PreviousAttempts(t)
+                BY <2>1, <3>6, <3>2, LemTaskAttemptsInT
+            <4>2. TaskAttempts(t)' = PreviousAttempts(t) \cup {f[t]}
+                BY <4>1 DEF TaskAttempts
+            <4>. QED
+                BY <3>5, <4>2, FS_AddElement
+        <3>7. CASE t \in U
+            <4>1. PICK s \in T : f[s] = t
+                BY <3>3, <3>7
+            <4>2. /\ PreviousAttempts(t)' = {s} \cup PreviousAttempts(s)
+                  /\ NextAttempts(t)' = {}
+                BY <2>1, <3>7, <3>2, <4>1, LemPreviousAttemptsInU
+            <4>3. TaskAttempts(t)' = PreviousAttempts(s) \cup {s}
+                BY <4>2 DEF TaskAttempts
+            <4>. QED
+                BY <3>5, <4>3, FS_AddElement
+        <3>8. CASE t \notin T /\ t \notin U
+            <4>1. /\ PreviousAttempts(t)' = PreviousAttempts(t)
+                  /\ \/ /\ NextAttempts(t) \cap T = {}
+                        /\ NextAttempts(t)' = NextAttempts(t)
+                     \/ \E s0 \in NextAttempts(t) \cap T :
+                            /\ NextAttempts(t)' = NextAttempts(t) \cup {f[s0]}
+                            /\ f[s0] \notin TaskAttempts(t)
+                            /\ IsFiniteSet(TaskAttempts(t))
+                            /\ IsFiniteSet(PreviousAttempts(s0))
+                            /\ Cardinality(TaskAttempts(t))
+                               = Cardinality(PreviousAttempts(s0))
+                BY <2>1, <3>8, <3>2, LemTaskAttemptsOutTU
+            <4>2. CASE /\ NextAttempts(t) \cap T = {}
+                       /\ NextAttempts(t)' = NextAttempts(t)
+                <5>. TaskAttempts(t)' = TaskAttempts(t)
+                    BY <4>1, <4>2 DEF TaskAttempts
+                <5>. QED  BY <3>4
+            <4>3. CASE \E s0 \in NextAttempts(t) \cap T :
+                         NextAttempts(t)' = NextAttempts(t) \cup {f[s0]}
+                <5>1. PICK s0 \in NextAttempts(t) \cap T :
+                          NextAttempts(t)' = NextAttempts(t) \cup {f[s0]}
+                    BY <4>3
+                <5>2. TaskAttempts(t)' = TaskAttempts(t) \cup {f[s0]}
+                    BY <4>1, <5>1 DEF TaskAttempts
+                <5>. QED
+                    BY <3>4, <5>2, FS_AddElement
+            <4>. QED  BY <4>1, <4>2, <4>3
+        <3>. QED
+            BY <3>6, <3>7, <3>8
+    (* All other actions keep nextAttemptOf unchanged. *)
+    <2>. SUFFICES ASSUME UNCHANGED nextAttemptOf
+                  PROVE IsFiniteSet(TaskAttempts(t)')
+        <3>1. ASSUME [\/ \E T \in SUBSET Task:
+                            \/ RegisterTasks(T)
+                            \/ StageTasks(T)
+                            \/ DiscardTasks(T)
+                            \/ AssignTasks(T)
+                            \/ ReleaseTasks(T)
+                            \/ ProcessTasks(T)
+                            \/ CompleteTasks(T)
+                            \/ AbortTasks(T)
+                            \/ RetryTasks(T)
+                        \/ Terminating]_vars
+              PROVE UNCHANGED nextAttemptOf
+            BY <3>1 DEF vars, RegisterTasks, StageTasks, DiscardTasks,
+               AssignTasks, ReleaseTasks, ProcessTasks, CompleteTasks,
+               AbortTasks, RetryTasks, Terminating
+        <3>. QED
+            BY <2>1, <3>1, Zenon DEF Next
+    <2>2. TaskAttempts(t)' = TaskAttempts(t)
+        BY DEF TaskAttempts, NextAttempts, PreviousAttempts, TCNextAttemptOfRel,
+               NextAttemptOfRel, TransitiveClosureOn, IsTransitivelyClosedOn
+    <2>. QED
+        BY <2>2 DEF FiniteTaskAttemptsInv
+<1>. QED
+    BY <1>1, <1>2, LemType, LemTaskAttemptsIntegrity, PTL
+
+THEOREM TP2_FiniteTaskAttemptsInv == Spec => []FiniteTaskAttemptsInv
+BY LemTaskAttemptsFinite DEF Spec
 
 LEMMA LemAttemptsBoundsInv == Init /\ [][Next]_vars => []AttemptsBoundsInv
 <1>1. Init => AttemptsBoundsInv
@@ -234,9 +839,10 @@ LEMMA LemAttemptsBoundsInv == Init /\ [][Next]_vars => []AttemptsBoundsInv
         BY DEF Init, FailedTask
     <2>. QED
         BY <2>3, <2>4, <2>5, <2>6, SMT DEF UnretriedTask
-<1>2. TypeOk /\ TaskAttemptsIntegrity /\ AttemptsBoundsInv /\ [Next]_vars => AttemptsBoundsInv'
-    <2>. SUFFICES ASSUME TypeOk, TaskAttemptsIntegrity, AttemptsBoundsInv, [Next]_vars,
-                         NEW t \in Task
+<1>2. TypeOk /\ TaskAttemptsIntegrity /\ FiniteTaskAttemptsInv /\ AttemptsBoundsInv /\ [Next]_vars
+      => AttemptsBoundsInv'
+    <2>. SUFFICES ASSUME TypeOk, TaskAttemptsIntegrity, FiniteTaskAttemptsInv,
+                         AttemptsBoundsInv, [Next]_vars, NEW t \in Task
                   PROVE /\ Cardinality(TaskAttempts(t)') <= MaxRetries
                         /\ t \in UnretriedTask' => Cardinality(PreviousAttempts(t)') < MaxRetries
         BY DEF AttemptsBoundsInv
@@ -272,10 +878,10 @@ LEMMA LemAttemptsBoundsInv == Init /\ [][Next]_vars => []AttemptsBoundsInv
                   /\ NextAttempts(t) = {}
                   /\ Cardinality(PreviousAttempts(t)) < MaxRetries
                   /\ IsFiniteSet(PreviousAttempts(t))
-                BY <2>1, <3>8, <3>5, <3>1, <3>7,
+                BY <2>1, <3>8, <3>5, <3>1,
                    LemTaskAttemptsInT, LemUnretriedHasNoNextAttempts,
-                   LemTaskAttemptsFinite
-                   DEF AttemptsBoundsInv
+                   FS_Subset
+                   DEF AttemptsBoundsInv, FiniteTaskAttemptsInv, TaskAttempts
             <4>2. Cardinality(TaskAttempts(t)') <= MaxRetries
                 <5>1. TaskAttempts(t)' = PreviousAttempts(t) \cup {f[t]}
                     BY <4>1 DEF TaskAttempts
@@ -299,9 +905,9 @@ LEMMA LemAttemptsBoundsInv == Init /\ [][Next]_vars => []AttemptsBoundsInv
                   /\ s \in UnretriedTask
                   /\ Cardinality(PreviousAttempts(s)) < MaxRetries
                   /\ IsFiniteSet(PreviousAttempts(s))
-                BY <2>1, <3>9, <3>5, <4>1, <3>1, <3>7,
-                   LemPreviousAttemptsInU, LemTaskAttemptsFinite
-                   DEF AttemptsBoundsInv
+                BY <2>1, <3>9, <3>5, <4>1, <3>1,
+                   LemPreviousAttemptsInU, FS_Subset
+                   DEF AttemptsBoundsInv, FiniteTaskAttemptsInv, TaskAttempts
             <4>3. Cardinality(TaskAttempts(t)') <= MaxRetries
                 <5>1. TaskAttempts(t)' = PreviousAttempts(s) \cup {s}
                     BY <4>2 DEF TaskAttempts
@@ -419,7 +1025,7 @@ LEMMA LemAttemptsBoundsInv == Init /\ [][Next]_vars => []AttemptsBoundsInv
     <2>. QED
         BY <2>5, <2>6
 <1>. QED
-    BY <1>1, <1>2, LemType, LemTaskAttemptsIntegrity, PTL
+    BY <1>1, <1>2, LemType, LemTaskAttemptsIntegrity, LemTaskAttemptsFinite, PTL
 
 LEMMA LemAttemptsIsBounded == Init /\ [][Next]_vars => []AttemptsIsBounded
 <1>1. AttemptsBoundsInv => AttemptsIsBounded
@@ -537,17 +1143,91 @@ THEOREM TP2_AttemptsIsIncreasing == Spec => AttemptsIsIncreasing
 <1>. SUFFICES ASSUME NEW t \in Task
               PROVE Spec => [][TaskAttempts(t) \subseteq TaskAttempts(t)']_(TaskAttempts(t))
     BY DEF AttemptsIsIncreasing
-<1>. SUFFICES ASSUME [Next]_vars
+<1>. SUFFICES ASSUME TypeOk, TaskAttemptsIntegrity, [Next]_vars
               PROVE [TaskAttempts(t) \subseteq TaskAttempts(t)']_(TaskAttempts(t))
-    BY PTL DEF Spec, vars
+    BY TP2_Type, TP2_TaskAttemptsIntegrity, PTL DEF Spec, vars
 <1>0. UNCHANGED nextAttemptOf => UNCHANGED TaskAttempts(t)
     BY DEF TaskAttempts, PreviousAttempts, NextAttempts, TCNextAttemptOfRel,
     NextAttemptOfRel, TransitiveClosureOn
 <1>1. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U)
       PROVE [TaskAttempts(t) \subseteq TaskAttempts(t)']_(TaskAttempts(t))
-    BY <1>0, <1>1, TP2Assumptions DEF TaskAttempts, NextAttempts, PreviousAttempts,
-    TransitiveClosureOn, IsTransitivelyClosedOn, TCNextAttemptOfRel, NextAttemptOfRel,
-    SetTaskRetries, UnknownTask, UnretriedTask, FailedTask
+    <2>. USE TP2Assumptions, <1>1
+    <2>T. T \subseteq UnretriedTask
+        BY DEF SetTaskRetries
+    <2>U. U \subseteq UnknownTask
+        BY DEF SetTaskRetries
+    <2>disj. T \cap U = {}
+        BY <2>T, <2>U DEF UnretriedTask, FailedTask, UnknownTask
+    <2>f. PICK f \in Bijection(T, U) :
+              nextAttemptOf'
+              = [s \in Task |-> IF s \in T THEN f[s] ELSE nextAttemptOf[s]]
+        BY DEF SetTaskRetries
+    <2>fsur. \A u \in U : \E s \in T : f[s] = u
+        BY <2>f DEF Bijection, Surjection
+    <2>caseT. CASE t \in T
+        <3>1. /\ NextAttempts(t)' = {f[t]}
+              /\ PreviousAttempts(t)' = PreviousAttempts(t)
+              /\ t \in UnretriedTask
+            BY <2>caseT, <2>f, <2>T, LemTaskAttemptsInT
+        <3>2. NextAttempts(t) = {}
+            BY <3>1, LemUnretriedHasNoNextAttempts
+        <3>3. TaskAttempts(t) \subseteq TaskAttempts(t)'
+            BY <3>1, <3>2 DEF TaskAttempts
+        <3>. QED
+            BY <3>3
+    <2>caseU. CASE t \in U
+        <3>1. PICK s \in T : f[s] = t
+            BY <2>fsur, <2>caseU
+        <3>2. /\ PreviousAttempts(t)' = {s} \cup PreviousAttempts(s)
+              /\ NextAttempts(t)' = {}
+            BY <2>caseU, <2>f, <3>1, LemPreviousAttemptsInU
+        <3>3. t \notin T
+            BY <2>disj, <2>caseU
+        (* t \in U has no outgoing edges pre-update and no incoming either. *)
+        <3>4. \A y \in Task : <<t, y>> \notin NextAttemptOfRel
+            <4>1. t \in UnknownTask
+                BY <2>U, <2>caseU
+            <4>2. nextAttemptOf[t] = NULL
+                BY <4>1 DEF UnknownTask, FailedTask, RetriedTask, TaskAttemptsIntegrity
+            <4>. QED
+                BY <4>2 DEF NextAttemptOfRel
+        <3>5. NextAttempts(t) = {}
+            <4>. DEFINE V == {ss \in Task \X Task : ss[1] # t}
+            <4>1. NextAttemptOfRel \cap (Task \X Task) \subseteq V
+                BY <3>4 DEF NextAttemptOfRel
+            <4>2. IsTransitivelyClosedOn(V, Task)
+                BY DEF IsTransitivelyClosedOn
+            <4>3. TCNextAttemptOfRel \subseteq V
+                BY <4>1, <4>2, TransitiveClosureMinimal DEF TCNextAttemptOfRel
+            <4>. QED
+                BY <4>3 DEF NextAttempts
+        <3>6. PreviousAttempts(t) = {}
+            <4>. DEFINE W == {ss \in Task \X Task : ss[2] # t}
+            <4>1. \A v \in Task : nextAttemptOf[v] # t
+                BY <2>caseU DEF SetTaskRetries
+            <4>2. NextAttemptOfRel \cap (Task \X Task) \subseteq W
+                BY <4>1 DEF NextAttemptOfRel
+            <4>3. IsTransitivelyClosedOn(W, Task)
+                BY DEF IsTransitivelyClosedOn
+            <4>4. TCNextAttemptOfRel \subseteq W
+                BY <4>2, <4>3, TransitiveClosureMinimal DEF TCNextAttemptOfRel
+            <4>. QED
+                BY <4>4 DEF PreviousAttempts
+        <3>7. TaskAttempts(t) = {}
+            BY <3>5, <3>6 DEF TaskAttempts
+        <3>. QED
+            BY <3>7
+    <2>caseOut. CASE t \notin T /\ t \notin U
+        <3>1. /\ PreviousAttempts(t)' = PreviousAttempts(t)
+              /\ \/ /\ NextAttempts(t) \cap T = {}
+                    /\ NextAttempts(t)' = NextAttempts(t)
+                 \/ \E s0 \in NextAttempts(t) \cap T :
+                        NextAttempts(t)' = NextAttempts(t) \cup {f[s0]}
+            BY <2>caseOut, <2>f, LemTaskAttemptsOutTU
+        <3>. QED
+            BY <3>1 DEF TaskAttempts
+    <2>. QED
+        BY <2>caseT, <2>caseU, <2>caseOut DEF TaskAttempts
 <1>. SUFFICES ASSUME [\/ \E T \in SUBSET Task:
                             \/ RegisterTasks(T)
                             \/ StageTasks(T)
@@ -724,41 +1404,6 @@ THEOREM TP2_FailedTaskEventualRetry == Spec => FailedTaskEventualRetry
         BY <2>1, <2>2, <2>3, <2>4, TP2_TaskSafetyInv, PTL DEF Spec
 <1>. QED
     BY <1>1, <1>2, LemFailedTaskEventualRetry, TP2_TaskSafetyInv, PTL DEF Spec
-
-FiniteTaskAttemptsInv ==
-    \A t \in Task: IsFiniteSet(TaskAttempts(t))
-
-LEMMA LemFiniteTaskAttemptsInv == Init /\ [][Next]_vars => []FiniteTaskAttemptsInv
-<1>1. Init => FiniteTaskAttemptsInv
-    <2>. SUFFICES ASSUME Init, NEW t \in Task
-                  PROVE IsFiniteSet(TaskAttempts(t))
-        BY DEF FiniteTaskAttemptsInv
-    <2>1. nextAttemptOf = [u \in Task |-> NULL]
-        BY DEF Init
-    <2>2. NextAttemptOfRel = {}
-        BY <2>1, TP2Assumptions DEF NextAttemptOfRel
-    <2>3. TCNextAttemptOfRel = {}
-        <3>1. {} \in SUBSET (Task \X Task)
-            OBVIOUS
-        <3>2. IsTransitivelyClosedOn({}, Task)
-            BY DEF IsTransitivelyClosedOn
-        <3>3. NextAttemptOfRel \cap Task \X Task \subseteq {}
-            BY <2>2
-        <3>4. TCNextAttemptOfRel \subseteq {}
-            BY <3>1, <3>2, <3>3, TransitiveClosureMinimal DEF TCNextAttemptOfRel
-        <3>. QED
-            BY <3>4 DEF TCNextAttemptOfRel, TransitiveClosureOn
-    <2>4. TaskAttempts(t) = {}
-        BY <2>3 DEF TaskAttempts, PreviousAttempts, NextAttempts
-    <2>. QED
-        BY <2>4, FS_EmptySet
-<1>2. FiniteTaskAttemptsInv /\ AttemptsBoundsInv /\ [Next]_vars => FiniteTaskAttemptsInv'
-    OMITTED \* Assumed: IsFiniteSet(TaskAttempts(t)) is preserved by Next
-<1>. QED
-    BY <1>1, <1>2, LemAttemptsBoundsInv, PTL
-
-THEOREM TP2_FiniteTaskAttemptsInv == Spec => []FiniteTaskAttemptsInv
-BY LemFiniteTaskAttemptsInv DEF Spec
 
 (**
  * Helper lemma: if Cardinality(TaskAttempts(t)) is bounded by n+1 but not
