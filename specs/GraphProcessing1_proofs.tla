@@ -1226,21 +1226,19 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
                   /\ []ENABLED <<o \in objectTargets /\ OP1!FinalizeObjects({o})>>_OP1!vars
                   => FALSE
         BY PTL
-    \* <2>. DEFINE A(o) == o \in objectTargets /\ o \in RegisteredObject
-    \*             M(o) == Len(ShortestOpenPath(o))
-    \*             B(o, n) == M(o) = n
-    \* <2>1. ENABLED <<o \in objectTargets /\ OP1!FinalizeObjects({o})>>_OP1!vars => A(o)
+    <2>1. /\ []OpenUpstreamStopsGrowing
+          /\ []ENABLED <<o \in objectTargets /\ OP1!FinalizeObjects({o})>>_OP1!vars
+          => [](o \in objectTargets /\ o \in RegisteredObject) /\ <>[][(OpenSubGraph(o).node)' \subseteq OpenSubGraph(o).node]_vars
+    <2>. SUFFICES /\ [][Next]_vars /\ []GraphSafetyInv /\ []Fairness
+                  /\ [](o \in objectTargets /\ o \in RegisteredObject) /\ [][(OpenSubGraph(o).node)' \subseteq OpenSubGraph(o).node]_vars
+                  => FALSE
+    BY <2>1, PTL
+    <2>2. o \in objectTargets /\ o \in RegisteredObject => \E n \in Nat \ {0}: M(n)
+    \* <2>. DEFINE A    == o \in objectTargets /\ o \in RegisteredObject
+    \*             M(n) == Cardinality(OpenSubGraph(o)) = n
+    \* <2>1. ENABLED <<o \in objectTargets /\ OP1!FinalizeObjects({o})>>_OP1!vars => A
     \*     BY ExpandENABLED DEF OP1!FinalizeObjects, OP1!vars, RegisteredObject, OP1!RegisteredObject
-    \* <2>2. GraphSafetyInv /\ A(o) => \E n \in Nat \ {0}: B(o, n)
-    \*     <3>. SUFFICES ASSUME GraphSafetyInv, A(o)
-    \*                   PROVE \E n \in Nat \ {0}: B(o, n)
-    \*     <3>1. OpenPath(o) # {}
-    \*     <3>2. \A p \in OpenPath(o) : Len(p) \in Nat \ {0}
-    \*         \* BY EmptySeq DEF OpenPath, SimplePath, SeqOf
-    \*     <3>3. ShortestOpenPath(o) \in OpenPath(o)
-    \*         BY <3>1, <3>2, ArgMinNat DEF ShortestOpenPath
-    \*     <3>. QED
-    \*         BY <3>1, <3>2, <3>3
+    \* <2>2. GraphSafetyInv /\ A => \E n \in Nat \ {0}: M(n)
     \* <2>3. [][Next]_vars /\ []GraphSafetyInv /\ []Fairness /\ []A(o)
     \*       => [](\A n \in Nat \ {0}: B(o, n) => FALSE)
     \*     <3>. DEFINE I(n) == n /= 0 => ([][Next]_vars /\ []GraphSafetyInv /\ []Fairness /\ []A(o)
@@ -1288,5 +1286,14 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
         \* BY <2>1, <2>2, <2>3, <2>4, PTL
 <1>. QED
     BY <1>1, <1>2, <1>3, GP1_GraphSafetyInv, PTL DEF Spec, OP1!Spec, RefineObjectProcessing1
+
+
+LEMMA Lem ==
+    ASSUME NEW t \in Task PROVE
+    MandatorySuccessors(deps, t) \subseteq FinalizedObject
+    <=> \A o \in Successors(deps, t):
+            Predecessors(deps, o) \ {t} \subseteq FinalizedTask
+            => o \in FinalizedObject
+BY DEF MandatorySuccessors
 
 ================================================================================
