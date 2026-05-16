@@ -1,5 +1,5 @@
 ------------------------ MODULE TaskProcessing4_proofs -------------------------
-EXTENDS TaskProcessing4, TLAPS
+EXTENDS TaskProcessing4, TLAPS, FiniteSetTheorems
 
 USE DEF TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED,
 TASK_SUCCEEDED, TASK_FAILED, TASK_DISCARDED, TASK_COMPLETED,
@@ -74,6 +74,9 @@ TaskSafetyInv ==
 
 LEMMA LemTaskSafetyInv == Init /\ [][Next]_vars => []TaskSafetyInv
 BY LemType, LemDeletionValidity, LemTaskStateIntegrity, PTL DEF TaskSafetyInv
+
+THEOREM TP4_TaskSafetyInv == Spec => []TaskSafetyInv
+BY LemTaskSafetyInv DEF Spec
 
 LEMMA LemPermanentDeletion ==
         ASSUME NEW t \in Task
@@ -223,8 +226,7 @@ THEOREM TP4_DeletionQuiescence == Spec => DeletionQuiescence
 <1>. QED
     BY <1>1, <1>2, LemTaskSafetyInv, PTL DEF Spec
 
-LEMMA LemRefineTP3InitNext == Init /\ [][Next]_vars
-                               => TP3!Init /\ [][TP3!Next]_TP3!vars
+THEOREM TP4_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
 <1>1. Init => TP3!Init
     BY DEF Init, TP3!Init
 <1>2. [Next]_vars => [TP3!Next]_TP3!vars
@@ -332,7 +334,131 @@ LEMMA LemRefineTP3InitNext == Init /\ [][Next]_vars
         BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10,
            <2>11, <2>12, <2>13, <2>14, <2>15, <2>16, <2>17, <2>18
         DEF Next, TP3!Next
+<1>3. [][Next]_vars /\ []TaskSafetyInv /\ Fairness => TP3!Fairness
+    <2>. SUFFICES ASSUME NEW t \in Task
+                  PROVE /\ [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(\E u \in Task : TP3!SetTaskRetries({t}, {u}))
+                        /\ [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!RegisterTasks({nextAttemptOf[t]}))
+                        /\ [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!StageTasks({nextAttemptOf[t]}))
+                        /\ [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  SF_TP3!vars(TP3!ProcessTasks({t}))
+                        /\ [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!CompleteTasks({t}))
+                        /\ [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!AbortTasks({t}))
+                        /\ [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!RetryTasks({t}))
+                        /\ [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!StopTasks({t}))
+                        /\ [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!PauseTasks({t}))
+                        /\ [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!ResumeTasks({t}))
+        BY Isa DEF TP3!Fairness
+    <2>. DEFINE P == taskDeleted \intersect {t} = {}
+    <2>1. [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(\E u \in Task : TP3!SetTaskRetries({t}, {u}))
+    <2>2. [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!RegisterTasks({nextAttemptOf[t]}))
+        <3>1. ENABLED <<TP3!RegisterTasks({nextAttemptOf[t]})>>_TP3!vars => ENABLED <<RegisterTasks({nextAttemptOf[t]})>>_vars
+            <4>1. ENABLED <<TP3!RegisterTasks({nextAttemptOf[t]})>>_TP3!vars => nextAttemptOf[t] \in TP3!UnknownTask
+                BY ExpandENABLED DEF TP3!RegisterTasks, TP3!vars
+            <4>2. nextAttemptOf[t] \in UnknownTask => ENABLED <<RegisterTasks({nextAttemptOf[t]})>>_vars
+                BY ExpandENABLED, FS_Singleton DEF RegisterTasks, vars, UnknownTask
+            <4>. QED
+                BY <4>1, <4>2 DEF UnknownTask, TP3!UnknownTask
+        <3>2. <<RegisterTasks({nextAttemptOf[t]})>>_vars => <<TP3!RegisterTasks({nextAttemptOf[t]})>>_TP3!vars
+            BY DEF RegisterTasks, vars, UnknownTask, TP3!RegisterTasks, TP3!vars, TP3!UnknownTask, IsFiniteSet, TP3!IsFiniteSet
+        <3>3. Fairness => WF_vars(RegisterTasks({nextAttemptOf[t]}))
+            BY Isa DEF Fairness
+        <3>. QED
+            BY <3>1, <3>2, <3>3, PTL
+    <2>3. [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!StageTasks({nextAttemptOf[t]}))
+        <3>. SUFFICES [][Next]_vars /\ []TaskSafetyInv /\ WF_vars(StageTasks({nextAttemptOf[t]})) =>  WF_TP3!vars(TP3!StageTasks({nextAttemptOf[t]}))
+            BY Isa DEF Fairness
+        \* <5>. SUFFICES [][Next]_vars /\ []TaskSafetyInv /\ WF_vars(StageTasks({nextAttemptOf[t]})) /\ []ENABLED <<
+        <3>. QED
+    <2>4. [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  SF_TP3!vars(TP3!ProcessTasks({t}))
+        <3>1. ENABLED <<TP3!ProcessTasks({t})>>_TP3!vars => ENABLED <<ProcessTasks({t})>>_vars
+            <4>1. ENABLED <<TP3!ProcessTasks({t})>>_TP3!vars => t \in TP3!AssignedTask
+                BY ExpandENABLED DEF TP3!ProcessTasks, TP3!vars
+            <4>2. t \in AssignedTask => ENABLED <<ProcessTasks({t})>>_vars
+                <5>1. <<ProcessTasks({t})>>_vars <=> ProcessTasks({t})
+                    BY DEF ProcessTasks, vars, AssignedTask
+                <5>2. ENABLED <<ProcessTasks({t})>>_vars <=> ENABLED ProcessTasks({t})
+                    BY <5>1, ENABLEDaxioms
+                <5>3. t \in AssignedTask => ENABLED ProcessTasks({t})
+                    BY ExpandENABLED, Zenon DEF ProcessTasks, vars, AssignedTask
+                <5>. QED
+                    BY <5>2, <5>3
+            <4>. QED
+                BY <4>1, <4>2 DEF AssignedTask, TP3!AssignedTask
+        <3>2. <<ProcessTasks({t})>>_vars => <<TP3!ProcessTasks({t})>>_TP3!vars
+            <4>1. Cardinality(PreviousAttempts(t)) = TP3!Cardinality(TP3!PreviousAttempts(t))
+                <5>1. PreviousAttempts(t) = TP3!PreviousAttempts(t)
+                    BY DEF PreviousAttempts, TCNextAttemptOfRel, NextAttemptOfRel, TransitiveClosureOn, IsTransitivelyClosedOn,
+                    TP3!PreviousAttempts, TP3!TCNextAttemptOfRel, TP3!NextAttemptOfRel, TP3!TransitiveClosureOn, TP3!IsTransitivelyClosedOn
+                <5>. QED
+                    BY <5>1 DEF Cardinality, TP3!Cardinality
+            <4>. QED
+                BY <4>1 DEF ProcessTasks, vars, AssignedTask, TP3!ProcessTasks, TP3!vars, TP3!AssignedTask
+        <3>3. Fairness => SF_vars(ProcessTasks({t}))
+            BY Isa DEF Fairness
+        <3>. QED
+            BY <3>1, <3>2, <3>3, PTL
+    <2>5. [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!CompleteTasks({t}))
+        <3>0. ENABLED <<TP3!CompleteTasks({t})>>_TP3!vars => t \in SucceededTask
+            BY ExpandENABLED DEF TP3!CompleteTasks, TP3!vars, TP3!SucceededTask, SucceededTask
+        <3>1. P /\ ENABLED <<TP3!CompleteTasks({t})>>_TP3!vars => ENABLED <<CompleteTasks({t})>>_vars
+            <4>1. t \in SucceededTask => ENABLED <<CompleteTasks({t})>>_vars
+                BY ExpandENABLED DEF CompleteTasks, vars, SucceededTask
+            <4>. QED
+                BY <3>0, <4>1
+        <3>2. <<CompleteTasks({t})>>_vars => <<TP3!CompleteTasks({t})>>_TP3!vars
+            BY DEF CompleteTasks, vars, SucceededTask, TP3!CompleteTasks, TP3!vars, TP3!SucceededTask
+        <3>3. TaskSafetyInv /\ ENABLED <<TP3!CompleteTasks({t})>>_TP3!vars => P
+            BY <3>0 DEF TaskSafetyInv, DeletionValidity
+        <3>4. Fairness => WF_vars(CompleteTasks({t}))
+            BY Isa DEF Fairness
+        <3>. QED
+            BY <3>1, <3>2, <3>3, <3>4, PTL
+    <2>6. [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!AbortTasks({t}))
+        <3>0. ENABLED <<TP3!AbortTasks({t})>>_TP3!vars => t \in DiscardedTask
+            BY ExpandENABLED DEF TP3!AbortTasks, TP3!vars, TP3!DiscardedTask, DiscardedTask
+        <3>1. P /\ ENABLED <<TP3!AbortTasks({t})>>_TP3!vars => ENABLED <<AbortTasks({t})>>_vars
+            <4>1. t \in DiscardedTask => ENABLED <<AbortTasks({t})>>_vars
+                BY ExpandENABLED DEF AbortTasks, vars, DiscardedTask
+            <4>. QED
+                BY <3>0, <4>1
+        <3>2. <<AbortTasks({t})>>_vars => <<TP3!AbortTasks({t})>>_TP3!vars
+            BY DEF AbortTasks, vars, DiscardedTask, TP3!AbortTasks, TP3!vars, TP3!DiscardedTask
+        <3>3. TaskSafetyInv /\ ENABLED <<TP3!AbortTasks({t})>>_TP3!vars => P
+            BY <3>0 DEF TaskSafetyInv, DeletionValidity
+        <3>4. Fairness => WF_vars(AbortTasks({t}))
+            BY Isa DEF Fairness
+        <3>. QED
+            BY <3>1, <3>2, <3>3, <3>4, PTL
+    <2>7. [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!RetryTasks({t}))
+        <3>0. ENABLED <<TP3!RetryTasks({t})>>_TP3!vars => t \in FailedTask
+            BY ExpandENABLED DEF TP3!RetryTasks, TP3!vars, TP3!FailedTask, FailedTask
+        <3>1. P /\ ENABLED <<TP3!RetryTasks({t})>>_TP3!vars => ENABLED <<RetryTasks({t})>>_vars
+            <4>1. t \in FailedTask => ENABLED <<RetryTasks({t})>>_vars
+                BY ExpandENABLED DEF RetryTasks, vars, FailedTask
+            <4>. QED
+                BY <3>0, <4>1
+        <3>2. <<RetryTasks({t})>>_vars => <<TP3!RetryTasks({t})>>_TP3!vars
+            BY DEF RetryTasks, vars, FailedTask, TP3!RetryTasks, TP3!vars, TP3!FailedTask
+        <3>3. TaskSafetyInv /\ ENABLED <<TP3!RetryTasks({t})>>_TP3!vars => P
+            BY <3>0 DEF TaskSafetyInv, DeletionValidity
+        <3>4. Fairness => WF_vars(RetryTasks({t}))
+            BY Isa DEF Fairness
+        <3>. QED
+            BY <3>1, <3>2, <3>3, <3>4, PTL
+    <2>8. [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!StopTasks({t}))
+    <2>9. [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!PauseTasks({t}))
+    <2>10. [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!ResumeTasks({t}))
+        <3>0. ENABLED <<TP3!ResumeTasks({t})>>_TP3!vars => t \in PausedTask
+            BY ExpandENABLED DEF TP3!ResumeTasks, TP3!vars, PausedTask, TP3!PausedTask
+        <3>1. P /\ ENABLED <<TP3!ResumeTasks({t})>>_TP3!vars => ENABLED <<ResumeTasks({t})>>_vars
+        <3>2. <<ResumeTasks({t})>>_vars => <<TP3!ResumeTasks({t})>>_TP3!vars
+        <3>3. TaskSafetyInv /\ ENABLED <<TP3!ResumeTasks({t})>>_TP3!vars => P
+        <3>4. Fairness => WF_vars(ResumeTasks({t}))
+            BY Isa DEF Fairness
+        <3>. QED
+            BY <3>1, <3>2, <3>3, <3>4, PTL
+    <2>. QED
+        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10
 <1>. QED
-    BY <1>1, <1>2, PTL
+    BY <1>1, <1>2, <1>3, TP4_TaskSafetyInv, PTL DEF RefineTaskProcessing3, Spec, TP3!Spec
 
 ================================================================================
