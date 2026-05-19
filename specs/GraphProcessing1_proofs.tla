@@ -828,6 +828,44 @@ THEOREM GP1_TaskDataDependenciesInvariant == Spec => TaskDataDependenciesInvaria
 
 THEOREM GP1_MandatoryOutputsEventuallyFinalized == Spec => MandatoryOutputsEventuallyFinalized
 
+LEMMA LemTaskDataDependenciesInvariant ==
+    ASSUME NEW t \in Task
+    PROVE [Next]_vars => [~ t \in UnknownTask =>
+                            /\ Predecessors(deps, t) = Predecessors(deps', t)
+                            /\ Successors(deps, t) = Successors(deps', t) ]_deps
+<1>1. ASSUME NEW G \in Graphs(Task \union Object), RegisterGraph(G)
+      PROVE [~ t \in UnknownTask =>
+                        /\ Predecessors(deps, t) = Predecessors(deps', t)
+                        /\ Successors(deps, t) = Successors(deps', t) ]_deps
+        BY <1>1 DEF Predecessors, Successors, Graphs, RegisterGraph, GraphUnion,
+            TaskNode
+<1>. QED
+    BY <1>1 DEF Next, vars, TargetObjects, UntargetObjects, FinalizeObjects,
+    StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks, FinalizeTasks,
+    Terminating
+
+LEMMA LemStableTaskSuccessors ==
+    ASSUME NEW S \in SUBSET Object, NEW t \in Task
+    PROVE ~ t \in UnknownTask /\ S = Successors(deps, t) /\ [Next]_vars
+          => (S = Successors(deps, t))'
+BY LemTaskDataDependenciesInvariant
+
+LEMMA LemProcessedTaskNeverUnknown ==
+    ASSUME NEW t \in Task, []GraphSafetyInv
+    PROVE t \in ProcessedTask /\ [][Next]_vars => [](~t \in UnknownTask)
+<1>1. GraphSafetyInv /\ t \in ProcessedTask /\ [Next]_vars => (t \in ProcessedTask)' \/ (t \in FinalizedTask)'
+    \* BY GP1Assumptions, SameAssumptions, LemTaskProcessing1NextRefined, TP1!LemProcessedTaskNext
+    \* DEF GraphSafetyInv, ProcessedTask, TP1!ProcessedTask, FinalizedTask, TP1!FinalizedTask
+<1>2. GraphSafetyInv /\ t \in FinalizedTask /\ [Next]_vars => (t \in FinalizedTask)'
+    \* BY GP1Assumptions, SameAssumptions, LemTaskProcessing1NextRefined, TP1!LemStableFinalization
+    \* DEF GraphSafetyInv, FinalizedTask, TP1!FinalizedTask
+<1>3. t \in ProcessedTask => ~ t \in UnknownTask
+    BY DEF ProcessedTask, UnknownTask
+<1>4. t \in FinalizedTask => ~ t \in UnknownTask
+    BY DEF FinalizedTask, UnknownTask
+<1>. QED
+    BY <1>1, <1>2, <1>3, <1>4, PTL
+
 THEOREM GP1_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
 <1>. USE DEF TP1!TASK_UNKNOWN, TP1!TASK_REGISTERED, TP1!TASK_STAGED, TP1!TASK_ASSIGNED,
      TP1!TASK_PROCESSED, TP1!TASK_FINALIZED
@@ -880,9 +918,6 @@ THEOREM GP1_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
         BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11, <2>12
         DEF Next, TP1!Next
 <1>3. [][Next]_vars /\ []GraphSafetyInv /\ Fairness => TP1!Fairness
-
-
-
     <2>. SUFFICES ASSUME NEW t \in Task
                         PROVE /\ SF_vars(ProcessTasks({t}))
                                  => SF_TP1!vars(TP1!ProcessTasks({t}))
@@ -999,11 +1034,9 @@ THEOREM GP1_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
                         <7>. SUFFICES A(S) => <>[](S = AllSuccessors(deps, {t}))
                             BY <7>1, PTL
                         <7>2. A(S) => [](~t \in UnknownTask)
-                            OMITTED
-                            \* BY LemProcessedTaskNeverUnknown
+                            BY LemProcessedTaskNeverUnknown
                         <7>3. ~ t \in UnknownTask /\ S = AllSuccessors(deps, {t}) /\ [Next]_vars => (S = AllSuccessors(deps, {t}))'
-                            OMITTED
-                            \* BY LemStableTaskSuccessors DEF AllSuccessors
+                            BY LemStableTaskSuccessors DEF AllSuccessors
                         <7>. QED
                             BY <7>2, <7>3, PTL
                     <6>2. ASSUME NEW T \in SUBSET S, IsFiniteSet(T), I(T), NEW x \in S \ T
@@ -1055,8 +1088,7 @@ THEOREM GP1_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
                         BY DEF GraphSafetyInv, TypeOk, TP1State, ProcessedTask, UnknownTask
                     <6>2. t \in ProcessedTask /\ S = AllSuccessors(deps, {t}) /\ [Next]_vars
                         => (S = AllSuccessors(deps, {t}))'
-                        OMITTED
-                        \* BY <5>1, LemStableTaskSuccessors, Isa DEF AllSuccessors
+                        BY <5>1, LemStableTaskSuccessors, Isa DEF AllSuccessors
                     <6>. QED
                         BY <6>2
                 <5>3. GraphSafetyInv /\ A(S) /\ ~ o \in FinalizedObject
@@ -1090,8 +1122,7 @@ THEOREM GP1_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
                         BY DEF GraphSafetyInv, TypeOk, IsDirectedGraph, GraphStateIntegrity, AllSuccessors, Successors, FinalizedObject, UnknownObject, UnknownTask
                     <6>2. ~ t \in UnknownTask /\ S = AllSuccessors(deps, {t}) /\ [Next]_vars
                         => (S = AllSuccessors(deps, {t}))'
-                        \* BY LemStableTaskSuccessors DEF AllSuccessors
-                        OMITTED
+                        BY LemStableTaskSuccessors DEF AllSuccessors
                     <6>3. GraphSafetyInv /\ o \in FinalizedObject /\ [Next]_vars
                         => (o \in FinalizedObject)'
                         OMITTED
@@ -1174,66 +1205,66 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
         BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11, <2>12
         DEF Next, OP1!Next
 <1>3. []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ OpenUpstreamStopsGrowing => OP1!Fairness
-    <2>0a. Fairness => []Fairness
-        <3>1. (\A o \in Object : WF_vars(FinalizeObjects({o})))
-               => [](\A o \in Object : WF_vars(FinalizeObjects({o})))
-            <4>1. [](\A o \in Object : WF_vars(FinalizeObjects({o})))
-                  <=> \A o \in Object : [](WF_vars(FinalizeObjects({o})))
-                OBVIOUS
-            <4>2. ASSUME NEW o \in Object
-                  PROVE [](WF_vars(FinalizeObjects({o})))
-                        <=> WF_vars(FinalizeObjects({o}))
-                BY PTL
-            <4>. QED
-                BY <4>1, <4>2
-        <3>. DEFINE TaskFairness(t) ==
-                        /\ WF_vars(StageTasks({t}))
-                        /\ WF_vars(
-                            /\ \E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)
-                            /\ AssignTasks({t}))
-                        /\ SF_vars(ProcessTasks({t}))
-                        /\ WF_vars(FinalizeTasks({t}))
-        <3>2. (\A t \in Task : TaskFairness(t))
-               => [](\A t \in Task : TaskFairness(t))
-            <4>1. [](\A t \in Task : TaskFairness(t))
-                  <=> \A t \in Task : []TaskFairness(t)
-                OBVIOUS
-            <4>2. ASSUME NEW t \in Task
-                  PROVE []TaskFairness(t)
-                        <=> TaskFairness(t)
-                BY PTL
-            <4>. QED
-                BY <4>1, <4>2
-        <3>. QED
-            BY <3>1, <3>2, PTL DEF Fairness
-    <2>0b. OpenUpstreamStopsGrowing => []OpenUpstreamStopsGrowing
-        <3>. DEFINE P(o) == [](o \in objectTargets
-                               => <>[][(OpenSubGraph(o).node)' \subseteq OpenSubGraph(o).node]_vars)
-        <3>1. (\A o \in Object: []P(o)) <=> [](\A o \in Object: P(o))
-            OBVIOUS
-        <3>2. ASSUME NEW o \in Object
-              PROVE P(o) <=> []P(o)
-            BY PTL
-        <3>. QED
-            BY <3>1, <3>2 DEF OpenUpstreamStopsGrowing
-    <2>. DEFINE GP(o) == o \in objectTargets
-                         => <>[][(OpenSubGraph(o).node)' \subseteq OpenSubGraph(o).node]_vars
-    <2>. SUFFICES ASSUME NEW o \in Object
-                  PROVE [][Next]_vars /\ []GraphSafetyInv /\ []Fairness /\ []OpenUpstreamStopsGrowing
-                        => WF_OP1!vars(o \in objectTargets /\ OP1!FinalizeObjects({o}))
-        BY <2>0a, <2>0b, Isa DEF OP1!Fairness
-    <2>. SUFFICES /\ [][Next]_vars /\ []GraphSafetyInv /\ []Fairness /\ []OpenUpstreamStopsGrowing
-                  /\ []ENABLED <<o \in objectTargets /\ OP1!FinalizeObjects({o})>>_OP1!vars
-                  => FALSE
-        BY PTL
-    <2>1. /\ []OpenUpstreamStopsGrowing
-          /\ []ENABLED <<o \in objectTargets /\ OP1!FinalizeObjects({o})>>_OP1!vars
-          => [](o \in objectTargets /\ o \in RegisteredObject) /\ <>[][(OpenSubGraph(o).node)' \subseteq OpenSubGraph(o).node]_vars
-    <2>. SUFFICES /\ [][Next]_vars /\ []GraphSafetyInv /\ []Fairness
-                  /\ [](o \in objectTargets /\ o \in RegisteredObject) /\ [][(OpenSubGraph(o).node)' \subseteq OpenSubGraph(o).node]_vars
-                  => FALSE
-    BY <2>1, PTL
-    <2>2. o \in objectTargets /\ o \in RegisteredObject => \E n \in Nat \ {0}: M(n)
+    \* <2>0a. Fairness => []Fairness
+    \*     <3>1. (\A o \in Object : WF_vars(FinalizeObjects({o})))
+    \*            => [](\A o \in Object : WF_vars(FinalizeObjects({o})))
+    \*         <4>1. [](\A o \in Object : WF_vars(FinalizeObjects({o})))
+    \*               <=> \A o \in Object : [](WF_vars(FinalizeObjects({o})))
+    \*             OBVIOUS
+    \*         <4>2. ASSUME NEW o \in Object
+    \*               PROVE [](WF_vars(FinalizeObjects({o})))
+    \*                     <=> WF_vars(FinalizeObjects({o}))
+    \*             BY PTL
+    \*         <4>. QED
+    \*             BY <4>1, <4>2
+    \*     <3>. DEFINE TaskFairness(t) ==
+    \*                     /\ WF_vars(StageTasks({t}))
+    \*                     /\ WF_vars(
+    \*                         /\ \E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)
+    \*                         /\ AssignTasks({t}))
+    \*                     /\ SF_vars(ProcessTasks({t}))
+    \*                     /\ WF_vars(FinalizeTasks({t}))
+    \*     <3>2. (\A t \in Task : TaskFairness(t))
+    \*            => [](\A t \in Task : TaskFairness(t))
+    \*         <4>1. [](\A t \in Task : TaskFairness(t))
+    \*               <=> \A t \in Task : []TaskFairness(t)
+    \*             OBVIOUS
+    \*         <4>2. ASSUME NEW t \in Task
+    \*               PROVE []TaskFairness(t)
+    \*                     <=> TaskFairness(t)
+    \*             BY PTL
+    \*         <4>. QED
+    \*             BY <4>1, <4>2
+    \*     <3>. QED
+    \*         BY <3>1, <3>2, PTL DEF Fairness
+    \* <2>0b. OpenUpstreamStopsGrowing => []OpenUpstreamStopsGrowing
+    \*     <3>. DEFINE P(o) == [](o \in objectTargets
+    \*                            => <>[][(OpenSubGraph(o).node)' \subseteq OpenSubGraph(o).node]_vars)
+    \*     <3>1. (\A o \in Object: []P(o)) <=> [](\A o \in Object: P(o))
+    \*         OBVIOUS
+    \*     <3>2. ASSUME NEW o \in Object
+    \*           PROVE P(o) <=> []P(o)
+    \*         BY PTL
+    \*     <3>. QED
+    \*         BY <3>1, <3>2 DEF OpenUpstreamStopsGrowing
+    \* <2>. DEFINE GP(o) == o \in objectTargets
+    \*                      => <>[][(OpenSubGraph(o).node)' \subseteq OpenSubGraph(o).node]_vars
+    \* <2>. SUFFICES ASSUME NEW o \in Object
+    \*               PROVE [][Next]_vars /\ []GraphSafetyInv /\ []Fairness /\ []OpenUpstreamStopsGrowing
+    \*                     => WF_OP1!vars(o \in objectTargets /\ OP1!FinalizeObjects({o}))
+    \*     BY <2>0a, <2>0b, Isa DEF OP1!Fairness
+    \* <2>. SUFFICES /\ [][Next]_vars /\ []GraphSafetyInv /\ []Fairness /\ []OpenUpstreamStopsGrowing
+    \*               /\ []ENABLED <<o \in objectTargets /\ OP1!FinalizeObjects({o})>>_OP1!vars
+    \*               => FALSE
+    \*     BY PTL
+    \* <2>1. /\ []OpenUpstreamStopsGrowing
+    \*       /\ []ENABLED <<o \in objectTargets /\ OP1!FinalizeObjects({o})>>_OP1!vars
+    \*       => [](o \in objectTargets /\ o \in RegisteredObject) /\ <>[][(OpenSubGraph(o).node)' \subseteq OpenSubGraph(o).node]_vars
+    \* <2>. SUFFICES /\ [][Next]_vars /\ []GraphSafetyInv /\ []Fairness
+    \*               /\ [](o \in objectTargets /\ o \in RegisteredObject) /\ [][(OpenSubGraph(o).node)' \subseteq OpenSubGraph(o).node]_vars
+    \*               => FALSE
+    \* BY <2>1, PTL
+    \* <2>2. o \in objectTargets /\ o \in RegisteredObject => \E n \in Nat \ {0}: M(n)
     \* <2>. DEFINE A    == o \in objectTargets /\ o \in RegisteredObject
     \*             M(n) == Cardinality(OpenSubGraph(o)) = n
     \* <2>1. ENABLED <<o \in objectTargets /\ OP1!FinalizeObjects({o})>>_OP1!vars => A
@@ -1288,12 +1319,12 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
     BY <1>1, <1>2, <1>3, GP1_GraphSafetyInv, PTL DEF Spec, OP1!Spec, RefineObjectProcessing1
 
 
-LEMMA Lem ==
-    ASSUME NEW t \in Task PROVE
-    MandatorySuccessors(deps, t) \subseteq FinalizedObject
-    <=> \A o \in Successors(deps, t):
-            Predecessors(deps, o) \ {t} \subseteq FinalizedTask
-            => o \in FinalizedObject
-BY DEF MandatorySuccessors
+\* LEMMA Lem ==
+\*     ASSUME NEW t \in Task PROVE
+\*     MandatorySuccessors(deps, t) \subseteq FinalizedObject
+\*     <=> \A o \in Successors(deps, t):
+\*             Predecessors(deps, o) \ {t} \subseteq FinalizedTask
+\*             => o \in FinalizedObject
+\* BY DEF MandatorySuccessors
 
 ================================================================================

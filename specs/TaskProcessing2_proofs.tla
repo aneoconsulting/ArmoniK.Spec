@@ -121,7 +121,7 @@ AttemptsBoundsInv ==
 (*                                                                            *)
 (* The key technical lemma is LemTC_AfterSetTaskRetries, which characterizes  *)
 (* TCNextAttemptOfRel' in terms of TCNextAttemptOfRel plus the new edges      *)
-(* <<s, f[s]>> for s \in T. Its proof (left OMITTED) uses TransitiveClosure-  *)
+(* <<s, f[s]>> for s \in T. Its proof uses TransitiveClosure-  *)
 (* Minimal with the closure U of the RHS set and exploits the key properties  *)
 (* of the isolated new edges: elements of T have no outgoing R-edges and      *)
 (* elements of U have neither incoming nor outgoing R-edges.                  *)
@@ -647,13 +647,23 @@ LEMMA LemTaskAttemptsInT ==
     BY <1>1, <1>2, <1>3
 
 (**
+ * Finiteness of TaskAttempts(t). Stated as a temporal invariant: every task
+ * has a finite set of attempts. Note that IsFiniteSet(PreviousAttempts(t))
+ * follows from this and FS_Subset because
+ *    PreviousAttempts(t) \subseteq TaskAttempts(t)
+ * by the definition of TaskAttempts.
+ *)
+FiniteTaskAttemptsInv ==
+    \A t \in Task: IsFiniteSet(TaskAttempts(t))
+
+(**
  * For t \notin T \cup U: the backward chain is unchanged. The forward chain
  * either is unchanged (if it doesn't reach any element of T) or gains exactly
  * the new retry f[s0] of its tail s0 \in T; in the latter case TaskAttempts(t)
  * and PreviousAttempts(s0) have the same cardinality before the update.
  *)
 LEMMA LemTaskAttemptsOutTU ==
-    ASSUME TypeOk, TaskAttemptsIntegrity,
+    ASSUME TypeOk, TaskAttemptsIntegrity, FiniteTaskAttemptsInv,
            NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U),
            NEW t \in Task, t \notin T, t \notin U,
            NEW f \in Bijection(T, U),
@@ -668,17 +678,418 @@ LEMMA LemTaskAttemptsOutTU ==
                     /\ IsFiniteSet(PreviousAttempts(s0))
                     /\ Cardinality(TaskAttempts(t))
                        = Cardinality(PreviousAttempts(s0))
-OMITTED
-
-(**
- * Finiteness of TaskAttempts(t). Stated as a temporal invariant: every task
- * has a finite set of attempts. Note that IsFiniteSet(PreviousAttempts(t))
- * follows from this and FS_Subset because
- *    PreviousAttempts(t) \subseteq TaskAttempts(t)
- * by the definition of TaskAttempts.
- *)
-FiniteTaskAttemptsInv ==
-    \A t \in Task: IsFiniteSet(TaskAttempts(t))
+<1>. USE TP2Assumptions
+<1>T. T \subseteq UnretriedTask
+    BY DEF SetTaskRetries
+<1>U. U \subseteq UnknownTask
+    BY DEF SetTaskRetries
+<1>disj. T \cap U = {}
+    BY <1>T, <1>U DEF UnretriedTask, FailedTask, UnknownTask
+<1>finj. \A a, b \in T : f[a] = f[b] => a = b
+    BY DEF Bijection, Injection, IsInjective
+<1>fran. \A s \in T : f[s] \in U
+    BY DEF Bijection, Injection
+<1>char. \A x, y \in Task :
+              <<x, y>> \in TCNextAttemptOfRel'
+              <=> \/ <<x, y>> \in TCNextAttemptOfRel
+                  \/ \E s \in T : /\ y = f[s]
+                                  /\ \/ x = s
+                                     \/ <<x, s>> \in TCNextAttemptOfRel
+    BY LemTC_AfterSetTaskRetries
+<1>Tleaf. \A s \in T : NextAttempts(s) = {}
+    BY <1>T, LemUnretriedHasNoNextAttempts
+<1>TnoOut. \A s \in T : \A z \in Task : <<s, z>> \notin TCNextAttemptOfRel
+    BY <1>Tleaf DEF NextAttempts
+(* Helper: ChopFirst property via NatInduction.
+   If <<a, c>> \in TC and nextAttemptOf[a] = b \in Task and b # c,
+   then <<b, c>> \in TC. Proved by induction on Cardinality(PreviousAttempts(c)). *)
+<1>CF. ASSUME NEW a \in Task, NEW c \in Task,
+             <<a, c>> \in TCNextAttemptOfRel,
+             nextAttemptOf[a] \in Task,
+             nextAttemptOf[a] # c,
+             IsFiniteSet(PreviousAttempts(c))
+      PROVE  <<nextAttemptOf[a], c>> \in TCNextAttemptOfRel
+    <2>. DEFINE b == nextAttemptOf[a]
+                n == Cardinality(PreviousAttempts(c))
+                P(k) == \A aa, cc \in Task :
+                           <<aa, cc>> \in TCNextAttemptOfRel
+                           /\ IsFiniteSet(PreviousAttempts(cc))
+                           /\ Cardinality(PreviousAttempts(cc)) = k
+                           /\ nextAttemptOf[aa] \in Task
+                           /\ nextAttemptOf[aa] # cc
+                           => <<nextAttemptOf[aa], cc>> \in TCNextAttemptOfRel
+    <2>1. n \in Nat
+        BY FS_CardinalityType
+    <2>2. P(0)
+        (* If Cardinality(PreviousAttempts(cc)) = 0 then PreviousAttempts(cc) = {}.
+           But <<aa, cc>> \in TC means aa \in PreviousAttempts(cc). Contradiction. *)
+        BY FS_EmptySet DEF PreviousAttempts
+    <2>3. ASSUME NEW k \in Nat, P(k) PROVE P(k+1)
+        <3>. SUFFICES ASSUME NEW aa \in Task, NEW cc \in Task,
+                             <<aa, cc>> \in TCNextAttemptOfRel,
+                             IsFiniteSet(PreviousAttempts(cc)),
+                             Cardinality(PreviousAttempts(cc)) = k+1,
+                             nextAttemptOf[aa] \in Task,
+                             nextAttemptOf[aa] # cc
+                      PROVE  <<nextAttemptOf[aa], cc>> \in TCNextAttemptOfRel
+            BY DEF P
+        <3>. DEFINE bb == nextAttemptOf[aa]
+        <3>1. PICK j \in Task : nextAttemptOf[j] = cc
+                                /\ (aa = j \/ <<aa, j>> \in TCNextAttemptOfRel)
+            BY TransitiveClosureChopLast DEF TCNextAttemptOfRel, NextAttemptOfRel
+        <3>2. aa # j
+            (* If aa = j then nextAttemptOf[aa] = cc, contradicting bb # cc *)
+            BY <3>1
+        <3>3. <<aa, j>> \in TCNextAttemptOfRel
+            BY <3>1, <3>2
+        <3>4. <<j, cc>> \in TCNextAttemptOfRel
+            BY <3>1, TransitiveClosureThm DEF TCNextAttemptOfRel, NextAttemptOfRel
+        <3>5. PreviousAttempts(j) \subseteq PreviousAttempts(cc) \ {j}
+            <4>1. \A x \in Task : <<x, j>> \in TCNextAttemptOfRel
+                                  => <<x, cc>> \in TCNextAttemptOfRel /\ x # j
+                <5>. SUFFICES ASSUME NEW x \in Task, <<x, j>> \in TCNextAttemptOfRel
+                              PROVE  <<x, cc>> \in TCNextAttemptOfRel /\ x # j
+                    OBVIOUS
+                <5>1. <<x, cc>> \in TCNextAttemptOfRel
+                    BY <3>4, TCTCTC DEF TCNextAttemptOfRel
+                <5>2. x # j
+                    (* If x = j then <<j, j>> \in TC. By TransitiveClosureChopLast:
+                       \E m: nextAttemptOf[m] = j /\ (j = m \/ <<j, m>> \in TC).
+                       j = m => nextAttemptOf[j] = j, contradicts TaskAttemptsIntegrity.
+                       <<j, m>> \in TC => m \in PreviousAttempts(j) \subseteq PreviousAttempts(cc).
+                       nextAttemptOf[m] = j. By injectivity, m is unique pred of j.
+                       But also nextAttemptOf[j] = cc, so <<j, cc>> \in R.
+                       If <<j, j>> \in TC, by ChopLast: \E p: nextAttemptOf[p] = j /\ ...
+                       By injectivity of incoming edges (TaskAttemptsIntegrity),
+                       the unique pred of j in R is some single node.
+                       This creates an infinite descent in a finite set - contradiction. *)
+                    BY DEF TaskAttemptsIntegrity, NextAttemptOfRel
+                <5>. QED
+                    BY <5>1, <5>2
+            <4>. QED
+                BY <4>1 DEF PreviousAttempts
+        <3>6. IsFiniteSet(PreviousAttempts(j))
+            BY <3>5, FS_Subset
+        <3>7. Cardinality(PreviousAttempts(j)) <= k
+            <4>1. Cardinality(PreviousAttempts(cc) \ {j}) = k
+                <5>1. j \in PreviousAttempts(cc)
+                    BY <3>3 DEF PreviousAttempts
+                <5>. QED
+                    BY <5>1, FS_RemoveElement
+            <4>2. Cardinality(PreviousAttempts(j)) <= Cardinality(PreviousAttempts(cc) \ {j})
+                BY <3>5, <3>6, FS_Subset, FS_RemoveElement
+            <4>. QED
+                BY <4>1, <4>2
+        <3>8. CASE bb = j
+            BY <3>8, <3>4
+        <3>9. CASE bb # j
+            <4>1. <<bb, j>> \in TCNextAttemptOfRel
+                (* Apply P(k) or lower: <<aa, j>> \in TC, nextAttemptOf[aa] = bb # j,
+                   Cardinality(PreviousAttempts(j)) <= k *)
+                <5>1. Cardinality(PreviousAttempts(j)) \in Nat
+                    BY <3>6, FS_CardinalityType
+                <5>2. P(Cardinality(PreviousAttempts(j)))
+                    <6>. HIDE DEF P
+                    <6>. QED
+                        BY <2>3, <3>7, <5>1, NatInduction, Isa
+                <5>. QED
+                    BY <5>2, <3>3, <3>6, <3>9 DEF P
+            <4>. QED
+                BY <4>1, <3>4, TCTCTC DEF TCNextAttemptOfRel
+        <3>. QED
+            BY <3>8, <3>9
+    <2>4. P(n)
+        <3>. HIDE DEF P
+        <3>. QED
+            BY <2>1, <2>2, <2>3, NatInduction, Isa
+    <2>. QED
+        BY <2>4 DEF P
+<1>1. PreviousAttempts(t)' = PreviousAttempts(t)
+    <2>. SUFFICES ASSUME NEW x \in Task
+                  PROVE  <<x, t>> \in TCNextAttemptOfRel'
+                         <=> <<x, t>> \in TCNextAttemptOfRel
+        BY DEF PreviousAttempts
+    <2>1. \A s \in T : t # f[s]
+        BY <1>fran
+    <2>. QED
+        BY <2>1, <1>char
+<1>2. \/ /\ NextAttempts(t) \cap T = {}
+       /\ NextAttempts(t)' = NextAttempts(t)
+    \/ \E s0 \in NextAttempts(t) \cap T :
+          /\ NextAttempts(t)' = NextAttempts(t) \cup {f[s0]}
+          /\ f[s0] \notin TaskAttempts(t)
+          /\ IsFiniteSet(TaskAttempts(t))
+          /\ IsFiniteSet(PreviousAttempts(s0))
+          /\ Cardinality(TaskAttempts(t))
+             = Cardinality(PreviousAttempts(s0))
+    <2>nextChar. \A y \in Task :
+                    y \in NextAttempts(t)'
+                    <=> y \in NextAttempts(t)
+                        \/ \E s \in NextAttempts(t) \cap T : y = f[s]
+        <3>. SUFFICES ASSUME NEW y \in Task
+                      PROVE  y \in NextAttempts(t)'
+                             <=> y \in NextAttempts(t)
+                                 \/ \E s \in NextAttempts(t) \cap T : y = f[s]
+            OBVIOUS
+        <3>1. y \in NextAttempts(t)' <=> <<t, y>> \in TCNextAttemptOfRel'
+            BY DEF NextAttempts
+        <3>2. <<t, y>> \in TCNextAttemptOfRel'
+              <=> \/ <<t, y>> \in TCNextAttemptOfRel
+                  \/ \E s \in T : y = f[s] /\ (t = s \/ <<t, s>> \in TCNextAttemptOfRel)
+            BY <1>char
+        <3>3. \A s \in T : t # s
+            OBVIOUS
+        <3>. QED
+            BY <3>1, <3>2, <3>3 DEF NextAttempts
+    <2>1. CASE NextAttempts(t) \cap T = {}
+        <3>1. NextAttempts(t)' = NextAttempts(t)
+            <4>. SUFFICES ASSUME NEW y \in Task
+                          PROVE  y \in NextAttempts(t)' <=> y \in NextAttempts(t)
+                BY <1>fran, <1>U DEF NextAttempts, UnknownTask
+            <4>. QED
+                BY <2>nextChar, <2>1
+        <3>. QED
+            BY <2>1, <3>1
+    <2>2. CASE NextAttempts(t) \cap T # {}
+        <3>0. PICK s0 \in NextAttempts(t) \cap T : TRUE
+            BY <2>2
+        <3>s0Task. s0 \in Task
+            BY <1>T DEF UnretriedTask, FailedTask
+        <3>ts0. <<t, s0>> \in TCNextAttemptOfRel
+            BY <3>0 DEF NextAttempts
+        <3>finTA. IsFiniteSet(TaskAttempts(t))
+            BY DEF FiniteTaskAttemptsInv
+        <3>finPA. IsFiniteSet(PreviousAttempts(s0))
+            <4>1. IsFiniteSet(TaskAttempts(s0))
+                BY <3>s0Task DEF FiniteTaskAttemptsInv
+            <4>. QED
+                BY <4>1, FS_Subset DEF TaskAttempts
+        (* Key: PreviousAttempts(s0) \cup {s0} is closed under R-successors.
+           Proved using <1>CF (ChopFirst). *)
+        <3>closed. \A a \in Task : a \in PreviousAttempts(s0)
+                       => (nextAttemptOf[a] \in Task
+                           => nextAttemptOf[a] \in PreviousAttempts(s0) \cup {s0})
+            <4>. SUFFICES ASSUME NEW a \in Task, a \in PreviousAttempts(s0),
+                                 nextAttemptOf[a] \in Task
+                          PROVE  nextAttemptOf[a] \in PreviousAttempts(s0) \cup {s0}
+                OBVIOUS
+            <4>1. <<a, s0>> \in TCNextAttemptOfRel
+                BY DEF PreviousAttempts
+            <4>2. CASE nextAttemptOf[a] = s0
+                BY <4>2
+            <4>3. CASE nextAttemptOf[a] # s0
+                <5>1. <<nextAttemptOf[a], s0>> \in TCNextAttemptOfRel
+                    BY <4>1, <4>3, <3>finPA, <1>CF
+                <5>. QED
+                    BY <5>1 DEF PreviousAttempts
+            <4>. QED
+                BY <4>2, <4>3
+        (* Reach = PreviousAttempts(s0) \cup {s0} is closed, so TC \subseteq V *)
+        <3>reach. NextAttempts(t) \subseteq PreviousAttempts(s0) \cup {s0}
+            <4>. DEFINE Reach == PreviousAttempts(s0) \cup {s0}
+                        V == {ss \in Task \X Task : ss[1] \in Reach => ss[2] \in Reach}
+            <4>1. NextAttemptOfRel \cap (Task \X Task) \subseteq V
+                <5>. SUFFICES ASSUME NEW a \in Task, NEW b \in Task,
+                                     <<a, b>> \in NextAttemptOfRel, a \in Reach
+                              PROVE  b \in Reach
+                    OBVIOUS
+                <5>1. nextAttemptOf[a] = b
+                    BY DEF NextAttemptOfRel
+                <5>2. CASE a = s0
+                    BY <5>2, <5>1, <1>T, <3>0 DEF UnretriedTask
+                <5>3. CASE a \in PreviousAttempts(s0)
+                    BY <5>3, <5>1, <3>closed
+                <5>. QED
+                    BY <5>2, <5>3
+            <4>2. IsTransitivelyClosedOn(V, Task)
+                BY DEF IsTransitivelyClosedOn
+            <4>3. V \in SUBSET (Task \X Task)
+                OBVIOUS
+            <4>4. TCNextAttemptOfRel \subseteq V
+                BY <4>1, <4>2, <4>3, TransitiveClosureMinimal DEF TCNextAttemptOfRel
+            <4>5. t \in Reach
+                BY <3>ts0 DEF PreviousAttempts
+            <4>. QED
+                BY <4>4, <4>5 DEF NextAttempts, PreviousAttempts
+        (* Uniqueness *)
+        <3>uniq. \A s \in NextAttempts(t) \cap T : s = s0
+            <4>. SUFFICES ASSUME NEW s \in NextAttempts(t) \cap T, s # s0
+                          PROVE  FALSE
+                OBVIOUS
+            <4>1. s \in PreviousAttempts(s0)
+                BY <3>reach DEF PreviousAttempts
+            <4>2. <<s, s0>> \in TCNextAttemptOfRel
+                BY <4>1 DEF PreviousAttempts
+            <4>. QED
+                BY <4>2, <1>TnoOut, <3>s0Task
+        <3>fs0. f[s0] \in U /\ f[s0] \in Task
+            BY <3>0, <1>fran, <1>U DEF UnknownTask
+        (* NextAttempts(t)' *)
+        <3>1. NextAttempts(t)' = NextAttempts(t) \cup {f[s0]}
+            <4>. SUFFICES ASSUME NEW y \in Task
+                          PROVE  y \in NextAttempts(t)'
+                                 <=> y \in NextAttempts(t) \cup {f[s0]}
+                BY <3>fs0, <1>fran, <1>U DEF NextAttempts, UnknownTask
+            <4>1. y \in NextAttempts(t)' <=> y \in NextAttempts(t) \/ \E s \in NextAttempts(t) \cap T : y = f[s]
+                BY <2>nextChar
+            <4>2. (\E s \in NextAttempts(t) \cap T : y = f[s]) <=> y = f[s0]
+                BY <3>uniq, <1>finj, <3>0
+            <4>. QED
+                BY <4>1, <4>2
+        (* f[s0] \notin TaskAttempts(t) *)
+        <3>2. f[s0] \notin TaskAttempts(t)
+            <4>1. \A v \in Task : nextAttemptOf[v] # f[s0]
+                BY <3>fs0 DEF SetTaskRetries
+            <4>. DEFINE W == {ss \in Task \X Task : ss[2] # f[s0]}
+            <4>2. TCNextAttemptOfRel \subseteq W
+                <5>1. NextAttemptOfRel \cap (Task \X Task) \subseteq W
+                    BY <4>1 DEF NextAttemptOfRel
+                <5>2. IsTransitivelyClosedOn(W, Task)
+                    BY DEF IsTransitivelyClosedOn
+                <5>. QED
+                    BY <5>1, <5>2, TransitiveClosureMinimal DEF TCNextAttemptOfRel
+            <4>3. <<t, f[s0]>> \notin TCNextAttemptOfRel
+                BY <4>2
+            <4>4. nextAttemptOf[f[s0]] = NULL
+                BY <3>fs0, <1>U DEF UnknownTask, FailedTask, RetriedTask, TaskAttemptsIntegrity
+            <4>. DEFINE W2 == {ss \in Task \X Task : ss[1] # f[s0]}
+            <4>5. TCNextAttemptOfRel \subseteq W2
+                <5>1. NextAttemptOfRel \cap (Task \X Task) \subseteq W2
+                    BY <4>4 DEF NextAttemptOfRel
+                <5>2. IsTransitivelyClosedOn(W2, Task)
+                    BY DEF IsTransitivelyClosedOn
+                <5>. QED
+                    BY <5>1, <5>2, TransitiveClosureMinimal DEF TCNextAttemptOfRel
+            <4>6. <<f[s0], t>> \notin TCNextAttemptOfRel
+                BY <4>5
+            <4>. QED
+                BY <4>3, <4>6 DEF TaskAttempts, NextAttempts, PreviousAttempts
+        (* Cardinality *)
+        <3>5. Cardinality(TaskAttempts(t)) = Cardinality(PreviousAttempts(s0))
+            <4>tNotInTA. t \notin TaskAttempts(t)
+                (* <<t, t>> \notin TC: if it were, t \in NextAttempts(t) \subseteq
+                   PreviousAttempts(s0) \cup {s0}. Since t \notin T and s0 \in T,
+                   t # s0, so t \in PreviousAttempts(s0), i.e. <<t, s0>> \in TC.
+                   Then <<t, t>> \in TC and <<t, s0>> \in TC.
+                   nextAttemptOf[t] \in Task (since <<t, t>> \in TC implies
+                   t has an outgoing R-edge). By <1>CF: <<nextAttemptOf[t], t>> \in TC.
+                   Repeating: the path from t loops, but s0 has no outgoing edges
+                   and is reachable from t. Contradiction via finiteness. *)
+                <5>1. ASSUME <<t, t>> \in TCNextAttemptOfRel PROVE FALSE
+                    <6>1. t \in NextAttempts(t)
+                        BY <5>1 DEF NextAttempts
+                    <6>2. t \in PreviousAttempts(s0) \cup {s0}
+                        BY <6>1, <3>reach
+                    <6>3. t # s0
+                        OBVIOUS
+                    <6>4. t \in PreviousAttempts(s0)
+                        BY <6>2, <6>3
+                    <6>5. nextAttemptOf[t] \in Task
+                        (* t \in PreviousAttempts(s0) and <<t, s0>> \in TC.
+                           By ChopLast: \E j: nextAttemptOf[j] = s0 /\ (t = j \/ <<t, j>> \in TC).
+                           If t = j: nextAttemptOf[t] = s0 \in Task.
+                           If <<t, j>> \in TC: by ChopLast on <<t, j>>: ... eventually
+                           nextAttemptOf[t] must be in Task for <<t, anything>> \in TC. *)
+                        BY <5>1, TransitiveClosureChopLast
+                        DEF TCNextAttemptOfRel, NextAttemptOfRel
+                    <6>6. nextAttemptOf[t] \in PreviousAttempts(s0) \cup {s0}
+                        BY <6>4, <6>5, <3>closed
+                    <6>7. nextAttemptOf[t] \in PreviousAttempts(t)
+                        (* nextAttemptOf[t] \in Reach. <<t, t>> \in TC and
+                           <<t, nextAttemptOf[t]>> \in R. By RTCTC:
+                           <<t, nextAttemptOf[t]>> \in R is already in TC.
+                           Also <<nextAttemptOf[t], t>> \in TC by <1>CF applied to
+                           <<t, t>> \in TC with nextAttemptOf[t] # t. *)
+                        <7>1. nextAttemptOf[t] # t
+                            BY DEF TaskAttemptsIntegrity
+                        <7>2. <<nextAttemptOf[t], t>> \in TCNextAttemptOfRel
+                            BY <5>1, <7>1, <6>5, <3>finPA, <6>4, <1>CF
+                        <7>. QED
+                            BY <7>2 DEF PreviousAttempts
+                    <6>8. nextAttemptOf[t] \in TaskAttempts(t)
+                        BY <6>7 DEF TaskAttempts
+                    <6>. QED
+                        (* We have <<t, t>> \in TC, so t \in NextAttempts(t).
+                           Also nextAttemptOf[t] \in PreviousAttempts(t).
+                           TaskAttempts(t) is finite. The R-path from t cycles
+                           through TaskAttempts(t) \cup {t}, which is finite.
+                           But s0 \in NextAttempts(t) has no outgoing R-edge,
+                           so the cycle can never reach s0. Yet <<t, s0>> \in TC.
+                           Contradiction: the path from t must pass through s0
+                           but s0 is a dead end and the path cycles. *)
+                        BY <6>1, <3>reach, <1>TnoOut, <3>s0Task, <3>ts0,
+                           TCTCTC DEF TCNextAttemptOfRel, NextAttempts, PreviousAttempts
+                <5>. QED
+                    BY <5>1 DEF TaskAttempts, PreviousAttempts, NextAttempts
+            <4>s0inTA. s0 \in TaskAttempts(t)
+                BY <3>0 DEF TaskAttempts, NextAttempts
+            <4>eq. PreviousAttempts(s0) = (TaskAttempts(t) \ {s0}) \cup {t}
+                <5>. SUFFICES ASSUME NEW x \in Task
+                              PROVE  x \in PreviousAttempts(s0)
+                                     <=> x \in (TaskAttempts(t) \ {s0}) \cup {t}
+                    BY DEF PreviousAttempts, TaskAttempts, NextAttempts
+                <5>a. x \in PreviousAttempts(s0)
+                      => x \in (TaskAttempts(t) \ {s0}) \cup {t}
+                    <6>. SUFFICES ASSUME <<x, s0>> \in TCNextAttemptOfRel, x # t
+                                  PROVE  x \in TaskAttempts(t) /\ x # s0
+                        BY <3>ts0 DEF PreviousAttempts
+                    <6>1. x # s0
+                        BY <1>TnoOut, <3>s0Task
+                    <6>2. <<x, t>> \in TCNextAttemptOfRel \/ <<t, x>> \in TCNextAttemptOfRel
+                        (* x \in PreviousAttempts(s0). t \in PreviousAttempts(s0).
+                           Both are predecessors of s0. On the chain to s0,
+                           either x comes before t or after t. *)
+                        (* x \in PreviousAttempts(s0) and t \in PreviousAttempts(s0).
+                           <<x, s0>> \in TC and <<t, s0>> \in TC.
+                           By <3>reach: NextAttempts(t) \subseteq Reach.
+                           If <<t, x>> \in TC: x \in NextAttempts(t). Done.
+                           Otherwise: we need <<x, t>> \in TC.
+                           x \in Reach = PreviousAttempts(s0) \cup {s0}. x # s0.
+                           So x \in PreviousAttempts(s0). nextAttemptOf[x] \in Reach (by closed).
+                           The path from x eventually reaches s0. Since t is also
+                           on the path to s0 and the path is linear (functional + injective),
+                           x must pass through t. *)
+                        BY <3>reach, <3>ts0, <4>tNotInTA, <3>s0Task, <1>TnoOut,
+                           TCTCTC DEF PreviousAttempts, NextAttempts, TaskAttempts,
+                           TCNextAttemptOfRel
+                    <6>. QED
+                        BY <6>1, <6>2 DEF TaskAttempts, PreviousAttempts, NextAttempts
+                <5>b. x \in (TaskAttempts(t) \ {s0}) \cup {t}
+                      => x \in PreviousAttempts(s0)
+                    <6>1. CASE x = t
+                        BY <6>1, <3>ts0 DEF PreviousAttempts
+                    <6>2. CASE x \in PreviousAttempts(t)
+                        BY <6>2, <3>ts0, TCTCTC DEF PreviousAttempts, TCNextAttemptOfRel
+                    <6>3. CASE x \in NextAttempts(t) /\ x # s0
+                        BY <6>3, <3>reach DEF PreviousAttempts
+                    <6>. QED
+                        BY <6>1, <6>2, <6>3 DEF TaskAttempts
+                <5>. QED
+                    BY <5>a, <5>b
+            <4>card. Cardinality((TaskAttempts(t) \ {s0}) \cup {t})
+                     = Cardinality(TaskAttempts(t))
+                <5>1. Cardinality(TaskAttempts(t) \ {s0})
+                      = Cardinality(TaskAttempts(t)) - 1
+                    BY <3>finTA, <4>s0inTA, FS_RemoveElement
+                <5>2. IsFiniteSet(TaskAttempts(t) \ {s0})
+                    BY <3>finTA, FS_RemoveElement
+                <5>3. t \notin TaskAttempts(t) \ {s0}
+                    BY <4>tNotInTA
+                <5>4. Cardinality((TaskAttempts(t) \ {s0}) \cup {t})
+                      = Cardinality(TaskAttempts(t) \ {s0}) + 1
+                    BY <5>2, <5>3, FS_AddElement
+                <5>5. Cardinality(TaskAttempts(t)) \in Nat
+                    BY <3>finTA, FS_CardinalityType
+                <5>. QED
+                    BY <5>1, <5>4, <5>5
+            <4>. QED
+                BY <4>eq, <4>card, <3>finPA, FS_CardinalityType
+        <3>. QED
+            BY <3>0, <3>1, <3>2, <3>finTA, <3>finPA, <3>5
+    <2>. QED
+        BY <2>1, <2>2
+<1>. QED
+    BY <1>1, <1>2
 
 LEMMA LemTaskAttemptsFinite == Init /\ [][Next]_vars => []FiniteTaskAttemptsInv
 <1>1. Init => FiniteTaskAttemptsInv
@@ -1143,9 +1554,9 @@ THEOREM TP2_AttemptsIsIncreasing == Spec => AttemptsIsIncreasing
 <1>. SUFFICES ASSUME NEW t \in Task
               PROVE Spec => [][TaskAttempts(t) \subseteq TaskAttempts(t)']_(TaskAttempts(t))
     BY DEF AttemptsIsIncreasing
-<1>. SUFFICES ASSUME TypeOk, TaskAttemptsIntegrity, [Next]_vars
+<1>. SUFFICES ASSUME TypeOk, TaskAttemptsIntegrity, FiniteTaskAttemptsInv, [Next]_vars
               PROVE [TaskAttempts(t) \subseteq TaskAttempts(t)']_(TaskAttempts(t))
-    BY TP2_Type, TP2_TaskAttemptsIntegrity, PTL DEF Spec, vars
+    BY TP2_Type, TP2_TaskAttemptsIntegrity, TP2_FiniteTaskAttemptsInv, PTL DEF Spec, vars
 <1>0. UNCHANGED nextAttemptOf => UNCHANGED TaskAttempts(t)
     BY DEF TaskAttempts, PreviousAttempts, NextAttempts, TCNextAttemptOfRel,
     NextAttemptOfRel, TransitiveClosureOn

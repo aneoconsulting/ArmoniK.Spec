@@ -349,6 +349,75 @@ THEOREM TP4_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
         BY Isa DEF TP3!Fairness
     <2>. DEFINE P == taskDeleted \intersect {t} = {}
     <2>1. [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(\E u \in Task : TP3!SetTaskRetries({t}, {u}))
+        <3>. DEFINE AbsA == \E u \in Task : TP3!SetTaskRetries({t}, {u})
+                    A    == \E u \in Task : SetTaskRetries({t}, {u})
+        <3>1. TaskSafetyInv /\ ENABLED <<AbsA>>_TP3!vars => ENABLED <<A>>_vars
+            <4>. SUFFICES ASSUME TaskSafetyInv
+                        PROVE ENABLED <<AbsA>>_TP3!vars => ENABLED <<A>>_vars
+                OBVIOUS
+            <4>1. ENABLED <<AbsA>>_TP3!vars => \E u \in Task :  /\ t \in TP3!UnretriedTask
+                                                                /\ u \in TP3!UnknownTask
+                                                                /\ ~ \E v \in Task : nextAttemptOf[v] = u
+                BY ExpandENABLED DEF TP3!SetTaskRetries, TP3!vars
+            <4>2. (\E u \in Task : /\ t \in UnretriedTask
+                        /\ u \in UnknownTask
+                        /\ ~ \E v \in Task : nextAttemptOf[v] = u)
+                  => ENABLED <<A>>_vars
+                <5>. SUFFICES ASSUME NEW u \in Task, t \in UnretriedTask, u \in UnknownTask,
+                                     ~ \E v \in Task : nextAttemptOf[v] = u
+                              PROVE \E taskStatep, nextAttemptOfp :
+                                /\ \E u \in Task :
+                                    /\ {t} # {}
+                                    /\ {t} \subseteq UnretriedTask
+                                    /\ {u} \subseteq UnknownTask
+                                    /\ \A v \in {u}: ~ \E w \in Task: nextAttemptOf[w] = v
+                                    /\ \E f \in Bijection({t}, {u}) :
+                                            nextAttemptOfp
+                                            = [t_1 \in Task |->
+                                                IF t_1 \in {t} THEN f[t_1] ELSE nextAttemptOf[t_1]]
+                                    /\ taskStatep = taskState
+                                /\ <<taskStatep, nextAttemptOfp>> /= <<taskState, nextAttemptOf>>
+                    BY ExpandENABLED, Zenon DEF SetTaskRetries, vars
+                <5>. PICK u \in Task: u \in UnknownTask /\ ~ \E v \in Task: nextAttemptOf[v] = u
+                    BY DEF TaskSafetyInv
+                <5>. DEFINE g               == [x \in {t} |-> u]
+                            taskStatep      == taskState
+                            nextAttemptOfp  == [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]]
+                <5>. WITNESS taskStatep, nextAttemptOfp
+                <5>. SUFFICES /\ \E f \in Bijection({t}, {u}) :
+                                    nextAttemptOfp
+                                    = [t_1 \in Task |->
+                                    IF t_1 \in {t} THEN f[t_1] ELSE nextAttemptOf[t_1]]
+                                /\ nextAttemptOfp /= nextAttemptOf
+                    OBVIOUS
+                <5>1. \E f \in Bijection({t}, {u}) :
+                            nextAttemptOfp
+                            = [t_1 \in Task |->
+                            IF t_1 \in {t} THEN f[t_1] ELSE nextAttemptOf[t_1]]
+                    <6>1. g \in Bijection({t}, {u})
+                        BY DEF Bijection, Injection, Surjection, IsInjective
+                    <6>. QED
+                        BY <6>1
+                <5>2. nextAttemptOfp /= nextAttemptOf
+                    BY TP4Assumptions DEF UnretriedTask
+                <5>. QED
+                    BY <5>1, <5>2
+            <4>. QED
+                BY <4>1, <4>2 DEF UnretriedTask, UnknownTask, TP3!UnretriedTask,
+                TP3!UnknownTask, FailedTask, TP3!FailedTask
+        <3>2. <<A>>_vars => <<AbsA>>_TP3!vars
+            <4>1. ASSUME NEW u \in Task PROVE Bijection({t}, {u}) = TP3!Bijection({t}, {u})
+                BY DEF Bijection, Injection,
+                Surjection, IsInjective, TP3!Bijection, TP3!Injection,
+                TP3!Surjection, TP3!IsInjective
+            <4>. QED
+                BY <4>1 DEF SetTaskRetries, vars, TP3!SetTaskRetries, TP3!vars,
+                UnretriedTask, TP3!UnretriedTask, FailedTask, TP3!FailedTask,
+                UnknownTask, TP3!UnknownTask
+        <3>3. Fairness => WF_vars(A)
+            BY Isa DEF Fairness
+        <3>. QED
+            BY <3>1, <3>2, <3>3, PTL    
     <2>2. [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!RegisterTasks({nextAttemptOf[t]}))
         <3>1. ENABLED <<TP3!RegisterTasks({nextAttemptOf[t]})>>_TP3!vars => ENABLED <<RegisterTasks({nextAttemptOf[t]})>>_vars
             <4>1. ENABLED <<TP3!RegisterTasks({nextAttemptOf[t]})>>_TP3!vars => nextAttemptOf[t] \in TP3!UnknownTask
@@ -429,15 +498,15 @@ THEOREM TP4_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
         <3>. QED
             BY <3>1, <3>2, <3>3, <3>4, PTL
     <2>7. [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!RetryTasks({t}))
-        <3>0. ENABLED <<TP3!RetryTasks({t})>>_TP3!vars => t \in FailedTask
-            BY ExpandENABLED DEF TP3!RetryTasks, TP3!vars, TP3!FailedTask, FailedTask
+        <3>0. ENABLED <<TP3!RetryTasks({t})>>_TP3!vars => t \in FailedTask /\ t \notin UnretriedTask
+            BY ExpandENABLED DEF TP3!RetryTasks, TP3!vars, TP3!FailedTask, FailedTask, TP3!UnretriedTask, UnretriedTask
         <3>1. P /\ ENABLED <<TP3!RetryTasks({t})>>_TP3!vars => ENABLED <<RetryTasks({t})>>_vars
-            <4>1. t \in FailedTask => ENABLED <<RetryTasks({t})>>_vars
-                BY ExpandENABLED DEF RetryTasks, vars, FailedTask
+            <4>1. t \in FailedTask /\ t \notin UnretriedTask => ENABLED <<RetryTasks({t})>>_vars
+                BY ExpandENABLED DEF RetryTasks, vars, FailedTask, UnretriedTask
             <4>. QED
                 BY <3>0, <4>1
         <3>2. <<RetryTasks({t})>>_vars => <<TP3!RetryTasks({t})>>_TP3!vars
-            BY DEF RetryTasks, vars, FailedTask, TP3!RetryTasks, TP3!vars, TP3!FailedTask
+            BY DEF RetryTasks, vars, FailedTask, UnretriedTask, TP3!RetryTasks, TP3!vars, TP3!FailedTask, TP3!UnretriedTask
         <3>3. TaskSafetyInv /\ ENABLED <<TP3!RetryTasks({t})>>_TP3!vars => P
             BY <3>0 DEF TaskSafetyInv, DeletionValidity
         <3>4. Fairness => WF_vars(RetryTasks({t}))
