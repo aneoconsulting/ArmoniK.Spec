@@ -1,35 +1,27 @@
-# Ignore directory containing TLA+ tools
-.tla
+# Local install of TLA+ tools (populated by scripts/install-tools.sh)
+.tlatools/
 
-# Ignore java compiled files
+# Java compiled overrides (built by `make build-java`)
 *.class
 
-# Ignore modules build directories
-modules/build/
-modules/dist/
-modules/lib/
-modules/tlc/
-
-# Ignore TTrace specs
+# TTrace specs
 *_TTrace_*.tla
 *_TTrace_*.bin
 
-# Ignore TLC generated files
+# TLC generated files
 *.out
 */states
+*.dot
 
-# Ignore PDF, DVI and TEX files
+# PDF, DVI and TEX files
 *.pdf
 *.dvi
 *.tex
 
-## Ignore TLAPS cache folder
-## See https://github.com/tlaplus/tlapm/issues/16
+# TLAPS cache folder
+# See https://github.com/tlaplus/tlapm/issues/16
 __tlacache__
 .tlacache
 
-# Ignore directory created by Apalache
-_apalache-out
-
-# Ignore Python cache files
-__pycache__
+# Apalache output
+_apalache-out/
