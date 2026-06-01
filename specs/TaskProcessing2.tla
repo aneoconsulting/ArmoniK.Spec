@@ -263,7 +263,7 @@ TaskAttemptsIntegrity ==
     /\ {t \in Task: nextAttemptOf[t] /= NULL} \subseteq FailedTask \union RetriedTask
     /\ CompletedTask \union AbortedTask \subseteq {t \in Task: nextAttemptOf[t] = NULL}
     /\ \A t \in Task :
-        /\ \E u, v \in Task: nextAttemptOf[u] = t /\ nextAttemptOf[v] = t
+        /\ \A u, v \in Task: nextAttemptOf[u] = t /\ nextAttemptOf[v] = t
                              => u = v
         /\ nextAttemptOf[t] /= t
 
@@ -281,7 +281,7 @@ AttemptsIsBounded ==
  *)
 AttemptsIsIncreasing ==
     \A t \in Task:
-        [][TaskAttempts(t) \subseteq TaskAttempts(t)']_nextAttemptOf
+        [][TaskAttempts(t) \subseteq TaskAttempts(t)']_(TaskAttempts(t))
 
 (**
  * SAFETY
@@ -302,7 +302,7 @@ PermanentFinalization ==
 FailedTaskEventualRetry ==
     \A t \in Task:
         /\ t \in UnretriedTask ~> nextAttemptOf[t] \in RegisteredTask
-        /\ [][~ \E T \in SUBSET Task: t \in T /\ DiscardTasks(T)]_vars
+        /\ [][~ \E T \in SUBSET Task: nextAttemptOf[t] \in T /\ DiscardTasks(T)]_vars
            => nextAttemptOf[t] \in RegisteredTask ~> nextAttemptOf[t] \in StagedTask
 
 (**
