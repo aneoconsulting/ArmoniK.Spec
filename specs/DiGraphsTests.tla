@@ -26,6 +26,37 @@ ASSUME AssertEq(IsDirectedGraph([node |-> {1},
                                  edge |-> {<<1, 2>>}]), FALSE)
 
 (******************************************************************************)
+(* IsUndirectedGraph                                                          *)
+(******************************************************************************)
+
+\* The empty graph has no edges, so symmetry is vacuous.
+ASSUME AssertEq(IsUndirectedGraph(EmptyGraph), TRUE)
+
+\* An isolated node is undirected.
+ASSUME AssertEq(IsUndirectedGraph([node |-> {1, 2}, edge |-> {}]), TRUE)
+
+\* A self-loop is its own reverse and is therefore undirected.
+ASSUME AssertEq(IsUndirectedGraph([node |-> {1},
+                                   edge |-> {<<1, 1>>}]), TRUE)
+
+\* A 2-cycle pairs every edge with its reverse.
+ASSUME AssertEq(IsUndirectedGraph([node |-> {1, 2},
+                                   edge |-> {<<1, 2>>, <<2, 1>>}]), TRUE)
+
+\* A single directed edge has no reverse, so it is not undirected.
+ASSUME AssertEq(IsUndirectedGraph([node |-> {1, 2},
+                                   edge |-> {<<1, 2>>}]), FALSE)
+
+\* An ill-formed record (edge not in node \X node) is not undirected.
+ASSUME AssertEq(IsUndirectedGraph([node |-> {1},
+                                   edge |-> {<<1, 2>>}]), FALSE)
+
+\* UnderlyingUndirectedGraph always yields an undirected graph (matches
+\* DG_UnderlyingUndirectedGraphIsUndirected on sample graphs).
+ASSUME \A G \in DirectedGraphOf({1, 2, 3}) :
+    IsUndirectedGraph(UnderlyingUndirectedGraph(G))
+
+(******************************************************************************)
 (* DirectedGraphOf                                                            *)
 (******************************************************************************)
 
@@ -50,19 +81,20 @@ ASSUME LET G == [node |-> {1, 2}, edge |-> {<<1, 2>>}]
                     })
 
 (******************************************************************************)
-(* SimplePath                                                                 *)
+(* SimplePath / MCSimplePath                                                  *)
 (*                                                                            *)
-(* `Path(G)` is defined over the unbounded set `Seq(G.node)` and is not       *)
-(* enumerable by TLC; we only test the bounded `SimplePath(G)` variant here.  *)
+(* `SimplePath(G)` is defined over the unbounded `Path(G)` and is not         *)
+(* TLC-evaluable; we test the model-checkable variant `MCSimplePath(G)`       *)
+(* directly. `DG_SimplePathMCEquiv` proves the two coincide on finite graphs. *)
 (******************************************************************************)
 
-ASSUME AssertEq(SimplePath([node |-> {}, edge |-> {}]), {})
+ASSUME AssertEq(MCSimplePath([node |-> {}, edge |-> {}]), {})
 
-ASSUME AssertEq(SimplePath([node |-> {1, 2, 3}, edge |-> {}]),
+ASSUME AssertEq(MCSimplePath([node |-> {1, 2, 3}, edge |-> {}]),
                 {<<1>>, <<2>>, <<3>>})
 
-ASSUME AssertEq(SimplePath([node |-> {1, 2, 3},
-                            edge |-> {<<1, 2>>, <<2, 3>>}]),
+ASSUME AssertEq(MCSimplePath([node |-> {1, 2, 3},
+                              edge |-> {<<1, 2>>, <<2, 3>>}]),
                 {<<1>>, <<2>>, <<3>>, <<1, 2>>, <<2, 3>>, <<1, 2, 3>>})
 
 \* `DirectedCycle`, `HasDirectedCycle`, and `IsDag` are defined over the
@@ -254,6 +286,31 @@ ASSUME LET G == [node |-> {1, 2}, edge |-> {<<1, 2>>}]
 ASSUME LET G == [node |-> {1, 2}, edge |-> {}]
        IN  /\ AssertEq(IsStronglyConnected(G), FALSE)
            /\ AssertEq(IsWeaklyConnected(G), FALSE)
+
+(******************************************************************************)
+(* IsUnilateralyConnected                                                     *)
+(******************************************************************************)
+
+\* A 2-cycle is unilaterally connected (it is even strongly connected).
+ASSUME LET G == [node |-> {1, 2}, edge |-> {<<1, 2>>, <<2, 1>>}]
+       IN  AssertEq(IsUnilateralyConnected(G), TRUE)
+
+\* A simple directed path is unilaterally connected without being strongly so:
+\* 1 reaches 2, but 2 does not reach 1.
+ASSUME LET G == [node |-> {1, 2}, edge |-> {<<1, 2>>}]
+       IN  /\ AssertEq(IsUnilateralyConnected(G), TRUE)
+           /\ AssertEq(IsStronglyConnected(G), FALSE)
+
+\* A V-shape (two leaves sharing a sink) is weakly connected but NOT
+\* unilaterally connected: leaves 1 and 2 cannot reach each other in
+\* either direction.
+ASSUME LET G == [node |-> {1, 2, 3}, edge |-> {<<1, 3>>, <<2, 3>>}]
+       IN  /\ AssertEq(IsWeaklyConnected(G), TRUE)
+           /\ AssertEq(IsUnilateralyConnected(G), FALSE)
+
+\* Two disjoint nodes are not unilaterally connected.
+ASSUME LET G == [node |-> {1, 2}, edge |-> {}]
+       IN  AssertEq(IsUnilateralyConnected(G), FALSE)
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
