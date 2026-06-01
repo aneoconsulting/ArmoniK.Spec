@@ -1,6 +1,9 @@
 # Ignore directory containing TLA+ tools
 .tla
 
+# Ignore java compiled files
+*.class
+
 # Ignore modules build directories
 modules/build/
 modules/dist/
