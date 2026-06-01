@@ -2,20 +2,87 @@ name: CI
 
 on:
   pull_request:
+  push:
+    branches: [main]
 
 jobs:
-  modules:
-    name: Build and test custom modules
+  discover:
+    name: Discover test + proof modules
     runs-on: ubuntu-latest
+    outputs:
+      tlc_tests: ${{ steps.list.outputs.tlc_tests }}
+      proofs:    ${{ steps.list.outputs.proofs }}
     steps:
-    - name: Checkout
-      uses: actions/checkout@v5
-      with:
-        fetch-depth: 0
-    - name: Setup Java
-      uses: actions/setup-java@v5
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-    - name: Build and test modules with Ant
-      run: ant -noinput -buildfile modules/build.xml test
+      - uses: actions/checkout@v5
+
+      - id: list
+        name: List specs/*Tests.tla and specs/*_proofs.tla
+        run: |
+          set -euo pipefail
+          tlc=$(ls specs/*Tests.tla 2>/dev/null | xargs -n1 basename | sed 's/\.tla$//' | jq -R . | jq -sc .)
+          proofs=$(ls specs/*_proofs.tla 2>/dev/null | xargs -n1 basename | sed 's/\.tla$//' | jq -R . | jq -sc .)
+          echo "tlc_tests=$tlc"
+          echo "proofs=$proofs"
+          echo "tlc_tests=$tlc"   >> "$GITHUB_OUTPUT"
+          echo "proofs=$proofs"   >> "$GITHUB_OUTPUT"
+
+  tlc:
+    name: TLC ${{ matrix.spec }}
+    needs: discover
+    if: needs.discover.outputs.tlc_tests != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        spec: ${{ fromJSON(needs.discover.outputs.tlc_tests) }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup JDK
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Install TLA+ tools
+        run: ./scripts/install-tools.sh
+
+      - name: Build Java overrides
+        run: make build-java
+
+      - name: Check ${{ matrix.spec }}
+        working-directory: specs
+        run: |
+          java -XX:+UseParallelGC \
+            -cp ../.tlatools/tla2tools.jar:../.tlatools/CommunityModules-deps.jar:. \
+            tlc2.TLC -config ${{ matrix.spec }}.cfg ${{ matrix.spec }}
+
+  tlapm:
+    name: TLAPS ${{ matrix.spec }}
+    needs: discover
+    if: needs.discover.outputs.proofs != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        spec: ${{ fromJSON(needs.discover.outputs.proofs) }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup JDK
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Install TLA+ tools
+        run: ./scripts/install-tools.sh
+
+      - name: Check ${{ matrix.spec }}
+        working-directory: specs
+        run: |
+          ../.tlatools/tlapm/bin/tlapm \
+            -I ../.tlatools/CommunityModules/modules \
+            ${{ matrix.spec }}.tla

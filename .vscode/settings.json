@@ -31,7 +31,9 @@
     "tlaplus.tlc.modelChecker.options": "-coverage 1 -dump dot states",
     "tlaplus.tlc.statisticsSharing": "share",
     "tlaplus.pdf.convertCommand": "pdflatex",
-
+    "tlaplus.tlc.profiler.enabled": true,
+    "tlaplus.tlc.profiler.relativeScale": true,
+    "tlaplus.unicode.autocomplete": true,
     "[tlaplus]": {
         "editor.codeActionsOnSave": {
             "source": "always"
@@ -43,7 +45,8 @@
     "tlaplus.tlaps.enabled": true,
     "tlaplus.tlaps.lspServerCommand": [
         ".tlatools/tlapm/bin/tlapm_lsp",
-        "--log-io"
+        "--log-io",
+        "--log-to=/tmp/tlapm_lsp.log"
     ],
 
     // ----- Java (for editing specs/DDGraphs.java overrides) --------------
@@ -69,6 +72,5 @@
             "removeEmptyLines": false,
             "textAlignment": "left"
         }
-    },
-    "makefile.configureOnOpen": false
+    }
 }
