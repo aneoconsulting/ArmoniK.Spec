@@ -23,6 +23,15 @@ IsDirectedGraph(G) ==
     /\ G.edge \subseteq (G.node \X G.node)
 
 (******************************************************************************)
+(* TRUE iff G is a well-formed directed graph whose edge relation is          *)
+(* symmetric -- the directed encoding of an undirected graph. Every edge     *)
+(* <<x, y>> of G is matched by its reverse <<y, x>>.                          *)
+(******************************************************************************)
+IsUndirectedGraph(G) ==
+    /\ IsDirectedGraph(G)
+    /\ \A e \in G.edge : <<e[2], e[1]>> \in G.edge
+
+(******************************************************************************)
 (* The set of all directed graphs whose nodes are drawn from S.               *)
 (******************************************************************************)
 DirectedGraphOf(S) ==
@@ -45,12 +54,24 @@ Path(G) ==
         /\ \A i \in 1..(Len(p) - 1) : <<p[i], p[i+1]>> \in G.edge}
 
 (******************************************************************************)
-(* The set of simple paths in G: paths in which no node is repeated.          *)
+(* The set of simple paths in G: paths whose underlying sequence is           *)
+(* injective, i.e. paths in which no node is repeated. MCSimplePath below is  *)
+(* the model-checkable variant, and DG_SimplePathMCEquiv proves they coincide *)
+(* on finite graphs.                                                          *)
 (******************************************************************************)
-SimplePath(G) ==
+SimplePath(G) == {p \in Path(G) : IsInjective(p)}
+
+(******************************************************************************)
+(* Model-checking variant of SimplePath: restricted to sequences of length   *)
+(* at most Cardinality(G.node) so that TLC can enumerate it (Path is defined  *)
+(* over the unbounded Seq(G.node)). On a finite graph an injective path can   *)
+(* visit each node at most once, so this bound loses nothing -- see           *)
+(* DG_SimplePathMCEquiv.                                                       *)
+(******************************************************************************)
+MCSimplePath(G) ==
     {p \in SeqOf(G.node, Cardinality(G.node)) :
         /\ p # << >>
-        /\ Cardinality({p[i] : i \in DOMAIN p}) = Len(p)
+        /\ IsInjective(p)
         /\ \A i \in 1..(Len(p) - 1) : <<p[i], p[i+1]>> \in G.edge}
 
 (******************************************************************************)
@@ -182,6 +203,18 @@ IsStronglyConnected(G) ==
 IsWeaklyConnected(G) ==
     \A m, n \in G.node : AreConnectedIn(UnderlyingUndirectedGraph(G), m, n)
 
+(******************************************************************************)
+(* TRUE iff for every pair of nodes (m, n) of G at least one direction is     *)
+(* reachable: either m reaches n or n reaches m along a directed path.        *)
+(* Strictly weaker than strong connectivity (which requires both directions) *)
+(* and strictly stronger than weak connectivity (which only requires          *)
+(* reachability in the underlying undirected view).                           *)
+(******************************************************************************)
+IsUnilateralyConnected(G) ==
+    \A m, n \in G.node :
+        \/ AreConnectedIn(G, m, n)
+        \/ AreConnectedIn(G, n, m)
+
 --------------------------------------------------------------------------------
 (******************************************************************************)
 (* Operators below are variants optimized for model checking with TLC.        *)
@@ -205,13 +238,23 @@ ConnectionsIn(G) ==
     \* C[N] is the matrix of paths whose internal nodes (i.e. all nodes
     \* except the source and the target) belong to the set N. The base case
     \* N = {} forbids any internal node, so only edges and self-pairs remain.
+    \*
+    \* The matrices are written as functions of a single pair argument
+    \* `p \in G.node \X G.node` (accessed as Cu[p], Cu[<<a, b>>]) rather than
+    \* the more natural two-argument form `[m, n \in G.node |-> ...]`. The two
+    \* denote the same function -- and TLC evaluates ConnectionsIn(G)[m, n]
+    \* identically since f[m, n] = f[<<m, n>>] -- but TLAPS cannot reduce an
+    \* application of a two-argument function constructor, whereas the
+    \* single-pair form reduces cleanly. This is what lets
+    \* DG_ConnectionsInCorrect be discharged.
     LET C[N \in SUBSET G.node] ==
         IF N = {}
-        THEN [m, n \in G.node |-> m = n \/ <<m, n>> \in G.edge]
+        THEN [p \in G.node \X G.node |-> p[1] = p[2] \/ <<p[1], p[2]>> \in G.edge]
         ELSE LET u  == CHOOSE u \in N : TRUE
                  Cu == C[N \ {u}]
-             IN  [m, n \in G.node |-> \/ Cu[m, n]
-                                      \/ Cu[m, u] /\ Cu[u, n]]
+             IN  [p \in G.node \X G.node |->
+                     \/ Cu[p]
+                     \/ Cu[<<p[1], u>>] /\ Cu[<<u, p[2]>>]]
     IN  C[G.node]
 
 (******************************************************************************)
