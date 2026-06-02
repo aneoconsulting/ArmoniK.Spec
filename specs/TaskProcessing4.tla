@@ -384,6 +384,12 @@ DeletionValidity ==
     /\ taskDeleted \intersect SucceededTask = {}
     /\ taskDeleted \intersect FailedTask = {}
     /\ taskDeleted \intersect DiscardedTask = {}
+    /\ taskDeleted \intersect PausedTask = {}
+    /\ taskDeleted \intersect pausingRequested = {}
+    /\ taskDeleted \intersect (RegisteredTask \union StagedTask)
+                  \intersect stoppingRequested = {}
+    /\ \A t \in Task: nextAttemptOf[t] \in RegisteredTask
+                      => nextAttemptOf[t] \notin taskDeleted
 
 PermanentDeletion ==
     \A t \in Task:
