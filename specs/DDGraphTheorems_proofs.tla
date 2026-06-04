@@ -571,15 +571,96 @@ THEOREM DDG_AncestorSubGraphEmpty ==
     BY <1>5, <1>6
 
 (******************************************************************************)
-(* Still admitted: OpenSubGraphEquals needs the equality of the OpenPath-     *)
-(* start node set and the Ancestor node set in the Op-induced subgraph        *)
-(* (the path-based vs. closure-based views coincide).                         *)
+(* OpenSubGraphEquals: the OpenPath-start node set equals the Ancestor node   *)
+(* set in the Op-induced subgraph, so the path-based and closure-based views  *)
+(* coincide. The forward inclusion is exactly DDG_OpenPathInAncestorSubGraph; *)
+(* the converse lifts an Op-induced simple path back to G as an open path.    *)
+(* Needs only IsDirectedGraph(G).                                            *)
 (******************************************************************************)
 THEOREM DDG_OpenSubGraphEqualsAncestorSubGraph ==
-    ASSUME NEW T, NEW O, NEW G, IsDDGraph(G, T, O), NEW n, NEW Op(_),
-           IsFiniteSet(G.node)
+    ASSUME NEW G, IsDirectedGraph(G), NEW n, NEW Op(_)
     PROVE  OpenSubGraph(G, n, Op) = AncestorSubGraph(G, n, Op)
-PROOF OMITTED
+<1> DEFINE InducedNodes == {y \in G.node : Op(y)}
+<1> DEFINE InducedGraph == [node |-> InducedNodes,
+                            edge |-> G.edge \cap (InducedNodes \X InducedNodes)]
+<1> DEFINE OSGN == {p[1] : p \in OpenPath(G, n, Op)}
+<1> DEFINE ASGN == IF n \in InducedNodes THEN Ancestor(InducedGraph, n) ELSE {}
+<1>1. OSGN = ASGN
+    <2>1. CASE n \notin InducedNodes
+        <3>1. ASGN = {}
+            BY <2>1
+        <3>2. OSGN = {}
+            <4> SUFFICES ASSUME NEW y \in OSGN PROVE FALSE
+                OBVIOUS
+            <4>1. PICK p \in OpenPath(G, n, Op) : p[1] = y
+                OBVIOUS
+            <4>2. p \in SimplePath(G) /\ p[Len(p)] = n /\ \A i \in 1..Len(p) : Op(p[i])
+                BY <4>1 DEF OpenPath
+            <4>3. p \in Seq(G.node) /\ Len(p) \in 1..Len(p)
+                BY <4>2, DG_SimplePathIsSeq
+            <4>4. n \in G.node /\ Op(n)
+                BY <4>2, <4>3, ElementOfSeq
+            <4>. QED
+                BY <4>4, <2>1
+        <3>. QED
+            BY <3>1, <3>2
+    <2>2. CASE n \in InducedNodes
+        <3>1. ASGN = Ancestor(InducedGraph, n)
+            BY <2>2
+        <3>2. OSGN \subseteq Ancestor(InducedGraph, n)
+            <4> SUFFICES ASSUME NEW y \in OSGN
+                         PROVE  y \in Ancestor(InducedGraph, n)
+                OBVIOUS
+            <4>1. PICK p \in OpenPath(G, n, Op) : p[1] = y
+                OBVIOUS
+            <4>2. p \in OpenPath(AncestorSubGraph(G, n, Op), n, Op)
+                BY <4>1, DDG_OpenPathInAncestorSubGraph
+            <4>3. p \in SimplePath(AncestorSubGraph(G, n, Op))
+                BY <4>2 DEF OpenPath
+            <4>4. AncestorSubGraph(G, n, Op).node = Ancestor(InducedGraph, n)
+                BY <2>2 DEF AncestorSubGraph
+            <4>5. p \in Seq(AncestorSubGraph(G, n, Op).node) /\ 1 \in 1..Len(p)
+                BY <4>3, DG_SimplePathIsSeq
+            <4>6. p[1] \in AncestorSubGraph(G, n, Op).node
+                BY <4>5, ElementOfSeq
+            <4>. QED
+                BY <4>6, <4>4, <4>1
+        <3>3. Ancestor(InducedGraph, n) \subseteq OSGN
+            <4> SUFFICES ASSUME NEW y \in Ancestor(InducedGraph, n)
+                         PROVE  y \in OSGN
+                OBVIOUS
+            <4>1. PICK q \in SimplePath(InducedGraph) : q[1] = y /\ q[Len(q)] = n
+                BY DEF Ancestor, AreConnectedIn
+            <4>2. q \in Seq(InducedGraph.node) /\ Len(q) \in Nat /\ Len(q) >= 1
+                  /\ \A i \in 1..(Len(q) - 1) : <<q[i], q[i+1]>> \in InducedGraph.edge
+                BY <4>1, DG_SimplePathIsSeq
+            <4>3. \A i \in 1..Len(q) : q[i] \in G.node /\ Op(q[i])
+                <5> SUFFICES ASSUME NEW i \in 1..Len(q)
+                             PROVE  q[i] \in G.node /\ Op(q[i])
+                    OBVIOUS
+                <5>1. q[i] \in InducedGraph.node
+                    BY <4>2, ElementOfSeq
+                <5>. QED
+                    BY <5>1
+            <4>4. \A i \in 1..(Len(q) - 1) : <<q[i], q[i+1]>> \in G.edge
+                BY <4>2
+            <4>5. q \in SimplePath(G)
+                BY <4>1, <4>3, <4>4, DG_SimplePathLift
+            <4>6. q \in OpenPath(G, n, Op)
+                BY <4>5, <4>1, <4>3 DEF OpenPath
+            <4>. QED
+                BY <4>6, <4>1
+        <3>. QED
+            BY <3>1, <3>2, <3>3
+    <2>. QED
+        BY <2>1, <2>2
+<1>. QED
+    <2>1. OpenSubGraph(G, n, Op) = [node |-> OSGN, edge |-> G.edge \cap (OSGN \X OSGN)]
+        BY DEF OpenSubGraph
+    <2>2. AncestorSubGraph(G, n, Op) = [node |-> ASGN, edge |-> G.edge \cap (ASGN \X ASGN)]
+        BY DEF AncestorSubGraph
+    <2>. QED
+        BY <1>1, <2>1, <2>2
 
 THEOREM DDG_RetryUnionIsDag ==
     ASSUME NEW G, IsDag(G), NEW t \in G.node, NEW u, u \notin G.node
