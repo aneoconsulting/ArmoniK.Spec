@@ -1212,6 +1212,38 @@ LEMMA LemStableTaskSuccessors ==
     StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks,
     FinalizeTasks, Terminating
 
+(*****************************************************************************)
+(* Boxed monotonicity for the successor-coverage predicate over a growing    *)
+(* set.  BSE_R(t, S, U) holds when S is t's successor set and every object   *)
+(* in U still has a non-t, non-finalized predecessor (BSE_Q).  Extending U   *)
+(* by one object x preserves BSE_R as long as BSE_Q(t, x) holds.             *)
+(*                                                                           *)
+(* This is extracted as a lemma (rather than proved inline) because lifting  *)
+(* the state validity R(T) /\ Q(x) => R(T \cup {x}) through <>[] requires the *)
+(* *boxed* implication [](...), and LS4 cannot necessitate that validity     *)
+(* while the induction hypothesis (which mentions R/Q under <>[]) is in       *)
+(* scope.  In this lemma's clean context the necessitation succeeds.  The     *)
+(* operators mirror the FinalizeTasks WF1 definitions of Q, Succ and R so the *)
+(* use site discharges by definitional matching.                             *)
+(*****************************************************************************)
+BSE_Q(t, o)    == o \in RegisteredObject
+                    => \E u \in (Predecessor(deps, o) \ {t}) : u \notin FinalizedTask
+BSE_R(t, S, U) == S = UNION {Successor(deps, u) : u \in {t}}
+                    /\ \A o \in U : BSE_Q(t, o)
+
+LEMMA LemBoxSetExtend ==
+    ASSUME NEW t, NEW S, NEW T, NEW x
+    PROVE  <>[](BSE_R(t, S, T) /\ BSE_Q(t, x)) => <>[]BSE_R(t, S, T \cup {x})
+<1>1. BSE_R(t, S, T) /\ BSE_Q(t, x) => BSE_R(t, S, T \cup {x})
+    BY DEF BSE_R
+<1>. HIDE DEF BSE_Q, BSE_R
+\* <1>1 is a state-level validity (no flexible hypotheses), hence necessitable.
+<1>2. [](BSE_R(t, S, T) /\ BSE_Q(t, x) => BSE_R(t, S, T \cup {x}))
+    BY ONLY <1>1, PTL
+\* Temporal monotonicity from the boxed implication.
+<1>. QED
+    BY ONLY <1>2, PTL
+
 THEOREM GP1_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
 <1>. USE DEF TP1!TASK_UNKNOWN, TP1!TASK_REGISTERED, TP1!TASK_STAGED, TP1!TASK_ASSIGNED,
      TP1!TASK_PROCESSED, TP1!TASK_FINALIZED
@@ -1420,13 +1452,26 @@ THEOREM GP1_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
                             OBVIOUS
                         <8>3. (A(S) => <>[]R(T)) /\ K(x) => A(S) => (<>[](R(T) /\ Q(x)))
                             BY PTL
-                        <8>4. R(T) /\ Q(x) => R(T \cup {x})
-                            OBVIOUS
-                        <8>. HIDE DEF Q, Succ, A
+                        \* Temporal monotonicity over the growing set.  Lifting the
+                        \* state validity R(T) /\ Q(x) => R(T \cup {x}) through <>[]
+                        \* needs the *boxed* implication, which LS4 cannot necessitate
+                        \* while the induction hypothesis I(T) (mentioning R/Q under
+                        \* <>[]) is in scope.  LemBoxSetExtend performs the lift in a
+                        \* clean context; the DEF expansions match its BSE_R/BSE_Q to
+                        \* the local R/Q/Succ.
                         <8>5. <>[](R(T) /\ Q(x)) => <>[]R(T \cup {x})
-                            BY ONLY <8>4, PTL
+                            BY LemBoxSetExtend DEF R, Q, Succ, BSE_R, BSE_Q
+                        \* Hide the set-shaped definitions (keeping I visible) so the
+                        \* closing argument is a purely propositional/temporal
+                        \* combination over the atoms L(_), A(S), <>[]R(_) and
+                        \* <>[](R(T) /\ Q(x)); leaving R/C/K/L visible re-expands the \A
+                        \* over T \cup {x} and breaks coalescing.  Citing <6>2 brings the
+                        \* induction hypothesis I(T) into PTL scope: a temporal ASSUME
+                        \* hypothesis of an enclosing step is otherwise dropped from the
+                        \* coalesced context.
+                        <8>. HIDE DEF Q, Succ, A, R, C, K, L
                         <8>. QED
-                            BY <8>1, <8>2, <8>3, <8>5
+                            BY <6>2, <8>1, <8>2, <8>3, <8>5, PTL
                     <6>. HIDE DEF I
                     <6>3. I(S)
                         BY <6>1, <6>2, FS_Induction, IsaM("blast")
