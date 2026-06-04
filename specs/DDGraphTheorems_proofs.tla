@@ -219,15 +219,14 @@ LEMMA DDG_PathLiftToOpInduced ==
 (******************************************************************************)
 
 THEOREM DDG_OpenPathEmpty ==
-    ASSUME NEW T, NEW O, T \cap O = {},
-           NEW G, IsDDGraph(G, T, O), NEW n \in G.node, NEW Op(_)
+    ASSUME NEW G, NEW n \in G.node, NEW Op(_)
     PROVE  OpenPath(G, n, Op) = {} <=> ~Op(n)
 <1>1. OpenPath(G, n, Op) = {} => ~Op(n)
     <2>. SUFFICES ASSUME OpenPath(G, n, Op) = {}, Op(n)
                   PROVE FALSE
         OBVIOUS
     <2>1. <<n>> \in SimplePath(G)
-        BY DG_TrivialPath, DDG_DDGraphProperties
+        BY DG_TrivialPath
     <2>. QED
         BY <2>1 DEF OpenPath
 <1>2. ~Op(n) => OpenPath(G, n, Op) = {}
@@ -456,7 +455,7 @@ THEOREM DDG_AncestorSubGraphProperties ==
     BY <1>7, <1>5, <1>8, <1>4, <1>6
 
 THEOREM DDG_AncestorSubGraphIsMaximal ==
-    ASSUME NEW T, NEW O, NEW G, IsDDGraph(G, T, O),
+    ASSUME NEW G, IsDirectedGraph(G),
            NEW n, NEW Op(_)
     PROVE  LET A == AncestorSubGraph(G, n, Op) IN
            \A m \in A.node : \A x \in Predecessor(G, m) \ A.node : ~Op(x)
@@ -483,7 +482,7 @@ THEOREM DDG_AncestorSubGraphIsMaximal ==
 <1>7. m \in Ancestor(InducedGraph, n)
     BY <1>4, <1>6
 <1>8. IsDirectedGraph(G)
-    BY DEF IsDDGraph, IsDag
+    OBVIOUS
 <1>9. <<x, m>> \in G.edge /\ x \in G.node /\ m \in G.node
     BY <1>3, <1>8 DEF Predecessor, IsDirectedGraph
 <1>10. x \in InducedNodes
@@ -512,8 +511,7 @@ THEOREM DDG_AncestorSubGraphIsMaximal ==
     BY <1>17, <1>3
 
 THEOREM DDG_AncestorSubGraphEmpty ==
-    ASSUME NEW T, NEW O, NEW G, IsDDGraph(G, T, O),
-           NEW n \in G.node, NEW Op(_)
+    ASSUME NEW G, NEW n \in G.node, NEW Op(_)
     PROVE  LET A == AncestorSubGraph(G, n, Op) IN
            /\ A = EmptyGraph <=> ~Op(n)
            /\ n \in A.node <=> Op(n)
@@ -1075,7 +1073,7 @@ THEOREM DDG_DerivationProperties ==
     BY <1>6, <1>8, <1>4, <1>7
 
 THEOREM DDG_NoDerivationMeansBlockedAncestor ==
-    ASSUME NEW T, NEW O, NEW G, IsDDGraph(G, T, O),
+    ASSUME NEW T, NEW G, IsDag(G),
            NEW n \in G.node, NEW Op(_)
     PROVE  Derivation(G, n, Op, T) = {} => \E m \in Ancestor(G, n) : ~Op(m)
 (* Contrapositive: if every ancestor of n is Op, the ancestor-induced        *)
@@ -1097,7 +1095,7 @@ THEOREM DDG_NoDerivationMeansBlockedAncestor ==
       /\ IsDirectedGraph(A)
       /\ IsDirectedGraph(InducedGraph)
     <2>1. IsDirectedGraph(G) /\ IsDag(G)
-        BY DEF IsDDGraph, IsDag
+        BY DEF IsDag
     <2>2. Anc \subseteq G.node /\ n \in Anc
         BY <2>1, DG_AncestorDescendantProperties
     <2>3. IsDirectedGraph(A)
