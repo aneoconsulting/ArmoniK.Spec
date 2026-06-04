@@ -248,10 +248,10 @@ THEOREM DDG_OpenPathEmpty ==
 
 THEOREM DDG_AncestorSubGraphProperties ==
     ASSUME NEW T, NEW O, NEW G, IsDDGraph(G, T, O),
-           NEW n \in O, NEW Op(_),
-           \A t \in G.node \cap T : Op(t) => \A x \in Predecessor(G, t) : Op(x)
+           NEW n \in O, NEW Op(_)
     PROVE  LET A == AncestorSubGraph(G, n, Op) IN
-           /\ IsDDGraph(A, T, O)
+           /\ (\A t \in G.node \cap T : Op(t) => \A x \in Predecessor(G, t) : Op(x))
+              => IsDDGraph(A, T, O)
            /\ A \in DirectedSubgraph(G)
            /\ IsWeaklyConnected(A)
            /\ \A m \in A.node : Op(m)
@@ -335,7 +335,11 @@ THEOREM DDG_AncestorSubGraphProperties ==
     <2>. QED
         BY <2>3, <2>7 DEF AreConnectedIn
 (* Conjunct 1: A is a DD graph over (T, O) *)
-<1>7. IsDDGraph(A, T, O)
+<1>7. (\A t \in G.node \cap T : Op(t) => \A x \in Predecessor(G, t) : Op(x))
+      => IsDDGraph(A, T, O)
+    <2> SUFFICES ASSUME \A t \in G.node \cap T : Op(t) => \A x \in Predecessor(G, t) : Op(x)
+                 PROVE  IsDDGraph(A, T, O)
+        OBVIOUS
     <2>1. IsBipartiteWithPartitions(G, T, O)
         BY DEF IsDDGraph
     <2>2. IsDag(A) /\ IsBipartiteWithPartitions(A, T, O)
