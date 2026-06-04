@@ -13,18 +13,30 @@
     },
 
     // ----- TLA+ / TLC ----------------------------------------------------
+    // NOTE: this is a TEMPLATE. scripts/install-tools.sh copies it to
+    // .vscode/settings.json and replaces every __REPO_ROOT__ token with the
+    // absolute path of the repo. The generated settings.json is gitignored;
+    // edit this template (not the generated file) and re-run `make install`.
+
     // -cp puts CommunityModules overrides + the compiled Java overrides
     // (specs/*.class produced by `make build-java`) on TLC's classpath.
     // The vscode-tlaplus extension preserves our -cp and appends its
     // bundled tla2tools.jar.
-    "tlaplus.java.options": "-XX:+UseParallelGC -cp .tlatools/CommunityModules-deps.jar:specs",
+    "tlaplus.java.options": "-XX:+UseParallelGC -cp __REPO_ROOT__/.tlatools/CommunityModules-deps.jar:__REPO_ROOT__/specs",
 
     // SANY / TLC search path. Includes both the CommunityModules sources
     // and the tlapm-bundled stdlib (TLAPS.tla, FiniteSetTheorems.tla, etc.)
     // so specs EXTENDS'ing either can be parsed and model-checked in VSCode.
+    // The extension does not resolve these relative to the workspace, so they
+    // must be absolute.
     "tlaplus.moduleSearchPaths": [
-        ".tlatools/CommunityModules/modules",
-        ".tlatools/tlapm/lib/tlapm/stdlib"
+<<<<<<< Updated upstream:.vscode/settings.json.template
+        "__REPO_ROOT__/.tlatools/CommunityModules/modules",
+        "__REPO_ROOT__/.tlatools/tlapm/lib/tlapm/stdlib"
+=======
+        "/home/qdelamea/projects/ArmoniK.Spec/.tlatools/CommunityModules/modules",
+        "/home/qdelamea/projects/ArmoniK.Spec/.tlatools/tlapm/lib/tlapm/stdlib"
+>>>>>>> Stashed changes:.vscode/settings.json
     ],
 
     "tlaplus.tlc.modelChecker.createOutFiles": true,
@@ -44,15 +56,15 @@
     // tlapm_lsp ships in the prebuilt tlapm tarball under .tlatools/tlapm/.
     "tlaplus.tlaps.enabled": true,
     "tlaplus.tlaps.lspServerCommand": [
-        ".tlatools/tlapm/bin/tlapm_lsp",
+        "__REPO_ROOT__/.tlatools/tlapm/bin/tlapm_lsp",
         "--log-io",
         "--log-to=/tmp/tlapm_lsp.log"
     ],
 
     // ----- Java (for editing specs/DDGraphs.java overrides) --------------
     "java.project.referencedLibraries": [
-        ".tlatools/tla2tools.jar",
-        ".tlatools/CommunityModules-deps.jar"
+        "__REPO_ROOT__/.tlatools/tla2tools.jar",
+        "__REPO_ROOT__/.tlatools/CommunityModules-deps.jar"
     ],
 
     // ----- comment-box plugin (used in TLA+ files) -----------------------
