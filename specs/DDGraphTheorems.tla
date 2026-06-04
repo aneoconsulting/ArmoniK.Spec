@@ -103,8 +103,7 @@ LEMMA DDG_PathLiftToOpInduced ==
 (* not satisfy Op.                                                            *)
 (******************************************************************************)
 THEOREM DDG_OpenPathEmpty ==
-    ASSUME NEW T, NEW O, T \cap O = {},
-           NEW G, IsDDGraph(G, T, O), NEW n \in G.node, NEW Op(_)
+    ASSUME NEW G, NEW n \in G.node, NEW Op(_)
     PROVE  OpenPath(G, n, Op) = {} <=> ~Op(n)
 
 --------------------------------------------------------------------------------
@@ -158,7 +157,7 @@ THEOREM DDG_AncestorSubGraphProperties ==
     (* nodes that fail Op -- A is closed under "Op-passing" upstream traversal.  *)
 (******************************************************************************)
 THEOREM DDG_AncestorSubGraphIsMaximal ==
-    ASSUME NEW T, NEW O, NEW G, IsDDGraph(G, T, O),
+    ASSUME NEW G, IsDirectedGraph(G),
            NEW n, NEW Op(_)
     PROVE  LET A == AncestorSubGraph(G, n, Op) IN
            \A m \in A.node : \A x \in Predecessor(G, m) \ A.node : ~Op(x)
@@ -166,12 +165,12 @@ THEOREM DDG_AncestorSubGraphIsMaximal ==
 (******************************************************************************)
 (* Triviality characterization: AncestorSubGraph is empty iff the target n   *)
 (* itself fails Op, and n belongs to A iff Op(n) holds. The two facts are   *)
-(* duals of the same condition Op(n). Requires n \in G.node and finiteness   *)
-(* of G.node (to lift reflexivity of Ancestor through the induced subgraph). *)
+(* duals of the same condition Op(n). Needs only n \in G.node: reflexivity   *)
+(* of Ancestor in the induced subgraph holds for any node, no finiteness or  *)
+(* DD-graph structure required.                                              *)
 (******************************************************************************)
 THEOREM DDG_AncestorSubGraphEmpty ==
-    ASSUME NEW T, NEW O, NEW G, IsDDGraph(G, T, O),
-           NEW n \in G.node, NEW Op(_)
+    ASSUME NEW G, NEW n \in G.node, NEW Op(_)
     PROVE  LET A == AncestorSubGraph(G, n, Op) IN
            /\ A = EmptyGraph <=> ~Op(n)
            /\ n \in A.node <=> Op(n)
@@ -263,7 +262,7 @@ THEOREM DDG_DerivationProperties ==
 (* the criterion quantifies over all ancestors, not over a single path.)     *)
 (******************************************************************************)
 THEOREM DDG_NoDerivationMeansBlockedAncestor ==
-    ASSUME NEW T, NEW O, NEW G, IsDDGraph(G, T, O),
+    ASSUME NEW T, NEW G, IsDag(G),
            NEW n \in G.node, NEW Op(_)
     PROVE  Derivation(G, n, Op, T) = {} => \E m \in Ancestor(G, n) : ~Op(m)
 
