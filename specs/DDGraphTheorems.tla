@@ -110,6 +110,20 @@ THEOREM DDG_OpenPathEmpty ==
 --------------------------------------------------------------------------------
 
 (******************************************************************************)
+(* Every open path ending at n lives inside AncestorSubGraph(G, n, Op): it    *)
+(* lifts into the subgraph and stays an open path there (its endpoint is      *)
+(* still n and all its nodes still satisfy Op). The "input" counterpart to   *)
+(* the closure property of DDG_AncestorSubGraphProperties; a corollary of the *)
+(* lift machinery, needing only that G is a directed graph.                   *)
+(******************************************************************************)
+THEOREM DDG_OpenPathInAncestorSubGraph ==
+    ASSUME NEW G, IsDirectedGraph(G), NEW n, NEW Op(_),
+           NEW p \in OpenPath(G, n, Op)
+    PROVE  p \in OpenPath(AncestorSubGraph(G, n, Op), n, Op)
+
+--------------------------------------------------------------------------------
+
+(******************************************************************************)
 (* AncestorSubGraph — structural lemmas.                                      *)
 (*                                                                            *)
 (* The following block builds up the path-to-target property step by step,    *)
