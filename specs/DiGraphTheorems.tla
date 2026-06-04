@@ -345,6 +345,7 @@ THEOREM DG_EmptyGraphProperties ==
     /\ \A U, V : U \cap V = {} => IsBipartiteWithPartitions(EmptyGraph, U, V)
     /\ Source(EmptyGraph) = {}
     /\ Sink(EmptyGraph) = {}
+    /\ \A G: IsDirectedGraph(G) => (G.node = {} <=> G = EmptyGraph)
 
 (******************************************************************************)
 (* Properties of DAGs: a DAG is in particular a well-formed directed graph,   *)

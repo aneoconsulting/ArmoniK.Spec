@@ -295,6 +295,7 @@ THEOREM DG_EmptyGraphProperties ==
     /\ \A U, V : U \cap V = {} => IsBipartiteWithPartitions(EmptyGraph, U, V)
     /\ Source(EmptyGraph) = {}
     /\ Sink(EmptyGraph) = {}
+    /\ \A G: IsDirectedGraph(G) => (G.node = {} <=> G = EmptyGraph)
 <1>1. IsDirectedGraph(EmptyGraph)
     BY DEF EmptyGraph, IsDirectedGraph
 <1>2. \A S : EmptyGraph \in DirectedGraphOf(S)
@@ -317,8 +318,14 @@ THEOREM DG_EmptyGraphProperties ==
     BY DEF EmptyGraph, Source, Predecessor
 <1>6. Sink(EmptyGraph) = {}
     BY DEF EmptyGraph, Sink, Successor
+<1>7. \A G: IsDirectedGraph(G) => (G.node = {} <=> G = EmptyGraph)
+    <2>. SUFFICES ASSUME NEW G, IsDirectedGraph(G)
+         PROVE G.node = {} <=> G = EmptyGraph
+        OBVIOUS
+    <2>. QED
+        BY DEF IsDirectedGraph, EmptyGraph
 <1>. QED
-    BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6
+    BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7
 
 (******************************************************************************)
 (* DAG properties: being a directed graph and having no self-loop.            *)
