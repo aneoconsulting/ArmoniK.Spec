@@ -132,8 +132,8 @@ THEOREM DG_TrivialPath ==
 
 (******************************************************************************)
 (* Reflexivity of connectivity: the single-node sequence <<n>> witnesses      *)
-(* AreConnectedIn(G, n, n) for every node n of a finite-node graph. Stated   *)
-(* as its own theorem because it is reused inside other proofs.               *)
+(* AreConnectedIn(G, n, n) for every node n of G (no finiteness needed).      *)
+(* Stated as its own theorem because it is reused inside other proofs.         *)
 (******************************************************************************)
 THEOREM DG_AreConnectedReflexive ==
     ASSUME NEW G, NEW n \in G.node
@@ -151,7 +151,8 @@ THEOREM DG_EdgeConnects ==
 
 (******************************************************************************)
 (* Ancestor / Descendant properties: both sets are subsets of G.node, they    *)
-(* are dual to each other, and they are reflexive on finite-node graphs.      *)
+(* are dual to each other, and they are reflexive (n is its own ancestor and  *)
+(* descendant) -- no finiteness needed.                                       *)
 (******************************************************************************)
 THEOREM DG_AncestorDescendantProperties ==
     ASSUME NEW G, NEW m \in G.node, NEW n \in G.node
@@ -194,7 +195,7 @@ LEMMA DG_PathConcat ==
 (* The ancestor set is closed under taking predecessors: if m reaches n and  *)
 (* x has an edge to m in G, then x also reaches n. Prepending x to a simple *)
 (* path from m to n yields a path, which is then shortened back to a simple *)
-(* path via DG_PathHasSimplePath -- whence the finiteness hypothesis.          *)
+(* path via DG_PathHasSimplePath (needs only IsDirectedGraph, no finiteness). *)
 (******************************************************************************)
 THEOREM DG_AncestorClosedUnderPredecessor ==
     ASSUME NEW G, IsDirectedGraph(G),
@@ -268,14 +269,14 @@ LEMMA DG_PathReverse ==
 (******************************************************************************)
 THEOREM DG_UUGReachabilitySymmetric ==
     ASSUME NEW G, IsDirectedGraph(G),
-           NEW a \in G.node, NEW b \in G.node,
+           NEW a, NEW b,
            AreConnectedIn(UnderlyingUndirectedGraph(G), a, b)
     PROVE  AreConnectedIn(UnderlyingUndirectedGraph(G), b, a)
 
 (******************************************************************************)
-(* Transitivity of reachability in a finite-node directed graph: combining   *)
-(* simple paths a -> b and b -> c via path concatenation followed by         *)
-(* DG_PathHasSimplePath gives a simple path a -> c.                              *)
+(* Transitivity of reachability in a directed graph: combining simple paths   *)
+(* a -> b and b -> c via path concatenation followed by DG_PathHasSimplePath  *)
+(* gives a simple path a -> c (no finiteness needed).                          *)
 (******************************************************************************)
 THEOREM DG_AreConnectedTransitive ==
     ASSUME NEW G, IsDirectedGraph(G),

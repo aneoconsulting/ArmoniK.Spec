@@ -449,7 +449,7 @@ LEMMA DG_PathReverse ==
 (******************************************************************************)
 THEOREM DG_UUGReachabilitySymmetric ==
     ASSUME NEW G, IsDirectedGraph(G),
-           NEW a \in G.node, NEW b \in G.node,
+           NEW a, NEW b,
            AreConnectedIn(UnderlyingUndirectedGraph(G), a, b)
     PROVE  AreConnectedIn(UnderlyingUndirectedGraph(G), b, a)
 <1> DEFINE UUG == UnderlyingUndirectedGraph(G)
