@@ -246,6 +246,52 @@ THEOREM DDG_OpenPathEmpty ==
 <1>. QED
     BY <1>1, <1>2
 
+THEOREM DDG_OpenPathInAncestorSubGraph ==
+    ASSUME NEW G, IsDirectedGraph(G), NEW n, NEW Op(_),
+           NEW p \in OpenPath(G, n, Op)
+    PROVE  p \in OpenPath(AncestorSubGraph(G, n, Op), n, Op)
+<1> DEFINE InducedNodes == {y \in G.node : Op(y)}
+<1> DEFINE InducedGraph == [node |-> InducedNodes,
+                            edge |-> G.edge \cap (InducedNodes \X InducedNodes)]
+<1> DEFINE A == AncestorSubGraph(G, n, Op)
+<1>1. p \in SimplePath(G) /\ p[Len(p)] = n /\ \A i \in 1..Len(p) : Op(p[i])
+    BY DEF OpenPath
+<1>2. p \in SimplePath(InducedGraph)
+    BY <1>1, DDG_PathLiftToOpInduced
+<1>3. n \in InducedNodes
+    <2>1. p \in Seq(G.node) /\ Len(p) \in 1..Len(p)
+        BY <1>1, DG_SimplePathIsSeq
+    <2>2. p[Len(p)] \in G.node /\ Op(p[Len(p)])
+        BY <1>1, <2>1, ElementOfSeq
+    <2>. QED
+        BY <1>1, <2>2
+<1>4. A = [node |-> Ancestor(InducedGraph, n),
+           edge |-> G.edge \cap (Ancestor(InducedGraph, n) \X Ancestor(InducedGraph, n))]
+    BY <1>3 DEF AncestorSubGraph
+<1>5. \A i \in 1..Len(p) : p[i] \in A.node
+    <2> SUFFICES ASSUME NEW i \in 1..Len(p) PROVE p[i] \in A.node
+        OBVIOUS
+    <2>1. IsDirectedGraph(InducedGraph)
+        BY DEF IsDirectedGraph
+    <2>2. p[i] \in Ancestor(InducedGraph, p[Len(p)])
+        BY <1>2, <2>1, DG_AncestorOnPath
+    <2>. QED
+        BY <2>2, <1>1, <1>4
+<1>6. \A i \in 1..(Len(p) - 1) : <<p[i], p[i+1]>> \in A.edge
+    <2> SUFFICES ASSUME NEW i \in 1..(Len(p) - 1)
+                 PROVE  <<p[i], p[i+1]>> \in A.edge
+        OBVIOUS
+    <2>1. <<p[i], p[i+1]>> \in G.edge /\ i \in 1..Len(p) /\ i+1 \in 1..Len(p)
+        BY <1>1, DG_SimplePathIsSeq
+    <2>2. p[i] \in A.node /\ p[i+1] \in A.node
+        BY <2>1, <1>5
+    <2>. QED
+        BY <2>1, <2>2, <1>4
+<1>7. p \in SimplePath(A)
+    BY <1>1, <1>5, <1>6, DG_SimplePathLift
+<1>. QED
+    BY <1>7, <1>1 DEF OpenPath
+
 THEOREM DDG_AncestorSubGraphProperties ==
     ASSUME NEW T, NEW O, NEW G, IsDDGraph(G, T, O),
            NEW n \in O, NEW Op(_)
