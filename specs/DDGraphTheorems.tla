@@ -129,10 +129,10 @@ THEOREM DDG_OpenPathEmpty ==
 (******************************************************************************)
 THEOREM DDG_AncestorSubGraphProperties ==
     ASSUME NEW T, NEW O, NEW G, IsDDGraph(G, T, O),
-           NEW n \in O, NEW Op(_),
-           \A t \in G.node \cap T : Op(t) => \A x \in Predecessor(G, t) : Op(x)
+           NEW n \in O, NEW Op(_)
     PROVE  LET A == AncestorSubGraph(G, n, Op) IN
-           /\ IsDDGraph(A, T, O)
+           /\ (\A t \in G.node \cap T : Op(t) => \A x \in Predecessor(G, t) : Op(x))
+              => IsDDGraph(A, T, O)
            /\ A \in DirectedSubgraph(G)
            /\ IsWeaklyConnected(A)
            /\ \A m \in A.node : Op(m)
