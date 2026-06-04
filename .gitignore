@@ -1,6 +1,11 @@
 # Local install of TLA+ tools (populated by scripts/install-tools.sh)
 .tlatools/
 
+# Generated VSCode settings (rendered from .vscode/settings.json.template by
+# scripts/install-tools.sh with machine-specific absolute paths). Edit the
+# template, not this file.
+.vscode/settings.json
+
 # Java compiled overrides (built by `make build-java`)
 *.class
 

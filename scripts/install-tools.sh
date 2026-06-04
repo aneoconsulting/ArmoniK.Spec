@@ -11,6 +11,11 @@
 #                                          lib/tlapm/stdlib/{TLAPS.tla,...}
 #   .tlatools/VERSIONS                   resolved versions of the above
 #
+# It also renders .vscode/settings.json from .vscode/settings.json.template,
+# substituting this repo's absolute path for the __REPO_ROOT__ token (the TLA+
+# extension's moduleSearchPaths require absolute paths). The generated file is
+# gitignored; edit the template, not the generated file.
+#
 # Linux-only. tlapm_lsp (used by the tlaplus.vscode-ide extension) ships in
 # the prebuilt tarball, so opam / a local switch are not needed.
 #
@@ -29,6 +34,8 @@ TLAPM_RELEASE_TAG="1.6.0-pre"          # prebuilt tarball tag
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TOOLS_DIR="${REPO_ROOT}/.tlatools"
 TLAPM_DIR="${TOOLS_DIR}/tlapm"
+VSCODE_TEMPLATE="${REPO_ROOT}/.vscode/settings.json.template"
+VSCODE_SETTINGS="${REPO_ROOT}/.vscode/settings.json"
 
 MODE="install"
 for arg in "$@"; do
@@ -45,6 +52,13 @@ done
 
 log()  { printf '\033[1;34m::\033[0m %s\n' "$*"; }
 die()  { printf '\033[1;31mxx\033[0m %s\n' "$*" >&2; exit 1; }
+
+# Render .vscode/settings.json from the template, substituting the repo's
+# absolute path for __REPO_ROOT__ (the TLA+ extension needs absolute paths).
+render_vscode_settings() {
+    [[ -f "${VSCODE_TEMPLATE}" ]] || die "missing ${VSCODE_TEMPLATE}"
+    sed "s|__REPO_ROOT__|${REPO_ROOT}|g" "${VSCODE_TEMPLATE}" > "${VSCODE_SETTINGS}"
+}
 
 # ----- platform & dependency checks -------------------------------------------
 [[ "$(uname -s)" == "Linux" ]] || die "this repo's tlapm setup is Linux-only (WSL is fine)."
@@ -72,6 +86,9 @@ if [[ "$MODE" == "check" ]]; then
     [[ -x "${TLAPM_DIR}/bin/tlapm_lsp" ]]             || die "missing prebuilt tlapm_lsp binary"
     "${TLAPM_DIR}/bin/tlapm" --version >/dev/null     || die "tlapm does not run"
     "${TLAPM_DIR}/bin/tlapm_lsp" --help >/dev/null    || die "tlapm_lsp does not run"
+    [[ -f "${VSCODE_SETTINGS}" ]]                     || die "missing .vscode/settings.json (run 'make install' to render it)"
+    grep -q '__REPO_ROOT__' "${VSCODE_SETTINGS}" \
+        && die ".vscode/settings.json still has unresolved __REPO_ROOT__ tokens (re-run 'make install')"
     log "ok — install is healthy"
     exit 0
 fi
@@ -113,6 +130,10 @@ rm -f "${TLAPM_TARBALL}"
 [[ -x "${TLAPM_DIR}/bin/tlapm_lsp" ]] || die "tlapm tarball didn't produce ${TLAPM_DIR}/bin/tlapm_lsp"
 "${TLAPM_DIR}/bin/tlapm" --version  >/dev/null || die "prebuilt tlapm doesn't run"
 "${TLAPM_DIR}/bin/tlapm_lsp" --help >/dev/null || die "prebuilt tlapm_lsp doesn't run"
+
+# ----- VSCode settings --------------------------------------------------------
+log "rendering .vscode/settings.json from template (REPO_ROOT=${REPO_ROOT})"
+render_vscode_settings
 
 # ----- VERSIONS lockfile ------------------------------------------------------
 {
