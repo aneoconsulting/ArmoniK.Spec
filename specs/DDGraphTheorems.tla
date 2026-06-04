@@ -181,11 +181,12 @@ THEOREM DDG_AncestorSubGraphEmpty ==
 (* start nodes of open paths ending at n coincides with the set of n's      *)
 (* ancestors in the Op-induced subgraph, and both pin down the same edges.   *)
 (* This lets later proofs switch between the path-based and closure-based   *)
-(* views at will.                                                            *)
+(* views at will. Needs only that G is a directed graph -- the equality is   *)
+(* about simple paths and reachability, so neither finiteness nor the DD     *)
+(* graph structure plays any role.                                          *)
 (******************************************************************************)
 THEOREM DDG_OpenSubGraphEqualsAncestorSubGraph ==
-    ASSUME NEW T, NEW O, NEW G, IsDDGraph(G, T, O), NEW n, NEW Op(_),
-           IsFiniteSet(G.node)
+    ASSUME NEW G, IsDirectedGraph(G), NEW n, NEW Op(_)
     PROVE  OpenSubGraph(G, n, Op) = AncestorSubGraph(G, n, Op)
 
 --------------------------------------------------------------------------------
