@@ -86,3 +86,23 @@ jobs:
           ../.tlatools/tlapm/bin/tlapm \
             -I ../.tlatools/CommunityModules/modules \
             ${{ matrix.spec }}.tla
+
+  sync:
+    name: Theorem/proof sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests
+
+      - name: Check theorem/proof sync
+        run: python scripts/check_proofs_sync.py specs

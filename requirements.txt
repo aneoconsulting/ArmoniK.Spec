@@ -1,0 +1,4 @@
+# Python dependencies for repository helper scripts (scripts/*.py).
+# Shared across current and future scripts; pinned for reproducibility.
+tree-sitter==0.25.1
+tree-sitter-tlaplus==1.5.0

@@ -23,13 +23,17 @@ TLAPM_OPTS := -I $(COMMUNITY_MODULES_SRC)
 JAVA_SRCS    := $(wildcard $(SPECS_DIR)/*.java)
 JAVA_CLASSES := $(JAVA_SRCS:.java=.class)
 
-.PHONY: help install update check build-java clean clean-tools
+PYTHON   ?= python3
+VENV_DIR := .venv
+
+.PHONY: help install update check check-sync build-java clean clean-tools
 
 help:
 	@echo "targets:"
 	@echo "  install      Install the TLA+ toolchain into $(TOOLS_DIR)/"
 	@echo "  update       Refresh the toolchain (idempotent; respects pinned versions)"
 	@echo "  check        Verify the toolchain install is healthy (no downloads)"
+	@echo "  check-sync   Check specs/*Theorems.tla stay in sync with their _proofs"
 	@echo "  build-java   Compile $(SPECS_DIR)/*.java overrides next to the .tla files"
 	@echo "  clean        Remove TLC scratch state and compiled .class files"
 	@echo "  clean-tools  Remove $(TOOLS_DIR)/ entirely"
@@ -45,6 +49,16 @@ update: install
 
 check:
 	./scripts/install-tools.sh --check
+
+# Verify each specs/XTheorems.tla matches its XTheorems_proofs.tla counterpart.
+check-sync: $(VENV_DIR)/.installed
+	$(VENV_DIR)/bin/python scripts/check_proofs_sync.py $(SPECS_DIR)
+
+$(VENV_DIR)/.installed: requirements.txt
+	$(PYTHON) -m venv $(VENV_DIR)
+	$(VENV_DIR)/bin/pip install --quiet --upgrade pip
+	$(VENV_DIR)/bin/pip install --quiet -r requirements.txt
+	touch $@
 
 $(TOOLS_DIR)/tla2tools.jar $(TOOLS_DIR)/CommunityModules-deps.jar:
 	$(MAKE) install

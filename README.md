@@ -26,6 +26,32 @@ TLA+ is designed to:
 
 ## How to use this repository?
 
+### Checking theorem/proof sync
+
+Each `specs/XTheorems.tla` library module declares theorems without proofs; the
+matching `specs/XTheorems_proofs.tla` module re-declares the same theorems with
+proof bodies. `scripts/check_proofs_sync.py` verifies the two stay in sync: the
+`_proofs` module is the source of truth, and the declaration module must match
+it in theorem presence, order, statements, and doc-comments (proof bodies,
+`EXTENDS`, the module name, and the module header comment are ignored). The
+script is read-only — it reports discrepancies and never edits any file.
+
+Run it locally (also suitable as a manual pre-commit check):
+
+```sh
+make check-sync
+```
+
+This creates a `.venv/` and installs the pinned dependencies from
+`requirements.txt` (`tree-sitter`, `tree-sitter-tlaplus`), then checks every
+pair under `specs/`. It exits non-zero if any module is out of sync. The same
+check runs in CI. To run the script's own unit tests:
+
+```sh
+python -m unittest discover -s tests
+```
+
+
 ## References
 
 * [ArmoniK Project](https://github.com/aneoconsulting/ArmoniK)

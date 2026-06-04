@@ -30,3 +30,10 @@ __tlacache__
 
 # Apalache output
 _apalache-out/
+
+# Python virtualenv for helper scripts (created by `make check-sync`)
+.venv/
+
+# Python bytecode caches
+__pycache__/
+*.pyc
