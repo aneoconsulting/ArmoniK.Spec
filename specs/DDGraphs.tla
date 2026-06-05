@@ -93,6 +93,18 @@ AncestorSubGraph(G, n, Op(_)) ==
     IN [node |-> N, edge |-> G.edge \cap (N \X N)]
 
 (******************************************************************************)
+(* The set of maximal open paths ending at n in G under Op: open paths that   *)
+(* cannot be extended further upstream, characterised here by the property    *)
+(* that the root (first node) p[1] has no Op-satisfying predecessor in G.     *)
+(* Equivalently (on a DAG, see DDG_MaximalOpenPathSuffixEquiv) these are the  *)
+(* open paths that are not a proper suffix of any other open path -- the      *)
+(* order-theoretic maximal elements for the "is a suffix of" relation. The    *)
+(* root of such a path is the upstream frontier of the open subgraph of n.    *)
+(******************************************************************************)
+MaximalOpenPath(G, n, Op(_)) ==
+    {p \in OpenPath(G, n, Op) : \A u \in Predecessor(G, p[1]) : ~Op(u)}
+
+(******************************************************************************)
 (* The retry attachment of node t in G with fresh node u: the smallest        *)
 (* graph H such that GraphUnion(G, H) extends G with u placed in parallel to  *)
 (* t -- u has the same predecessors and the same successors as t in G, and    *)

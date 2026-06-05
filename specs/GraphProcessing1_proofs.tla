@@ -1638,7 +1638,174 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
         BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11, <2>12
         DEF Next, OP1!Next
 <1>3. []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ OpenUpstreamEventuallyClosed => OP1!Fairness
-    OMITTED
+    <2>. USE GP1Assumptions 
+    <2>. DEFINE AG(o) == AncestorSubGraph(deps, o, IsOpenNode)
+                OP(o) == OpenPath(AG(o), o, IsOpenNode)
+    <2>. SUFFICES ASSUME NEW o \in Object
+                  PROVE /\ []GraphSafetyInv
+                        /\ [][Next]_vars
+                        /\ Fairness
+                        /\ []([](o \in objectTargets) => <>[][(AG(o).node)' \subseteq AG(o).node]_(AG(o).node))
+                        => WF_OP1!vars(o \in objectTargets /\ OP1!FinalizeObjects({o}))
+        BY Isa DEF OP1!Fairness, OpenUpstreamEventuallyClosed
+    <2>0. Fairness <=> []Fairness
+        <3>1. (\A o \in Object : WF_vars(FinalizeObjects({o})))
+               <=> [](\A o \in Object : WF_vars(FinalizeObjects({o})))
+            <4>1. [](\A o \in Object : WF_vars(FinalizeObjects({o})))
+                  <=> \A o \in Object : [](WF_vars(FinalizeObjects({o})))
+                OBVIOUS
+            <4>2. ASSUME NEW o \in Object
+                  PROVE [](WF_vars(FinalizeObjects({o})))
+                        <=> WF_vars(FinalizeObjects({o}))
+                BY PTL
+            <4>. QED
+                BY <4>1, <4>2, Isa
+        <3>. DEFINE TaskFairness(t) ==
+                        /\ WF_vars(StageTasks({t}))
+                        /\ WF_vars(
+                            /\ \E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)
+                            /\ AssignTasks({t}))
+                        /\ SF_vars(ProcessTasks({t}))
+                        /\ WF_vars(FinalizeTasks({t}))
+        <3>2. (\A t \in Task : TaskFairness(t))
+               <=> [](\A t \in Task : TaskFairness(t))
+            <4>1. [](\A t \in Task : TaskFairness(t))
+                  <=> \A t \in Task : []TaskFairness(t)
+                OBVIOUS
+            <4>2. ASSUME NEW t \in Task
+                  PROVE []TaskFairness(t)
+                        <=> TaskFairness(t)
+                BY PTL
+            <4>. QED
+                BY <4>1, <4>2, Isa
+        <3>. QED
+            BY <3>1, <3>2, PTL DEF Fairness
+    <2>. SUFFICES /\ []GraphSafetyInv
+                  /\ [][Next]_vars 
+                  /\ []Fairness
+                  /\ [](o \in objectTargets /\ o \in RegisteredObject)
+                  /\ [][(AG(o).node)' \subseteq AG(o).node]_(AG(o).node)
+                  => FALSE
+        <3>1. []([](o \in objectTargets) => <>[][(AG(o).node)' \subseteq AG(o).node]_(AG(o).node))
+            => [](o \in objectTargets) => <>[][(AG(o).node)' \subseteq AG(o).node]_(AG(o).node)
+            BY PTL
+        <3>2. ENABLED <<o \in objectTargets /\ OP1!FinalizeObjects({o})>>_OP1!vars
+              => o \in objectTargets /\ o \in RegisteredObject
+            BY ExpandENABLED DEF OP1!FinalizeObjects, OP1!vars, RegisteredObject, OP1!RegisteredObject
+        <3>. QED
+            BY <3>1, <3>2, <2>0, PTL DEF OpenUpstreamEventuallyClosed
+    <2>1. /\ []GraphSafetyInv
+          /\ [][Next]_vars 
+          /\ []Fairness
+          /\ [](o \in objectTargets /\ o \in RegisteredObject)
+          /\ [][(AG(o).node)' \subseteq AG(o).node]_(AG(o).node)
+          => []<><<(AG(o).node)' \subseteq AG(o).node>>_(AG(o).node)
+        <3>1. o \in RegisteredObject => IsOpenNode(o)
+            BY DEF RegisteredObject, IsOpenNode, FinalizedObject, FinalizedTask
+        <3>2. GraphSafetyInv /\ IsOpenNode(o) => OP(o) # {}
+        <3>3. OP(o) # {} => \E p \in OP(o): p
+        \* <3>3. OP(o) # {} => \E p \in OP(o): p[1] 
+        <3>. QED
+    <2>2. /\ []GraphSafetyInv /\ [](o \in RegisteredObject)
+          /\ [][(AG(o).node)' \subseteq AG(o).node]_(AG(o).node)
+          /\ []<><<(AG(o).node)' \subseteq AG(o).node>>_(AG(o).node)
+          => FALSE
+        <3>1. /\ []GraphSafetyInv
+              /\ [][(AG(o).node)' \subseteq AG(o).node]_(AG(o).node)
+              /\ []<><<(AG(o).node)' \subseteq AG(o).node>>_(AG(o).node)
+              ~> AG(o).node = {}
+            <4>. DEFINE S    == AG(o).node
+                        C(n) == (Cardinality(S) <= n)
+                        P    == [][(S)' \subseteq S]_S
+                        Q    == []<><<(S)' \subseteq S>>_S
+                        R    == S = {}
+            <4>. SUFFICES []([]GraphSafetyInv /\ P /\ Q => <>R)
+                BY PTL
+            <4>1. []GraphSafetyInv /\ [][S' \subseteq S]_S
+                  => \E n \in Nat : []C(n)
+                <5>1. GraphSafetyInv => (\E n \in Nat: C(n)) /\ IsFiniteSet(S)
+                    <6>. SUFFICES ASSUME GraphSafetyInv
+                                  PROVE (\E n \in Nat: C(n)) /\ IsFiniteSet(S)
+                        OBVIOUS
+                    <6>1. IsFiniteSet(S)
+                        <7>1. AG(o) \in DirectedSubgraph(deps)
+                            BY DDG_AncestorSubGraphProperties, Zenon DEF GraphSafetyInv,
+                            DependencyGraphCompliant
+                        <7>2. IsFiniteSet(deps.node)
+                            BY DEF GraphSafetyInv, DependencyGraphFinite
+                        <7>. QED
+                            BY <7>1, <7>2, FS_Subset DEF DirectedSubgraph
+                    <6>2. \E n \in Nat: C(n)
+                        BY <6>1, FS_CardinalityType
+                    <6>. QED
+                        BY <6>1, <6>2
+                <5>. SUFFICES (\E n \in Nat: C(n)) /\ []IsFiniteSet(S) /\ [][S' \subseteq S]_S
+                              => \E n \in Nat: []C(n)
+                    BY <5>1, PTL
+                <5>. SUFFICES ASSUME NEW m \in Nat 
+                              PROVE  C(m) /\ []IsFiniteSet(S) /\ [][S' \subseteq S]_S => \E n \in Nat : []C(n)
+                    OBVIOUS
+                <5>2. C(m) /\ []IsFiniteSet(S) /\ [][S' \subseteq S]_S => []C(m)
+                    <6>. DEFINE C1 == Cardinality(S)
+                                C2 == Cardinality(S')
+                    <6>. C(m) /\ IsFiniteSet(S) /\ [S' \subseteq S]_S => C(m)'
+                        \* BY FS_CardinalityType, FS_Subset
+                        <7>. SUFFICES ASSUME C1 =< m, IsFiniteSet(S), [S' \subseteq S]_S
+                                      PROVE C2 <= m
+                            OBVIOUS
+                        <7>. C2 <= C1
+                            BY FS_Subset
+                        <7>. C1 \in Nat /\ C2 \in Nat
+                            BY FS_CardinalityType, FS_Subset
+                        <7>. HIDE DEF C1, C2, S
+                        <7>. QED
+                            OBVIOUS
+                    <6>. QED
+                        BY PTL
+                <5>3. []C(m) => \E n \in Nat : []C(n)
+                    <6>. DEFINE Q(m) == []C(m)
+                    <6>. HIDE DEF Q
+                    <6>. Q(m) => \E n \in Nat : Q(n)
+                        OBVIOUS
+                    <6>. QED
+                        BY DEF Q
+                <5>. QED
+                    BY <5>2, <5>3
+            <4>2. \A n \in Nat: []([]C(n) /\ P /\ Q => <>R)
+            <4>3. (\A n \in Nat: []([]C(n) /\ P /\ Q => <>R))
+                  => [](\A n \in Nat: []C(n) /\ P /\ Q => <>R)
+                OBVIOUS
+            <4>4. (\A n \in Nat: []C(n) /\ P /\ Q => <>R)
+                  => (\A n \in Nat: []C(n)) /\ P /\ Q => <>R
+                OBVIOUS
+            <4>4. (\A n \in Nat: []C(n) /\ P /\ Q => <>R)
+                  => (\E n \in Nat: []C(n)) /\ P /\ Q => <>R
+                OBVIOUS
+            <4>. QED
+                BY <4>1, <4>2, <4>3, <4>4, PTL
+        <3>2. GraphSafetyInv /\ o \in RegisteredObject /\ AG(o).node = {} => FALSE
+            <4>. SUFFICES ASSUME GraphSafetyInv, o \in RegisteredObject, AG(o).node = {}
+                          PROVE FALSE
+                OBVIOUS
+            <4>0. IsDirectedGraph(AG(o))
+                BY DDG_DDGraphProperties, DDG_AncestorSubGraphProperties,
+                DG_DirectedSubgraphProperties, Zenon DEF GraphSafetyInv,
+                DependencyGraphCompliant
+            <4>1. AG(o) = EmptyGraph
+                BY <4>0, DG_EmptyGraphProperties
+            <4>2. AG(o) = EmptyGraph => ~IsOpenNode(o)
+                <5>1. o \in deps.node
+                    BY DEF RegisteredObject, UnknownObject, GraphSafetyInv, GraphStateIntegrity
+                <5>. QED
+                    BY <5>1, DDG_AncestorSubGraphEmpty
+            <4>3. (o \in RegisteredObject /\ ~IsOpenNode(o)) => FALSE
+                BY DEF RegisteredObject, IsOpenNode, FinalizedObject, FinalizedTask, TypeOk, TP1State, OP1State
+            <4>. QED
+                BY <4>1, <4>2, <4>3
+        <3>. QED
+            BY <3>1, <3>2, PTL
+    <2>. QED
+        BY <2>1, <2>2
 <1>. QED
     BY <1>1, <1>2, <1>3, GP1_GraphSafetyInv, PTL DEF Spec, OP1!Spec, RefineObjectProcessing1
 
