@@ -1,5 +1,6 @@
 ------------------------ MODULE GraphProcessing1_proofs ------------------------
-EXTENDS GraphProcessing1, DDGraphTheorems, FiniteSetTheorems, TLAPS
+EXTENDS GraphProcessing1, DDGraphTheorems, FiniteSetTheorems, NaturalsInduction,
+        SequenceTheorems, TLAPS
 
 USE DEF OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_FINALIZED, TASK_UNKNOWN,
 TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED, TASK_PROCESSED, TASK_FINALIZED
@@ -1586,6 +1587,585 @@ THEOREM GP1_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
 <1>. QED
     BY <1>1, <1>2, <1>3, GP1_GraphSafetyInv, PTL DEF Spec, TP1!Spec, RefineTaskProcessing1
 
+(*****************************************************************************)
+(* Helper lemmas for the OpenUpstreamEventuallyClosed / OP1!Fairness proof.   *)
+(*                                                                            *)
+(* The liveness argument shows the open ancestor subgraph of a registered,    *)
+(* targeted object o keeps losing nodes, which is impossible on a finite      *)
+(* monotone-non-increasing set. We phrase "loses a node" as a strict decrease *)
+(* of its cardinality (a Nat state-measure), avoiding the <<.>>_v action that *)
+(* the PTL backend cannot manipulate.                                         *)
+(*****************************************************************************)
+
+(**
+ * Cardinality of the open ancestor subgraph of o in the dependency graph.
+ *)
+AGcard(o) == Cardinality(AncestorSubGraph(deps, o, IsOpenNode).node)
+
+(**
+ * "At cardinality m, the open ancestor subgraph eventually drops below m":
+ * wrapped in an operator so that the liveness fact [](\A m : OP1Step(o, m)) is
+ * instantiated as a first-order term (PTL matches the quantified body as an
+ * opaque atom, sidestepping bound-variable renaming and temporal unification).
+ *)
+OP1Step(o, m) == (AGcard(o) = m => <>(AGcard(o) < m))
+
+(**
+ * r is the root (most-upstream open node) of a maximal open path to o: the
+ * upstream frontier the fairness conditions drive toward finalization.
+ *)
+IsMRoot(o, r) == \E p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r
+
+(**
+ * Leads-to from an existential: if every member of D leads to C, then the
+ * existence of such a member leads to C. (Generic PTL combinator.)
+ *)
+LEMMA LemLeadstoExists ==
+    ASSUME NEW D, NEW Op(_), NEW C,
+           [](\A r \in D : (Op(r) => <>C))
+    PROVE  (\E r \in D : Op(r)) ~> C
+<1>1. (\A r \in D : (Op(r) => <>C)) => ((\E r \in D : Op(r)) => <>C)
+    OBVIOUS
+<1>. QED
+    BY <1>1, PTL
+
+(**
+ * PER-ROOT PROGRESS FRONTIER (stated here; proof to follow).
+ * Fix a maximal-open-path root r of o (the upstream frontier; its predecessors
+ * are all closed). While o stays registered and targeted and the open ancestor
+ * subgraph never gains a node, then from a state where it has cardinality m and
+ * r is such a root, it eventually drops below m. Proof outline -- r is either
+ *   - a source object (registered with all predecessors closed, hence a source
+ *     by GraphStateIntegrity), finalized by WF on FinalizeObjects (cf.
+ *     GP1_CommittedObjectsEventualFinalization), or
+ *   - an open task whose inputs are all finalized, driven registered -> staged
+ *     -> assigned -> processed by GP1 fairness (WF StageTasks, WF guarded
+ *     AssignTasks, SF ProcessTasks), whose on-path successor object is then
+ *     finalized by WF on FinalizeObjects.
+ * Either way an open ancestor of o becomes finalized and leaves the finite,
+ * monotone-non-increasing node set, so AGcard(o) strictly drops below m.
+ *)
+LEMMA OP1_RootProgress ==
+    ASSUME NEW o \in Object, NEW r, NEW m \in Nat,
+           []GraphSafetyInv, [][Next]_vars, []Fairness,
+           [](o \in objectTargets /\ o \in RegisteredObject),
+           [][AncestorSubGraph(deps, o, IsOpenNode).node'
+              \subseteq AncestorSubGraph(deps, o, IsOpenNode).node]_(
+              AncestorSubGraph(deps, o, IsOpenNode).node)
+    PROVE  []((AGcard(o) = m /\ IsMRoot(o, r)) => <>(AGcard(o) < m))
+(* The antecedent IsMRoot(o, r) supplies a maximal open path p ending at o whose
+ * root is p[1] = r. Hence r is a node of the graph (so an object or a task), it
+ * is open, and -- by maximality -- all of its predecessors are closed. We split
+ * on the kind of the root; in either case fairness drives r itself to closure. *)
+(* REDUCTION: it suffices to drive the root r to closure. r belongs to the open
+ * ancestor node set S of o while it is the maximal-open-path root (every open
+ * path into o lifts into the ancestor subgraph, DDG_OpenPathInAncestorSubGraph),
+ * and it leaves S as soon as it ceases to be open (S retains only open nodes,
+ * DDG_AncestorSubGraphProperties). S is finite (a subgraph of the finite deps)
+ * and the monotonicity hypothesis keeps it from growing, so the invariant
+ * AGcard(o) <= m, with equality only while r \in S, holds from any state where
+ * AGcard(o) = m; once r leaves S, AGcard(o) drops strictly below m. *)
+<1>red. SUFFICES []((AGcard(o) = m /\ IsMRoot(o, r))
+                  => <>(r \notin AncestorSubGraph(deps, o, IsOpenNode).node))
+    <2> DEFINE S == AncestorSubGraph(deps, o, IsOpenNode).node
+    <2> DEFINE P == (AGcard(o) = m /\ IsMRoot(o, r))
+    <2> DEFINE J == (AGcard(o) <= m /\ (AGcard(o) = m => r \in S))
+    <2>a. [](IsMRoot(o, r) => r \in S)
+        <3>1. GraphSafetyInv /\ IsMRoot(o, r) => r \in S
+            <4>. SUFFICES ASSUME GraphSafetyInv, IsMRoot(o, r) PROVE r \in S
+                OBVIOUS
+            <4>1. PICK p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r
+                BY DEF IsMRoot
+            <4>2. IsDirectedGraph(deps)
+                BY DEF GraphSafetyInv, DependencyGraphCompliant, IsDDGraph, IsDag
+            <4>3. p \in OpenPath(deps, o, IsOpenNode)
+                BY <4>1 DEF MaximalOpenPath
+            <4>4. p \in OpenPath(AncestorSubGraph(deps, o, IsOpenNode), o, IsOpenNode)
+                BY <4>2, <4>3, DDG_OpenPathInAncestorSubGraph
+            <4>5. p \in SimplePath(AncestorSubGraph(deps, o, IsOpenNode))
+                BY <4>4 DEF OpenPath
+            <4>. QED
+                BY <4>1, <4>5, DG_SimplePathIsSeq, ElementOfSeq
+        <3>. QED
+            BY <3>1, PTL
+    <2>b. [](~ IsOpenNode(r) => r \notin S)
+        <3>1. GraphSafetyInv => (~ IsOpenNode(r) => r \notin S)
+            <4>. SUFFICES ASSUME GraphSafetyInv, ~ IsOpenNode(r), r \in S PROVE FALSE
+                OBVIOUS
+            <4>1. IsDirectedGraph(deps)
+                BY DEF GraphSafetyInv, DependencyGraphCompliant, IsDDGraph, IsDag
+            <4>2. S \subseteq {y \in deps.node : IsOpenNode(y)}
+                BY <4>1, DDG_AncestorSubGraphBasic
+            <4>. QED
+                BY <4>2
+        <3>. QED
+            BY <3>1, PTL
+    <2>fin. [](IsFiniteSet(S))
+        <3>1. GraphSafetyInv => IsFiniteSet(S)
+            <4>. SUFFICES ASSUME GraphSafetyInv PROVE IsFiniteSet(S)
+                OBVIOUS
+            <4>1. IsDirectedGraph(deps)
+                BY DEF GraphSafetyInv, DependencyGraphCompliant, IsDDGraph, IsDag
+            <4>2. S \subseteq deps.node
+                BY <4>1, DDG_AncestorSubGraphBasic DEF DirectedSubgraph
+            <4>3. IsFiniteSet(deps.node)
+                BY DEF GraphSafetyInv, DependencyGraphFinite
+            <4>. QED
+                BY <4>2, <4>3, FS_Subset
+        <3>. QED
+            BY <3>1, PTL
+    <2>inv. [](P => [](J))
+        <3>1. (IsMRoot(o, r) => r \in S) /\ P => J
+            OBVIOUS
+        <3>2. IsFiniteSet(S) /\ J /\ [S' \subseteq S]_S => J'
+            <4>. SUFFICES ASSUME IsFiniteSet(S),
+                                 AGcard(o) <= m,
+                                 (AGcard(o) = m => r \in S),
+                                 [S' \subseteq S]_S
+                          PROVE  AGcard(o)' <= m
+                                 /\ (AGcard(o)' = m => r \in S')
+                BY DEF J
+            <4>1. S' \subseteq S
+                OBVIOUS
+            \* Bridge to the finite-set lemmas once (unfolding AGcard to
+            \* Cardinality), exposing only first-order facts about the opaque
+            \* naturals AGcard(o), AGcard(o)'.
+            <4>2. /\ AGcard(o) \in Nat
+                  /\ AGcard(o)' \in Nat
+                  /\ AGcard(o)' <= AGcard(o)
+                  /\ (AGcard(o)' = AGcard(o) => S' = S)
+                <5>1. /\ IsFiniteSet(S')
+                      /\ Cardinality(S') <= Cardinality(S)
+                      /\ (Cardinality(S) = Cardinality(S') => S = S')
+                    BY <4>1, FS_Subset
+                <5>2. Cardinality(S) \in Nat /\ Cardinality(S') \in Nat
+                    BY <5>1, FS_CardinalityType
+                <5>. QED
+                    BY <5>1, <5>2 DEF AGcard
+            \* Bind the primed cardinality to a fresh unprimed natural c so the
+            \* remaining inequalities are first-order over plain naturals (the
+            \* arithmetic backends do not handle the primed opaque atom).
+            <4>m. AGcard(o) <= m
+                OBVIOUS
+            <4>rs. AGcard(o) = m => r \in S
+                OBVIOUS
+            \* Bind both (opaque, one primed) cardinalities to fresh naturals b, c
+            \* so every inequality below is first-order over plain naturals; the
+            \* opaque atoms only reappear through the equalities b = AGcard(o),
+            \* c = AGcard(o)' for the final substitutions.
+            <4>3. PICK b \in Nat, c \in Nat :
+                    b = AGcard(o) /\ c = AGcard(o)' /\ c <= b
+                BY <4>2
+            \* Pure relations among the fresh naturals b, c, m: cite ONLY these in
+            \* the arithmetic steps below -- never <4>3 itself, whose conjuncts
+            \* b = AGcard(o), c = AGcard(o)' carry the (primed) opaque atoms that
+            \* the arithmetic backends cannot handle.
+            <4>cb. c <= b
+                BY <4>3
+            <4>bm. b <= m
+                <5>1. b = AGcard(o)
+                    BY <4>3
+                <5>. QED
+                    BY <5>1, <4>m
+            <4>4. AGcard(o)' <= m
+                <5>1. c <= m
+                    BY <4>cb, <4>bm, Isa
+                <5>2. c = AGcard(o)'
+                    BY <4>3
+                <5>. QED
+                    BY <5>1, <5>2
+            <4>5. AGcard(o)' = m => r \in S'
+                <5>. SUFFICES ASSUME AGcard(o)' = m PROVE r \in S'
+                    OBVIOUS
+                <5>0. c = m
+                    <6>1. c = AGcard(o)'
+                        BY <4>3
+                    <6>. QED
+                        BY <6>1
+                <5>1. b = m
+                    BY <4>cb, <4>bm, <5>0, Isa
+                <5>2. AGcard(o) = m
+                    <6>1. b = AGcard(o)
+                        BY <4>3
+                    <6>. QED
+                        BY <6>1, <5>1
+                <5>3. AGcard(o)' = AGcard(o)
+                    <6>1. b = AGcard(o) /\ c = AGcard(o)'
+                        BY <4>3
+                    <6>. QED
+                        BY <6>1, <5>0, <5>1
+                <5>4. r \in S
+                    BY <5>2, <4>rs
+                <5>5. S' = S
+                    BY <4>2, <5>3
+                <5>. QED
+                    BY <5>4, <5>5
+            <4>. QED
+                BY <4>4, <4>5
+        <3>. QED
+            BY <3>1, <3>2, <2>a, <2>fin, PTL
+    <2>drop. (IsFiniteSet(S) /\ J /\ r \notin S) => AGcard(o) < m
+        BY FS_CardinalityType DEF AGcard
+    <2>. QED
+        BY <2>inv, <2>fin, <2>drop, PTL
+(* OBJECT ROOT: a maximal-open-path root that is an object is a registered source
+ * of the dependency graph (2>1); by WF on FinalizeObjects it is driven to leave
+ * the open ancestor set. The only threat to its persistence as a source is a
+ * RegisterGraph adding a producing task above it -- such a task is registered
+ * (open) and, r being an open ancestor of o, would be a new open ancestor of o,
+ * enlarging the open ancestor set, which monotonicity forbids. *)
+<1>1. []((AGcard(o) = m /\ IsMRoot(o, r) /\ r \in Object)
+         => <>(r \notin AncestorSubGraph(deps, o, IsOpenNode).node))
+    <2>1. []((IsMRoot(o, r) /\ r \in Object) => r \in Source(deps))
+        <3>1. GraphSafetyInv /\ IsMRoot(o, r) /\ r \in Object => r \in Source(deps)
+            <4>. SUFFICES ASSUME GraphSafetyInv, IsMRoot(o, r), r \in Object
+                          PROVE  r \in Source(deps)
+                OBVIOUS
+            <4>1. PICK p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r
+                BY DEF IsMRoot
+            <4>2. p \in SimplePath(deps)
+                BY <4>1 DEF MaximalOpenPath, OpenPath
+            <4>3. r \in deps.node
+                BY <4>1, <4>2, DG_SimplePathIsSeq, ElementOfSeq
+            <4>4. IsOpenNode(r)
+                BY <4>1, <4>2, DG_SimplePathIsSeq DEF MaximalOpenPath, OpenPath
+            <4>5. \A u \in Predecessor(deps, r) : ~ IsOpenNode(u)
+                BY <4>1 DEF MaximalOpenPath
+            <4>6. Predecessor(deps, r) \subseteq Task
+                BY <4>3 DEF GraphSafetyInv, DependencyGraphCompliant, IsDDGraph,
+                           IsBipartiteWithPartitions, Predecessor
+            <4>7. Predecessor(deps, r) \subseteq FinalizedTask
+                BY <4>5, <4>6, GP1Assumptions DEF IsOpenNode, FinalizedObject
+            <4>8. r \in RegisteredObject
+                BY <4>3, <4>4
+                   DEF GraphSafetyInv, GraphStateIntegrity, TypeOk, OP1State,
+                       IsOpenNode, UnknownObject, FinalizedObject, RegisteredObject
+            <4>. QED
+                BY <4>7, <4>8 DEF GraphSafetyInv, GraphStateIntegrity
+        <3>. QED
+            BY <3>1, PTL
+    <2>. QED
+        <3> DEFINE AGn == AncestorSubGraph(deps, o, IsOpenNode).node
+        <3> DEFINE Pr == /\ r \in Object
+                         /\ r \in RegisteredObject
+                         /\ r \in Source(deps)
+                         /\ r \in AGn
+        <3> DEFINE A == FinalizeObjects({r})
+        \* Monotonicity as a plain always-action (the box hypothesis, subscript dropped).
+        <3>mono. [](AGn' \subseteq AGn)
+            <4>1. ([AGn' \subseteq AGn]_AGn) => (AGn' \subseteq AGn)
+                OBVIOUS
+            <4>. QED
+                BY <4>1, PTL
+        \* Structural facts about the open ancestor set, boxed so their next-state
+        \* instances are available by PTL lifting.
+        <3>sub. [](AGn \subseteq deps.node)
+            <4>1. GraphSafetyInv => AGn \subseteq deps.node
+                <5>. SUFFICES ASSUME GraphSafetyInv PROVE AGn \subseteq deps.node
+                    OBVIOUS
+                <5>1. IsDirectedGraph(deps)
+                    BY DEF GraphSafetyInv, DependencyGraphCompliant, IsDDGraph, IsDag
+                <5>. QED
+                    BY <5>1, DDG_AncestorSubGraphBasic DEF DirectedSubgraph
+            <4>. QED
+                BY <4>1, PTL
+        <3>opn. [](r \in AGn => IsOpenNode(r))
+            <4>1. GraphSafetyInv => (r \in AGn => IsOpenNode(r))
+                <5>. SUFFICES ASSUME GraphSafetyInv, r \in AGn PROVE IsOpenNode(r)
+                    OBVIOUS
+                <5>1. IsDirectedGraph(deps)
+                    BY DEF GraphSafetyInv, DependencyGraphCompliant, IsDDGraph, IsDag
+                <5>2. AGn \subseteq {y \in deps.node : IsOpenNode(y)}
+                    BY <5>1, DDG_AncestorSubGraphBasic
+                <5>. QED
+                    BY <5>2
+            <4>. QED
+                BY <4>1, PTL
+        <3>max. [](\A mm \in AGn : \A x \in Predecessor(deps, mm) :
+                      x \in AGn \/ ~ IsOpenNode(x))
+            <4>1. GraphSafetyInv => (\A mm \in AGn : \A x \in Predecessor(deps, mm) :
+                                        x \in AGn \/ ~ IsOpenNode(x))
+                <5>. SUFFICES ASSUME GraphSafetyInv
+                              PROVE  \A mm \in AGn : \A x \in Predecessor(deps, mm) :
+                                         x \in AGn \/ ~ IsOpenNode(x)
+                    OBVIOUS
+                <5>1. IsDirectedGraph(deps)
+                    BY DEF GraphSafetyInv, DependencyGraphCompliant, IsDDGraph, IsDag
+                <5>. QED
+                    BY <5>1, DDG_AncestorSubGraphIsMaximal
+            <4>. QED
+                BY <4>1, PTL
+        \* Connect the antecedent to the persistent predicate Pr: the root is a
+        \* registered open ancestor of o, hence (2>1) a source object.
+        <3>conn. []((IsMRoot(o, r) /\ r \in Object) => Pr)
+            <4>1. GraphSafetyInv /\ IsMRoot(o, r) /\ r \in Object
+                  => (r \in RegisteredObject /\ r \in AGn)
+                <5>. SUFFICES ASSUME GraphSafetyInv, IsMRoot(o, r), r \in Object
+                              PROVE  r \in RegisteredObject /\ r \in AGn
+                    OBVIOUS
+                <5>1. PICK p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r
+                    BY DEF IsMRoot
+                <5>2. IsDirectedGraph(deps)
+                    BY DEF GraphSafetyInv, DependencyGraphCompliant, IsDDGraph, IsDag
+                <5>3. p \in OpenPath(deps, o, IsOpenNode)
+                    BY <5>1 DEF MaximalOpenPath
+                <5>4. p \in OpenPath(AncestorSubGraph(deps, o, IsOpenNode), o, IsOpenNode)
+                    BY <5>2, <5>3, DDG_OpenPathInAncestorSubGraph
+                <5>5. p \in SimplePath(AncestorSubGraph(deps, o, IsOpenNode))
+                    BY <5>4 DEF OpenPath
+                <5>6. r \in AGn
+                    BY <5>1, <5>5, DG_SimplePathIsSeq, ElementOfSeq
+                <5>7. p \in SimplePath(deps)
+                    BY <5>3 DEF OpenPath
+                <5>8. r \in deps.node
+                    BY <5>1, <5>7, DG_SimplePathIsSeq, ElementOfSeq
+                <5>9. IsOpenNode(r)
+                    BY <5>1, <5>3, DG_SimplePathIsSeq DEF OpenPath
+                <5>10. r \in RegisteredObject
+                    BY <5>8, <5>9
+                       DEF GraphSafetyInv, GraphStateIntegrity, TypeOk, OP1State,
+                           IsOpenNode, UnknownObject, FinalizedObject, RegisteredObject
+                <5>. QED
+                    BY <5>6, <5>10
+            <4>. QED
+                BY <2>1, <4>1, PTL
+        \* W2: finalizing r removes it from the open ancestor set.
+        <3>w2. <<A>>_vars => (r \notin AGn)'
+            <4>. SUFFICES ASSUME <<A>>_vars PROVE (r \notin AGn)'
+                OBVIOUS
+            <4>0. r \in Object
+                BY DEF A, FinalizeObjects, vars, RegisteredObject
+            <4>1. (~ IsOpenNode(r))'
+                BY <4>0 DEF A, FinalizeObjects, vars, IsOpenNode, FinalizedObject
+            <4>2. (r \in AGn => IsOpenNode(r))'
+                BY <3>opn, PTL
+            <4>. QED
+                BY <4>1, <4>2
+        \* W3: a registered source object enables its own finalization.
+        <3>w3. Pr => ENABLED <<A>>_vars
+            <4>. SUFFICES ASSUME r \in RegisteredObject, r \in Source(deps)
+                          PROVE  ENABLED <<A>>_vars
+                OBVIOUS
+            <4>. QED
+                BY ExpandENABLED DEF A, FinalizeObjects, vars, RegisteredObject, Source
+        \* W4: weak fairness for finalizing r.
+        <3>w4. Pr => WF_vars(A)
+            <4>1. Fairness
+                BY PTL
+            <4>. QED
+                BY <4>1, Isa DEF Fairness, A, RegisteredObject
+        \* W1: Pr persists until r leaves the open ancestor set. The only threat to
+        \* r being a source is a RegisterGraph adding a producing task above r; that
+        \* task is registered (open) and, since r stays an open ancestor of o, would
+        \* be a new open ancestor of o, enlarging AGn -- forbidden by monotonicity.
+        <3>w1. GraphSafetyInv /\ GraphSafetyInv' /\ Pr /\ [Next]_vars /\ (AGn' \subseteq AGn)
+               => Pr' \/ (r \notin AGn)'
+            <4>. SUFFICES ASSUME GraphSafetyInv, GraphSafetyInv', Pr, [Next]_vars,
+                                 AGn' \subseteq AGn, r \in AGn'
+                          PROVE  r \in Object' /\ r \in RegisteredObject'
+                                 /\ r \in Source(deps)'
+                OBVIOUS
+            <4>op. IsOpenNode(r)'
+                <5>1. (r \in AGn => IsOpenNode(r))'
+                    BY <3>opn, PTL
+                <5>. QED
+                    BY <5>1
+            <4>nd. r \in deps.node'
+                <5>1. (AGn \subseteq deps.node)'
+                    BY <3>sub, PTL
+                <5>. QED
+                    BY <5>1
+            <4>obj. r \in Object'
+                BY DEF RegisteredObject
+            <4>reg. r \in RegisteredObject'
+                <5>1. objectState'[r] \in OP1State
+                    BY DEF GraphSafetyInv, TypeOk
+                <5>2. r \notin FinalizedObject'
+                    BY <4>op DEF IsOpenNode
+                <5>3. r \notin UnknownObject'
+                    BY <4>nd DEF GraphSafetyInv, GraphStateIntegrity
+                <5>. QED
+                    BY <5>1, <5>2, <5>3
+                       DEF OP1State, RegisteredObject, FinalizedObject, UnknownObject
+            <4>src. r \in Source(deps)'
+                <5>pr. Predecessor(deps, r) = {}
+                    BY DEF Source
+                <5>0. Predecessor(deps', r) = {}
+                    <6>1. deps' = deps
+                          \/ (\E G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G))
+                        BY DEF Next, vars, TargetObjects, UntargetObjects, FinalizeObjects,
+                               StageTasks, DiscardTasks, AssignTasks, ReleaseTasks,
+                               ProcessTasks, FinalizeTasks, Terminating
+                    <6>2. CASE deps' = deps
+                        BY <6>2, <5>pr DEF Predecessor
+                    <6>3. CASE \E G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G)
+                        <7>. SUFFICES ASSUME NEW t, t \in Predecessor(deps', r)
+                                      PROVE FALSE
+                            BY DEF Predecessor
+                        <7>1. PICK G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G)
+                            BY <6>3
+                        <7>2. deps' = GraphUnion(deps, G)
+                            BY <7>1 DEF RegisterGraph
+                        <7>3. <<t, r>> \in deps'.edge
+                            BY DEF Predecessor
+                        <7>4. <<t, r>> \in G.edge
+                            <8>1. <<t, r>> \notin deps.edge
+                                BY <5>pr DEF Predecessor
+                            <8>. QED
+                                BY <7>2, <7>3, <8>1 DEF GraphUnion
+                        <7>5. IsDirectedGraph(G)
+                            BY <7>1, DG_DirectedGraphOfMember
+                        <7>6. t \in G.node
+                            BY <7>4, <7>5 DEF IsDirectedGraph
+                        <7>7. t \in Task
+                            <8>1. IsBipartiteWithPartitions(deps', Task, Object)
+                                BY DEF GraphSafetyInv, DependencyGraphCompliant, IsDDGraph
+                            <8>2. r \in Object
+                                BY DEF RegisteredObject
+                            <8>. QED
+                                BY <7>3, <8>1, <8>2, GP1Assumptions
+                                   DEF IsBipartiteWithPartitions
+                        <7>8. IsOpenNode(t)'
+                            <8>1. taskState'[t] = TASK_REGISTERED
+                                BY <7>1, <7>6, <7>7 DEF RegisterGraph
+                            <8>. QED
+                                BY <8>1, GP1Assumptions
+                                   DEF IsOpenNode, FinalizedTask, FinalizedObject
+                        <7>9. \A mm \in AGn' : \A x \in Predecessor(deps', mm) :
+                                  x \in AGn' \/ ~ IsOpenNode(x)'
+                            BY <3>max, PTL
+                        <7>10. t \in AGn'
+                            BY <7>9, <7>8
+                        <7>11. t \in AGn
+                            BY <7>10
+                        <7>12. t \in deps.node
+                            <8>1. (AGn \subseteq deps.node)
+                                BY <3>sub, PTL
+                            <8>. QED
+                                BY <7>11, <8>1
+                        <7>13. t \notin deps.node
+                            <8>1. t \in UnknownTask
+                                BY <7>1, <7>6, <7>7 DEF RegisterGraph
+                            <8>. QED
+                                BY <7>7, <8>1
+                                   DEF GraphSafetyInv, GraphStateIntegrity, UnknownTask
+                        <7>. QED
+                            BY <7>12, <7>13
+                    <6>. QED
+                        BY <6>1, <6>2, <6>3
+                <5>. QED
+                    BY <4>nd, <5>0 DEF Source
+            <4>. QED
+                BY <4>obj, <4>reg, <4>src
+        <3>. QED
+            BY <3>conn, <3>mono, <3>w1, <3>w2, <3>w3, <3>w4, PTL
+(* TASK ROOT (unwritten): a maximal-open-path root that is a task has all its
+ * input objects finalized; GP1 fairness drives it registered -> staged ->
+ * assigned -> processed -> finalized (WF StageTasks, WF guarded AssignTasks,
+ * SF ProcessTasks, WF FinalizeTasks), at which point it leaves the open
+ * ancestor set. *)
+<1>2. []((AGcard(o) = m /\ IsMRoot(o, r) /\ r \in Task)
+         => <>(r \notin AncestorSubGraph(deps, o, IsOpenNode).node))
+    OMITTED
+(* The root is a node of the dependency graph, hence an object or a task. *)
+<1>3. []((AGcard(o) = m /\ IsMRoot(o, r)) => (r \in Object \/ r \in Task))
+    <2>1. GraphSafetyInv /\ IsMRoot(o, r) => (r \in Object \/ r \in Task)
+        <3>. SUFFICES ASSUME GraphSafetyInv, IsMRoot(o, r)
+                      PROVE  r \in Object \/ r \in Task
+            OBVIOUS
+        <3>1. PICK p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r
+            BY DEF IsMRoot
+        <3>2. p \in SimplePath(deps)
+            BY <3>1 DEF MaximalOpenPath, OpenPath
+        <3>3. p \in Seq(deps.node) /\ Len(p) >= 1 /\ Len(p) \in Nat
+            BY <3>2, DG_SimplePathIsSeq
+        <3>4. 1 \in 1..Len(p)
+            BY <3>3
+        <3>5. p[1] \in deps.node
+            BY <3>3, <3>4, ElementOfSeq
+        <3>6. r \in deps.node
+            BY <3>1, <3>5
+        <3>. QED
+            BY <3>6 DEF GraphSafetyInv, TypeOk, DirectedGraphOf
+    <2>. QED
+        BY <2>1, PTL
+<1>. QED
+    BY <1>1, <1>2, <1>3, PTL
+
+(**
+ * The open ancestor subgraph keeps strictly losing nodes: at every cardinality
+ * m a maximal-open-path root exists (o is open and registered, so its open
+ * upstream is non-empty: DDG_MaximalOpenPathExists), and that root drives a
+ * cardinality drop (OP1_RootProgress). Lifting over all roots (LemLeadstoExists)
+ * and all m gives the result.
+ *)
+LEMMA OP1_UpstreamLoses ==
+    ASSUME NEW o \in Object,
+           []GraphSafetyInv, [][Next]_vars, []Fairness,
+           [](o \in objectTargets /\ o \in RegisteredObject),
+           [][AncestorSubGraph(deps, o, IsOpenNode).node'
+              \subseteq AncestorSubGraph(deps, o, IsOpenNode).node]_(
+              AncestorSubGraph(deps, o, IsOpenNode).node)
+    PROVE  [](\A m \in Nat : OP1Step(o, m))
+<1>1. \A m \in Nat : [](OP1Step(o, m))
+    <2>. TAKE m \in Nat
+    <2>. SUFFICES (AGcard(o) = m) ~> (AGcard(o) < m)
+        BY PTL DEF OP1Step
+    <2>a. \A r \in Task \union Object :
+            []((AGcard(o) = m /\ IsMRoot(o, r)) => <>(AGcard(o) < m))
+        BY OP1_RootProgress, Isa
+    <2>b. [](\A r \in Task \union Object :
+            ((AGcard(o) = m /\ IsMRoot(o, r)) => <>(AGcard(o) < m)))
+        BY <2>a, Isa
+    <2>c. (\E r \in Task \union Object : (AGcard(o) = m /\ IsMRoot(o, r)))
+          ~> (AGcard(o) < m)
+        <3>1. (\A r \in Task \union Object :
+                  ((AGcard(o) = m /\ IsMRoot(o, r)) => <>(AGcard(o) < m)))
+              => ((\E r \in Task \union Object : (AGcard(o) = m /\ IsMRoot(o, r)))
+                  => <>(AGcard(o) < m))
+            OBVIOUS
+        <3>. QED
+            BY <2>b, <3>1, PTL
+    <2>d. [](AGcard(o) = m
+             => (\E r \in Task \union Object : (AGcard(o) = m /\ IsMRoot(o, r))))
+        <3>1. GraphSafetyInv /\ o \in RegisteredObject
+              => (\E r \in Task \union Object : IsMRoot(o, r))
+            <4>. SUFFICES ASSUME GraphSafetyInv, o \in RegisteredObject
+                          PROVE  \E r \in Task \union Object : IsMRoot(o, r)
+                OBVIOUS
+            <4>1. o \in deps.node
+                BY DEF GraphSafetyInv, GraphStateIntegrity, RegisteredObject, UnknownObject
+            <4>2. IsOpenNode(o)
+                BY GP1Assumptions
+                DEF IsOpenNode, RegisteredObject, FinalizedObject, FinalizedTask
+            <4>3. OpenPath(deps, o, IsOpenNode) # {}
+                BY <4>1, <4>2, DDG_OpenPathEmpty
+            <4>4. IsDag(deps) /\ IsFiniteSet(deps.node)
+                BY DEF GraphSafetyInv, DependencyGraphCompliant, DependencyGraphFinite, IsDDGraph
+            <4>5. PICK p \in MaximalOpenPath(deps, o, IsOpenNode) : TRUE
+                BY <4>3, <4>4, DDG_MaximalOpenPathExists
+            <4>6. p \in SimplePath(deps)
+                BY <4>5 DEF MaximalOpenPath, OpenPath
+            <4>7. p[1] \in deps.node
+                BY <4>6, DG_SimplePathIsSeq, ElementOfSeq
+            <4>8. p[1] \in Task \union Object
+                BY <4>7 DEF GraphSafetyInv, TypeOk, DirectedGraphOf
+            <4>9. IsMRoot(o, p[1])
+                BY <4>5 DEF IsMRoot
+            <4>. QED
+                BY <4>8, <4>9
+        <3>2. (AGcard(o) = m /\ (\E r \in Task \union Object : IsMRoot(o, r)))
+              => (\E r \in Task \union Object : (AGcard(o) = m /\ IsMRoot(o, r)))
+            OBVIOUS
+        <3>. QED
+            BY <3>1, <3>2, PTL
+    <2>. QED
+        BY <2>c, <2>d, PTL
+<1>. QED
+    <2>0. HIDE DEF OP1Step
+    <2>. QED
+        BY <1>1, Isa
+
 THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
 <1>. USE DEF OP1!OBJECT_UNKNOWN, OP1!OBJECT_REGISTERED, OP1!OBJECT_FINALIZED
 <1>1. Init => OP1!Init
@@ -1694,118 +2274,96 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
             BY ExpandENABLED DEF OP1!FinalizeObjects, OP1!vars, RegisteredObject, OP1!RegisteredObject
         <3>. QED
             BY <3>1, <3>2, <2>0, PTL DEF OpenUpstreamEventuallyClosed
-    <2>1. /\ []GraphSafetyInv
-          /\ [][Next]_vars 
-          /\ []Fairness
-          /\ [](o \in objectTargets /\ o \in RegisteredObject)
-          /\ [][(AG(o).node)' \subseteq AG(o).node]_(AG(o).node)
-          => []<><<(AG(o).node)' \subseteq AG(o).node>>_(AG(o).node)
-        <3>1. o \in RegisteredObject => IsOpenNode(o)
-            BY DEF RegisteredObject, IsOpenNode, FinalizedObject, FinalizedTask
-        <3>2. GraphSafetyInv /\ IsOpenNode(o) => OP(o) # {}
-        <3>3. OP(o) # {} => \E p \in OP(o): p
-        \* <3>3. OP(o) # {} => \E p \in OP(o): p[1] 
+    <2> DEFINE S == AG(o).node
+               Q(n) == (AGcard(o) <= n) ~> FALSE
+    <2>. SUFFICES ASSUME []GraphSafetyInv, [][Next]_vars, []Fairness,
+                         [](o \in objectTargets /\ o \in RegisteredObject),
+                         [][S' \subseteq S]_S
+                  PROVE  FALSE
+        OBVIOUS
+    \* (A) The open ancestor subgraph of o is finite, with positive cardinality
+    \*     throughout: o is always one of its (open) nodes.
+    <2>st. GraphSafetyInv /\ o \in RegisteredObject
+           => IsFiniteSet(S) /\ AGcard(o) \in Nat /\ AGcard(o) >= 1
+        <3>. SUFFICES ASSUME GraphSafetyInv, o \in RegisteredObject
+                      PROVE  IsFiniteSet(S) /\ AGcard(o) \in Nat /\ AGcard(o) >= 1
+            OBVIOUS
+        <3>1. IsDirectedGraph(deps)
+            BY DEF GraphSafetyInv, DependencyGraphCompliant, IsDDGraph, IsDag
+        <3>2. AG(o).node \subseteq deps.node
+            BY <3>1, DDG_AncestorSubGraphBasic DEF DirectedSubgraph
+        <3>3. IsFiniteSet(S)
+            BY <3>2, FS_Subset DEF GraphSafetyInv, DependencyGraphFinite
+        <3>4. o \in deps.node
+            BY DEF GraphSafetyInv, GraphStateIntegrity, RegisteredObject, UnknownObject
+        <3>5. IsOpenNode(o)
+            BY DEF IsOpenNode, RegisteredObject, FinalizedObject, FinalizedTask
+        <3>6. o \in S
+            BY <3>4, <3>5, DDG_AncestorSubGraphEmpty
         <3>. QED
-    <2>2. /\ []GraphSafetyInv /\ [](o \in RegisteredObject)
-          /\ [][(AG(o).node)' \subseteq AG(o).node]_(AG(o).node)
-          /\ []<><<(AG(o).node)' \subseteq AG(o).node>>_(AG(o).node)
-          => FALSE
-        <3>1. /\ []GraphSafetyInv
-              /\ [][(AG(o).node)' \subseteq AG(o).node]_(AG(o).node)
-              /\ []<><<(AG(o).node)' \subseteq AG(o).node>>_(AG(o).node)
-              ~> AG(o).node = {}
-            <4>. DEFINE S    == AG(o).node
-                        C(n) == (Cardinality(S) <= n)
-                        P    == [][(S)' \subseteq S]_S
-                        Q    == []<><<(S)' \subseteq S>>_S
-                        R    == S = {}
-            <4>. SUFFICES []([]GraphSafetyInv /\ P /\ Q => <>R)
-                BY PTL
-            <4>1. []GraphSafetyInv /\ [][S' \subseteq S]_S
-                  => \E n \in Nat : []C(n)
-                <5>1. GraphSafetyInv => (\E n \in Nat: C(n)) /\ IsFiniteSet(S)
-                    <6>. SUFFICES ASSUME GraphSafetyInv
-                                  PROVE (\E n \in Nat: C(n)) /\ IsFiniteSet(S)
-                        OBVIOUS
-                    <6>1. IsFiniteSet(S)
-                        <7>1. AG(o) \in DirectedSubgraph(deps)
-                            BY DDG_AncestorSubGraphProperties, Zenon DEF GraphSafetyInv,
-                            DependencyGraphCompliant
-                        <7>2. IsFiniteSet(deps.node)
-                            BY DEF GraphSafetyInv, DependencyGraphFinite
-                        <7>. QED
-                            BY <7>1, <7>2, FS_Subset DEF DirectedSubgraph
-                    <6>2. \E n \in Nat: C(n)
-                        BY <6>1, FS_CardinalityType
-                    <6>. QED
-                        BY <6>1, <6>2
-                <5>. SUFFICES (\E n \in Nat: C(n)) /\ []IsFiniteSet(S) /\ [][S' \subseteq S]_S
-                              => \E n \in Nat: []C(n)
-                    BY <5>1, PTL
-                <5>. SUFFICES ASSUME NEW m \in Nat 
-                              PROVE  C(m) /\ []IsFiniteSet(S) /\ [][S' \subseteq S]_S => \E n \in Nat : []C(n)
+            BY <3>3, <3>6, FS_EmptySet, FS_CardinalityType DEF AGcard
+    <2>nat. [](AGcard(o) \in Nat)
+        BY <2>st, PTL
+    <2>pos. [](AGcard(o) >= 1)
+        BY <2>st, PTL
+    \* (C) LIVENESS: while o stays registered and targeted, the open ancestor
+    \*     subgraph eventually loses a node (its cardinality strictly drops).
+    <2>live. [](\A nn \in Nat : OP1Step(o, nn))
+        BY OP1_UpstreamLoses
+    \* (D) Well-founded descent: a Nat measure that stays >= 1 yet keeps
+    \*     strictly decreasing from every value is absurd.
+    <2>desc. \A n \in Nat : Q(n)
+        <3>1. Q(0)
+            <4>1. [](~(AGcard(o) <= 0))
+                <5>1. (AGcard(o) \in Nat /\ AGcard(o) >= 1) => ~(AGcard(o) <= 0)
                     OBVIOUS
-                <5>2. C(m) /\ []IsFiniteSet(S) /\ [][S' \subseteq S]_S => []C(m)
-                    <6>. DEFINE C1 == Cardinality(S)
-                                C2 == Cardinality(S')
-                    <6>. C(m) /\ IsFiniteSet(S) /\ [S' \subseteq S]_S => C(m)'
-                        \* BY FS_CardinalityType, FS_Subset
-                        <7>. SUFFICES ASSUME C1 =< m, IsFiniteSet(S), [S' \subseteq S]_S
-                                      PROVE C2 <= m
-                            OBVIOUS
-                        <7>. C2 <= C1
-                            BY FS_Subset
-                        <7>. C1 \in Nat /\ C2 \in Nat
-                            BY FS_CardinalityType, FS_Subset
-                        <7>. HIDE DEF C1, C2, S
-                        <7>. QED
-                            OBVIOUS
-                    <6>. QED
-                        BY PTL
-                <5>3. []C(m) => \E n \in Nat : []C(n)
-                    <6>. DEFINE Q(m) == []C(m)
-                    <6>. HIDE DEF Q
-                    <6>. Q(m) => \E n \in Nat : Q(n)
+                <5>. QED
+                    BY <2>nat, <2>pos, <5>1, PTL
+            <4>. QED
+                BY <4>1, PTL
+        <3>2. \A n \in Nat : Q(n) => Q(n+1)
+            <4>. TAKE n \in Nat
+            <4>inst. [](AGcard(o) = n + 1 => <>(AGcard(o) < n + 1))
+                <5>1. (\A nn \in Nat : OP1Step(o, nn)) => OP1Step(o, n + 1)
+                    <6>1. n + 1 \in Nat
                         OBVIOUS
                     <6>. QED
-                        BY DEF Q
+                        BY <6>1
+                <5>2. [](OP1Step(o, n + 1))
+                    BY <2>live, <5>1, PTL
                 <5>. QED
-                    BY <5>2, <5>3
-            <4>2. \A n \in Nat: []([]C(n) /\ P /\ Q => <>R)
-            <4>3. (\A n \in Nat: []([]C(n) /\ P /\ Q => <>R))
-                  => [](\A n \in Nat: []C(n) /\ P /\ Q => <>R)
-                OBVIOUS
-            <4>4. (\A n \in Nat: []C(n) /\ P /\ Q => <>R)
-                  => (\A n \in Nat: []C(n)) /\ P /\ Q => <>R
-                OBVIOUS
-            <4>4. (\A n \in Nat: []C(n) /\ P /\ Q => <>R)
-                  => (\E n \in Nat: []C(n)) /\ P /\ Q => <>R
-                OBVIOUS
-            <4>. QED
-                BY <4>1, <4>2, <4>3, <4>4, PTL
-        <3>2. GraphSafetyInv /\ o \in RegisteredObject /\ AG(o).node = {} => FALSE
-            <4>. SUFFICES ASSUME GraphSafetyInv, o \in RegisteredObject, AG(o).node = {}
-                          PROVE FALSE
-                OBVIOUS
-            <4>0. IsDirectedGraph(AG(o))
-                BY DDG_DDGraphProperties, DDG_AncestorSubGraphProperties,
-                DG_DirectedSubgraphProperties, Zenon DEF GraphSafetyInv,
-                DependencyGraphCompliant
-            <4>1. AG(o) = EmptyGraph
-                BY <4>0, DG_EmptyGraphProperties
-            <4>2. AG(o) = EmptyGraph => ~IsOpenNode(o)
-                <5>1. o \in deps.node
-                    BY DEF RegisteredObject, UnknownObject, GraphSafetyInv, GraphStateIntegrity
+                    BY <5>2 DEF OP1Step
+            <4>1. (AGcard(o) = n + 1) ~> (AGcard(o) < n + 1)
+                BY <4>inst, PTL
+            <4>b1. [](AGcard(o) < n + 1 => AGcard(o) <= n)
+                <5>1. AGcard(o) \in Nat => (AGcard(o) < n + 1 => AGcard(o) <= n)
+                    OBVIOUS
                 <5>. QED
-                    BY <5>1, DDG_AncestorSubGraphEmpty
-            <4>3. (o \in RegisteredObject /\ ~IsOpenNode(o)) => FALSE
-                BY DEF RegisteredObject, IsOpenNode, FinalizedObject, FinalizedTask, TypeOk, TP1State, OP1State
+                    BY <2>nat, <5>1, PTL
+            <4>b2. [](AGcard(o) <= n + 1 => (AGcard(o) <= n \/ AGcard(o) = n + 1))
+                <5>1. AGcard(o) \in Nat
+                      => (AGcard(o) <= n + 1 => (AGcard(o) <= n \/ AGcard(o) = n + 1))
+                    OBVIOUS
+                <5>. QED
+                    BY <2>nat, <5>1, PTL
             <4>. QED
-                BY <4>1, <4>2, <4>3
+                BY <4>1, <4>b1, <4>b2, PTL
+        <3>. HIDE DEF Q
         <3>. QED
-            BY <3>1, <3>2, PTL
+            BY <3>1, <3>2, NatInduction, IsaM("blast")
     <2>. QED
-        BY <2>1, <2>2
+        <3>1. AGcard(o) \in Nat
+            BY <2>nat, PTL
+        <3>2. PICK k \in Nat : AGcard(o) <= k
+            BY <3>1
+        <3>3. Q(k)
+            <4>. HIDE DEF Q
+            <4>1. \A nn \in Nat : Q(nn)
+                BY <2>desc
+            <4>. QED
+                BY <4>1
+        <3>. QED
+            BY <3>2, <3>3, PTL DEF Q
 <1>. QED
     BY <1>1, <1>2, <1>3, GP1_GraphSafetyInv, PTL DEF Spec, OP1!Spec, RefineObjectProcessing1
 

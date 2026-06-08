@@ -7,150 +7,99 @@ GraphSafetyInv ==
     /\ TypeOk
     /\ DependencyGraphCompliant
     /\ GraphStateIntegrity
-    \* /\ DepsNodeFinite
+    /\ DependencyGraphFinite
 
 THEOREM GP1_GraphSafetyInv == Spec => []GraphSafetyInv
 
-LEMMA OpenPathRootProperties ==
-    ASSUME NEW o \in Object, o \in deps.node, IsOpenNode(o),
-           NEW p \in OpenPath(deps, o, IsOpenNode),
-           GraphSafetyInv
-    PROVE /\ p[1] \in Task   => p[1] \in StagedTask \/ p[1] \in AssignedTask \/ p[1] \in ProcessedTask
-          /\ p[1] \in Object => p[1] \in Source(deps) /\ p[1] \in RegisteredObject
+AGcard(o) == Cardinality(AncestorSubGraph(deps, o, IsOpenNode).node)
 
-THEOREM Spec => RefineObjectProcessing1
-<1>1. Init => OP1!Init
-<1>2. [Next]_vars => [OP1!Next]_OP1!vars
-<1>3. []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ OpenUpstreamEventuallyClosed => OP1!Fairness
-    <2>. USE GP1Assumptions 
-    <2>. DEFINE AG(o) == AncestorSubGraph(deps, o, IsOpenNode)
-                OP(o) == OpenPath(AG(o), o, IsOpenNode)
-    <2>. SUFFICES ASSUME NEW o \in Object
-                  PROVE /\ []GraphSafetyInv
-                        /\ [][Next]_vars
-                        /\ Fairness
-                        /\ []([](o \in objectTargets) => <>[][(AG(o).node)' \subseteq AG(o).node]_(AG(o).node))
-                        => WF_OP1!vars(o \in objectTargets /\ OP1!FinalizeObjects({o}))
-        BY Isa DEF OP1!Fairness, OpenUpstreamEventuallyClosed
-    <2>0. Fairness <=> []Fairness
-        <3>1. (\A o \in Object : WF_vars(FinalizeObjects({o})))
-               <=> [](\A o \in Object : WF_vars(FinalizeObjects({o})))
-            <4>1. [](\A o \in Object : WF_vars(FinalizeObjects({o})))
-                  <=> \A o \in Object : [](WF_vars(FinalizeObjects({o})))
+(**
+ * "At cardinality m, the open ancestor subgraph eventually drops below m":
+ * wrapped in an operator so that the liveness fact [](\A m : OP1Step(o, m)) is
+ * instantiated as a first-order term (PTL matches the quantified body as an
+ * opaque atom, sidestepping bound-variable renaming and temporal unification).
+ *)
+OP1Step(o, m) == (AGcard(o) = m => <>(AGcard(o) < m))
+
+IsMRoot(o, r) == \E p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r
+
+LEMMA OP1_RootProgress ==
+    ASSUME NEW o \in Object, NEW r, NEW m \in Nat,
+           []GraphSafetyInv, [][Next]_vars, []Fairness,
+           [](o \in objectTargets /\ o \in RegisteredObject),
+           [][AncestorSubGraph(deps, o, IsOpenNode).node'
+              \subseteq AncestorSubGraph(deps, o, IsOpenNode).node]_(
+              AncestorSubGraph(deps, o, IsOpenNode).node)
+    PROVE  []((AGcard(o) = m /\ IsMRoot(o, r)) => <>(AGcard(o) < m))
+(* The antecedent IsMRoot(o, r) supplies a maximal open path p ending at o whose
+ * root is p[1] = r. Hence r is a node of the graph (so an object or a task), it
+ * is open, and -- by maximality -- all of its predecessors are closed. We split
+ * on the kind of the root; in either case fairness finalizes an open ancestor of
+ * o, dropping a node from the finite, non-increasing open ancestor set. *)
+(* OBJECT ROOT: a maximal-open-path root that is an object has all predecessors
+ * finalized and is itself registered, so by GraphStateIntegrity it is a source
+ * of the dependency graph; a registered source object is finalized by WF on
+ * FinalizeObjects (cf. GP1_CommittedObjectsEventualFinalization). *)
+<1>1. []((AGcard(o) = m /\ IsMRoot(o, r) /\ r \in Object) => <>(AGcard(o) < m))
+    <2>1. []((IsMRoot(o, r) /\ r \in Object) => r \in Source(deps))
+        <3>1. GraphSafetyInv /\ IsMRoot(o, r) /\ r \in Object => r \in Source(deps)
+            <4>. SUFFICES ASSUME GraphSafetyInv, IsMRoot(o, r), r \in Object
+                          PROVE  r \in Source(deps)
                 OBVIOUS
-            <4>2. ASSUME NEW o \in Object
-                  PROVE [](WF_vars(FinalizeObjects({o})))
-                        <=> WF_vars(FinalizeObjects({o}))
-                BY PTL
+            <4>1. PICK p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r
+                BY DEF IsMRoot
+            <4>2. p \in SimplePath(deps)
+                BY <4>1 DEF MaximalOpenPath, OpenPath
+            <4>3. r \in deps.node
+                BY <4>1, <4>2, DG_SimplePathIsSeq, ElementOfSeq
+            <4>4. IsOpenNode(r)
+                BY <4>1, <4>2, DG_SimplePathIsSeq DEF MaximalOpenPath, OpenPath
+            <4>5. \A u \in Predecessor(deps, r) : ~ IsOpenNode(u)
+                BY <4>1 DEF MaximalOpenPath
+            <4>6. Predecessor(deps, r) \subseteq Task
+                BY <4>3 DEF GraphSafetyInv, DependencyGraphCompliant, IsDDGraph,
+                           IsBipartiteWithPartitions, Predecessor
+            <4>7. Predecessor(deps, r) \subseteq FinalizedTask
+                BY <4>5, <4>6, GP1Assumptions DEF IsOpenNode, FinalizedObject
+            <4>8. r \in RegisteredObject
+                BY <4>3, <4>4
+                   DEF GraphSafetyInv, GraphStateIntegrity, TypeOk, OP1State,
+                       IsOpenNode, UnknownObject, FinalizedObject, RegisteredObject
             <4>. QED
-                BY <4>1, <4>2, Isa
-        <3>. DEFINE TaskFairness(t) ==
-                        /\ WF_vars(StageTasks({t}))
-                        /\ WF_vars(
-                            /\ \E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)
-                            /\ AssignTasks({t}))
-                        /\ SF_vars(ProcessTasks({t}))
-                        /\ WF_vars(FinalizeTasks({t}))
-        <3>2. (\A t \in Task : TaskFairness(t))
-               <=> [](\A t \in Task : TaskFairness(t))
-            <4>1. [](\A t \in Task : TaskFairness(t))
-                  <=> \A t \in Task : []TaskFairness(t)
-                OBVIOUS
-            <4>2. ASSUME NEW t \in Task
-                  PROVE []TaskFairness(t)
-                        <=> TaskFairness(t)
-                BY PTL
-            <4>. QED
-                BY <4>1, <4>2, Isa
+                BY <4>7, <4>8 DEF GraphSafetyInv, GraphStateIntegrity
         <3>. QED
-            BY <3>1, <3>2, PTL DEF Fairness
-    <2>. SUFFICES /\ []GraphSafetyInv
-                  /\ [][Next]_vars 
-                  /\ []Fairness
-                  /\ [](o \in objectTargets /\ o \in RegisteredObject)
-                  /\ [][(AG(o).node)' \subseteq AG(o).node]_(AG(o).node)
-                  => FALSE
-        <3>1. []([](o \in objectTargets) => <>[][(AG(o).node)' \subseteq AG(o).node]_(AG(o).node))
-            => [](o \in objectTargets) => <>[][(AG(o).node)' \subseteq AG(o).node]_(AG(o).node)
-            BY PTL
-        <3>2. ENABLED <<o \in objectTargets /\ OP1!FinalizeObjects({o})>>_OP1!vars
-              => o \in objectTargets /\ o \in RegisteredObject
-            BY ExpandENABLED DEF OP1!FinalizeObjects, OP1!vars, RegisteredObject, OP1!RegisteredObject
-        <3>. QED
-            BY <3>1, <3>2, <2>0, PTL DEF OpenUpstreamEventuallyClosed
-    <2>1. o \in deps.node
-    <2>2. ( /\ []GraphSafetyInv
-            /\ [][Next]_vars 
-            /\ []Fairness
-            /\ [](o \in objectTargets /\ o \in RegisteredObject)
-            /\ [][(AG(o).node)' \subseteq AG(o).node]_(AG(o).node) )
-          => []<><<(AG(o).node)' \subseteq AG(o).node>>_(AG(o).node)
-        <3>1. o \in RegisteredObject => IsOpenNode(o)
-            BY DEF RegisteredObject, IsOpenNode, FinalizedObject, FinalizedTask
-        <3>2. GraphSafetyInv /\ IsOpenNode(o) => OP(o) # {}
-        <3>3. OP(o) # {} => \E p \in OP(o): p
-        \* <3>3. OP(o) # {} => \E p \in OP(o): p[1] 
-        <3>. QED
-    <2>3. /\ []GraphSafetyInv /\ [](o \in RegisteredObject)
-          /\ []<><<(AG(o).node)' \subseteq AG(o).node>>_(AG(o).node)
-          => FALSE
-        <3>1. /\ []IsFiniteSet(AG(o).node)
-              /\ [][(AG(o).node)' \subseteq AG(o).node]_(AG(o).node)
-              /\ []<><<(AG(o).node)' \subseteq AG(o).node>>_(AG(o).node)
-              => <>(AG(o).node = {})
-            <4>. DEFINE P(S) == []IsFiniteSet(S) /\ [][S' \subseteq S]_S /\ []<><<S' \subseteq S>>_S => <>(S = {})
-            <4>1. \A S : IsFiniteSet(S) => P(S)
-                <5>. SUFFICES ASSUME NEW S, IsFiniteSet(S)
-                              PROVE P(S)
-                    OBVIOUS
-                <5>1. ASSUME NEW T \in SUBSET S,
-                            \A U \in (SUBSET T) \ {T} : P(U)
-                      PROVE  P(T)
-                    <6>1. CASE T = {}
-                        BY <6>1, PTL
-                    <6>2. CASE T # {}
-                        <7>1. T' \subseteq T /\ T' # T => T' \in (SUBSET T) \ {T}
-                            OBVIOUS
-                        <7>2. T' \in (SUBSET T) \ {T} => P(T')
-                            BY <5>1
-                        <7>. QED
-                    <6>. QED
-                        BY <6>1, <6>2
-                <5>. HIDE DEF P
-                <5>. QED
-                    BY <5>1, FS_WFInduction, IsaM("blast")
-            <4>. HIDE DEF P
-            <4>2. IsFiniteSet(AG(o).node) => P(AG(o).node)
-                BY <4>1
-            <4>. QED
-        <3>2. GraphSafetyInv /\ o \in RegisteredObject /\ AG(o).node = {} => FALSE
-            <4>. SUFFICES ASSUME GraphSafetyInv, o \in RegisteredObject, AG(o).node = {}
-                          PROVE FALSE
-                OBVIOUS
-            <4>0. IsDirectedGraph(AG(o))
-                BY DDG_DDGraphProperties, DDG_AncestorSubGraphProperties,
-                DG_DirectedSubgraphProperties, Zenon DEF GraphSafetyInv,
-                DependencyGraphCompliant
-            <4>1. AG(o) = EmptyGraph
-                BY <4>0, DG_EmptyGraphProperties
-            <4>2. AG(o) = EmptyGraph => ~IsOpenNode(o)
-                <5>1. o \in deps.node
-                    \* BY DEF RegisteredObject, UnknownObject, GraphSafetyInv, TypeOk, OP1State, GraphStateIntegrity
-                <5>2. ASSUME NEW G, NEW Op(_), IsDDGraph(G, Task, Object), o \in G.node
-                      PROVE AncestorSubGraph(G, o, Op) = EmptyGraph <=> ~Op(o)
-                    BY <5>2, DDG_AncestorSubGraphEmpty, IsaM("iprover")
-                <5>. HIDE DEF IsOpenNode
-                <5>. QED
-                    BY <5>1, <5>2 DEF GraphSafetyInv, DependencyGraphCompliant
-            <4>3. (o \in RegisteredObject /\ ~IsOpenNode(o)) => FALSE
-                BY DEF RegisteredObject, IsOpenNode, FinalizedObject, FinalizedTask, TypeOk, TP1State, OP1State
-            <4>. QED
-                BY <4>1, <4>2, <4>3
-        <3>. QED
-            BY <3>1, <3>2, PTL
+            BY <3>1, PTL
     <2>. QED
-        BY <2>2, <2>3
+        (* REMAINDER (unwritten): r is a registered source object whose producing
+         * tasks are all finalized, hence committed; by WF on FinalizeObjects it is
+         * eventually finalized (mirror GP1_CommittedObjectsEventualFinalization).
+         * Finalizing this open ancestor of o removes a node from the finite,
+         * non-increasing open ancestor set, so AGcard(o) drops below m. *)
+        OMITTED
+(* TASK ROOT (unwritten): a maximal-open-path root that is a task has all its
+ * input objects finalized; GP1 fairness drives it registered -> staged ->
+ * assigned -> processed (WF StageTasks, WF guarded AssignTasks, SF ProcessTasks),
+ * after which its on-path successor object is finalized by WF on FinalizeObjects,
+ * dropping AGcard(o). *)
+<1>2. []((AGcard(o) = m /\ IsMRoot(o, r) /\ r \in Task) => <>(AGcard(o) < m))
+    OMITTED
+(* The root is a node of the dependency graph, hence an object or a task. *)
+<1>3. []((AGcard(o) = m /\ IsMRoot(o, r)) => (r \in Object \/ r \in Task))
+    <2>1. GraphSafetyInv /\ IsMRoot(o, r) => (r \in Object \/ r \in Task)
+        <3>. SUFFICES ASSUME GraphSafetyInv, IsMRoot(o, r)
+                      PROVE  r \in Object \/ r \in Task
+            OBVIOUS
+        <3>1. PICK p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r
+            BY DEF IsMRoot
+        <3>2. p \in SimplePath(deps)
+            BY <3>1 DEF MaximalOpenPath, OpenPath
+        <3>3. r \in deps.node
+            BY <3>1, <3>2, DG_SimplePathIsSeq, ElementOfSeq
+        <3>. QED
+            BY <3>3 DEF GraphSafetyInv, TypeOk, DirectedGraphOf
+    <2>. QED
+        BY <2>1, PTL
 <1>. QED
-    BY <1>1, <1>2, <1>3, GP1_GraphSafetyInv, PTL DEF RefineObjectProcessing1, Spec, OP1!Spec
+    BY <1>1, <1>2, <1>3, PTL
 
 ====
