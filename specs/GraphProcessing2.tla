@@ -93,6 +93,10 @@ RegisterGraph(G) ==
             /\ Successor(G, t) \intersect AbortedObject = {}
             /\ Successor(G, t) \intersect Source(deps) \intersect (CompletedObject \union AbortedObject) = {}
         /\ IsDDGraph(newDeps, Task, Object)
+        /\ \A t \in Task :
+            nextAttemptOf[t] /= NULL /\ nextAttemptOf[t] \in G.node =>
+                /\ Predecessor(G, nextAttemptOf[t]) = Predecessor(deps, t)
+                /\ Successor(G, nextAttemptOf[t]) = Successor(deps, t)
         /\ deps' = newDeps
         /\ objectState' =
             [o \in Object |->
@@ -317,7 +321,7 @@ GraphStateIntegrity ==
 
 RetryDataDependenciesValidity ==
     \A t \in Task :
-        nextAttemptOf[t] /= NULL =>
+        nextAttemptOf[t] /= NULL /\ nextAttemptOf[t] \notin UnknownTask =>
             /\ Predecessor(deps, t) = Predecessor(deps, nextAttemptOf[t])
             /\ Successor(deps, t) = Successor(deps, nextAttemptOf[t])
 
