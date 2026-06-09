@@ -14,22 +14,9 @@
 (* In addition, optimizations are provided to speed up model checking.         *)
 (*******************************************************************************)
 
-EXTENDS GraphsExt, GraphProcessing1, Randomization, TLC
+EXTENDS GraphProcessing1
 
---------------------------------------------------------------------------------
-
-(**
- * Returns the set of ArmoniK-compliant graphs on the set of object IDs and
- * unused task IDs. This set is used with the 'RegisterGraph' action to avoid
- * enumerating the set of all graphs for a given set of nodes that grows
- * super-exponentially. By using this restricted set, only relevant cases are
- * enumerated; indeed, if the subgraph is not ArmoniK-compliant, then it cannot
- * be registered.
- *
- * Note: The ACGraphs operator is provided by the GraphsExt module.
- *)
-MCGraphs(Nodes) ==
-    ACGraphs(Nodes \intersect UnknownTask, Nodes \intersect Object)
+MCDirectedGraphOf(N) == DDGraphOf(N \cap Task, N \cap Object)
 
 MCSpec ==
     /\ Init
