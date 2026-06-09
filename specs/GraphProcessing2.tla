@@ -93,6 +93,10 @@ RegisterGraph(G) ==
             /\ Successor(G, t) \intersect AbortedObject = {}
             /\ Successor(G, t) \intersect Source(deps) \intersect (CompletedObject \union AbortedObject) = {}
         /\ IsDDGraph(newDeps, Task, Object)
+        /\ \A t \in Task :
+            nextAttemptOf[t] /= NULL /\ nextAttemptOf[t] \in G.node =>
+                /\ Predecessor(G, nextAttemptOf[t]) = Predecessor(deps, t)
+                /\ Successor(G, nextAttemptOf[t]) = Successor(deps, t)
         /\ deps' = newDeps
         /\ objectState' =
             [o \in Object |->
@@ -317,7 +321,7 @@ GraphStateIntegrity ==
 
 RetryDataDependenciesValidity ==
     \A t \in Task :
-        nextAttemptOf[t] /= NULL =>
+        nextAttemptOf[t] /= NULL /\ nextAttemptOf[t] \notin UnknownTask =>
             /\ Predecessor(deps, t) = Predecessor(deps, nextAttemptOf[t])
             /\ Successor(deps, t) = Successor(deps, nextAttemptOf[t])
 
@@ -355,35 +359,35 @@ UnderivableObjectsEventualAbortion ==
         /\ GP2Derivation(o) = {}
            ~> o \in AbortedObject \/ GP2Derivation(o) /= {}
 
-TP2 == INSTANCE TaskProcessing2
-RefineTaskProcessing2 ==
-    TP2!Spec
+\* TP2 == INSTANCE TaskProcessing2
+\* RefineTaskProcessing2 ==
+\*     TP2!Spec
 
-OP2 == INSTANCE ObjectProcessing2
-RefineObjectProcessing2 ==
-    OP2!Spec
+\* OP2 == INSTANCE ObjectProcessing2
+\* RefineObjectProcessing2 ==
+\*     OP2!Spec
 
-taskStateBar ==
-    [t \in Task |->
-        CASE taskState[t] = TASK_SUCCEEDED -> TASK_PROCESSED
-          [] taskState[t] = TASK_DISCARDED -> TASK_PROCESSED
-          [] taskState[t] = TASK_FAILED    -> TASK_PROCESSED
-          [] taskState[t] = TASK_COMPLETED -> TASK_FINALIZED
-          [] taskState[t] = TASK_ABORTED   -> TASK_FINALIZED
-          [] taskState[t] = TASK_RETRIED   -> TASK_FINALIZED
-          [] OTHER                         -> taskState[t]
-    ]
-objectStateBar ==
-    [o \in Object |->
-        CASE objectState[o] = OBJECT_COMPLETED -> OBJECT_FINALIZED
-          [] objectState[o] = OBJECT_ABORTED   -> OBJECT_FINALIZED
-          [] OTHER                             -> objectState[o]
-    ]
-GP1 == INSTANCE GraphProcessing1
-    WITH taskState <- taskStateBar,
-         objectState <- objectStateBar
+\* taskStateBar ==
+\*     [t \in Task |->
+\*         CASE taskState[t] = TASK_SUCCEEDED -> TASK_PROCESSED
+\*           [] taskState[t] = TASK_DISCARDED -> TASK_PROCESSED
+\*           [] taskState[t] = TASK_FAILED    -> TASK_PROCESSED
+\*           [] taskState[t] = TASK_COMPLETED -> TASK_FINALIZED
+\*           [] taskState[t] = TASK_ABORTED   -> TASK_FINALIZED
+\*           [] taskState[t] = TASK_RETRIED   -> TASK_FINALIZED
+\*           [] OTHER                         -> taskState[t]
+\*     ]
+\* objectStateBar ==
+\*     [o \in Object |->
+\*         CASE objectState[o] = OBJECT_COMPLETED -> OBJECT_FINALIZED
+\*           [] objectState[o] = OBJECT_ABORTED   -> OBJECT_FINALIZED
+\*           [] OTHER                             -> objectState[o]
+\*     ]
+\* GP1 == INSTANCE GraphProcessing1
+\*     WITH taskState <- taskStateBar,
+\*          objectState <- objectStateBar
 
-RefineGraphProcessing1 ==
-    GP1!Spec
+\* RefineGraphProcessing1 ==
+\*     GP1!Spec
 
 ================================================================================

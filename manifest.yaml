@@ -183,3 +183,19 @@ modules:
           total_states: 824
           distinct_states: 137
           state_depth: 9
+
+  - path: specs/GraphProcessing3_mc.tla
+    dependencies:
+      community_modules: true
+      tlaps_stdlib: true
+      external_modules:
+        - modules/dist/ArmoniKSpecModules-deps.jar
+    models:
+      - name: small
+        settings:
+          worker: auto
+        checks:
+          success: true
+          total_states: 434089
+          distinct_states: 24881
+          state_depth: 19
