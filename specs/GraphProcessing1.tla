@@ -12,14 +12,14 @@
 (* together with its key safety and liveness properties.                     *)
 (*****************************************************************************)
 
-EXTENDS DenumerableSets, FiniteSetTheorems, Graphs, Naturals, Sequences
+EXTENDS DenumerableSets, DDGraphs
 
 CONSTANTS
     Object,  \* Set of object identifiers (theoretically infinite)
     Task     \* Set of task identifiers (theoretically infinite)
 
 ASSUMPTION GP1Assumptions ==
-    /\ Object \intersect Task = {}
+    /\ Task \cap Object = {}
     /\ IsDenumerableSet(Object)
     /\ IsDenumerableSet(Task)
 
@@ -47,16 +47,6 @@ INSTANCE ObjectStates
  *)
 INSTANCE TaskStates
 
-(**
- * Instance of the TaskProcessing specification.
- *)
-TP1 == INSTANCE TaskProcessing1
-
-(**
- * Instance of the ObjectProcessing specification.
- *)
-OP1 == INSTANCE ObjectProcessing1
-
 -------------------------------------------------------------------------------
 
 (**
@@ -73,33 +63,7 @@ TypeOk ==
     /\ taskState \in [Task -> TP1State]
     /\ objectState \in [Object -> OP1State]
     /\ objectTargets \in SUBSET Object
-    /\ LET Nodes == Task \union Object IN
-        deps \in {G \in [node: SUBSET Nodes, edge: SUBSET (Nodes \X Nodes)]: IsDirectedGraph(G)}
-
-(**
- * Returns all nodes in graph 'G' labeled with task IDs.
- *)
-TaskNode(G) == G.node \intersect Task
-
-(**
- * Returns all nodes in graph 'G' labeled with object IDs.
- *)
-ObjectNode(G) == G.node \intersect Object
-
-(**
- * Checks whether a graph is ArmoniK-compliant for the given task/object sets.
- * A valid dependency graph must:
- *   - Be directed and acyclic.
- *   - Be bipartite with partitions (Task, Object).
- *   - Have roots and leaves labeled by object identifiers.
- *   - Contain no isolated task nodes.
- *   - Not necessarily be connected.
- *)
-IsACGraph(G) ==
-    /\ IsDag(G)
-    /\ IsBipartiteWithPartitions(G, Task, Object)
-    /\ Roots(G) \subseteq Object
-    /\ Leaves(G) \subseteq Object
+    /\ deps \in DirectedGraphOf(Task \union Object)
 
 (**
  * A node is open iff it has not yet been finalized. Openness makes no claim
@@ -111,10 +75,13 @@ IsOpenNode(n) ==
     ~ (n \in FinalizedTask \/ n \in FinalizedObject)
 
 (**
- * Returns the set of immediate successors of node n that have no other parents in the graph G.
+ * Returns TRUE iff task 't' is upstream of an unfinalized target object 'o'
+ * via an open path, i.e., 't' can still (directly or indirectly) contribute
+ * to producing 'o'.
  *)
-MandatorySuccessors(G, t) ==
-    {o \in Successors(G, t): Predecessors(G, o) \ {t} \subseteq FinalizedTask}
+IsTaskUpstreamOnOpenPathToTarget(t, o) ==
+    /\ o \in objectTargets
+    /\ \E p \in OpenPath(deps, o, IsOpenNode): p[1] = t
 
 -------------------------------------------------------------------------------
 
@@ -145,10 +112,11 @@ RegisterGraph(G) ==
         newDeps == GraphUnion(deps, G)
     IN
         /\ G /= EmptyGraph
-        /\ TaskNode(G) \subseteq UnknownTask
-        /\ \A t \in TaskNode(G):
-            Successors(G, t) \intersect Roots(deps) \intersect FinalizedObject = {}
-        /\ IsACGraph(newDeps)
+        /\ IsFiniteSet(G.node)
+        /\ G.node \cap Task \subseteq UnknownTask
+        /\ \A t \in G.node \cap Task:
+            Successor(G, t) \intersect Source(deps) \intersect FinalizedObject = {}
+        /\ IsDDGraph(newDeps, Task, Object)
         /\ deps' = newDeps
         /\ objectState' =
             [o \in Object |->
@@ -189,8 +157,8 @@ UntargetObjects(O) ==
  *)
 FinalizeObjects(O) ==
     /\ O /= {} /\ O \subseteq RegisteredObject
-    /\ \/ O \subseteq Roots(deps)
-       \/ \A o \in O: \E t \in Predecessors(deps, o): t \in ProcessedTask
+    /\ \/ O \subseteq Source(deps)
+       \/ \A o \in O: \E t \in Predecessor(deps, o): t \in ProcessedTask
     /\ objectState' =
         [o \in Object |-> IF o \in O THEN OBJECT_FINALIZED ELSE objectState[o]]
     /\ UNCHANGED << deps, objectTargets, taskState >>
@@ -201,7 +169,7 @@ FinalizeObjects(O) ==
  * are finalized.
  *)
 StageTasks(T) ==
-    /\ AllPredecessors(deps, T) \subseteq FinalizedObject
+    /\ \A t \in T: Predecessor(deps, t) \subseteq FinalizedObject
     /\ T /= {} /\ T \subseteq RegisteredTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
@@ -259,9 +227,9 @@ ProcessTasks(T) ==
  *)
 FinalizeTasks(T) ==
     /\ T /= {} /\ T \subseteq ProcessedTask
-    /\ \A o \in AllSuccessors(deps, T) :
+    /\ \A o \in UNION {Successor(deps, t): t \in T} :
         o \in RegisteredObject
-            => \E t \in (Predecessors(deps, o) \ T) : t \notin FinalizedTask
+            => \E u \in (Predecessor(deps, o) \ T) : u \notin FinalizedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_FINALIZED ELSE taskState[t]]
     /\ UNCHANGED << deps, objectState, objectTargets >>
@@ -288,7 +256,7 @@ Terminating ==
  * Defines all atomic transitions of the system.
  *)
 Next ==
-    \/ \E G \in Graphs(Task \union Object): RegisterGraph(G)
+    \/ \E G \in DirectedGraphOf(Task \union Object): RegisterGraph(G)
     \/ \E O \in SUBSET Object:
         \/ TargetObjects(O)
         \/ UntargetObjects(O)
@@ -301,54 +269,6 @@ Next ==
         \/ ProcessTasks(T)
         \/ FinalizeTasks(T)
     \/ Terminating
-
-(**
- * An open path to object 'o' is a simple path in the dependency graph ending
- * at 'o' whose every node is open (i.e., non-finalized). The set is empty
- * when 'o' is itself finalized.
- *)
-OpenPath(o) ==
-    {p \in SimplePath(deps) :
-        /\ p[Len(p)] = o
-        /\ \A i \in 1..Len(p) : IsOpenNode(p[i])}
-
-(**
- * The open upstream graph of 'o' is the subgraph of 'deps' induced by the
- * nodes that appear on some open path to 'o'. It is empty when 'o' is
- * finalized, and unilaterally connected toward 'o' otherwise.
- *)
-OpenSubGraph(o) ==
-    LET N == {p[1] : p \in OpenPath(o)} IN
-    [node |-> N, edge |-> deps.edge \cap (N \X N)]
-
-(**
- * Alternative, closure-based formulation of the open upstream graph of 'o'.
- * Let R be the precedence relation of 'deps' restricted to open nodes — the
- * pairs << n, m >> in deps.edge with both n and m open. A node 'n' belongs
- * to the graph iff 'o' is open and either 'n' equals 'o', or 'n' reaches 'o'
- * through the transitive closure of R (equivalently, 'n' is an ancestor of
- * 'o' in the subgraph of 'deps' induced by the open nodes). Together, these
- * two cases form the reflexive transitive closure of R ending at 'o'. It is
- * empty when 'o' is itself finalized.
- *)
-OpenSubGraphViaClosure(o) ==
-    LET OpenNodes   == {n \in deps.node : IsOpenNode(n)}
-        OpenInduced == [node |-> OpenNodes,
-                        edge |-> deps.edge \cap (OpenNodes \X OpenNodes)]
-        N == IF o \in OpenNodes
-             THEN {o} \union Ancestors(OpenInduced, o)
-             ELSE {}
-    IN [node |-> N, edge |-> deps.edge \cap (N \X N)]
-
-(**
- * Returns TRUE iff task 't' is upstream of an unfinalized target object 'o'
- * via an open path, i.e., 't' can still (directly or indirectly) contribute
- * to producing 'o'.
- *)
-IsTaskUpstreamOnOpenPathToTarget(t, o) ==
-    /\ o \in objectTargets
-    /\ o \in RegisteredObject
-    /\ \E p \in OpenPath(o): p[1] = t
 
 (**
  * FAIRNESS CONDITIONS
@@ -375,15 +295,16 @@ Fairness ==
 
 (**
  * LIVENESS CONSTRAINT
- * For every object that is currently a target, the open upstream graph
- * eventually stops growing. Combined with the fairness conditions above,
+ * For every object that is currently a target, the open upstream eventually
+ * becomes closed under additions, i.e. its node set never gains another node
+ * (it may still shrink). Combined with the fairness conditions above,
  * this ensures every targeted object is eventually finalized, and thus
  * establishes the refinement of ObjectProcessing1.
  *)
-OpenUpstreamStopsGrowing ==
-    \A o \in Object :
-        [](o \in objectTargets
-           => <>[][(OpenSubGraph(o).node)' \subseteq OpenSubGraph(o).node]_vars)
+OpenUpstreamEventuallyClosed ==
+    LET G(o) == AncestorSubGraph(deps, o, IsOpenNode)
+    IN \A o \in Object :
+        []([](o \in objectTargets) => <>[][(G(o).node)' \subseteq G(o).node]_(G(o).node))
 
 (**
  * Full system specification.
@@ -392,7 +313,7 @@ Spec ==
     /\ Init
     /\ [][Next]_vars
     /\ Fairness
-    /\ OpenUpstreamStopsGrowing
+    /\ OpenUpstreamEventuallyClosed
 
 -------------------------------------------------------------------------------
 
@@ -405,7 +326,7 @@ Spec ==
  * The dependency graph is always ArmoniK-compliant.
  *)
 DependencyGraphCompliant ==
-    IsACGraph(deps)
+    IsDDGraph(deps, Task, Object)
 
 (**
  * SAFETY
@@ -413,33 +334,31 @@ DependencyGraphCompliant ==
  * states.
  *)
 GraphStateIntegrity ==
-    /\ deps.node \intersect UnknownTask = {}
-    /\ deps.node \intersect UnknownObject = {}
+    /\ \A t \in Task : t \in deps.node <=> t \notin UnknownTask
+    /\ \A o \in Object : o \in deps.node <=> o \notin UnknownObject
     /\ \A t \in Task :
-        /\ t \in StagedTask \union AssignedTask
-           => Predecessors(deps, t) \subseteq FinalizedObject
-        \* It doesn't work for retried tasks
-        /\ t \in FinalizedTask => MandatorySuccessors(deps, t) \subseteq FinalizedObject
+        t \in StagedTask \union AssignedTask
+           => Predecessor(deps, t) \subseteq FinalizedObject
     /\ \A o \in Object :
-        ~ o \in Roots(deps) =>
-            /\ o \in RegisteredObject => ~(Predecessors(deps, o) \subseteq FinalizedTask)
-            /\ o \in FinalizedObject => Predecessors(deps, o) \intersect (ProcessedTask \union FinalizedTask) /= {}
+        ~ o \in Source(deps) =>
+            /\ o \in RegisteredObject => ~(Predecessor(deps, o) \subseteq FinalizedTask)
+            /\ o \in FinalizedObject => Predecessor(deps, o) \intersect (ProcessedTask \union FinalizedTask) /= {}
 
 (**
  * SAFETY
- * Ensure that the number of input and output data dependencies for tasks is finite.
+ * The dependency graph is finite: it has finitely many nodes (and therefore
+ * finitely many edges). In particular every task has a finite number of input
+ * and output data dependencies.
  *)
-TaskDependenciesImmutable ==
-    \A t \in Task :
-        /\ IsFiniteSet(Predecessors(deps, t))
-        /\ IsFiniteSet(Successors(deps, t))
+DependencyGraphFinite ==
+    IsFiniteSet(deps.node)
 
 (**
  * Ensures that a finalized source object remains a source forever.
  *)
 FinalizedSourcesInvariant ==
     \A o \in Object :
-        [](o \in Roots(deps) /\ o \in FinalizedObject => [](o \in Roots(deps)))
+        [](o \in Source(deps) /\ o \in FinalizedObject => [](o \in Source(deps)))
 
 (**
  * SAFETY
@@ -448,31 +367,28 @@ FinalizedSourcesInvariant ==
 TaskDataDependenciesInvariant ==
     \A t \in Task:
         [](t \notin UnknownTask =>
-            [][ /\ Predecessors(deps, t) = Predecessors(deps', t)
-                /\ Successors(deps, t) = Successors(deps', t) ]_deps)
+            [][ /\ Predecessor(deps, t) = Predecessor(deps', t)
+                /\ Successor(deps, t) = Successor(deps', t) ]_deps)
 
 (**
- * SAFETY
- * The path-based and closure-based characterizations of the open upstream
- * graph coincide at every reachable state: the subgraph induced by the union
- * of open simple paths ending at 'o' equals the one obtained from the
- * reflexive transitive closure of the open precedence relation.
+ * LIVENESS
+ * A known object whose producing tasks have all been processed or finalized is
+ * eventually finalized, provided it never gains a new producer (i.e. no future
+ * RegisterGraph step registers a graph in which some task produces it).
  *)
-OpenSubGraphEquivalence ==
-    \A o \in Object : OpenSubGraph(o) = OpenSubGraphViaClosure(o)
-
-(**
- * Ensures that the mandatory output objects of a processed task will eventually be finalized.
- *)
-MandatoryOutputsEventuallyFinalized ==
-    \A t \in Task :
-        \* do not work with retry
-        t \in ProcessedTask ~> MandatorySuccessors(deps, t) \subseteq FinalizedObject
+CommittedObjectsEventualFinalization ==
+    \A o \in Object :
+        /\ o \notin UnknownObject
+        /\ Predecessor(deps, o) \subseteq (ProcessedTask \union FinalizedTask)
+        /\ [][~ \E G \in DirectedGraphOf(Task \union Object) :
+                  (\E t \in G.node : o \in Successor(G, t)) /\ RegisterGraph(G)]_vars
+        ~> o \in FinalizedObject
 
 (**
  * LIVENESS
  * This specification refines the TaskProcessing specification.
  *)
+TP1 == INSTANCE TaskProcessing1
 RefineTaskProcessing1 ==
     TP1!Spec
 
@@ -480,6 +396,7 @@ RefineTaskProcessing1 ==
  * LIVENESS
  * This specification refines the ObjectProcessing specification.
  *)
+OP1 == INSTANCE ObjectProcessing1
 RefineObjectProcessing1 ==
     OP1!Spec
 
@@ -492,11 +409,10 @@ RefineObjectProcessing1 ==
 THEOREM Spec => []TypeOk
 THEOREM Spec => []DependencyGraphCompliant
 THEOREM Spec => []GraphStateIntegrity
-THEOREM Spec => []TaskDependenciesImmutable
+THEOREM Spec => []DependencyGraphFinite
 THEOREM Spec => FinalizedSourcesInvariant
 THEOREM Spec => TaskDataDependenciesInvariant
-THEOREM Spec => []OpenSubGraphEquivalence
-THEOREM Spec => MandatoryOutputsEventuallyFinalized
+THEOREM Spec => CommittedObjectsEventualFinalization
 THEOREM Spec => RefineTaskProcessing1
 THEOREM Spec => RefineObjectProcessing1
 
