@@ -1,6 +1,6 @@
 --------------------------- MODULE GraphProcessing2 ----------------------------
 
-EXTENDS DenumerableSets, FiniteSets, Graphs, Naturals, Sequences, Utils, TLC
+EXTENDS DDGraphs, DenumerableSets, FiniteSets
 
 CONSTANTS
     Object,   \* Set of object identifiers
@@ -31,14 +31,34 @@ vars == << deps, objectState, objectTargets, taskState, nextAttemptOf >>
 (*****************************************************************************)
 
 INSTANCE ObjectStates
-
 INSTANCE TaskRetries
 
-TP2 == INSTANCE TaskProcessing2
+(**
+ * A node is viable iff it has not reached a terminal failure state.
+ * Non-viable task states: discarded, failed, aborted, retried.
+ * Non-viable object state: aborted.
+ *)
+IsViableNode(n) ==
+    n \notin UNION {DiscardedTask, FailedTask, AbortedTask, RetriedTask, AbortedObject}
 
-OP2 == INSTANCE ObjectProcessing2
+(**
+ * A node is open iff it has not yet been finalized. Openness makes no claim
+ * about future progress: an open node may remain in its current non-final
+ * state forever if an alternative path finalizes the object it was meant to
+ * produce.
+ *)
+IsOpenNode(n) ==
+    ~ (n \in FinalizedTask \/ n \in FinalizedObject)
 
-GP1 == INSTANCE GraphProcessing1
+(**
+ * Returns TRUE iff task 't' is upstream of an unfinalized target object 'o'
+ * via an open path, i.e., 't' can still (directly or indirectly) contribute
+ * to producing 'o'.
+ *)
+IsTaskUpstreamOnOpenPathToTarget(t, o) ==
+    /\ o \in objectTargets
+    /\ o \in RegisteredObject
+    /\ \E p \in OpenPath(deps, o, IsOpenNode): p[1] = t
 
 -------------------------------------------------------------------------------
 
@@ -47,8 +67,7 @@ TypeOk ==
     /\ nextAttemptOf \in [Task -> Task \union {NULL}]
     /\ objectState \in [Object -> OP2State]
     /\ objectTargets \in SUBSET Object
-    /\ LET Nodes == Task \union Object IN
-        deps \in {G \in [node: SUBSET Nodes, edge: SUBSET (Nodes \X Nodes)]: IsDirectedGraph(G)}
+    /\ deps \in DirectedGraphOf(Task \union Object)
 
 -------------------------------------------------------------------------------
 
@@ -69,11 +88,11 @@ RegisterGraph(G) ==
     IN
         /\ G /= EmptyGraph
         /\ IsFiniteSet(G.node)
-        /\ GP1!TaskNode(G) \subseteq UnknownTask
-        /\ \A t \in GP1!TaskNode(G):
-            /\ Successors(G, t) \intersect AbortedObject = {}
-            /\ Successors(G, t) \intersect Roots(deps) \intersect (CompletedObject \union AbortedObject) = {}
-        /\ GP1!IsACGraph(newDeps)
+        /\ G.node \cap Task \subseteq UnknownTask
+        /\ \A t \in G.node \cap Task:
+            /\ Successor(G, t) \intersect AbortedObject = {}
+            /\ Successor(G, t) \intersect Source(deps) \intersect (CompletedObject \union AbortedObject) = {}
+        /\ IsDDGraph(newDeps, Task, Object)
         /\ deps' = newDeps
         /\ objectState' =
             [o \in Object |->
@@ -99,19 +118,19 @@ UntargetObjects(O) ==
 
 CompleteObjects(O) ==
     /\ O /= {} /\ O \subseteq RegisteredObject
-    /\ \/ O \subseteq Roots(deps)
-       \/ \A o \in O: \E t \in Predecessors(deps, o): t \in SucceededTask
+    /\ \/ O \subseteq Source(deps)
+       \/ \A o \in O: \E t \in Predecessor(deps, o): t \in SucceededTask
     /\ objectState' =
         [o \in Object |-> IF o \in O THEN OBJECT_COMPLETED ELSE objectState[o]]
     /\ UNCHANGED << deps, objectTargets, taskState, nextAttemptOf >>
 
 AbortObjects(O) ==
     /\ O /= {} /\ O \subseteq RegisteredObject
-    /\ \/ O \subseteq Roots(deps)
+    /\ \/ O \subseteq Source(deps)
        \/ \A o \in O:
-            \E t \in Predecessors(deps, o):
+            \E t \in Predecessor(deps, o):
                 /\ t \in DiscardedTask
-                /\ Predecessors(deps, o) \ {t} \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
+                /\ Predecessor(deps, o) \ {t} \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
     /\ objectState' =
         [o \in Object |-> IF o \in O THEN OBJECT_ABORTED ELSE objectState[o]]
     /\ UNCHANGED << deps, objectTargets, taskState, nextAttemptOf >>
@@ -128,7 +147,7 @@ SetTaskRetries(T, U) ==
 
 StageTasks(T) ==
     /\ T /= {} /\ T \subseteq RegisteredTask
-    /\ AllPredecessors(deps, T) \subseteq CompletedObject
+    /\ UNION {Predecessor(deps, t): t \in T} \subseteq CompletedObject
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets >>
@@ -165,24 +184,24 @@ ProcessTasks(T) ==
 
 \* Guard future refactor
 \* HasRemainingProducer(T) ==
-\*     \A o \in AllSuccessors(deps, T) :
+\*     \A o \in AllSuccessor(deps, T) :
 \*         o \in RegisteredObject
-\*             => \E t \in (Predecessors(deps, o) \ T) : t \notin UNION {CompletedTask, AbortedTask, RetriedTask}
+\*             => \E t \in (Predecessor(deps, o) \ T) : t \notin UNION {CompletedTask, AbortedTask, RetriedTask}
 
 CompleteTasks(T) ==
     /\ T /= {} /\ T \subseteq SucceededTask
-    /\ \A o \in AllSuccessors(deps, T) :
+    /\ \A o \in UNION {Successor(deps, t): t \in T} :
         o \in RegisteredObject
-            => \E t \in (Predecessors(deps, o) \ T) : t \notin UNION {CompletedTask, AbortedTask, RetriedTask}
+            => \E t \in (Predecessor(deps, o) \ T) : t \notin UNION {CompletedTask, AbortedTask, RetriedTask}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_COMPLETED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets >>
 
 AbortTasks(T) ==
     /\ T /= {} /\ T \subseteq DiscardedTask
-    /\ \A o \in AllSuccessors(deps, T) :
+    /\ \A o \in UNION {Successor(deps, t): t \in T} :
         o \in RegisteredObject
-            => \E t \in (Predecessors(deps, o) \ T) : t \notin UNION {CompletedTask, AbortedTask, RetriedTask}
+            => \E t \in (Predecessor(deps, o) \ T) : t \notin UNION {CompletedTask, AbortedTask, RetriedTask}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_ABORTED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets >>
@@ -213,7 +232,7 @@ Terminating ==
  * Defines all atomic transitions of the system.
  *)
 Next ==
-    \/ \E G \in Graphs(Task \union Object): RegisterGraph(G)
+    \/ \E G \in DirectedGraphOf(Task \union Object): RegisterGraph(G)
     \/ \E O \in SUBSET Object:
         \/ TargetObjects(O)
         \/ UntargetObjects(O)
@@ -231,33 +250,35 @@ Next ==
         \/ RetryTasks(T)
     \/ Terminating
 
-RetrySubGraph(t) ==
-    LET
-        preds == Predecessors(deps, t)
-        succs == Successors(deps, t)
-        u     == nextAttemptOf[t]
-    IN
-        [
-            node |-> {u} \union preds \union succs,
-            edge |-> {<<p, u>>: p \in preds} \union {<<u, s>>: s \in succs}
-        ]
-
 Fairness ==
     /\ \A o \in Object:
         /\ WF_vars(CompleteObjects({o}))
         /\ WF_vars(AbortObjects({o}))
     /\ \A t \in Task:
         /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
-        /\ WF_vars(RegisterGraph(RetrySubGraph(t)))
+        /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
         /\ WF_vars(StageTasks({t}))
-        /\ WF_vars(Predecessors(deps, t) \intersect AbortedObject /= {} /\ DiscardTasks({t}))
+        /\ WF_vars(Predecessor(deps, t) \intersect AbortedObject /= {} /\ DiscardTasks({t}))
         /\ SF_vars(
-            /\ \E o \in Object : GP1!IsTaskUpstreamOnOpenPathToTarget(t, o)
+            /\ \E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)
             /\ AssignTasks({t}))
         /\ SF_vars(ProcessTasks({t}))
         /\ WF_vars(CompleteTasks({t}))
         /\ WF_vars(AbortTasks({t}))
         /\ WF_vars(RetryTasks({t}))
+
+(**
+ * LIVENESS CONSTRAINT
+ * For every object that is currently a target, the open upstream eventually
+ * becomes closed under additions, i.e. its node set never gains another node
+ * (it may still shrink). Combined with the fairness conditions above,
+ * this ensures every targeted object is eventually finalized, and thus
+ * establishes the refinement of ObjectProcessing1.
+ *)
+OpenUpstreamEventuallyClosed ==
+    LET G(o) == AncestorSubGraph(deps, o, IsOpenNode)
+    IN \A o \in Object :
+        [](o \in objectTargets => <>[][(G(o).node)' \subseteq G(o).node]_vars)
 
 (**
  * Full system specification.
@@ -266,7 +287,7 @@ Spec ==
     /\ Init
     /\ [][Next]_vars
     /\ Fairness
-    \* /\ GP1!OpenUpstreamStopsGrowing
+    /\ OpenUpstreamEventuallyClosed
 
 -------------------------------------------------------------------------------
 
@@ -274,105 +295,71 @@ Spec ==
 (* SAFETY AND LIVENESS PROPERTIES                                            *)
 (*****************************************************************************)
 
-ExclusiveSuccessors(G, n) ==
-    {m \in Successors(G, n): Predecessors(G, m) = {n}}
-
 GraphStateIntegrity ==
+    /\ \A t \in Task : t \in deps.node <=> t \notin UnknownTask
+    /\ \A o \in Object : o \in deps.node <=> o \notin UnknownObject
     /\ \A t \in Task :
-        /\ (\/ t \in StagedTask
-            \/ t \in AssignedTask
-            \/ t \in SucceededTask
-            \/ t \in FailedTask
-            \/ t \in CompletedTask
-            \/ t \in RetriedTask)
-           => Predecessors(deps, t) \subseteq CompletedObject
-        /\ t \in CompletedTask => ExclusiveSuccessors(deps, t) \subseteq CompletedObject
-        /\ t \in AbortedTask => ExclusiveSuccessors(deps, t) \subseteq AbortedObject
+        (\/ t \in StagedTask
+         \/ t \in AssignedTask
+         \/ t \in SucceededTask
+         \/ t \in FailedTask
+         \/ t \in CompletedTask
+         \/ t \in RetriedTask)
+        => Predecessor(deps, t) \subseteq CompletedObject
     /\ \A o \in Object :
-        ~ o \in Roots(deps) =>
-            /\ o \in CompletedObject => Predecessors(deps, o) \intersect (SucceededTask \union CompletedTask) /= {}
-            /\ o \in AbortedObject => /\ Predecessors(deps, o) \intersect (DiscardedTask \union AbortedTask) /= {}
-                                      /\ Predecessors(deps, o) \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
+        /\ ~ o \in Source(deps) =>
+            /\ o \in CompletedObject => Predecessor(deps, o) \intersect (SucceededTask \union CompletedTask) /= {}
+            /\ o \in AbortedObject => /\ Predecessor(deps, o) \intersect (DiscardedTask \union AbortedTask) /= {}
+                                      /\ Predecessor(deps, o) \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
+        /\ ~ o \in Source(deps) /\ o \in deps.node =>
+            /\ Predecessor(deps, o) \subseteq CompletedTask => o \in CompletedObject
+            /\ Predecessor(deps, o) \subseteq AbortedTask   => o \in AbortedObject
 
-(**
- * A node is viable iff it has not reached a terminal failure state.
- * Non-viable task states: discarded, failed, aborted, retried.
- * Non-viable object state: aborted.
- *)
-IsViableNode(n) ==
-    n \notin UNION {DiscardedTask, FailedTask, AbortedTask, RetriedTask, AbortedObject}
+RetryDataDependenciesValidity ==
+    \A t \in Task :
+        nextAttemptOf[t] /= NULL =>
+            /\ Predecessor(deps, t) = Predecessor(deps, nextAttemptOf[t])
+            /\ Successor(deps, t) = Successor(deps, nextAttemptOf[t])
 
-(**
- * The viable upstream graph of node 'n' is the subgraph of 'deps' induced
- * by the viable ancestors of 'n' (including 'n' itself). It captures all
- * nodes that can still potentially contribute to producing 'n'.
- * Empty when 'n' is itself non-viable.
- *)
-ViableGraph(n) ==
-    LET ViableNodes   == {m \in deps.node : IsViableNode(m)}
-        ViableInduced == [node |-> ViableNodes,
-                          edge |-> deps.edge \cap (ViableNodes \X ViableNodes)]
-        N == IF n \in ViableNodes
-             THEN {n} \union Ancestors(ViableInduced, n)
-             ELSE {}
-    IN [node |-> N, edge |-> deps.edge \cap (N \X N)]
-
-(**
- * The set of derivations of node 'n'. A derivation is a subgraph of the
- * viable graph that witnesses how 'n' can be produced from the roots.
- *
- * A derivation D must satisfy:
- *   - D is a directed subgraph of the viable graph of 'n'.
- *   - The only leaf of D is 'n' (unilateral connectivity toward 'n').
- *   - The roots of D are a subset of the roots of 'deps'.
- *   - Every task in D has all its input objects in D (AND-semantics).
- *
- * The OR-semantics for objects (at least one parent task) is implied:
- * a non-root object in D must have a predecessor in D, and by
- * bipartiteness of 'deps' that predecessor is necessarily a task.
- *)
-Derivation(n) ==
-    LET V == ViableGraph(n) IN
-    {D \in DirectedSubgraph(V) :
-        /\ Leaves(D) = {n}
-        /\ Roots(D) \subseteq Roots(deps)
-        /\ \A t \in D.node \cap Task : Predecessors(deps, t) \subseteq D.node}
+GP2Derivation(o) == Derivation(deps, o, IsViableNode, Task)
 
 CompletedObjectHasDerivation ==
     \A o \in Object :
         o \in CompletedObject
-        <=> \E d \in Derivation(o):
+        <=> \E d \in GP2Derivation(o):
                 /\ (d.node \intersect Object) \subseteq CompletedObject
                 /\ (d.node \intersect Task) \subseteq (SucceededTask \union CompletedTask)
 
 DerivableObjectRegistered ==
     \A o \in Object :
         \* Check compatibility with stop action in GP3
-        Derivation(o) /= {} => o \in RegisteredObject \/ o \in CompletedObject
+        GP2Derivation(o) /= {} => o \in RegisteredObject \/ o \in CompletedObject
 
 AbortedObjectTaskDependenciesInvariant ==
     \A o \in Object:
         []( o \in AbortedObject
-            => [][Predecessors(deps, o) = Predecessors(deps', o)]_deps )
+            => [][Predecessor(deps, o) = Predecessor(deps', o)]_deps )
 
-GP2_MandatorySuccessors(t) ==
-    {o \in Successors(deps, t): Predecessors(deps, o) \ UNION {CompletedTask, AbortedTask, RetriedTask} = {t}}
-
-OutputObjectsEventualFinalization ==
-    \A t \in Task :
-        /\ t \in SucceededTask ~> GP2_MandatorySuccessors(t) \subseteq CompletedObject
-        /\ t \in DiscardedTask ~> GP2_MandatorySuccessors(t) \subseteq AbortedObject
+CommittedObjectsEventualFinalization ==
+    LET TerminatedTask == UNION {CompletedTask, AbortedTask, RetriedTask} IN
+    \A o \in Object :
+        /\ Predecessor(deps, o) \subseteq SucceededTask \union TerminatedTask
+           ~> o \in CompletedObject
+        /\ Predecessor(deps, o) \subseteq DiscardedTask \union TerminatedTask
+           ~> o \in AbortedObject
 
 UnderivableObjectsEventualAbortion ==
     \A o \in Object :
-        /\ Derivation(o) = {} /\ [][~ \E G \in Graphs(Task \union Object): o \in G.node /\ RegisterGraph(G)]_vars
+        /\ GP2Derivation(o) = {} /\ [][~ \E G \in DirectedGraphOf(Task \union Object): o \in G.node /\ RegisterGraph(G)]_vars
            ~> o \in AbortedObject
-        /\ Derivation(o) = {}
-           ~> o \in AbortedObject \/ Derivation(o) /= {}
+        /\ GP2Derivation(o) = {}
+           ~> o \in AbortedObject \/ GP2Derivation(o) /= {}
 
+TP2 == INSTANCE TaskProcessing2
 RefineTaskProcessing2 ==
     TP2!Spec
 
+OP2 == INSTANCE ObjectProcessing2
 RefineObjectProcessing2 ==
     OP2!Spec
 
@@ -392,12 +379,12 @@ objectStateBar ==
           [] objectState[o] = OBJECT_ABORTED   -> OBJECT_FINALIZED
           [] OTHER                             -> objectState[o]
     ]
-GP1Abs == INSTANCE GraphProcessing1
+GP1 == INSTANCE GraphProcessing1
     WITH taskState <- taskStateBar,
          objectState <- objectStateBar
 
 RefineGraphProcessing1 ==
-    GP1Abs!Spec
+    GP1!Spec
 
 -------------------------------------------------------------------------------
 
@@ -407,10 +394,11 @@ RefineGraphProcessing1 ==
 
 THEOREM Spec => []TypeOk
 THEOREM Spec => []GraphStateIntegrity
+THEOREM Spec => []RetryDataDependenciesValidity
 THEOREM Spec => []CompletedObjectHasDerivation
 THEOREM Spec => []DerivableObjectRegistered
 THEOREM Spec => AbortedObjectTaskDependenciesInvariant
-THEOREM Spec => OutputObjectsEventualFinalization
+THEOREM Spec => CommittedObjectsEventualFinalization
 THEOREM Spec => UnderivableObjectsEventualAbortion
 THEOREM Spec => RefineTaskProcessing2
 THEOREM Spec => RefineObjectProcessing2
