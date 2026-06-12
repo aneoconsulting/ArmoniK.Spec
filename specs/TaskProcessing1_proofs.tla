@@ -37,10 +37,10 @@ LEMMA AssignmentEnablesProcessing ==
               => ENABLED <<ProcessTasks({t})>>_vars
 BY ExpandENABLED DEF ProcessTasks, AssignedTask, vars
 
-THEOREM TP1_EventualDeallocation == Spec => EventualDeallocation
+LEMMA LemEventualDeallocation == []TypeOk /\ [][Next]_vars /\ Fairness => EventualDeallocation
 <1>. SUFFICES ASSUME NEW t \in Task
-              PROVE Spec => t \in AssignedTask
-                            ~> t \in StagedTask \/ t \in ProcessedTask
+              PROVE []TypeOk /\ [][Next]_vars /\ Fairness
+                    => t \in AssignedTask ~> t \in StagedTask \/ t \in ProcessedTask
     BY DEF EventualDeallocation
 <1>1. t \in AssignedTask /\ [Next]_vars => \/ (t \in AssignedTask)'
                                            \/ (t \in StagedTask)'
@@ -70,11 +70,15 @@ THEOREM TP1_EventualDeallocation == Spec => EventualDeallocation
 <1>4. Fairness => SF_vars(ProcessTasks({t}))
     BY Isa DEF Fairness
 <1>. QED
-    BY <1>1, <1>2, <1>3, <1>4, TP1_Type, PTL DEF Spec
+    BY <1>1, <1>2, <1>3, <1>4, PTL
 
-THEOREM TP1_EventualProcessing == Spec => EventualProcessing
+THEOREM TP1_EventualDeallocation == Spec => EventualDeallocation
+BY LemEventualDeallocation, TP1_Type, PTL DEF Spec
+
+LEMMA LemEventualProcessing == []TypeOk /\ [][Next]_vars /\ Fairness => EventualProcessing
 <1>. SUFFICES ASSUME NEW t \in Task
-              PROVE Spec => ([]<>(t \in AssignedTask) => <>(t \in ProcessedTask))
+              PROVE []TypeOk /\ [][Next]_vars /\ Fairness
+                    => ([]<>(t \in AssignedTask) => <>(t \in ProcessedTask))
     BY DEF EventualProcessing
 <1>1. TypeOk /\ t \in AssignedTask
       => ENABLED <<ProcessTasks({t})>>_vars
@@ -85,11 +89,15 @@ THEOREM TP1_EventualProcessing == Spec => EventualProcessing
 <1>3. Fairness => SF_vars(ProcessTasks({t}))
     BY Isa DEF Fairness
 <1>. QED
-    BY <1>1, <1>2, <1>3, TP1_Type, PTL DEF Spec
+    BY <1>1, <1>2, <1>3, PTL
 
-THEOREM TP1_EventualFinalization == Spec => EventualFinalization
+THEOREM TP1_EventualProcessing == Spec => EventualProcessing
+BY LemEventualProcessing, TP1_Type, PTL DEF Spec
+
+LEMMA LemEventualFinalization == []TypeOk /\ [][Next]_vars /\ Fairness => EventualFinalization
 <1>. SUFFICES ASSUME NEW t \in Task
-                PROVE Spec => t \in ProcessedTask ~> t \in FinalizedTask
+                PROVE []TypeOk /\ [][Next]_vars /\ Fairness
+                      => t \in ProcessedTask ~> t \in FinalizedTask
     BY DEF EventualFinalization
 <1>1. TypeOk /\ t \in ProcessedTask /\ [Next]_vars
       => (t \in ProcessedTask)' \/ (t \in FinalizedTask)'
@@ -104,7 +112,10 @@ THEOREM TP1_EventualFinalization == Spec => EventualFinalization
 <1>4. Fairness => WF_vars(FinalizeTasks({t}))
     BY Isa DEF Fairness
 <1>. QED
-    BY <1>1, <1>2, <1>3, <1>4, TP1_Type, PTL DEF Spec
+    BY <1>1, <1>2, <1>3, <1>4, PTL
+
+THEOREM TP1_EventualFinalization == Spec => EventualFinalization
+BY LemEventualFinalization, TP1_Type, PTL DEF Spec
 
 THEOREM TP1_EventualQuiescence == Spec => EventualQuiescence
 <1>. SUFFICES ASSUME NEW t \in Task

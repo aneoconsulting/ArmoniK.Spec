@@ -190,6 +190,56 @@ THEOREM DDG_OpenSubGraphEqualsAncestorSubGraph ==
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
+(* MaximalOpenPath -- existence and the suffix characterisation.              *)
+(******************************************************************************)
+
+(******************************************************************************)
+(* Prepending an Op-satisfying predecessor u of the root p[1] of an open path  *)
+(* to n yields an open path to n one node longer. u is not already on p (else  *)
+(* p[1] reaches u and u -> p[1] closes a directed cycle), so the extended      *)
+(* sequence stays simple.                                                      *)
+(******************************************************************************)
+LEMMA DDG_PrependOpenPath ==
+    ASSUME NEW G, IsDag(G), NEW n, NEW Op(_),
+           NEW p \in OpenPath(G, n, Op),
+           NEW u \in Predecessor(G, p[1]), Op(u)
+    PROVE  /\ (<<u>> \o p) \in OpenPath(G, n, Op)
+           /\ Len(<<u>> \o p) = Len(p) + 1
+
+(******************************************************************************)
+(* A maximal open path to n exists whenever some open path to n does: a        *)
+(* longest open path (lengths are bounded by Cardinality(G.node)) has a root   *)
+(* with no Op-predecessor, since prepending one (DDG_PrependOpenPath) would    *)
+(* give a strictly longer open path.                                           *)
+(******************************************************************************)
+THEOREM DDG_MaximalOpenPathExists ==
+    ASSUME NEW G, IsDag(G), IsFiniteSet(G.node),
+           NEW n, NEW Op(_), OpenPath(G, n, Op) # {}
+    PROVE  MaximalOpenPath(G, n, Op) # {}
+
+(******************************************************************************)
+(* IsStrictSuffix in concrete terms: a strict suffix is strictly shorter and  *)
+(* aligns with the tail of the longer sequence. Derived from IsStrictPrefix on *)
+(* the reversed sequences (IsSuffix is IsPrefix of the reverses).             *)
+(******************************************************************************)
+LEMMA DDG_StrictSuffixChar ==
+    ASSUME NEW S, NEW s \in Seq(S), NEW t \in Seq(S), IsStrictSuffix(s, t)
+    PROVE  /\ Len(s) < Len(t)
+           /\ \A i \in 1..Len(s) : s[i] = t[(Len(t) - Len(s)) + i]
+
+(******************************************************************************)
+(* On a DAG, the "root has no Op-predecessor" characterisation of             *)
+(* MaximalOpenPath coincides with the order-theoretic one: an open path is    *)
+(* maximal iff it is not a proper (strict) suffix of any other open path.     *)
+(******************************************************************************)
+THEOREM DDG_MaximalOpenPathSuffixEquiv ==
+    ASSUME NEW G, IsDag(G), NEW n, NEW Op(_)
+    PROVE  MaximalOpenPath(G, n, Op) =
+           {p \in OpenPath(G, n, Op) :
+                \A q \in OpenPath(G, n, Op) : ~ IsStrictSuffix(p, q)}
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
 (* RetrySubGraph — retry attachment is safe.                                  *)
 (******************************************************************************)
 

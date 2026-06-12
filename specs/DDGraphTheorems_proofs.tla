@@ -10,7 +10,7 @@
 (******************************************************************************)
 
 EXTENDS DDGraphs, DiGraphTheorems, FiniteSetTheorems, FiniteSetsExtTheorems,
-        FunctionTheorems, SequenceTheorems, TLAPS
+        FunctionTheorems, SequenceTheorems, SequencesExtTheorems, TLAPS
 
 (******************************************************************************)
 (* Every member of DDGraphOf(T, O) is a DD graph over T and O, with nodes in *)
@@ -659,6 +659,523 @@ THEOREM DDG_OpenSubGraphEqualsAncestorSubGraph ==
         BY DEF AncestorSubGraph
     <2>. QED
         BY <1>1, <2>1, <2>2
+
+(******************************************************************************)
+(* MaximalOpenPath -- existence and the suffix characterisation.              *)
+(******************************************************************************)
+
+(******************************************************************************)
+(* Prepending an Op-satisfying predecessor u of the root p[1] of an open path  *)
+(* to n yields an open path to n one node longer. u is not already on p (else  *)
+(* p[1] reaches u and u -> p[1] closes a directed cycle), so the extended      *)
+(* sequence stays simple.                                                      *)
+(******************************************************************************)
+LEMMA DDG_PrependOpenPath ==
+    ASSUME NEW G, IsDag(G), NEW n, NEW Op(_),
+           NEW p \in OpenPath(G, n, Op),
+           NEW u \in Predecessor(G, p[1]), Op(u)
+    PROVE  /\ (<<u>> \o p) \in OpenPath(G, n, Op)
+           /\ Len(<<u>> \o p) = Len(p) + 1
+<1>1. IsDirectedGraph(G)
+    BY DEF IsDag
+<1>p. /\ p \in SimplePath(G) /\ p \in Seq(G.node) /\ p[Len(p)] = n
+      /\ (\A i \in 1..Len(p) : Op(p[i]))
+      /\ Len(p) \in Nat /\ Len(p) >= 1 /\ DOMAIN p = 1..Len(p)
+      /\ IsInjective(p)
+    BY DG_SimplePathIsSeq DEF OpenPath
+<1>e. <<u, p[1]>> \in G.edge /\ u \in G.node
+    BY DEF Predecessor
+<1> DEFINE q == <<u>> \o p
+<1>2. /\ q \in Seq(G.node)
+      /\ Len(q) = Len(p) + 1
+      /\ q[1] = u
+      /\ \A i \in 2..(Len(p) + 1) : q[i] = p[i-1]
+    <2>1. <<u>> \in Seq(G.node) /\ Len(<<u>>) = 1
+        BY <1>e
+    <2>2. /\ q \in Seq(G.node)
+          /\ Len(q) = 1 + Len(p)
+          /\ \A i \in 1..(1 + Len(p)) :
+                q[i] = IF i <= 1 THEN <<u>>[i] ELSE p[i-1]
+        BY <2>1, <1>p, ConcatProperties
+    <2>. QED
+        BY <2>2, <1>p
+<1>3. \A j \in 1..Len(p) : p[j] # u
+    <2> SUFFICES ASSUME NEW j \in 1..Len(p), p[j] = u
+                 PROVE  FALSE
+        OBVIOUS
+    <2> DEFINE pre == [i \in 1..j |-> p[i]]
+    <2>1. j \in Nat /\ j >= 1 /\ j <= Len(p)
+        BY <1>p
+    <2>2. /\ pre \in Seq(G.node) /\ Len(pre) = j /\ DOMAIN pre = 1..j
+          /\ \A i \in 1..j : pre[i] = p[i]
+        <3>1. \A i \in 1..j : p[i] \in G.node
+            BY <1>p, <2>1, ElementOfSeq
+        <3>2. pre \in Seq(G.node)
+            BY <3>1, <2>1, IsASeq, Isa
+        <3>3. DOMAIN pre = 1..j /\ \A i \in 1..j : pre[i] = p[i]
+            OBVIOUS
+        <3>4. Len(pre) = j
+            BY <3>2, <3>3, <2>1, LenProperties
+        <3>. QED
+            BY <3>2, <3>3, <3>4
+    <2>3. pre \in SimplePath(G)
+        <3>1. pre # <<>> /\ Len(pre) >= 1
+            BY <2>2, <2>1
+        <3>2. \A i \in 1..(Len(pre) - 1) : <<pre[i], pre[i+1]>> \in G.edge
+            <4> SUFFICES ASSUME NEW i \in 1..(Len(pre) - 1)
+                         PROVE  <<pre[i], pre[i+1]>> \in G.edge
+                OBVIOUS
+            <4>1. i \in 1..j /\ i + 1 \in 1..j
+                BY <2>2, <2>1
+            <4>2. pre[i] = p[i] /\ pre[i+1] = p[i+1]
+                BY <4>1, <2>2
+            <4>3. i \in 1..(Len(p) - 1)
+                BY <4>1, <2>1, <1>p
+            <4>. QED
+                BY <4>2, <4>3, <1>p DEF SimplePath, Path
+        <3>3. pre \in Path(G)
+            BY <2>2, <3>1, <3>2 DEF Path
+        <3>4. IsInjective(pre)
+            <4> SUFFICES ASSUME NEW a \in DOMAIN pre, NEW b \in DOMAIN pre,
+                                pre[a] = pre[b]
+                         PROVE  a = b
+                BY DEF IsInjective
+            <4>1. DOMAIN pre = 1..j
+                BY <2>2, LenProperties
+            <4>2. a \in 1..j /\ b \in 1..j /\ pre[a] = p[a] /\ pre[b] = p[b]
+                BY <4>1, <2>2
+            <4>3. a \in 1..Len(p) /\ b \in 1..Len(p)
+                BY <4>2, <2>1, <1>p
+            <4>. QED
+                BY <4>2, <4>3, <1>p DEF SimplePath, IsInjective
+        <3>. QED
+            BY <3>3, <3>4 DEF SimplePath
+    <2>4. pre[1] = p[1] /\ pre[Len(pre)] = u
+        BY <2>2, <2>1
+    <2>5. AreConnectedIn(G, p[1], u)
+        BY <2>3, <2>4 DEF AreConnectedIn
+    <2>. QED
+        BY <2>5, <1>e, DG_DagNoBackEdge
+<1>4. q \in SimplePath(G)
+    <2>1. q \in Path(G)
+        <3>1. q # <<>> /\ Len(q) >= 1
+            BY <1>2, <1>p
+        <3>2. \A i \in 1..(Len(q) - 1) : <<q[i], q[i+1]>> \in G.edge
+            <4> SUFFICES ASSUME NEW i \in 1..(Len(q) - 1)
+                         PROVE  <<q[i], q[i+1]>> \in G.edge
+                OBVIOUS
+            <4>1. i \in Nat /\ i >= 1 /\ i <= Len(p)
+                BY <3>1, <1>2, <1>p
+            <4>2. CASE i = 1
+                <5>1. q[1] = u /\ q[2] = p[1]
+                    BY <1>2, <1>p
+                <5>. QED
+                    BY <4>2, <5>1, <1>e
+            <4>3. CASE i >= 2
+                <5>1. q[i] = p[i-1] /\ q[i+1] = p[i]
+                    BY <1>2, <4>1, <4>3, <1>p
+                <5>2. i - 1 \in 1..(Len(p) - 1)
+                    BY <4>1, <4>3, <1>p
+                <5>. QED
+                    BY <5>1, <5>2, <1>p DEF SimplePath, Path
+            <4>. QED
+                BY <4>1, <4>2, <4>3
+        <3>. QED
+            BY <1>2, <3>1, <3>2 DEF Path
+    <2>2. IsInjective(q)
+        <3> SUFFICES ASSUME NEW a \in DOMAIN q, NEW b \in DOMAIN q,
+                            q[a] = q[b]
+                     PROVE  a = b
+            BY DEF IsInjective
+        <3>1. DOMAIN q = 1..Len(q) /\ a \in 1..Len(q) /\ b \in 1..Len(q)
+            BY <1>2, LenProperties
+        <3>2. /\ a \in Nat /\ b \in Nat /\ a >= 1 /\ b >= 1
+              /\ a <= Len(p) + 1 /\ b <= Len(p) + 1
+            BY <3>1, <1>2, <1>p
+        <3>3. CASE a = 1 /\ b = 1
+            BY <3>3
+        <3>4. CASE a = 1 /\ b >= 2
+            <4>1. q[a] = u /\ q[b] = p[b-1] /\ b - 1 \in 1..Len(p)
+                BY <1>2, <3>2, <3>4, <1>p
+            <4>. QED
+                BY <4>1, <1>3
+        <3>5. CASE b = 1 /\ a >= 2
+            <4>1. q[b] = u /\ q[a] = p[a-1] /\ a - 1 \in 1..Len(p)
+                BY <1>2, <3>2, <3>5, <1>p
+            <4>. QED
+                BY <4>1, <1>3
+        <3>6. CASE a >= 2 /\ b >= 2
+            <4>1. q[a] = p[a-1] /\ q[b] = p[b-1]
+                BY <1>2, <3>2, <3>6
+            <4>2. a - 1 \in 1..Len(p) /\ b - 1 \in 1..Len(p)
+                BY <3>2, <3>6, <1>p
+            <4>3. a - 1 = b - 1
+                BY <4>1, <4>2, <1>p DEF SimplePath, IsInjective
+            <4>. QED
+                BY <4>3, <3>2
+        <3>. QED
+            BY <3>2, <3>3, <3>4, <3>5, <3>6
+    <2>. QED
+        BY <2>1, <2>2 DEF SimplePath
+<1>5. q[Len(q)] = n /\ \A i \in 1..Len(q) : Op(q[i])
+    <2>1. Len(q) = Len(p) + 1 /\ Len(q) >= 2 /\ Len(q) \in 2..(Len(p)+1)
+        BY <1>2, <1>p
+    <2>2. q[Len(q)] = p[Len(q) - 1] /\ Len(q) - 1 = Len(p)
+        BY <1>2, <2>1, <1>p
+    <2>3. q[Len(q)] = n
+        BY <2>2, <1>p
+    <2>4. \A i \in 1..Len(q) : Op(q[i])
+        <3> SUFFICES ASSUME NEW i \in 1..Len(q) PROVE Op(q[i])
+            OBVIOUS
+        <3>1. i \in Nat /\ i >= 1 /\ i <= Len(p) + 1
+            BY <1>2, <1>p
+        <3>2. CASE i = 1
+            BY <3>2, <1>2
+        <3>3. CASE i >= 2
+            <4>1. q[i] = p[i-1] /\ i - 1 \in 1..Len(p)
+                BY <1>2, <3>1, <3>3, <1>p
+            <4>. QED
+                BY <4>1, <1>p
+        <3>. QED
+            BY <3>1, <3>2, <3>3
+    <2>. QED
+        BY <2>3, <2>4
+<1>. QED
+    BY <1>4, <1>5, <1>2 DEF OpenPath
+
+(******************************************************************************)
+(* A maximal open path to n exists whenever some open path to n does: a        *)
+(* longest open path (lengths are bounded by Cardinality(G.node)) has a root   *)
+(* with no Op-predecessor, since prepending one (DDG_PrependOpenPath) would    *)
+(* give a strictly longer open path.                                           *)
+(******************************************************************************)
+THEOREM DDG_MaximalOpenPathExists ==
+    ASSUME NEW G, IsDag(G), IsFiniteSet(G.node),
+           NEW n, NEW Op(_), OpenPath(G, n, Op) # {}
+    PROVE  MaximalOpenPath(G, n, Op) # {}
+<1>1. IsDirectedGraph(G) /\ Cardinality(G.node) \in Nat
+    BY FS_CardinalityType DEF IsDag
+<1> DEFINE OP == OpenPath(G, n, Op)
+<1> DEFINE Lens == {Len(p) : p \in OP}
+<1>2. \A q \in OP : /\ q \in SimplePath(G)
+                    /\ q \in Seq(G.node)
+                    /\ q[Len(q)] = n
+                    /\ (\A i \in 1..Len(q) : Op(q[i]))
+                    /\ Len(q) \in Nat
+                    /\ Len(q) >= 1
+                    /\ Len(q) <= Cardinality(G.node)
+                    /\ DOMAIN q = 1..Len(q)
+                    /\ IsInjective(q)
+    BY DG_SimplePathIsSeq, DG_SimplePathBound DEF OpenPath
+<1>3. /\ Lens # {}
+      /\ Lens \subseteq Int
+      /\ \A l \in Lens : l <= Cardinality(G.node)
+    BY <1>2
+<1>4. Max(Lens) \in Lens /\ \A l \in Lens : Max(Lens) >= l
+    BY <1>3, <1>1, MaxIntBounded
+<1>5. PICK p0 \in OP : \A q \in OP : Len(q) <= Len(p0)
+    BY <1>4
+<1>6. \A u \in Predecessor(G, p0[1]) : ~Op(u)
+    <2> SUFFICES ASSUME NEW u \in Predecessor(G, p0[1]), Op(u)
+                 PROVE  FALSE
+        OBVIOUS
+    <2>p. /\ p0 \in SimplePath(G) /\ p0 \in Seq(G.node) /\ p0[Len(p0)] = n
+          /\ (\A i \in 1..Len(p0) : Op(p0[i]))
+          /\ Len(p0) \in Nat /\ Len(p0) >= 1 /\ DOMAIN p0 = 1..Len(p0)
+          /\ IsInjective(p0)
+        BY <1>5, <1>2
+    <2>1. <<u, p0[1]>> \in G.edge /\ u \in G.node
+        BY DEF Predecessor
+    <2> DEFINE q == <<u>> \o p0
+    <2>2. /\ q \in Seq(G.node)
+          /\ Len(q) = Len(p0) + 1
+          /\ q[1] = u
+          /\ \A i \in 2..(Len(p0) + 1) : q[i] = p0[i-1]
+        <3>1. <<u>> \in Seq(G.node) /\ Len(<<u>>) = 1
+            BY <2>1
+        <3>2. /\ q \in Seq(G.node)
+              /\ Len(q) = 1 + Len(p0)
+              /\ \A i \in 1..(1 + Len(p0)) :
+                    q[i] = IF i <= 1 THEN <<u>>[i] ELSE p0[i-1]
+            BY <3>1, <2>p, ConcatProperties
+        <3>. QED
+            BY <3>2, <2>p
+    \* u is not a node of p0 (otherwise p0[1] reaches u and u -> p0[1] is a back edge)
+    <2>3. \A j \in 1..Len(p0) : p0[j] # u
+        <3> SUFFICES ASSUME NEW j \in 1..Len(p0), p0[j] = u
+                     PROVE  FALSE
+            OBVIOUS
+        <3> DEFINE pre == [i \in 1..j |-> p0[i]]
+        <3>1. j \in Nat /\ j >= 1 /\ j <= Len(p0)
+            BY <2>p
+        <3>2. /\ pre \in Seq(G.node)
+              /\ Len(pre) = j
+              /\ DOMAIN pre = 1..j
+              /\ \A i \in 1..j : pre[i] = p0[i]
+            <4>1. \A i \in 1..j : p0[i] \in G.node
+                BY <2>p, <3>1, ElementOfSeq
+            <4>2. pre \in Seq(G.node)
+                BY <4>1, <3>1, IsASeq, Isa
+            <4>3. DOMAIN pre = 1..j /\ \A i \in 1..j : pre[i] = p0[i]
+                OBVIOUS
+            <4>4. Len(pre) = j
+                BY <4>2, <4>3, <3>1, LenProperties
+            <4>. QED
+                BY <4>2, <4>3, <4>4
+        <3>3. pre \in SimplePath(G)
+            <4>1. pre # <<>> /\ Len(pre) >= 1
+                BY <3>2, <3>1
+            <4>2. \A i \in 1..(Len(pre) - 1) : <<pre[i], pre[i+1]>> \in G.edge
+                <5> SUFFICES ASSUME NEW i \in 1..(Len(pre) - 1)
+                             PROVE  <<pre[i], pre[i+1]>> \in G.edge
+                    OBVIOUS
+                <5>1. i \in 1..j /\ i + 1 \in 1..j
+                    BY <3>2, <3>1
+                <5>2. pre[i] = p0[i] /\ pre[i+1] = p0[i+1]
+                    BY <5>1, <3>2
+                <5>3. i \in 1..(Len(p0) - 1)
+                    BY <5>1, <3>1, <2>p
+                <5>. QED
+                    BY <5>2, <5>3, <2>p DEF SimplePath, Path
+            <4>3. pre \in Path(G)
+                BY <3>2, <4>1, <4>2 DEF Path
+            <4>4. IsInjective(pre)
+                <5> SUFFICES ASSUME NEW a \in DOMAIN pre, NEW b \in DOMAIN pre,
+                                    pre[a] = pre[b]
+                             PROVE  a = b
+                    BY DEF IsInjective
+                <5>1. DOMAIN pre = 1..j
+                    BY <3>2, LenProperties
+                <5>2. a \in 1..j /\ b \in 1..j /\ pre[a] = p0[a] /\ pre[b] = p0[b]
+                    BY <5>1, <3>2
+                <5>3. a \in 1..Len(p0) /\ b \in 1..Len(p0)
+                    BY <5>2, <3>1, <2>p
+                <5>. QED
+                    BY <5>2, <5>3, <2>p DEF SimplePath, IsInjective
+            <4>. QED
+                BY <4>3, <4>4 DEF SimplePath
+        <3>4. pre[1] = p0[1] /\ pre[Len(pre)] = u
+            BY <3>2, <3>1
+        <3>5. AreConnectedIn(G, p0[1], u)
+            BY <3>3, <3>4 DEF AreConnectedIn
+        <3>. QED
+            BY <3>5, <2>1, DG_DagNoBackEdge
+    <2>4. q \in SimplePath(G)
+        <3>1. q \in Path(G)
+            <4>1. q # <<>> /\ Len(q) >= 1
+                BY <2>2, <2>p
+            <4>2. \A i \in 1..(Len(q) - 1) : <<q[i], q[i+1]>> \in G.edge
+                <5> SUFFICES ASSUME NEW i \in 1..(Len(q) - 1)
+                             PROVE  <<q[i], q[i+1]>> \in G.edge
+                    OBVIOUS
+                <5>1. i \in Nat /\ i >= 1 /\ i <= Len(p0)
+                    BY <4>1, <2>2, <2>p
+                <5>2. CASE i = 1
+                    <6>1. q[1] = u /\ q[2] = p0[1]
+                        BY <2>2, <2>p
+                    <6>. QED
+                        BY <5>2, <6>1, <2>1
+                <5>3. CASE i >= 2
+                    <6>1. q[i] = p0[i-1] /\ q[i+1] = p0[i]
+                        BY <2>2, <5>1, <5>3, <2>p
+                    <6>2. i - 1 \in 1..(Len(p0) - 1)
+                        BY <5>1, <5>3, <2>p
+                    <6>. QED
+                        BY <6>1, <6>2, <2>p DEF SimplePath, Path
+                <5>. QED
+                    BY <5>1, <5>2, <5>3
+            <4>. QED
+                BY <2>2, <4>1, <4>2 DEF Path
+        <3>2. IsInjective(q)
+            <4> SUFFICES ASSUME NEW a \in DOMAIN q, NEW b \in DOMAIN q,
+                                q[a] = q[b]
+                         PROVE  a = b
+                BY DEF IsInjective
+            <4>1. DOMAIN q = 1..Len(q) /\ a \in 1..Len(q) /\ b \in 1..Len(q)
+                BY <2>2, LenProperties
+            <4>2. /\ a \in Nat /\ b \in Nat /\ a >= 1 /\ b >= 1
+                  /\ a <= Len(p0) + 1 /\ b <= Len(p0) + 1
+                BY <4>1, <2>2, <2>p
+            <4>3. CASE a = 1 /\ b = 1
+                BY <4>3
+            <4>4. CASE a = 1 /\ b >= 2
+                <5>1. q[a] = u /\ q[b] = p0[b-1] /\ b - 1 \in 1..Len(p0)
+                    BY <2>2, <4>2, <4>4, <2>p
+                <5>. QED
+                    BY <5>1, <2>3
+            <4>5. CASE b = 1 /\ a >= 2
+                <5>1. q[b] = u /\ q[a] = p0[a-1] /\ a - 1 \in 1..Len(p0)
+                    BY <2>2, <4>2, <4>5, <2>p
+                <5>. QED
+                    BY <5>1, <2>3
+            <4>6. CASE a >= 2 /\ b >= 2
+                <5>1. q[a] = p0[a-1] /\ q[b] = p0[b-1]
+                    BY <2>2, <4>2, <4>6
+                <5>2. a - 1 \in 1..Len(p0) /\ b - 1 \in 1..Len(p0)
+                    BY <4>2, <4>6, <2>p
+                <5>3. a - 1 = b - 1
+                    BY <5>1, <5>2, <2>p DEF SimplePath, IsInjective
+                <5>. QED
+                    BY <5>3, <4>2
+            <4>. QED
+                BY <4>2, <4>3, <4>4, <4>5, <4>6
+        <3>. QED
+            BY <3>1, <3>2 DEF SimplePath
+    <2>5. q[Len(q)] = n /\ \A i \in 1..Len(q) : Op(q[i])
+        <3>1. Len(q) = Len(p0) + 1 /\ Len(q) >= 2 /\ Len(q) \in 2..(Len(p0)+1)
+            BY <2>2, <2>p
+        <3>2. q[Len(q)] = p0[Len(q) - 1] /\ Len(q) - 1 = Len(p0)
+            BY <2>2, <3>1, <2>p
+        <3>3. q[Len(q)] = n
+            BY <3>2, <2>p
+        <3>4. \A i \in 1..Len(q) : Op(q[i])
+            <4> SUFFICES ASSUME NEW i \in 1..Len(q) PROVE Op(q[i])
+                OBVIOUS
+            <4>1. i \in Nat /\ i >= 1 /\ i <= Len(p0) + 1
+                BY <2>2, <2>p
+            <4>2. CASE i = 1
+                BY <4>2, <2>2
+            <4>3. CASE i >= 2
+                <5>1. q[i] = p0[i-1] /\ i - 1 \in 1..Len(p0)
+                    BY <2>2, <4>1, <4>3, <2>p
+                <5>. QED
+                    BY <5>1, <2>p
+            <4>. QED
+                BY <4>1, <4>2, <4>3
+        <3>. QED
+            BY <3>3, <3>4
+    <2>6. q \in OP /\ Len(q) = Len(p0) + 1
+        BY <2>4, <2>5, <2>2 DEF OpenPath
+    <2>7. Len(q) <= Len(p0)
+        BY <1>5, <2>6
+    <2>. QED
+        BY <2>6, <2>7, <2>p
+<1>. QED
+    BY <1>5, <1>6 DEF MaximalOpenPath
+
+(******************************************************************************)
+(* IsStrictSuffix in concrete terms: a strict suffix is strictly shorter and  *)
+(* aligns with the tail of the longer sequence. Derived from IsStrictPrefix on *)
+(* the reversed sequences (IsSuffix is IsPrefix of the reverses).             *)
+(******************************************************************************)
+LEMMA DDG_StrictSuffixChar ==
+    ASSUME NEW S, NEW s \in Seq(S), NEW t \in Seq(S), IsStrictSuffix(s, t)
+    PROVE  /\ Len(s) < Len(t)
+           /\ \A i \in 1..Len(s) : s[i] = t[(Len(t) - Len(s)) + i]
+<1>r. /\ Reverse(s) \in Seq(S) /\ Reverse(t) \in Seq(S)
+      /\ Len(Reverse(s)) = Len(s) /\ Len(Reverse(t)) = Len(t)
+      /\ Reverse(Reverse(s)) = s /\ Reverse(Reverse(t)) = t
+    BY ReverseProperties
+<1>n. Len(s) \in Nat /\ Len(t) \in Nat
+    BY LenProperties
+<1>1. IsPrefix(Reverse(s), Reverse(t)) /\ s # t
+    BY DEF IsStrictSuffix, IsSuffix
+<1>2. Reverse(s) # Reverse(t)
+    BY <1>1, <1>r, ReverseEqual
+<1>3. IsStrictPrefix(Reverse(s), Reverse(t))
+    BY <1>1, <1>2 DEF IsStrictPrefix
+<1>4. Len(Reverse(s)) < Len(Reverse(t))
+      /\ Reverse(s) = SubSeq(Reverse(t), 1, Len(Reverse(s)))
+    BY <1>3, <1>r, IsStrictPrefixProperties
+<1>5. Len(s) < Len(t)
+    BY <1>4, <1>r
+<1>6. \A i \in 1..Len(s) : s[i] = t[(Len(t) - Len(s)) + i]
+    <2> SUFFICES ASSUME NEW i \in 1..Len(s) PROVE s[i] = t[(Len(t) - Len(s)) + i]
+        OBVIOUS
+    <2> DEFINE ii == (Len(s) - i) + 1
+    <2>1. ii \in 1..Len(Reverse(s)) /\ ii \in 1..Len(s) /\ ii \in 1..Len(t)
+        BY <1>n, <1>r, <1>5
+    <2>2. Reverse(s)[ii] = Reverse(t)[ii]
+        BY <1>1, <1>r, <2>1, IsPrefixElts
+    <2>3. Reverse(s)[ii] = s[(Len(s) - ii) + 1]
+        BY <2>1, <1>r DEF Reverse
+    <2>4. Reverse(t)[ii] = t[(Len(t) - ii) + 1]
+        BY <2>1, <1>r DEF Reverse
+    <2>5. (Len(s) - ii) + 1 = i /\ (Len(t) - ii) + 1 = (Len(t) - Len(s)) + i
+        BY <1>n, <1>5
+    <2>. QED
+        BY <2>2, <2>3, <2>4, <2>5
+<1>. QED
+    BY <1>5, <1>6
+
+(******************************************************************************)
+(* On a DAG, the "root has no Op-predecessor" characterisation of             *)
+(* MaximalOpenPath coincides with the order-theoretic one: an open path is    *)
+(* maximal iff it is not a proper (strict) suffix of any other open path.     *)
+(******************************************************************************)
+THEOREM DDG_MaximalOpenPathSuffixEquiv ==
+    ASSUME NEW G, IsDag(G), NEW n, NEW Op(_)
+    PROVE  MaximalOpenPath(G, n, Op) =
+           {p \in OpenPath(G, n, Op) :
+                \A q \in OpenPath(G, n, Op) : ~ IsStrictSuffix(p, q)}
+<1>1. IsDirectedGraph(G)
+    BY DEF IsDag
+<1> DEFINE OP == OpenPath(G, n, Op)
+<1>. SUFFICES ASSUME NEW p \in OP
+              PROVE  (\A u \in Predecessor(G, p[1]) : ~Op(u))
+                     <=> (\A r \in OP : ~ IsStrictSuffix(p, r))
+    BY DEF MaximalOpenPath
+<1>p. /\ p \in SimplePath(G) /\ p \in Seq(G.node) /\ p[Len(p)] = n
+      /\ (\A i \in 1..Len(p) : Op(p[i]))
+      /\ Len(p) \in Nat /\ Len(p) >= 1
+    BY DG_SimplePathIsSeq DEF OpenPath
+\* (=>) pred-closed implies suffix-maximal
+<1>2. (\A u \in Predecessor(G, p[1]) : ~Op(u))
+      => (\A r \in OP : ~ IsStrictSuffix(p, r))
+    <2> SUFFICES ASSUME \A u \in Predecessor(G, p[1]) : ~Op(u),
+                        NEW r \in OP, IsStrictSuffix(p, r)
+                 PROVE  FALSE
+        OBVIOUS
+    <2>r. /\ r \in SimplePath(G) /\ r \in Seq(G.node)
+          /\ (\A i \in 1..Len(r) : Op(r[i]))
+          /\ Len(r) \in Nat /\ Len(r) >= 1
+          /\ \A i \in 1..(Len(r) - 1) : <<r[i], r[i+1]>> \in G.edge
+        BY DG_SimplePathIsSeq DEF OpenPath, SimplePath, Path
+    <2>1. Len(p) < Len(r)
+          /\ \A i \in 1..Len(p) : p[i] = r[(Len(r) - Len(p)) + i]
+        BY <1>p, <2>r, DDG_StrictSuffixChar
+    <2> DEFINE k == Len(r) - Len(p)
+    <2>2. k \in 1..(Len(r) - 1) /\ k + 1 \in 1..Len(r) /\ k \in 1..Len(r)
+        BY <2>1, <1>p, <2>r
+    <2>3. p[1] = r[k + 1]
+        BY <2>1, <1>p
+    <2>4. r[k] \in G.node /\ <<r[k], r[k+1]>> \in G.edge
+        BY <2>2, <2>r, ElementOfSeq
+    <2>5. r[k] \in Predecessor(G, p[1])
+        BY <2>3, <2>4 DEF Predecessor
+    <2>6. Op(r[k])
+        BY <2>2, <2>r
+    <2>. QED
+        BY <2>5, <2>6
+\* (<=) suffix-maximal implies pred-closed
+<1>3. (\A r \in OP : ~ IsStrictSuffix(p, r))
+      => (\A u \in Predecessor(G, p[1]) : ~Op(u))
+    <2> SUFFICES ASSUME \A r \in OP : ~ IsStrictSuffix(p, r),
+                        NEW u \in Predecessor(G, p[1]), Op(u)
+                 PROVE  FALSE
+        OBVIOUS
+    <2>1. (<<u>> \o p) \in OP /\ Len(<<u>> \o p) = Len(p) + 1
+        BY DDG_PrependOpenPath
+    <2>2. u \in G.node
+        BY DEF Predecessor
+    <2>3. /\ p \in Seq(G.node) /\ <<u>> \in Seq(G.node)
+          /\ Reverse(p) \in Seq(G.node) /\ Reverse(<<u>>) = <<u>>
+        BY <1>p, <2>2, ReverseProperties, ReverseSingleton
+    <2>4. IsStrictSuffix(p, <<u>> \o p)
+        <3>1. Reverse(<<u>> \o p) = Reverse(p) \o <<u>>
+            BY <2>3, ReverseConcat
+        <3>2. IsPrefix(Reverse(p), Reverse(p) \o <<u>>)
+            BY <2>3, IsPrefixConcat
+        <3>3. IsSuffix(p, <<u>> \o p)
+            BY <3>1, <3>2 DEF IsSuffix
+        <3>4. p # (<<u>> \o p)
+            BY <2>1, <1>p
+        <3>. QED
+            BY <3>3, <3>4 DEF IsStrictSuffix
+    <2>. QED
+        BY <2>1, <2>4
+<1>. QED
+    BY <1>2, <1>3
 
 THEOREM DDG_RetryUnionIsDag ==
     ASSUME NEW G, IsDag(G), NEW t \in G.node, NEW u, u \notin G.node

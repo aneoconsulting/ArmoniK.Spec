@@ -388,7 +388,7 @@ CommittedObjectsEventualFinalization ==
  * LIVENESS
  * This specification refines the TaskProcessing specification.
  *)
-TP1 == INSTANCE TaskProcessing1
+TP1 == INSTANCE TaskProcessing1Theorems
 RefineTaskProcessing1 ==
     TP1!Spec
 
