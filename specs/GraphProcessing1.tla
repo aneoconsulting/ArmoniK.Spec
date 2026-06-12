@@ -400,20 +400,4 @@ OP1 == INSTANCE ObjectProcessing1
 RefineObjectProcessing1 ==
     OP1!Spec
 
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* THEOREMS                                                                  *)
-(*****************************************************************************)
-
-THEOREM Spec => []TypeOk
-THEOREM Spec => []DependencyGraphCompliant
-THEOREM Spec => []GraphStateIntegrity
-THEOREM Spec => []DependencyGraphFinite
-THEOREM Spec => FinalizedSourcesInvariant
-THEOREM Spec => TaskDataDependenciesInvariant
-THEOREM Spec => CommittedObjectsEventualFinalization
-THEOREM Spec => RefineTaskProcessing1
-THEOREM Spec => RefineObjectProcessing1
-
 ================================================================================
