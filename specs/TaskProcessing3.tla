@@ -385,16 +385,4 @@ TP2 ==
         WITH taskState <- taskStateBar
 RefineTaskProcessing2 == TP2!Spec
 
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* THEOREMS                                                                  *)
-(*****************************************************************************)
-
-THEOREM Spec => []TypeOk
-THEOREM Spec => []TaskStateIntegrity
-THEOREM Spec => PermanentStopping
-THEOREM Spec => RequestedStoppingEventualAcknowledgment
-THEOREM Spec => RefineTaskProcessing2
-
 ================================================================================

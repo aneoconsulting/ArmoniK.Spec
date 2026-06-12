@@ -414,16 +414,4 @@ DeletionQuiescence ==
 TP3 == INSTANCE TaskProcessing3
 RefineTaskProcessing3 == TP3!Spec
 
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* THEOREMS                                                                  *)
-(*****************************************************************************)
-
-THEOREM Spec => []TypeOk
-THEOREM Spec => []DeletionValidity
-THEOREM Spec => PermanentDeletion
-THEOREM Spec => DeletionQuiescence
-THEOREM Spec => RefineTaskProcessing3
-
 ================================================================================

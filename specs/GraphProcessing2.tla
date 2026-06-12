@@ -399,21 +399,4 @@ GP1Abs == INSTANCE GraphProcessing1
 RefineGraphProcessing1 ==
     GP1Abs!Spec
 
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* THEOREMS                                                                  *)
-(*****************************************************************************)
-
-THEOREM Spec => []TypeOk
-THEOREM Spec => []GraphStateIntegrity
-THEOREM Spec => []CompletedObjectHasDerivation
-THEOREM Spec => []DerivableObjectRegistered
-THEOREM Spec => AbortedObjectTaskDependenciesInvariant
-THEOREM Spec => OutputObjectsEventualFinalization
-THEOREM Spec => UnderivableObjectsEventualAbortion
-THEOREM Spec => RefineTaskProcessing2
-THEOREM Spec => RefineObjectProcessing2
-THEOREM Spec => RefineGraphProcessing1
-
 ================================================================================
