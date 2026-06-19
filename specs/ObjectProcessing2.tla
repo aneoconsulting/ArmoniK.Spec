@@ -182,7 +182,7 @@ objectStateBar ==
           [] objectState[o] = OBJECT_ABORTED   -> OBJECT_FINALIZED
           [] OTHER                             -> objectState[o]
     ]
-OP1 == INSTANCE ObjectProcessing1_proofs WITH objectState <- objectStateBar
+OP1 == INSTANCE ObjectProcessing1Theorems WITH objectState <- objectStateBar
 RefineObjectProcessing1 == OP1!Spec
 
 ================================================================================

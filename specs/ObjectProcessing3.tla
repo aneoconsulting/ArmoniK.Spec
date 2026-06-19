@@ -31,7 +31,7 @@ INSTANCE ObjectStates
 (**
  * Imports ObjectProcessing2 definitions.
  *)
-OP2 == INSTANCE ObjectProcessing2_proofs
+OP2 == INSTANCE ObjectProcessing2Theorems
 
 (**
  * TYPE INVARIANT
