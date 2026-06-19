@@ -260,8 +260,8 @@ THEOREM TP3_RefineTaskProcessing2 == Spec => RefineTaskProcessing2
     <2>3. ASSUME NEW T \in SUBSET Task, DiscardTasks(T)
           PROVE TP2!DiscardTasks(T)
         BY <2>3 DEF DiscardTasks, TP2!DiscardTasks, RegisteredTask,
-        StagedTask, PausedTask, TP2!RegisteredTask, TP2!StagedTask,
-        taskStateBar
+        StagedTask, PausedTask, StoppedTask, TP2!RegisteredTask,
+        TP2!StagedTask, taskStateBar
     <2>4. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task,
                SetTaskRetries(T, U)
           PROVE TP2!SetTaskRetries(T, U)
