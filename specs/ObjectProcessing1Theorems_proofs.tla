@@ -1,4 +1,4 @@
------------------------ MODULE ObjectProcessing1_proofs ------------------------
+------------------- MODULE ObjectProcessing1Theorems_proofs --------------------
 EXTENDS ObjectProcessing1, TLAPS
 
 USE DEF OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_FINALIZED

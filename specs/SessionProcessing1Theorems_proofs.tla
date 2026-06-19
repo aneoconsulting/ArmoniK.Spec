@@ -1,4 +1,4 @@
------------------------ MODULE SessionProcessing1_proofs -----------------------
+------------------- MODULE SessionProcessing1Theorems_proofs -------------------
 EXTENDS SessionProcessing1, TLAPS
 
 USE DEF SESSION_UNKNOWN, SESSION_OPENED, SESSION_PAUSED, SESSION_ABORTED,
