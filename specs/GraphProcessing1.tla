@@ -12,7 +12,7 @@
 (* together with its key safety and liveness properties.                     *)
 (*****************************************************************************)
 
-EXTENDS DenumerableSets, DDGraphs
+EXTENDS DenumerableSets, DDGraphs, TLAPS
 
 CONSTANTS
     Object,  \* Set of object identifiers (theoretically infinite)

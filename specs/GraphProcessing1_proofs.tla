@@ -2454,58 +2454,34 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
             BY <3>3, <3>6, FS_EmptySet, FS_CardinalityType
     <2>1. GraphSafetyInv /\ o \in RegisteredObject => \E n \in Nat : C <= n
         BY <2>0
-    <2>2. \A n \in Nat : F => (C <= n) ~> FALSE
-        <3>. DEFINE Q(k) == F => (C <= k) ~> FALSE
-        <3>1. Q(0)
-            <4>1. GraphSafetyInv /\ o \in RegisteredObject
-                  => C \in Nat /\ C >= 1
+    <2>. DEFINE R(k) == <>(C <= k)   S(k) == F => ~R(k)
+    <2>2. \A n \in Nat : S(n)
+        <3>1. S(0)
+            <4>. GraphSafetyInv /\ o \in RegisteredObject => ~(C <= 0)
                 BY <2>0
-            <4>2. (C \in Nat /\ C >= 1) => ~(C <= 0)
-                OBVIOUS
             <4>. QED
-                BY <4>1, <4>2, PTL
-        <3>2. \A n \in Nat : Q(n) => Q(n+1)
-            <4>. TAKE n \in Nat
-            <4>1. F => C = n + 1 ~> C < n + 1
-                BY LemCardinalityDescent
-            <4>2. C \in Nat => (C < n + 1 => C <= n)
-                OBVIOUS
-            <4>3. C \in Nat => (C <= n + 1 => C <= n \/ C = n + 1)
-                OBVIOUS
-            <4>. QED
-                BY <2>0, <4>1, <4>2, <4>3, PTL
-        <3>3. \A n \in Nat : Q(n)
-            <4>. HIDE DEF Q
-            <4>. QED
-                BY <3>1, <3>2, NatInduction, IsaM("blast")
-        <3>. QED
-            BY <3>3
-    <2>3. (\A n \in Nat :  (F => C <= n ~> FALSE))
-          => F => (\E n \in Nat : C <= n) ~> FALSE
-        <3>1. (\A n \in Nat :  (F => C <= n ~> FALSE))
-              => (F => \A n \in Nat : (C <= n ~> FALSE))
+                BY PTL
+        <3>2. \A n \in Nat : S(n) => S(n+1)
+            <4> TAKE n \in Nat
+            <4>2. C \in Nat => /\ C <= n+1 => (C <= n \/ C = n+1)
+                               /\ C < n+1 => C <= n
             OBVIOUS
-        <3>2. (\A n \in Nat : (C <= n ~> FALSE))
-              => ((\E n \in Nat : C <= n) ~> FALSE)
-            <4>1. (\A n \in Nat : (C <= n ~> FALSE))
-                  => \A n \in Nat : [](C <= n => <>FALSE)
-                <5>. SUFFICES ASSUME NEW n \in Nat, C <= n ~> FALSE
-                              PROVE [](C <= n => <>FALSE)
-                    OBVIOUS
-                <5>. QED
-                    BY PTL
-            <4>2. (\A n \in Nat : [](C <= n => <>FALSE))
-                  => [](\A n \in Nat : C <= n => <>FALSE)
-                OBVIOUS
-            <4>3. (\A n \in Nat : C <= n => <>FALSE)
-                  => (\E n \in Nat : C <= n) => <>FALSE
-                OBVIOUS
+            <4>3. F => (C = n+1 ~> C < n+1)
+                BY LemCardinalityDescent
             <4>. QED
-                BY <4>1, <4>2, <4>3, PTL
+                BY <2>0, <4>2, <4>3, PTL
+      <3>. HIDE DEF S
+      <3>. QED
+        BY <3>1, <3>2, NatInduction, Isa
+    <2>3. ASSUME NEW n \in Nat  PROVE F => ~(C <= n)
+        <3>. F => ~<>(C <= n)
+            BY <2>2
         <3>. QED
-            BY <3>1, <3>2
+            BY PTL
+    <2>4. F => ~(\E n \in Nat : C <= n)
+        BY <2>3
     <2>. QED
-        BY <2>1, <2>2, <2>3, PTL
+        BY <2>1, <2>4, PTL
 <1>. QED
     BY <1>1, <1>2, <1>3, GP1_GraphSafetyInv, PTL DEF Spec, OP1!Spec, RefineObjectProcessing1
 
