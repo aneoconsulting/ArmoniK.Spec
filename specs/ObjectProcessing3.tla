@@ -43,7 +43,7 @@ objectStateBar ==
 (**
  * Imports ObjectProcessing2 definitions.
  *)
-OP2 == INSTANCE ObjectProcessing2_proofs WITH objectState <- objectStateBar
+OP2 == INSTANCE ObjectProcessing2Theorems WITH objectState <- objectStateBar
 
 (**
  * TYPE INVARIANT
