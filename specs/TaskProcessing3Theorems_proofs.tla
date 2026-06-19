@@ -1,4 +1,4 @@
------------------------- MODULE TaskProcessing3_proofs -------------------------
+-------------------- MODULE TaskProcessing3Theorems_proofs ---------------------
 EXTENDS TaskProcessing3, FiniteSetTheorems, TLAPS
 
 USE DEF TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED,

@@ -1,5 +1,6 @@
------------------------- MODULE TaskProcessing2_proofs -------------------------
-EXTENDS TaskProcessing2, DenumerableSetTheorems, FiniteSetTheorems, NaturalsInduction, TLAPS
+-------------------- MODULE TaskProcessing2Theorems_proofs ---------------------
+EXTENDS TaskProcessing2, DenumerableSetTheorems, FiniteSetTheorems,
+        NaturalsInduction, TLAPS
 
 USE DEF TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED, TASK_PROCESSED,
 TASK_SUCCEEDED, TASK_FAILED, TASK_DISCARDED, TASK_FINALIZED, TASK_COMPLETED,

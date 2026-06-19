@@ -1,4 +1,4 @@
------------------------- MODULE GraphProcessing1_proofs ------------------------
+-------------------- MODULE GraphProcessing1Theorems_proofs --------------------
 EXTENDS GraphProcessing1, DDGraphTheorems, FiniteSetTheorems, NaturalsInduction,
         SequenceTheorems, TLAPS
 
