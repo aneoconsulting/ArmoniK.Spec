@@ -1051,29 +1051,32 @@ THEOREM GP1_TaskDataDependenciesInvariant == Spec => TaskDataDependenciesInvaria
  *)
 THEOREM GP1_CommittedObjectsEventualFinalization == Spec => CommittedObjectsEventualFinalization
 <1>. SUFFICES ASSUME NEW o \in Object
-              PROVE Spec => (/\ o \notin UnknownObject
+              PROVE Spec => (/\ o \in RegisteredObject
                              /\ Predecessor(deps, o) \subseteq (ProcessedTask \union FinalizedTask)
                              /\ [][~ \E G \in DirectedGraphOf(Task \union Object) :
                                        (\E t \in G.node : o \in Successor(G, t)) /\ RegisterGraph(G)]_vars
                              ~> o \in FinalizedObject)
-    BY DEF CommittedObjectsEventualFinalization
+    BY DEF CommittedObjectsEventualFinalization, NoNewPredecessor
 <1>. DEFINE NoReg == ~ \E G \in DirectedGraphOf(Task \union Object) :
                           (\E t \in G.node : o \in Successor(G, t)) /\ RegisterGraph(G)
-            P == /\ o \notin UnknownObject
+            P == /\ o \in RegisteredObject
                  /\ Predecessor(deps, o) \subseteq (ProcessedTask \union FinalizedTask)
-<1>1. TypeOk /\ P /\ [Next /\ NoReg]_vars => P'
-    <2>. SUFFICES ASSUME TypeOk, o \notin UnknownObject,
+<1>1. TypeOk /\ P /\ [Next /\ NoReg]_vars => P' \/ (o \in FinalizedObject)'
+    <2>. SUFFICES ASSUME TypeOk, o \in RegisteredObject,
                          Predecessor(deps, o) \subseteq (ProcessedTask \union FinalizedTask),
-                         [Next /\ NoReg]_vars
-                  PROVE /\ (o \notin UnknownObject)'
+                         [Next /\ NoReg]_vars,
+                         ~ ((o \in FinalizedObject)')
+                  PROVE /\ (o \in RegisteredObject)'
                         /\ (Predecessor(deps, o) \subseteq (ProcessedTask \union FinalizedTask))'
         OBVIOUS
     <2>0. IsDirectedGraph(deps)
         BY DEF TypeOk, DirectedGraphOf
-    <2>1. (o \notin UnknownObject)'
+    <2>1. (o \in RegisteredObject)'
+        \* o is REGISTERED and does not become FINALIZED, so it stays REGISTERED:
+        \* only FinalizeObjects moves it out of RegisteredObject (to FinalizedObject).
         BY DEF Next, vars, RegisterGraph, TargetObjects, UntargetObjects, FinalizeObjects,
         StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks, FinalizeTasks,
-        Terminating, UnknownObject
+        Terminating, RegisteredObject, FinalizedObject, UnknownObject
     <2>2. Predecessor(deps', o) = Predecessor(deps, o)
         \* Only a RegisterGraph step can change o's producers, and the guard forbids
         \* one that produces o; every other step leaves deps untouched.
@@ -1153,13 +1156,13 @@ THEOREM GP1_CommittedObjectsEventualFinalization == Spec => CommittedObjectsEven
     BY DEF FinalizeObjects, vars, FinalizedObject, RegisteredObject
 <1>3. TypeOk /\ GraphStateIntegrity /\ P /\ ~(o \in FinalizedObject)
       => ENABLED <<FinalizeObjects({o})>>_vars
-    <2>. SUFFICES ASSUME TypeOk, GraphStateIntegrity, o \notin UnknownObject,
+    <2>. SUFFICES ASSUME TypeOk, GraphStateIntegrity, o \in RegisteredObject,
                          Predecessor(deps, o) \subseteq (ProcessedTask \union FinalizedTask),
                          ~(o \in FinalizedObject)
                   PROVE ENABLED <<FinalizeObjects({o})>>_vars
         OBVIOUS
     <2>1. o \in RegisteredObject
-        BY DEF TypeOk, OP1State, UnknownObject, RegisteredObject, FinalizedObject
+        OBVIOUS
     <2>2. CASE o \in Source(deps)
         BY <2>1, <2>2, ExpandENABLED DEF FinalizeObjects, vars, RegisteredObject, Source
     <2>3. CASE o \notin Source(deps)

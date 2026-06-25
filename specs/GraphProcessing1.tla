@@ -371,17 +371,23 @@ TaskDataDependenciesInvariant ==
                 /\ Successor(deps, t) = Successor(deps', t) ]_deps)
 
 (**
+ * No future RegisterGraph step gives o a new producing task (i.e. no future
+ * RegisterGraph registers a graph in which some task produces o).
+ *)
+NoNewPredecessor(o) ==
+    [][~ \E G \in DirectedGraphOf(Task \union Object) :
+          (\E t \in G.node : o \in Successor(G, t)) /\ RegisterGraph(G)]_vars
+
+(**
  * LIVENESS
- * A known object whose producing tasks have all been processed or finalized is
- * eventually finalized, provided it never gains a new producer (i.e. no future
- * RegisterGraph step registers a graph in which some task produces it).
+ * A registered object whose producing tasks have all been processed or
+ * finalized is eventually finalized, provided it never gains a new producer.
  *)
 CommittedObjectsEventualFinalization ==
     \A o \in Object :
-        /\ o \notin UnknownObject
+        /\ o \in RegisteredObject
         /\ Predecessor(deps, o) \subseteq (ProcessedTask \union FinalizedTask)
-        /\ [][~ \E G \in DirectedGraphOf(Task \union Object) :
-                  (\E t \in G.node : o \in Successor(G, t)) /\ RegisterGraph(G)]_vars
+        /\ NoNewPredecessor(o)
         ~> o \in FinalizedObject
 
 (**
