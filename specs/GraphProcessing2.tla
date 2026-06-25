@@ -93,6 +93,10 @@ RegisterGraph(G) ==
             /\ Successor(G, t) \intersect AbortedObject = {}
             /\ Successor(G, t) \intersect Source(deps) \intersect (CompletedObject \union AbortedObject) = {}
         /\ IsDDGraph(newDeps, Task, Object)
+        /\ \A t \in Task :
+            nextAttemptOf[t] /= NULL /\ nextAttemptOf[t] \in G.node =>
+                /\ Predecessor(G, nextAttemptOf[t]) = Predecessor(deps, t)
+                /\ Successor(G, nextAttemptOf[t]) = Successor(deps, t)
         /\ deps' = newDeps
         /\ objectState' =
             [o \in Object |->
@@ -209,6 +213,15 @@ AbortTasks(T) ==
 RetryTasks(T) ==
     /\ T /= {} /\ T \subseteq FailedTask
     /\ T \intersect UnretriedTask = {}
+    \* A failed task may only move to RETRIED once each of its still-registered
+    \* output objects retains another non-terminal producer (in practice, the
+    \* registered retry clone). This makes RETRIED an honest GP1 finalization
+    \* (RetryTasks refines GP1!FinalizeTasks). It cannot deadlock: the number of
+    \* retries is bounded (MaxRetries), so the last clone in the chain eventually
+    \* finalizes the outputs, which in turn unblocks retrying every earlier clone.
+    /\ \A o \in UNION {Successor(deps, t): t \in T} :
+        o \in RegisteredObject
+            => \E u \in (Predecessor(deps, o) \ T) : u \notin UNION {CompletedTask, AbortedTask, RetriedTask}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_RETRIED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets >>
@@ -295,10 +308,33 @@ Spec ==
 (* SAFETY AND LIVENESS PROPERTIES                                            *)
 (*****************************************************************************)
 
-GraphStateIntegrity ==
+(**
+ * SAFETY -- GRAPH / STATE INTEGRITY
+ *
+ * GraphStateIntegrity ties the structure of the dependency graph to the
+ * lifecycle states of tasks and objects. For proof, it is split into four
+ * independently inductive conjuncts (each is preserved by every action given
+ * the others as context); GraphStateIntegrity is exactly their conjunction.
+ *
+ *   - GSI_Nodes       : graph-node membership mirrors "not unknown" -- a task
+ *                       (resp. object) is a node of deps iff it is not in the
+ *                       unknown state.
+ *   - GSI_TaskPreds   : a task that has progressed past registration (staged,
+ *                       assigned, or in any post-processing state) has all of
+ *                       its input objects completed.
+ *   - GSI_ObjPreds    : a completed non-source object has a succeeded/completed
+ *                       producer; an aborted non-source object has a
+ *                       discarded/aborted producer and only terminal producers.
+ *   - GSI_ObjConverse : the converse closure -- a non-source graph object all
+ *                       of whose producers are completed (resp. aborted) is
+ *                       itself completed (resp. aborted).
+ *)
+GSI_Nodes ==
     /\ \A t \in Task : t \in deps.node <=> t \notin UnknownTask
     /\ \A o \in Object : o \in deps.node <=> o \notin UnknownObject
-    /\ \A t \in Task :
+
+GSI_TaskPreds ==
+    \A t \in Task :
         (\/ t \in StagedTask
          \/ t \in AssignedTask
          \/ t \in SucceededTask
@@ -306,18 +342,29 @@ GraphStateIntegrity ==
          \/ t \in CompletedTask
          \/ t \in RetriedTask)
         => Predecessor(deps, t) \subseteq CompletedObject
-    /\ \A o \in Object :
-        /\ ~ o \in Source(deps) =>
+
+GSI_ObjPreds ==
+    \A o \in Object :
+        ~ o \in Source(deps) =>
             /\ o \in CompletedObject => Predecessor(deps, o) \intersect (SucceededTask \union CompletedTask) /= {}
             /\ o \in AbortedObject => /\ Predecessor(deps, o) \intersect (DiscardedTask \union AbortedTask) /= {}
                                       /\ Predecessor(deps, o) \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
-        /\ ~ o \in Source(deps) /\ o \in deps.node =>
+
+GSI_ObjConverse ==
+    \A o \in Object :
+        ~ o \in Source(deps) /\ o \in deps.node =>
             /\ Predecessor(deps, o) \subseteq CompletedTask => o \in CompletedObject
             /\ Predecessor(deps, o) \subseteq AbortedTask   => o \in AbortedObject
 
+GraphStateIntegrity ==
+    /\ GSI_Nodes
+    /\ GSI_TaskPreds
+    /\ GSI_ObjPreds
+    /\ GSI_ObjConverse
+
 RetryDataDependenciesValidity ==
     \A t \in Task :
-        nextAttemptOf[t] /= NULL =>
+        nextAttemptOf[t] /= NULL /\ nextAttemptOf[t] \notin UnknownTask =>
             /\ Predecessor(deps, t) = Predecessor(deps, nextAttemptOf[t])
             /\ Successor(deps, t) = Successor(deps, nextAttemptOf[t])
 
@@ -340,28 +387,100 @@ AbortedObjectTaskDependenciesInvariant ==
         []( o \in AbortedObject
             => [][Predecessor(deps, o) = Predecessor(deps', o)]_deps )
 
+(**
+ * No future RegisterGraph step gives o a new producing task. This is the
+ * "frozen producer set" hypothesis under which a committed object is bound to
+ * finalize: its producers can no longer change except to advance towards a
+ * terminal outcome. (GraphProcessing1 carries the same definition.)
+ *)
+NoNewPredecessor(o) ==
+    [][~ \E G \in DirectedGraphOf(Task \union Object) :
+          (\E t \in G.node : o \in Successor(G, t)) /\ RegisterGraph(G)]_vars
+
+(**
+ * LIVENESS
+ * A registered non-source object whose producers are all committed is
+ * eventually finalized, provided it gains no new producer:
+ *   - producers all succeeded/completed     ~> the object completes;
+ *   - some producer discarded, rest terminal ~> the object aborts.
+ * The two premises are mutually exclusive (DiscardedTask is disjoint from
+ * SucceededTask \cup CompletedTask). This mirrors GraphProcessing1's
+ * CommittedObjectsEventualFinalization, refined onto GP2's split outcomes;
+ * FailedTask is intentionally excluded, as a failed producer is not yet
+ * committed (under NoNewPredecessor it has no terminal exit).
+ *)
 CommittedObjectsEventualFinalization ==
-    LET TerminatedTask == UNION {CompletedTask, AbortedTask, RetriedTask} IN
     \A o \in Object :
-        /\ Predecessor(deps, o) \subseteq SucceededTask \union TerminatedTask
+        /\ ( /\ o \in RegisteredObject
+             /\ Predecessor(deps, o) /= {}
+             /\ Predecessor(deps, o) \subseteq (SucceededTask \union CompletedTask)
+             /\ NoNewPredecessor(o) )
            ~> o \in CompletedObject
-        /\ Predecessor(deps, o) \subseteq DiscardedTask \union TerminatedTask
+        /\ ( /\ o \in RegisteredObject
+             /\ \E t \in Predecessor(deps, o) : t \in DiscardedTask
+             /\ Predecessor(deps, o) \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
+             /\ NoNewPredecessor(o) )
            ~> o \in AbortedObject
 
+(**
+ * LIVENESS
+ * A registered object that stays underivable is eventually aborted; and a
+ * registered underivable object eventually either aborts or regains a
+ * derivation (e.g. through a registered retry clone). Both are restricted to
+ * RegisteredObject -- an unknown object is underivable yet can never be
+ * aborted, and a completed object always has a derivation.
+ *)
 UnderivableObjectsEventualAbortion ==
     \A o \in Object :
-        /\ GP2Derivation(o) = {} /\ [][~ \E G \in DirectedGraphOf(Task \union Object): o \in G.node /\ RegisterGraph(G)]_vars
+        /\ (o \in RegisteredObject /\ [](GP2Derivation(o) = {}))
            ~> o \in AbortedObject
-        /\ GP2Derivation(o) = {}
+        /\ (o \in RegisteredObject /\ GP2Derivation(o) = {})
            ~> o \in AbortedObject \/ GP2Derivation(o) /= {}
 
-TP2 == INSTANCE TaskProcessing2
-RefineTaskProcessing2 ==
-    TP2!Spec
+(**
+ * The viable induced ancestor subgraph of o: the part of the dependency graph
+ * upstream of o through nodes that have not reached a terminal failure state.
+ * o's derivability is determined entirely by this subgraph and the sources of
+ * deps.
+ *)
+ViableAncestry(o) == AncestorSubGraph(deps, o, IsViableNode)
 
-OP2 == INSTANCE ObjectProcessing2
-RefineObjectProcessing2 ==
-    OP2!Spec
+(**
+ * LIVENESS (quiescence)
+ * Underivability is permanent once no further user submission revives o's
+ * upstream: if every RegisterGraph step leaves o's viable induced ancestor
+ * subgraph unchanged, then once o is underivable it stays underivable. This
+ * bridges the user-controllable RegisterGraph action to the permanent-
+ * underivability hypothesis [](GP2Derivation(o) = {}) used above.
+ *)
+UnderivableQuiescence ==
+    \A o \in Object :
+        ( [][ (\E G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G))
+                => UNCHANGED ViableAncestry(o) ]_vars )
+        => [](GP2Derivation(o) = {} => [](GP2Derivation(o) = {}))
+
+(*****************************************************************************)
+(* REFINEMENT MAPPINGS                                                       *)
+(*                                                                           *)
+(* GP2 refines three abstractions:                                           *)
+(*   - TaskProcessing2  : the task-only projection (identity on taskState /  *)
+(*     nextAttemptOf);                                                       *)
+(*   - ObjectProcessing2: the object-only projection (identity on            *)
+(*     objectState / objectTargets);                                         *)
+(*   - GraphProcessing1 : the coarser graph spec, collapsing the detailed    *)
+(*     task/object outcomes onto GP1's PROCESSED / FINALIZED states via the  *)
+(*     *Bar mappings below.                                                  *)
+(*                                                                           *)
+(* The instances target the *Theorems modules so GP2's proofs can both state *)
+(* the refinement (TP2!Spec, ...) and retrieve the invariants already proved *)
+(* there instead of re-proving them.                                         *)
+(*****************************************************************************)
+
+TP2 == INSTANCE TaskProcessing2Theorems
+RefineTaskProcessing2 == TP2!Spec
+
+OP2 == INSTANCE ObjectProcessing2Theorems
+RefineObjectProcessing2 == OP2!Spec
 
 taskStateBar ==
     [t \in Task |->
@@ -379,11 +498,9 @@ objectStateBar ==
           [] objectState[o] = OBJECT_ABORTED   -> OBJECT_FINALIZED
           [] OTHER                             -> objectState[o]
     ]
-GP1 == INSTANCE GraphProcessing1
+GP1 == INSTANCE GraphProcessing1Theorems
     WITH taskState <- taskStateBar,
          objectState <- objectStateBar
-
-RefineGraphProcessing1 ==
-    GP1!Spec
+RefineGraphProcessing1 == GP1!Spec
 
 ================================================================================
