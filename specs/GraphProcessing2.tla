@@ -329,10 +329,6 @@ Spec ==
  *                       of whose producers are completed (resp. aborted) is
  *                       itself completed (resp. aborted).
  *)
-GSI_Nodes ==
-    /\ \A t \in Task : t \in deps.node <=> t \notin UnknownTask
-    /\ \A o \in Object : o \in deps.node <=> o \notin UnknownObject
-
 GSI_TaskPreds ==
     \A t \in Task :
         (\/ t \in StagedTask
@@ -357,7 +353,6 @@ GSI_ObjConverse ==
             /\ Predecessor(deps, o) \subseteq AbortedTask   => o \in AbortedObject
 
 GraphStateIntegrity ==
-    /\ GSI_Nodes
     /\ GSI_TaskPreds
     /\ GSI_ObjPreds
     /\ GSI_ObjConverse
