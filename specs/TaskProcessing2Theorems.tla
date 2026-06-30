@@ -292,7 +292,8 @@ THEOREM TP2_PermanentFinalization == Spec => PermanentFinalization
 
 LEMMA LemFailedTaskEventualRetry ==
     ASSUME NEW t \in Task
-    PROVE []TaskSafetyInv /\ [][Next]_vars /\ Fairness
+    PROVE []TaskSafetyInv /\ [][Next]_vars
+          /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
           => t \in UnretriedTask ~> t \in FailedTask /\ nextAttemptOf[t] \in UnknownTask
 
 THEOREM TP2_FailedTaskEventualRetry == Spec => FailedTaskEventualRetry

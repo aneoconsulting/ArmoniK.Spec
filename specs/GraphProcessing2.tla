@@ -48,7 +48,8 @@ IsViableNode(n) ==
  * produce.
  *)
 IsOpenNode(n) ==
-    ~ (n \in FinalizedTask \/ n \in FinalizedObject)
+    ~ (n \in CompletedTask \/ n \in AbortedTask \/ n \in RetriedTask
+       \/ n \in CompletedObject \/ n \in AbortedObject)
 
 (**
  * Returns TRUE iff task 't' is upstream of an unfinalized target object 'o'
@@ -272,7 +273,7 @@ Fairness ==
         /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
         /\ WF_vars(StageTasks({t}))
         /\ WF_vars(Predecessor(deps, t) \intersect AbortedObject /= {} /\ DiscardTasks({t}))
-        /\ SF_vars(
+        /\ WF_vars(
             /\ \E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)
             /\ AssignTasks({t}))
         /\ SF_vars(ProcessTasks({t}))

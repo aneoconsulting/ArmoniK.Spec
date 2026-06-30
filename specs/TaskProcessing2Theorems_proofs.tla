@@ -1949,7 +1949,8 @@ THEOREM TP2_PermanentFinalization == Spec => PermanentFinalization
 
 LEMMA LemFailedTaskEventualRetry ==
     ASSUME NEW t \in Task
-    PROVE []TaskSafetyInv /\ [][Next]_vars /\ Fairness
+    PROVE []TaskSafetyInv /\ [][Next]_vars
+          /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
           => t \in UnretriedTask ~> t \in FailedTask /\ nextAttemptOf[t] \in UnknownTask
 <1>1. TaskSafetyInv /\ t \in UnretriedTask /\ [Next]_vars
       => (t \in UnretriedTask)' \/ (t \in FailedTask /\ nextAttemptOf[t] \in UnknownTask)'
@@ -2000,10 +2001,8 @@ LEMMA LemFailedTaskEventualRetry ==
             BY <3>1, <3>2
 <1>3. <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars => (t \in FailedTask /\ nextAttemptOf[t] \in UnknownTask)'
     BY DEF SetTaskRetries, vars, UnknownTask, Bijection, Surjection, UnretriedTask, FailedTask
-<1>4. Fairness => WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
-    BY Isa DEF Fairness
 <1>. QED
-    BY <1>1, <1>2, <1>3, <1>4, PTL DEF Spec
+    BY <1>1, <1>2, <1>3, PTL
 
 THEOREM TP2_FailedTaskEventualRetry == Spec => FailedTaskEventualRetry
 <1>. SUFFICES ASSUME NEW t \in Task
@@ -2082,8 +2081,10 @@ THEOREM TP2_FailedTaskEventualRetry == Spec => FailedTaskEventualRetry
         BY Isa DEF Fairness
     <2>. QED
         BY <2>1, <2>2, <2>3, <2>4, TP2_TaskSafetyInv, PTL DEF Spec
+<1>3. Spec => WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
+    BY Isa DEF Spec, Fairness
 <1>. QED
-    BY <1>1, <1>2, LemFailedTaskEventualRetry, TP2_TaskSafetyInv, PTL DEF Spec
+    BY <1>1, <1>2, <1>3, LemFailedTaskEventualRetry, TP2_TaskSafetyInv, PTL DEF Spec
 
 (**
  * Helper lemma: if Cardinality(TaskAttempts(t)) is bounded by n+1 but not
@@ -2258,8 +2259,10 @@ LEMMA LemFailedTaskEventualFinalization ==
         BY Isa DEF Fairness
     <2>. QED
         BY <2>1, <2>2, <2>3, <2>4, PTL DEF Spec
+<1>3. Fairness => WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
+    BY Isa DEF Fairness
 <1>. QED
-    BY <1>1, <1>2, LemFailedTaskEventualRetry, PTL
+    BY <1>1, <1>2, <1>3, LemFailedTaskEventualRetry, PTL
 
 THEOREM TP2_EventualFinalization == Spec => EventualFinalization
 <1>. SUFFICES ASSUME NEW t \in Task
