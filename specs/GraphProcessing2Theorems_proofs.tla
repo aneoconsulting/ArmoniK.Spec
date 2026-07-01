@@ -3568,6 +3568,168 @@ THEOREM GP2_RefineGP1Fragment ==
     BY <1>1, <1>2, <1>3, Isa
 
 (*****************************************************************************)
+(* REFINEMENT OF ObjectProcessing2 -- FAIRNESS                               *)
+(*                                                                           *)
+(* Conditional on GP2 refining GP1 (Spec => RefineGraphProcessing1), GP2      *)
+(* refines OP2. The two OP2 object-fairness conjuncts WF(o targeted /\        *)
+(* CompleteObjects) / WF(o targeted /\ AbortObjects) are both enabled exactly *)
+(* when o is a registered target (OP2!RegisteredObject = GP1!RegisteredObject  *)
+(* under the Bar). A registered target cannot persist forever -- its open-     *)
+(* ancestor cardinality would descend below every bound -- which is precisely *)
+(* GP1!LemTargetedRegisteredImpossible. Its GP1-side hypotheses (GraphSafetyInv*)
+(* / Next / Fairness) come from the assumed GP1 refinement; the open-ancestor  *)
+(* measure from GP1!OpenUpstreamEventuallyClosed, which GP2 supplies via        *)
+(* LemGP1OpenUpstream. The whole object-finalization engine is thus lifted     *)
+(* verbatim from GraphProcessing1.                                            *)
+(*****************************************************************************)
+
+(* The Bar's CASE maps COMPLETED/ABORTED -> FINALIZED and keeps REGISTERED, so   *)
+(* o \in RegisteredObject (GP2's own objectState) implies o \in GP1!RegisteredObject *)
+(* (objectStateBar) in every state -- a pure state validity, boxed here by        *)
+(* necessitation in a CLEAN context (no Init/Next, no temporal hyps in scope, so  *)
+(* PTL coalesces the instance operators without pollution).                       *)
+LEMMA LemRegBarBox ==
+    ASSUME NEW o \in Object
+    PROVE  [](o \in objectTargets /\ o \in RegisteredObject
+              => o \in objectTargets /\ o \in GP1!RegisteredObject)
+<1>1. o \in objectTargets /\ o \in RegisteredObject
+      => o \in objectTargets /\ o \in GP1!RegisteredObject
+    BY DEF RegisteredObject, GP1!RegisteredObject, objectStateBar,
+        OBJECT_REGISTERED, GP1!OBJECT_REGISTERED, OBJECT_COMPLETED, OBJECT_ABORTED
+<1>. QED
+    BY <1>1, PTL
+
+(* WEAK FAIRNESS OF THE OBJECT-FINALIZATION ACTIONS, reduced -- in a CLEAN        *)
+(* context, away from the refinement proof's pile of temporal hypotheses -- to    *)
+(* GraphProcessing1's targeted-registered contradiction. The negation of WF       *)
+(* leaves the action enabled forever; the (inline) ENABLED equivalence keeps the  *)
+(* target registered forever; the Bar rewrite (LemRegBarBox) maps that into       *)
+(* GP1!RegisteredObject; and GP1!LemTargetedRegisteredImpossible closes it, since *)
+(* the finite open-ancestor subgraph cannot descend below every bound. This is    *)
+(* exactly GP1_RefineObjectProcessing1's reduction, lifted under the Bar. The     *)
+(* ENABLED is necessitated INLINE here (as in GP1) and succeeds because no        *)
+(* temporal fact is in scope to pollute the coalescing -- the wall that blocks    *)
+(* doing this directly inside the refinement proof.                               *)
+LEMMA LemWFCompleteFromMeasure ==
+    ASSUME NEW o \in Object
+    PROVE  LET S == GP1!AncestorSubGraph(deps, o, GP1!IsOpenNode).node
+           IN /\ []GP1!GraphSafetyInv /\ [][GP1!Next]_(GP1!vars) /\ []GP1!Fairness
+              /\ []([](o \in objectTargets) => <>[][S' \subseteq S]_S)
+              => WF_(OP2!vars)(o \in objectTargets /\ OP2!CompleteObjects({o}))
+<1>. DEFINE S == GP1!AncestorSubGraph(deps, o, GP1!IsOpenNode).node
+<1>a. SUFFICES /\ []GP1!GraphSafetyInv /\ [][GP1!Next]_(GP1!vars) /\ []GP1!Fairness
+               /\ [](o \in objectTargets /\ o \in RegisteredObject)
+               /\ [][S' \subseteq S]_S
+               => FALSE
+    <2>1. []([](o \in objectTargets) => <>[][S' \subseteq S]_S)
+          => [](o \in objectTargets) => <>[][S' \subseteq S]_S
+        BY PTL
+    <2>2. ENABLED <<o \in objectTargets /\ OP2!CompleteObjects({o})>>_(OP2!vars)
+          => o \in objectTargets /\ o \in RegisteredObject
+        <3>. SUFFICES ASSUME ENABLED <<o \in objectTargets /\ OP2!CompleteObjects({o})>>_(OP2!vars)
+                      PROVE  o \in objectTargets /\ o \in RegisteredObject
+            OBVIOUS
+        <3>1. o \in objectTargets /\ o \in OP2!RegisteredObject
+            BY ExpandENABLED DEF OP2!CompleteObjects, OP2!vars, OP2!RegisteredObject
+        <3>. QED
+            BY <3>1 DEF OP2!RegisteredObject, RegisteredObject
+    <2>. QED
+        BY <2>1, <2>2, PTL
+<1>b. SUFFICES /\ []GP1!GraphSafetyInv /\ [][GP1!Next]_(GP1!vars) /\ []GP1!Fairness
+               /\ [](o \in objectTargets /\ o \in GP1!RegisteredObject)
+               /\ [][S' \subseteq S]_S
+               => FALSE
+    <2>rb. [](o \in objectTargets /\ o \in RegisteredObject
+              => o \in objectTargets /\ o \in GP1!RegisteredObject)
+        BY LemRegBarBox
+    <2>. QED
+        BY <2>rb, PTL
+<1>. QED
+    BY GP1!LemTargetedRegisteredImpossible, GP1SameAssumptions, Isa
+
+LEMMA LemWFAbortFromMeasure ==
+    ASSUME NEW o \in Object
+    PROVE  LET S == GP1!AncestorSubGraph(deps, o, GP1!IsOpenNode).node
+           IN /\ []GP1!GraphSafetyInv /\ [][GP1!Next]_(GP1!vars) /\ []GP1!Fairness
+              /\ []([](o \in objectTargets) => <>[][S' \subseteq S]_S)
+              => WF_(OP2!vars)(o \in objectTargets /\ OP2!AbortObjects({o}))
+<1>. DEFINE S == GP1!AncestorSubGraph(deps, o, GP1!IsOpenNode).node
+<1>a. SUFFICES /\ []GP1!GraphSafetyInv /\ [][GP1!Next]_(GP1!vars) /\ []GP1!Fairness
+               /\ [](o \in objectTargets /\ o \in RegisteredObject)
+               /\ [][S' \subseteq S]_S
+               => FALSE
+    <2>1. []([](o \in objectTargets) => <>[][S' \subseteq S]_S)
+          => [](o \in objectTargets) => <>[][S' \subseteq S]_S
+        BY PTL
+    <2>2. ENABLED <<o \in objectTargets /\ OP2!AbortObjects({o})>>_(OP2!vars)
+          => o \in objectTargets /\ o \in RegisteredObject
+        <3>. SUFFICES ASSUME ENABLED <<o \in objectTargets /\ OP2!AbortObjects({o})>>_(OP2!vars)
+                      PROVE  o \in objectTargets /\ o \in RegisteredObject
+            OBVIOUS
+        <3>1. o \in objectTargets /\ o \in OP2!RegisteredObject
+            BY ExpandENABLED DEF OP2!AbortObjects, OP2!vars, OP2!RegisteredObject
+        <3>. QED
+            BY <3>1 DEF OP2!RegisteredObject, RegisteredObject
+    <2>. QED
+        BY <2>1, <2>2, PTL
+<1>b. SUFFICES /\ []GP1!GraphSafetyInv /\ [][GP1!Next]_(GP1!vars) /\ []GP1!Fairness
+               /\ [](o \in objectTargets /\ o \in GP1!RegisteredObject)
+               /\ [][S' \subseteq S]_S
+               => FALSE
+    <2>rb. [](o \in objectTargets /\ o \in RegisteredObject
+              => o \in objectTargets /\ o \in GP1!RegisteredObject)
+        BY LemRegBarBox
+    <2>. QED
+        BY <2>rb, PTL
+<1>. QED
+    BY GP1!LemTargetedRegisteredImpossible, GP1SameAssumptions, Isa
+
+THEOREM GP2_RefineObjectProcessing2 ==
+    (Spec => RefineGraphProcessing1) => (Spec => RefineObjectProcessing2)
+<1>. SUFFICES ASSUME Spec => RefineGraphProcessing1, Spec
+              PROVE  OP2!Spec
+    BY DEF RefineObjectProcessing2
+<1>g. GP1!Spec
+    BY DEF RefineGraphProcessing1
+<1>1. OP2!Init /\ [][OP2!Next]_(OP2!vars)
+    BY LemRefineOP2InitNext DEF Spec
+<1>2. OP2!Fairness
+    <2>tok. []TypeOk
+        BY GP2_TypeOk
+    <2>gsi. []GP1!GraphSafetyInv
+        BY <1>g, GP1!GP1_GraphSafetyInv, GP1SameAssumptions, Isa
+    <2>nxt. [][GP1!Next]_(GP1!vars)
+        BY <1>g DEF GP1!Spec
+    <2>fair. []GP1!Fairness
+        <3>1. GP1!Fairness
+            BY <1>g DEF GP1!Spec
+        <3>. QED
+            BY <3>1, GP1!LemFairnessStable, GP1SameAssumptions, Isa
+    <2>ouec. GP1!OpenUpstreamEventuallyClosed
+        BY <2>tok, LemGP1OpenUpstream DEF Spec
+    <2>. SUFFICES ASSUME NEW o \in Object
+                  PROVE  /\ WF_(OP2!vars)(o \in objectTargets /\ OP2!CompleteObjects({o}))
+                         /\ WF_(OP2!vars)(o \in objectTargets /\ OP2!AbortObjects({o}))
+        BY DEF OP2!Fairness
+    <2>. DEFINE S == GP1!AncestorSubGraph(deps, o, GP1!IsOpenNode).node
+    \* the open-ancestor measure for o, instantiated from GP1!OUEC
+    <2>ouo. []([](o \in objectTargets) => <>[][S' \subseteq S]_S)
+        BY <2>ouec DEF GP1!OpenUpstreamEventuallyClosed
+    \* Each WF conjunct is discharged by its clean module-level reduction lemma:
+    \* supply the four GP1-side temporal hypotheses (from the assumed GP1
+    \* refinement plus the open-ancestor measure) and the lemma delivers WF.
+    \* The ENABLED necessitation that would otherwise have to run here -- amid
+    \* these temporal facts -- is done inside the lemma, in a pristine context.
+    <2>1. WF_(OP2!vars)(o \in objectTargets /\ OP2!CompleteObjects({o}))
+        BY <2>gsi, <2>nxt, <2>fair, <2>ouo, LemWFCompleteFromMeasure
+    <2>2. WF_(OP2!vars)(o \in objectTargets /\ OP2!AbortObjects({o}))
+        BY <2>gsi, <2>nxt, <2>fair, <2>ouo, LemWFAbortFromMeasure
+    <2>. QED
+        BY <2>1, <2>2
+<1>. QED
+    BY <1>1, <1>2 DEF OP2!Spec
+
+(*****************************************************************************)
 (* LIVENESS PROPERTIES (reformulated -- see GraphProcessing2)                *)
 (*                                                                           *)
 (* CommittedObjectsEventualFinalization: a registered non-source object      *)

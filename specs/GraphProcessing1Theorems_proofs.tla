@@ -2320,6 +2320,129 @@ LEMMA LemCardinalityDescent ==
 <1>. QED
     BY <1>1, <1>2, <1>3, PTL
 
+LEMMA LemFairnessStable == Fairness <=> []Fairness
+<1>1. (\A o \in Object : WF_vars(FinalizeObjects({o})))
+       <=> [](\A o \in Object : WF_vars(FinalizeObjects({o})))
+    <2>1. [](\A o \in Object : WF_vars(FinalizeObjects({o})))
+          <=> \A o \in Object : [](WF_vars(FinalizeObjects({o})))
+        OBVIOUS
+    <2>2. ASSUME NEW o \in Object
+          PROVE [](WF_vars(FinalizeObjects({o})))
+                <=> WF_vars(FinalizeObjects({o}))
+        BY PTL
+    <2>. QED
+        BY <2>1, <2>2, Isa
+<1>. DEFINE TaskFairness(t) ==
+                /\ WF_vars(StageTasks({t}))
+                /\ WF_vars(
+                    /\ \E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)
+                    /\ AssignTasks({t}))
+                /\ SF_vars(ProcessTasks({t}))
+                /\ WF_vars(FinalizeTasks({t}))
+<1>2. (\A t \in Task : TaskFairness(t))
+       <=> [](\A t \in Task : TaskFairness(t))
+    <2>1. [](\A t \in Task : TaskFairness(t))
+          <=> \A t \in Task : []TaskFairness(t)
+        OBVIOUS
+    <2>2. ASSUME NEW t \in Task
+          PROVE []TaskFairness(t)
+                <=> TaskFairness(t)
+        BY PTL
+    <2>. QED
+        BY <2>1, <2>2, Isa
+<1>. QED
+    BY <1>1, <1>2, PTL DEF Fairness
+
+LEMMA LemTargetedRegisteredImpossible ==
+    ASSUME NEW o \in Object
+    PROVE LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+          IN /\ []GraphSafetyInv /\ [][Next]_vars /\ []Fairness
+             /\ [](o \in objectTargets /\ o \in RegisteredObject)
+             /\ [][S' \subseteq S]_S
+             => FALSE
+<1>. DEFINE S == AncestorSubGraph(deps, o, IsOpenNode).node
+            C == Cardinality(S)
+            F == /\ []GraphSafetyInv
+                 /\ [][Next]_vars
+                 /\ []Fairness
+                 /\ [](o \in objectTargets /\ o \in RegisteredObject)
+                 /\ [][S' \subseteq S]_S
+<1>. SUFFICES F => FALSE
+    OBVIOUS
+<1>0. GraphSafetyInv /\ o \in RegisteredObject
+      => IsFiniteSet(S) /\ C \in Nat /\ C >= 1
+    <2>. SUFFICES ASSUME GraphSafetyInv, o \in RegisteredObject
+                  PROVE  IsFiniteSet(S) /\ C \in Nat /\ C >= 1
+        OBVIOUS
+    <2>1. IsDirectedGraph(deps)
+        BY DEF GraphSafetyInv, DependencyGraphCompliant, IsDDGraph, IsDag
+    <2>2. S \subseteq deps.node
+        BY Zenon, <2>1, DDG_AncestorSubGraphBasic DEF DirectedSubgraph
+    <2>3. IsFiniteSet(S)
+        BY <2>2, FS_Subset DEF GraphSafetyInv, DependencyGraphFinite
+    <2>4. o \in deps.node
+        BY DEF GraphSafetyInv, GraphStateIntegrity, RegisteredObject, UnknownObject
+    <2>5. IsOpenNode(o)
+        BY DEF IsOpenNode, RegisteredObject, FinalizedObject, FinalizedTask
+    <2>6. o \in S
+        BY Isa, <2>4, <2>5, DDG_AncestorSubGraphEmpty
+    <2>. QED
+        BY <2>3, <2>6, FS_EmptySet, FS_CardinalityType
+<1>1. GraphSafetyInv /\ o \in RegisteredObject => \E n \in Nat : C <= n
+    BY <1>0
+<1>2. \A n \in Nat : F => (C <= n) ~> FALSE
+    <2>. DEFINE Q(k) == F => (C <= k) ~> FALSE
+    <2>1. Q(0)
+        <3>1. GraphSafetyInv /\ o \in RegisteredObject
+              => C \in Nat /\ C >= 1
+            BY <1>0
+        <3>2. (C \in Nat /\ C >= 1) => ~(C <= 0)
+            OBVIOUS
+        <3>. QED
+            BY <3>1, <3>2, PTL
+    <2>2. \A n \in Nat : Q(n) => Q(n+1)
+        <3>. TAKE n \in Nat
+        <3>1. F => C = n + 1 ~> C < n + 1
+            BY LemCardinalityDescent
+        <3>2. C \in Nat => (C < n + 1 => C <= n)
+            OBVIOUS
+        <3>3. C \in Nat => (C <= n + 1 => C <= n \/ C = n + 1)
+            OBVIOUS
+        <3>. QED
+            BY <1>0, <3>1, <3>2, <3>3, PTL
+    <2>3. \A n \in Nat : Q(n)
+        <3>. HIDE DEF Q
+        <3>. QED
+            BY <2>1, <2>2, NatInduction, IsaM("blast")
+    <2>. QED
+        BY <2>3
+<1>3. (\A n \in Nat :  (F => C <= n ~> FALSE))
+      => F => (\E n \in Nat : C <= n) ~> FALSE
+    <2>1. (\A n \in Nat :  (F => C <= n ~> FALSE))
+          => (F => \A n \in Nat : (C <= n ~> FALSE))
+        OBVIOUS
+    <2>2. (\A n \in Nat : (C <= n ~> FALSE))
+          => ((\E n \in Nat : C <= n) ~> FALSE)
+        <3>1. (\A n \in Nat : (C <= n ~> FALSE))
+              => \A n \in Nat : [](C <= n => <>FALSE)
+            <4>. SUFFICES ASSUME NEW n \in Nat, C <= n ~> FALSE
+                          PROVE [](C <= n => <>FALSE)
+                OBVIOUS
+            <4>. QED
+                BY PTL
+        <3>2. (\A n \in Nat : [](C <= n => <>FALSE))
+              => [](\A n \in Nat : C <= n => <>FALSE)
+            OBVIOUS
+        <3>3. (\A n \in Nat : C <= n => <>FALSE)
+              => (\E n \in Nat : C <= n) => <>FALSE
+            OBVIOUS
+        <3>. QED
+            BY <3>1, <3>2, <3>3, PTL
+    <2>. QED
+        BY <2>1, <2>2
+<1>. QED
+    BY <1>1, <1>2, <1>3, PTL
+
 THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
 <1>. USE DEF OP1!OBJECT_UNKNOWN, OP1!OBJECT_REGISTERED, OP1!OBJECT_FINALIZED,
      TP1!TASK_UNKNOWN, TP1!TASK_REGISTERED, TP1!TASK_STAGED, TP1!TASK_ASSIGNED,
@@ -2384,37 +2507,7 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
                         => WF_OP1!vars(o \in objectTargets /\ OP1!FinalizeObjects({o}))
         BY Isa DEF OP1!Fairness, OpenUpstreamEventuallyClosed
     <2>0. Fairness <=> []Fairness
-        <3>1. (\A o \in Object : WF_vars(FinalizeObjects({o})))
-               <=> [](\A o \in Object : WF_vars(FinalizeObjects({o})))
-            <4>1. [](\A o \in Object : WF_vars(FinalizeObjects({o})))
-                  <=> \A o \in Object : [](WF_vars(FinalizeObjects({o})))
-                OBVIOUS
-            <4>2. ASSUME NEW o \in Object
-                  PROVE [](WF_vars(FinalizeObjects({o})))
-                        <=> WF_vars(FinalizeObjects({o}))
-                BY PTL
-            <4>. QED
-                BY <4>1, <4>2, Isa
-        <3>. DEFINE TaskFairness(t) ==
-                        /\ WF_vars(StageTasks({t}))
-                        /\ WF_vars(
-                            /\ \E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)
-                            /\ AssignTasks({t}))
-                        /\ SF_vars(ProcessTasks({t}))
-                        /\ WF_vars(FinalizeTasks({t}))
-        <3>2. (\A t \in Task : TaskFairness(t))
-               <=> [](\A t \in Task : TaskFairness(t))
-            <4>1. [](\A t \in Task : TaskFairness(t))
-                  <=> \A t \in Task : []TaskFairness(t)
-                OBVIOUS
-            <4>2. ASSUME NEW t \in Task
-                  PROVE []TaskFairness(t)
-                        <=> TaskFairness(t)
-                BY PTL
-            <4>. QED
-                BY <4>1, <4>2, Isa
-        <3>. QED
-            BY <3>1, <3>2, PTL DEF Fairness
+        BY LemFairnessStable
     <2>. DEFINE S == AG(o).node
                 C == Cardinality(S)
     <2>. SUFFICES /\ []GraphSafetyInv
@@ -2422,6 +2515,7 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
                   /\ []Fairness
                   /\ [](o \in objectTargets /\ o \in RegisteredObject)
                   /\ [][S' \subseteq S]_S
+
                   => FALSE
         <3>1. []([](o \in objectTargets) => <>[][S' \subseteq S]_S)
               => [](o \in objectTargets) => <>[][S' \subseteq S]_S
@@ -2431,84 +2525,11 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
             BY ExpandENABLED DEF OP1!FinalizeObjects, OP1!vars, RegisteredObject, OP1!RegisteredObject
         <3>. QED
             BY <3>1, <3>2, <2>0, PTL DEF OpenUpstreamEventuallyClosed
-    <2>. DEFINE F == /\ []GraphSafetyInv
-                     /\ [][Next]_vars 
-                     /\ []Fairness
-                     /\ [](o \in objectTargets /\ o \in RegisteredObject)
-                     /\ [][S' \subseteq S]_S
-    <2>0. GraphSafetyInv /\ o \in RegisteredObject
-          => IsFiniteSet(S) /\ C \in Nat /\ C >= 1
-        <3>. SUFFICES ASSUME GraphSafetyInv, o \in RegisteredObject
-                      PROVE  IsFiniteSet(S) /\ C \in Nat /\ C >= 1
-            OBVIOUS
-        <3>1. IsDirectedGraph(deps)
-            BY DEF GraphSafetyInv, DependencyGraphCompliant, IsDDGraph, IsDag
-        <3>2. S \subseteq deps.node
-            BY Zenon, <3>1, DDG_AncestorSubGraphBasic DEF DirectedSubgraph
-        <3>3. IsFiniteSet(S)
-            BY <3>2, FS_Subset DEF GraphSafetyInv, DependencyGraphFinite
-        <3>4. o \in deps.node
-            BY DEF GraphSafetyInv, GraphStateIntegrity, RegisteredObject, UnknownObject
-        <3>5. IsOpenNode(o)
-            BY DEF IsOpenNode, RegisteredObject, FinalizedObject, FinalizedTask
-        <3>6. o \in S
-            BY Isa, <3>4, <3>5, DDG_AncestorSubGraphEmpty
-        <3>. QED
-            BY <3>3, <3>6, FS_EmptySet, FS_CardinalityType
-    <2>1. GraphSafetyInv /\ o \in RegisteredObject => \E n \in Nat : C <= n
-        BY <2>0
-    <2>2. \A n \in Nat : F => (C <= n) ~> FALSE
-        <3>. DEFINE Q(k) == F => (C <= k) ~> FALSE
-        <3>1. Q(0)
-            <4>1. GraphSafetyInv /\ o \in RegisteredObject
-                  => C \in Nat /\ C >= 1
-                BY <2>0
-            <4>2. (C \in Nat /\ C >= 1) => ~(C <= 0)
-                OBVIOUS
-            <4>. QED
-                BY <4>1, <4>2, PTL
-        <3>2. \A n \in Nat : Q(n) => Q(n+1)
-            <4>. TAKE n \in Nat
-            <4>1. F => C = n + 1 ~> C < n + 1
-                BY LemCardinalityDescent
-            <4>2. C \in Nat => (C < n + 1 => C <= n)
-                OBVIOUS
-            <4>3. C \in Nat => (C <= n + 1 => C <= n \/ C = n + 1)
-                OBVIOUS
-            <4>. QED
-                BY <2>0, <4>1, <4>2, <4>3, PTL
-        <3>3. \A n \in Nat : Q(n)
-            <4>. HIDE DEF Q
-            <4>. QED
-                BY <3>1, <3>2, NatInduction, IsaM("blast")
-        <3>. QED
-            BY <3>3
-    <2>3. (\A n \in Nat :  (F => C <= n ~> FALSE))
-          => F => (\E n \in Nat : C <= n) ~> FALSE
-        <3>1. (\A n \in Nat :  (F => C <= n ~> FALSE))
-              => (F => \A n \in Nat : (C <= n ~> FALSE))
-            OBVIOUS
-        <3>2. (\A n \in Nat : (C <= n ~> FALSE))
-              => ((\E n \in Nat : C <= n) ~> FALSE)
-            <4>1. (\A n \in Nat : (C <= n ~> FALSE))
-                  => \A n \in Nat : [](C <= n => <>FALSE)
-                <5>. SUFFICES ASSUME NEW n \in Nat, C <= n ~> FALSE
-                              PROVE [](C <= n => <>FALSE)
-                    OBVIOUS
-                <5>. QED
-                    BY PTL
-            <4>2. (\A n \in Nat : [](C <= n => <>FALSE))
-                  => [](\A n \in Nat : C <= n => <>FALSE)
-                OBVIOUS
-            <4>3. (\A n \in Nat : C <= n => <>FALSE)
-                  => (\E n \in Nat : C <= n) => <>FALSE
-                OBVIOUS
-            <4>. QED
-                BY <4>1, <4>2, <4>3, PTL
-        <3>. QED
-            BY <3>1, <3>2
+    \* The core contradiction (a target cannot stay registered forever while its
+    \* open-ancestor subgraph never grows) is now the standalone lemma
+    \* LemTargetedRegisteredImpossible, reusable -- under the Bar -- by GP2.
     <2>. QED
-        BY <2>1, <2>2, <2>3, PTL
+        BY LemTargetedRegisteredImpossible
 <1>. QED
     BY <1>1, <1>2, <1>3, GP1_GraphSafetyInv, PTL DEF Spec, OP1!Spec, RefineObjectProcessing1
 

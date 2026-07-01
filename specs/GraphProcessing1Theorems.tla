@@ -158,5 +158,23 @@ LEMMA LemCardinalityDescent ==
              /\ [][S' \subseteq S]_S
              => C = n + 1 ~> C < n + 1
 
+(* Fairness is a conjunction of WF/SF formulas, each of which is stable          *)
+(* ([]WF_v(A) <=> WF_v(A)); so the whole conjunction is its own []. Reused by GP2.*)
+LEMMA LemFairnessStable == Fairness <=> []Fairness
+
+(* A target cannot stay registered forever while its open-ancestor subgraph     *)
+(* never grows: the finite cardinality C = Cardinality(S) would have to descend  *)
+(* below every bound (LemCardinalityDescent), which is impossible. This is the   *)
+(* engine of the object-finalization fairness refinement; it is reused verbatim  *)
+(* (under the Bar) by GraphProcessing2 to discharge WF(OP2!CompleteObjects) /    *)
+(* WF(OP2!AbortObjects), whose enabled-forever negation reduces to exactly this. *)
+LEMMA LemTargetedRegisteredImpossible ==
+    ASSUME NEW o \in Object
+    PROVE LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+          IN /\ []GraphSafetyInv /\ [][Next]_vars /\ []Fairness
+             /\ [](o \in objectTargets /\ o \in RegisteredObject)
+             /\ [][S' \subseteq S]_S
+             => FALSE
+
 THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
 ================================================================================
