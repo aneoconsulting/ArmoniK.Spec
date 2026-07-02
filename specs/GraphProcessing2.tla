@@ -287,7 +287,6 @@ Fairness ==
         /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
         /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
         /\ WF_vars(StageTasks({t}))
-        /\ WF_vars(StageTasks({nextAttemptOf[t]}))
         /\ WF_vars(Predecessor(deps, t) \intersect AbortedObject /= {} /\ DiscardTasks({t}))
         /\ WF_vars(
             /\ \E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)
@@ -299,16 +298,18 @@ Fairness ==
 
 (**
  * LIVENESS CONSTRAINT
- * For every object that is currently a target, the open upstream eventually
- * becomes closed under additions, i.e. its node set never gains another node
- * (it may still shrink). Combined with the fairness conditions above,
- * this ensures every targeted object is eventually finalized, and thus
- * establishes the refinement of ObjectProcessing1.
+ * For every object, the open upstream eventually becomes closed under
+ * additions, i.e. its node set never gains another node (it may still
+ * shrink). Combined with the fairness conditions above, this ensures every
+ * targeted object is eventually finalized (the ObjectProcessing1 refinement)
+ * and, being unconditional, makes the object-finalization fairness of
+ * GraphProcessing1 refinable as well: after an object's upstream quiesces,
+ * its producers' retry chains can no longer be revived indefinitely.
  *)
 OpenUpstreamEventuallyClosed ==
     LET G(o) == AncestorSubGraph(deps, o, IsOpenNode)
     IN \A o \in Object :
-        [](o \in objectTargets => <>[][(G(o).node)' \subseteq G(o).node]_vars)
+        <>[][(G(o).node)' \subseteq G(o).node]_vars
 
 (**
  * Full system specification.
