@@ -195,18 +195,28 @@ ProcessTasks(T) ==
 
 CompleteTasks(T) ==
     /\ T /= {} /\ T \subseteq SucceededTask
+    \* As in AbortTasks below, the retained producer must not be FAILED: were a
+    \* succeeded task allowed to complete on the strength of a failed
+    \* co-producer, its still-registered outputs could lose their only
+    \* SUCCEEDED producer and never finalize, stranding the failed co-producer.
+    \* The exclusion lets WF(CompleteObjects) finalize the outputs first.
     /\ \A o \in UNION {Successor(deps, t): t \in T} :
         o \in RegisteredObject
-            => \E t \in (Predecessor(deps, o) \ T) : t \notin UNION {CompletedTask, AbortedTask, RetriedTask}
+            => \E t \in (Predecessor(deps, o) \ T) : t \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_COMPLETED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets >>
 
 AbortTasks(T) ==
     /\ T /= {} /\ T \subseteq DiscardedTask
+    \* The retained producer must not be FAILED: a failed producer cannot abort
+    \* its outputs itself (they wait for its retry chain), so counting it as the
+    \* remaining producer would let the abortion strand the failed task forever
+    \* (its own finalization needs a non-terminal co-producer). Excluding FAILED
+    \* witnesses forces the failed co-producer to be retried first.
     /\ \A o \in UNION {Successor(deps, t): t \in T} :
         o \in RegisteredObject
-            => \E t \in (Predecessor(deps, o) \ T) : t \notin UNION {CompletedTask, AbortedTask, RetriedTask}
+            => \E t \in (Predecessor(deps, o) \ T) : t \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_ABORTED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets >>
@@ -214,6 +224,11 @@ AbortTasks(T) ==
 RetryTasks(T) ==
     /\ T /= {} /\ T \subseteq FailedTask
     /\ T \intersect UnretriedTask = {}
+    \* A failed task may only move to RETRIED once its retry attempt is known to
+    \* the system (registered), so the terminal RETRIED state always certifies a
+    \* registered clone. While the task stays FAILED (non-terminal), none of its
+    \* output objects can be aborted, which keeps the clone registrable.
+    /\ \A t \in T: nextAttemptOf[t] \notin UnknownTask
     \* A failed task may only move to RETRIED once each of its still-registered
     \* output objects retains another non-terminal producer (in practice, the
     \* registered retry clone). This makes RETRIED an honest GP1 finalization

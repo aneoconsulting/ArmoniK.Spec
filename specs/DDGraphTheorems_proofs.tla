@@ -1273,7 +1273,7 @@ THEOREM DDG_RetryUnionIsDag ==
 
 THEOREM DDG_RetrySubGraphProperties ==
     ASSUME NEW T, NEW O, NEW G, IsDDGraph(G, T, O),
-           NEW Op(_), NEW t \in T \cap G.node, NEW u, u \notin (T \cup O)
+           NEW t \in T \cap G.node, NEW u, u \notin (T \cup O)
     PROVE  LET R == RetrySubGraph(G, t, u) IN
            /\ IsDDGraph(R, {u}, O)
            /\ IsWeaklyConnected(R)

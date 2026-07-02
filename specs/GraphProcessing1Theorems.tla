@@ -155,7 +155,10 @@ LEMMA LemRootProgress ==
     ASSUME NEW o \in Object, NEW r \in Object \union Task, NEW n \in Nat
     PROVE LET S == AncestorSubGraph(deps, o, IsOpenNode).node
               C == Cardinality(S)
-              IsMRoot(o, r) == \E p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r
+              \* Parameters are named oo/rr (not o/r): SANY, unlike tlapm,
+              \* rejects LET-operator parameters shadowing ASSUME-level NEWs,
+              \* and TLC must parse this module (instantiated by GP2's mc).
+              IsMRoot(oo, rr) == \E p \in MaximalOpenPath(deps, oo, IsOpenNode) : p[1] = rr
           IN /\ []GraphSafetyInv /\ [][Next]_vars /\ []Fairness
              /\ [](o \in objectTargets /\ o \in RegisteredObject)
              /\ [][S' \subseteq S]_S
