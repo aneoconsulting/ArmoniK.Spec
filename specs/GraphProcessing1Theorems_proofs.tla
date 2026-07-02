@@ -1572,6 +1572,39 @@ THEOREM GP1_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
 <1>. QED
     BY <1>1, <1>2, <1>3, GP1_GraphSafetyInv, PTL DEF Spec, TP1!Spec, RefineTaskProcessing1
 
+(* Lift TP1's EventualFinalization through the task-processing refinement: the  *)
+(* TP1 instance is the identity on taskState, so ProcessedTask / FinalizedTask   *)
+(* coincide with their TP1 counterparts, and the TP1 hypotheses come from Spec   *)
+(* (GP1_GraphSafetyInv + LemRefineTaskProcessing1Next / Fairness). Same shape as  *)
+(* the EventualDeallocation/Finalization lift inside                             *)
+(* GP1_CommittedObjectsEventualFinalization.                                     *)
+THEOREM GP1_TaskEventualFinalization ==
+    ASSUME NEW s \in Task
+    PROVE  Spec => (s \in ProcessedTask ~> s \in FinalizedTask)
+<1>. USE DEF TP1!TASK_UNKNOWN, TP1!TASK_REGISTERED, TP1!TASK_STAGED, TP1!TASK_ASSIGNED,
+     TP1!TASK_PROCESSED, TP1!TASK_FINALIZED
+\* --- P-machinery, established in a clean (non-temporal) context ---
+<1>0. /\ s \in ProcessedTask <=> s \in TP1!ProcessedTask
+      /\ s \in FinalizedTask <=> s \in TP1!FinalizedTask
+    BY DEF ProcessedTask, FinalizedTask, TP1!ProcessedTask, TP1!FinalizedTask
+<1>. DEFINE P(t) == t \in TP1!ProcessedTask ~> t \in TP1!FinalizedTask
+<1>3. TP1!EventualFinalization => \A t \in Task : P(t)
+    BY Isa DEF TP1!EventualFinalization
+<1>. HIDE DEF P
+<1>4. TP1!EventualFinalization => P(s)
+    BY <1>3
+\* --- TP1 hypotheses from Spec ---
+<1>1. Spec => []TP1!TypeOk /\ [][TP1!Next]_TP1!vars /\ TP1!Fairness
+    <2>1. GraphSafetyInv => TP1!TypeOk
+        BY DEF GraphSafetyInv, TypeOk, TP1State, TP1!TypeOk, TP1!TP1State
+    <2>. QED
+        BY <2>1, GP1_GraphSafetyInv, LemRefineTaskProcessing1Next,
+            LemRefineTaskProcessing1Fairness, PTL DEF Spec
+<1>2. Spec => TP1!EventualFinalization
+    BY <1>1, SameAssumptions, TP1!LemEventualFinalization, Isa DEF TP1!EventualFinalization
+<1>. QED
+    BY <1>0, <1>2, <1>4, PTL DEF P
+
 (**
  * IsOpenNode evaluated in the successor state. Module-level so that tlapm can
  * instantiate the second-order Op(_) parameter of the DDGraphTheorems lemmas

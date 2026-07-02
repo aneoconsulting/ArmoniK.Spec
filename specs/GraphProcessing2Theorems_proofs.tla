@@ -3503,6 +3503,331 @@ LEMMA LemGP1FairFinalizeTasks ==
 (* WF(GP1!FinalizeObjects) is unattainable, per the discard-churn argument above.*)
 (*****************************************************************************)
 
+(*****************************************************************************)
+(* REFINEMENT OF TASKPROCESSING2 (TP2) -- FAIRNESS                            *)
+(*                                                                           *)
+(* TP2 is the identity task instance (no Bar): TP2!vars = <<taskState,        *)
+(* nextAttemptOf>>, and every TP2 action is the corresponding GP2 action      *)
+(* projected onto those two variables (GP2 carries extra graph guards and     *)
+(* UNCHANGED graph variables). Each TP2!Fairness conjunct is refined from the *)
+(* matching GP2 fairness conjunct by the standard WF/SF mapping rule:          *)
+(*   (a) concrete step => abstract step   (<<GP2 A>>_vars => <<TP2!A>>_TP2!vars)*)
+(*   (b) abstract enabled => concrete enabled                                  *)
+(* boxed and assembled by PTL. SetTaskRetries is already done                  *)
+(* (LemGP1FairSetTaskRetries).                                                 *)
+(*****************************************************************************)
+
+(* SF(ProcessTasks) refines SF(TP2!ProcessTasks). GP2!ProcessTasks is exactly  *)
+(* TP2!ProcessTasks plus UNCHANGED graph variables, so both directions are      *)
+(* immediate: ENABLED of the abstract inverts to taskState[t] = ASSIGNED, which *)
+(* the concrete SUCCEEDED branch witnesses.                                     *)
+LEMMA LemFairTP2ProcessTasks ==
+    ASSUME NEW t \in Task
+    PROVE  []TypeOk /\ SF_vars(ProcessTasks({t}))
+           => SF_(TP2!vars)(TP2!ProcessTasks({t}))
+<1>1. TypeOk /\ ENABLED <<TP2!ProcessTasks({t})>>_(TP2!vars)
+      => ENABLED <<ProcessTasks({t})>>_vars
+    <2>1. TypeOk /\ ENABLED <<TP2!ProcessTasks({t})>>_(TP2!vars) => taskState[t] = TASK_ASSIGNED
+        <3>. SUFFICES ASSUME TypeOk, ENABLED <<TP2!ProcessTasks({t})>>_(TP2!vars)
+                      PROVE  taskState[t] = TASK_ASSIGNED
+            OBVIOUS
+        <3>1. t \in TP2!AssignedTask
+            <4>. SUFFICES ASSUME NEW taskStatep, NEW nextAttemptOfp,
+                                 {t} \subseteq TP2!AssignedTask
+                          PROVE  t \in TP2!AssignedTask
+                BY ExpandENABLED DEF TP2!ProcessTasks, TP2!vars
+            <4>. QED
+                OBVIOUS
+        <3>. QED
+            BY <3>1 DEF TP2!AssignedTask, TP2!TASK_ASSIGNED
+    <2>2. taskState[t] = TASK_ASSIGNED => ENABLED <<ProcessTasks({t})>>_vars
+        <3>. SUFFICES ASSUME taskState[t] = TASK_ASSIGNED
+                      PROVE  ENABLED <<ProcessTasks({t})>>_vars
+            OBVIOUS
+        <3>. DEFINE tsp == [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
+        <3>. SUFFICES \E depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp :
+                        /\ {t} # {}
+                        /\ {t} \subseteq AssignedTask
+                        /\ \/ taskStatep = [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
+                           \/ taskStatep = [x \in Task |-> IF x \in {t} THEN TASK_DISCARDED ELSE taskState[x]]
+                           \/ /\ \A x \in {t} : Cardinality(PreviousAttempts(x)) < MaxRetries
+                              /\ taskStatep = [x \in Task |-> IF x \in {t} THEN TASK_FAILED ELSE taskState[x]]
+                        /\ nextAttemptOfp = nextAttemptOf /\ depsp = deps
+                        /\ objectStatep = objectState /\ objectTargetsp = objectTargets
+                        /\ <<depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp>>
+                           /= <<deps, objectState, objectTargets, taskState, nextAttemptOf>>
+            BY ExpandENABLED, Zenon DEF ProcessTasks, vars
+        <3>. WITNESS deps, objectState, objectTargets, tsp, nextAttemptOf
+        <3>. QED
+            BY DEF AssignedTask
+    <2>. QED
+        BY <2>1, <2>2
+<1>2. <<ProcessTasks({t})>>_vars => <<TP2!ProcessTasks({t})>>_(TP2!vars)
+    <2>. SUFFICES ASSUME ProcessTasks({t}), vars' /= vars
+                  PROVE  TP2!ProcessTasks({t}) /\ TP2!vars' /= TP2!vars
+        BY DEF vars
+    <2>1. taskState[t] = TASK_ASSIGNED
+        BY DEF AssignedTask, ProcessTasks
+    <2>2. TP2!ProcessTasks({t})
+        BY TP2Bridges DEF ProcessTasks, TP2!ProcessTasks, TP2!AssignedTask, AssignedTask,
+            TP2!TASK_ASSIGNED, TASK_ASSIGNED, TP2!TASK_SUCCEEDED, TASK_SUCCEEDED,
+            TP2!TASK_DISCARDED, TASK_DISCARDED, TP2!TASK_FAILED, TASK_FAILED
+    <2>3. TP2!vars' /= TP2!vars
+        BY <2>1 DEF ProcessTasks, TP2!vars, TASK_ASSIGNED
+    <2>. QED
+        BY <2>2, <2>3
+<1>. QED
+    <2>1. [](TypeOk /\ ENABLED <<TP2!ProcessTasks({t})>>_(TP2!vars)
+             => ENABLED <<ProcessTasks({t})>>_vars)
+        BY <1>1, PTL
+    <2>2. [](<<ProcessTasks({t})>>_vars => <<TP2!ProcessTasks({t})>>_(TP2!vars))
+        BY <1>2, PTL
+    <2>. QED
+        BY <2>1, <2>2, PTL
+
+(* WF(StageTasks) refines WF(TP2!StageTasks) for the retry clone nextAttemptOf[t]. *)
+(* GP2!StageTasks carries a "all inputs COMPLETED" guard absent from TP2!StageTasks *)
+(* (which only asks the task be REGISTERED). The gap is closed by invariants: a     *)
+(* registered clone n = nextAttemptOf[t] has n # NULL, so RetryDataDependenciesValidity *)
+(* gives Predecessor(deps,n) = Predecessor(deps,t), and TP2!TaskAttemptsIntegrity     *)
+(* forces t \in FailedTask \cup RetriedTask, whence GSI_TaskPreds yields              *)
+(* Predecessor(deps,t) \subseteq CompletedObject. So the abstract enabling (n         *)
+(* registered) does enable the concrete action.                                       *)
+LEMMA LemFairTP2StageTasks ==
+    ASSUME NEW t \in Task
+    PROVE  /\ []TypeOk /\ []GSI_TaskPreds /\ []RetryDataDependenciesValidity
+           /\ []TP2!TaskAttemptsIntegrity /\ WF_vars(StageTasks({nextAttemptOf[t]}))
+           => WF_(TP2!vars)(TP2!StageTasks({nextAttemptOf[t]}))
+\* --- (1) enabledness lift ---
+<1>1. TypeOk /\ GSI_TaskPreds /\ RetryDataDependenciesValidity /\ TP2!TaskAttemptsIntegrity
+      /\ ENABLED <<TP2!StageTasks({nextAttemptOf[t]})>>_(TP2!vars)
+      => ENABLED <<StageTasks({nextAttemptOf[t]})>>_vars
+    <2>1. ENABLED <<TP2!StageTasks({nextAttemptOf[t]})>>_(TP2!vars)
+          => nextAttemptOf[t] \in RegisteredTask
+        <3>. SUFFICES ASSUME NEW taskStatep, NEW nextAttemptOfp,
+                             {nextAttemptOf[t]} \subseteq TP2!RegisteredTask
+                      PROVE  nextAttemptOf[t] \in RegisteredTask
+            BY ExpandENABLED DEF TP2!StageTasks, TP2!vars
+        <3>. QED
+            BY DEF TP2!RegisteredTask, RegisteredTask, TP2!TASK_REGISTERED
+    <2>2. TypeOk /\ GSI_TaskPreds /\ RetryDataDependenciesValidity /\ TP2!TaskAttemptsIntegrity
+          /\ nextAttemptOf[t] \in RegisteredTask
+          => Predecessor(deps, nextAttemptOf[t]) \subseteq CompletedObject
+        <3>. SUFFICES ASSUME TypeOk, GSI_TaskPreds, RetryDataDependenciesValidity,
+                             TP2!TaskAttemptsIntegrity, nextAttemptOf[t] \in RegisteredTask
+                      PROVE  Predecessor(deps, nextAttemptOf[t]) \subseteq CompletedObject
+            OBVIOUS
+        <3>1. nextAttemptOf[t] /= NULL
+            BY GP2Assumptions DEF GP2Assumptions, RegisteredTask
+        <3>2. nextAttemptOf[t] \notin UnknownTask
+            BY DEF RegisteredTask, UnknownTask, TASK_REGISTERED, TASK_UNKNOWN
+        <3>3. Predecessor(deps, t) = Predecessor(deps, nextAttemptOf[t])
+            BY <3>1, <3>2 DEF RetryDataDependenciesValidity
+        <3>4. t \in FailedTask \union RetriedTask
+            BY <3>1 DEF TP2!TaskAttemptsIntegrity, TP2!FailedTask, FailedTask,
+                TP2!RetriedTask, RetriedTask, TP2!TASK_FAILED, TASK_FAILED,
+                TP2!TASK_RETRIED, TASK_RETRIED
+        <3>5. Predecessor(deps, t) \subseteq CompletedObject
+            BY <3>4 DEF GSI_TaskPreds
+        <3>. QED
+            BY <3>3, <3>5
+    <2>3. TypeOk /\ nextAttemptOf[t] \in RegisteredTask
+          /\ Predecessor(deps, nextAttemptOf[t]) \subseteq CompletedObject
+          => ENABLED <<StageTasks({nextAttemptOf[t]})>>_vars
+        <3>. SUFFICES ASSUME TypeOk, nextAttemptOf[t] \in RegisteredTask,
+                             Predecessor(deps, nextAttemptOf[t]) \subseteq CompletedObject
+                      PROVE  ENABLED <<StageTasks({nextAttemptOf[t]})>>_vars
+            OBVIOUS
+        <3>1. UNION {Predecessor(deps, x) : x \in {nextAttemptOf[t]}} \subseteq CompletedObject
+            <4>1. UNION {Predecessor(deps, x) : x \in {nextAttemptOf[t]}} = Predecessor(deps, nextAttemptOf[t])
+                BY Isa
+            <4>. QED
+                BY <4>1
+        <3>. QED
+            BY <3>1, ExpandENABLED DEF StageTasks, vars, RegisteredTask
+    <2>. QED
+        BY <2>1, <2>2, <2>3
+\* --- (2) step refinement ---
+<1>2. <<StageTasks({nextAttemptOf[t]})>>_vars => <<TP2!StageTasks({nextAttemptOf[t]})>>_(TP2!vars)
+    <2>. SUFFICES ASSUME StageTasks({nextAttemptOf[t]}), vars' /= vars
+                  PROVE  TP2!StageTasks({nextAttemptOf[t]}) /\ TP2!vars' /= TP2!vars
+        BY DEF vars
+    <2>1. TP2!StageTasks({nextAttemptOf[t]})
+        BY DEF StageTasks, TP2!StageTasks, TP2!RegisteredTask, RegisteredTask,
+            TP2!TASK_REGISTERED, TASK_REGISTERED, TP2!TASK_STAGED, TASK_STAGED
+    <2>2. TP2!vars' /= TP2!vars
+        BY DEF StageTasks, TP2!vars, RegisteredTask, TASK_REGISTERED, TASK_STAGED
+    <2>. QED
+        BY <2>1, <2>2
+\* --- QED ---
+<1>. QED
+    <2>1. [](TypeOk /\ GSI_TaskPreds /\ RetryDataDependenciesValidity /\ TP2!TaskAttemptsIntegrity
+             /\ ENABLED <<TP2!StageTasks({nextAttemptOf[t]})>>_(TP2!vars)
+             => ENABLED <<StageTasks({nextAttemptOf[t]})>>_vars)
+        BY <1>1, PTL
+    <2>2. [](<<StageTasks({nextAttemptOf[t]})>>_vars
+             => <<TP2!StageTasks({nextAttemptOf[t]})>>_(TP2!vars))
+        BY <1>2, PTL
+    <2>. QED
+        BY <2>1, <2>2, PTL
+
+(*****************************************************************************)
+(* The three finalizing task actions (Complete / Abort / Retry). Their WF     *)
+(* cannot be refined by the (a)+(b) mapping rule -- GP2's actions carry an     *)
+(* extra producer-retention guard TP2's lack, so the abstract enabling does    *)
+(* NOT enable the concrete action. Instead we lift GraphProcessing1's          *)
+(* EventualFinalization (GP1_TaskEventualFinalization) by contradiction: the    *)
+(* negation of WF keeps the abstract action enabled forever, hence keeps the    *)
+(* task SUCCEEDED / DISCARDED / FAILED forever; but such a task is in           *)
+(* GP1!ProcessedTask (under the Bar), which the lifted leads-to drives to       *)
+(* GP1!FinalizedTask -- a state disjoint from SUCCEEDED / DISCARDED / FAILED --  *)
+(* contradiction. Each boxed ENABLED equivalence is proved in a clean context   *)
+(* (necessitation), and the leads-to is supplied by the caller from GP1!Spec.   *)
+(*****************************************************************************)
+
+LEMMA LemEnTP2CompleteSucc ==
+    ASSUME NEW t \in Task
+    PROVE  [](ENABLED <<TP2!CompleteTasks({t})>>_(TP2!vars) => t \in SucceededTask)
+<1>1. ENABLED <<TP2!CompleteTasks({t})>>_(TP2!vars) => t \in SucceededTask
+    <2>. SUFFICES ASSUME NEW taskStatep, NEW nextAttemptOfp,
+                         {t} \subseteq TP2!SucceededTask
+                  PROVE  t \in SucceededTask
+        BY ExpandENABLED DEF TP2!CompleteTasks, TP2!vars
+    <2>. QED
+        BY DEF TP2!SucceededTask, SucceededTask, TP2!TASK_SUCCEEDED
+<1>. QED
+    BY <1>1, PTL
+
+LEMMA LemEnTP2AbortDisc ==
+    ASSUME NEW t \in Task
+    PROVE  [](ENABLED <<TP2!AbortTasks({t})>>_(TP2!vars) => t \in DiscardedTask)
+<1>1. ENABLED <<TP2!AbortTasks({t})>>_(TP2!vars) => t \in DiscardedTask
+    <2>. SUFFICES ASSUME NEW taskStatep, NEW nextAttemptOfp,
+                         {t} \subseteq TP2!DiscardedTask
+                  PROVE  t \in DiscardedTask
+        BY ExpandENABLED DEF TP2!AbortTasks, TP2!vars
+    <2>. QED
+        BY DEF TP2!DiscardedTask, DiscardedTask, TP2!TASK_DISCARDED
+<1>. QED
+    BY <1>1, PTL
+
+LEMMA LemEnTP2RetryFail ==
+    ASSUME NEW t \in Task
+    PROVE  [](ENABLED <<TP2!RetryTasks({t})>>_(TP2!vars) => t \in FailedTask)
+<1>1. ENABLED <<TP2!RetryTasks({t})>>_(TP2!vars) => t \in FailedTask
+    <2>. SUFFICES ASSUME NEW taskStatep, NEW nextAttemptOfp,
+                         {t} \subseteq TP2!FailedTask
+                  PROVE  t \in FailedTask
+        BY ExpandENABLED DEF TP2!RetryTasks, TP2!vars
+    <2>. QED
+        BY DEF TP2!FailedTask, FailedTask, TP2!TASK_FAILED
+<1>. QED
+    BY <1>1, PTL
+
+(* Bar bridges (under TypeOk): each of SUCCEEDED / DISCARDED / FAILED is inside  *)
+(* GP1!ProcessedTask, and GP1!FinalizedTask (= COMPLETED u ABORTED u RETRIED) is  *)
+(* disjoint from all three. Boxed by clean necessitation.                        *)
+LEMMA LemBarProcFin ==
+    ASSUME NEW t \in Task
+    PROVE  [](TypeOk => /\ (t \in SucceededTask => t \in GP1!ProcessedTask)
+                        /\ (t \in DiscardedTask => t \in GP1!ProcessedTask)
+                        /\ (t \in FailedTask => t \in GP1!ProcessedTask)
+                        /\ (t \in GP1!FinalizedTask => ~ (t \in SucceededTask))
+                        /\ (t \in GP1!FinalizedTask => ~ (t \in DiscardedTask))
+                        /\ (t \in GP1!FinalizedTask => ~ (t \in FailedTask)))
+<1>1. TypeOk => /\ (t \in SucceededTask => t \in GP1!ProcessedTask)
+                /\ (t \in DiscardedTask => t \in GP1!ProcessedTask)
+                /\ (t \in FailedTask => t \in GP1!ProcessedTask)
+                /\ (t \in GP1!FinalizedTask => ~ (t \in SucceededTask))
+                /\ (t \in GP1!FinalizedTask => ~ (t \in DiscardedTask))
+                /\ (t \in GP1!FinalizedTask => ~ (t \in FailedTask))
+    <2>. SUFFICES ASSUME TypeOk PROVE
+             /\ (t \in SucceededTask => t \in GP1!ProcessedTask)
+             /\ (t \in DiscardedTask => t \in GP1!ProcessedTask)
+             /\ (t \in FailedTask => t \in GP1!ProcessedTask)
+             /\ (t \in GP1!FinalizedTask => ~ (t \in SucceededTask))
+             /\ (t \in GP1!FinalizedTask => ~ (t \in DiscardedTask))
+             /\ (t \in GP1!FinalizedTask => ~ (t \in FailedTask))
+        OBVIOUS
+    <2>1. GP1!ProcessedTask = SucceededTask \union DiscardedTask \union FailedTask
+        BY GP1BarStates
+    <2>2. GP1!FinalizedTask = CompletedTask \union AbortedTask \union RetriedTask
+        BY GP1BarStates
+    <2>. QED
+        BY <2>1, <2>2 DEF SucceededTask, DiscardedTask, FailedTask,
+            CompletedTask, AbortedTask, RetriedTask
+<1>. QED
+    BY <1>1, PTL
+
+(* Turn GraphProcessing1's task leads-to (t \in ProcessedTask ~> FinalizedTask,   *)
+(* under the Bar) into the three GP2-state leads-to facts consumed by the WF        *)
+(* lemmas: a SUCCEEDED/DISCARDED/FAILED task is in GP1!ProcessedTask, is driven to  *)
+(* GP1!FinalizedTask by the engine, and GP1!FinalizedTask is disjoint from it, so   *)
+(* the task eventually leaves SUCCEEDED/DISCARDED/FAILED.                           *)
+LEMMA LemLeavesFromEngine ==
+    ASSUME NEW t \in Task,
+           []TypeOk,
+           [](t \in GP1!ProcessedTask => <>(t \in GP1!FinalizedTask))
+    PROVE  /\ [](t \in SucceededTask => <>(~ (t \in SucceededTask)))
+           /\ [](t \in DiscardedTask => <>(~ (t \in DiscardedTask)))
+           /\ [](t \in FailedTask => <>(~ (t \in FailedTask)))
+<1>tok. []TypeOk
+    OBVIOUS
+<1>eng. [](t \in GP1!ProcessedTask => <>(t \in GP1!FinalizedTask))
+    OBVIOUS
+<1>b. /\ [](t \in SucceededTask => t \in GP1!ProcessedTask)
+      /\ [](t \in DiscardedTask => t \in GP1!ProcessedTask)
+      /\ [](t \in FailedTask => t \in GP1!ProcessedTask)
+      /\ [](t \in GP1!FinalizedTask => ~ (t \in SucceededTask))
+      /\ [](t \in GP1!FinalizedTask => ~ (t \in DiscardedTask))
+      /\ [](t \in GP1!FinalizedTask => ~ (t \in FailedTask))
+    BY <1>tok, LemBarProcFin, PTL
+<1>. QED
+    BY <1>b, <1>eng, PTL
+
+(* WF of the finalizing actions, reduced to the leads-to. The negation of WF     *)
+(* gives <>[]ENABLED, hence (boxed ENABLED equiv) <>[] the task stays SUCCEEDED / *)
+(* DISCARDED / FAILED; that state is in GP1!ProcessedTask (LemBarProcFin), the    *)
+(* leads-to drives it to GP1!FinalizedTask, which is disjoint from it -- FALSE.   *)
+LEMMA LemWFTP2CompleteTasks ==
+    ASSUME NEW t \in Task,
+           [](t \in SucceededTask => <>(~ (t \in SucceededTask)))
+    PROVE  WF_(TP2!vars)(TP2!CompleteTasks({t}))
+<1>lt. [](t \in SucceededTask => <>(~ (t \in SucceededTask)))
+    OBVIOUS
+<1>en. [](ENABLED <<TP2!CompleteTasks({t})>>_(TP2!vars) => t \in SucceededTask)
+    BY LemEnTP2CompleteSucc
+<1>ns. []<>(~ (t \in SucceededTask))
+    BY <1>lt, PTL
+<1>. QED
+    BY <1>ns, <1>en, PTL
+
+LEMMA LemWFTP2AbortTasks ==
+    ASSUME NEW t \in Task,
+           [](t \in DiscardedTask => <>(~ (t \in DiscardedTask)))
+    PROVE  WF_(TP2!vars)(TP2!AbortTasks({t}))
+<1>lt. [](t \in DiscardedTask => <>(~ (t \in DiscardedTask)))
+    OBVIOUS
+<1>en. [](ENABLED <<TP2!AbortTasks({t})>>_(TP2!vars) => t \in DiscardedTask)
+    BY LemEnTP2AbortDisc
+<1>ns. []<>(~ (t \in DiscardedTask))
+    BY <1>lt, PTL
+<1>. QED
+    BY <1>ns, <1>en, PTL
+
+LEMMA LemWFTP2RetryTasks ==
+    ASSUME NEW t \in Task,
+           [](t \in FailedTask => <>(~ (t \in FailedTask)))
+    PROVE  WF_(TP2!vars)(TP2!RetryTasks({t}))
+<1>lt. [](t \in FailedTask => <>(~ (t \in FailedTask)))
+    OBVIOUS
+<1>en. [](ENABLED <<TP2!RetryTasks({t})>>_(TP2!vars) => t \in FailedTask)
+    BY LemEnTP2RetryFail
+<1>ns. []<>(~ (t \in FailedTask))
+    BY <1>lt, PTL
+<1>. QED
+    BY <1>ns, <1>en, PTL
+
 THEOREM GP2_RefineGP1Fragment ==
     Spec => /\ GP1!Init /\ [][GP1!Next]_(GP1!vars)
             /\ GP1!OpenUpstreamEventuallyClosed
@@ -3728,6 +4053,90 @@ THEOREM GP2_RefineObjectProcessing2 ==
         BY <2>1, <2>2
 <1>. QED
     BY <1>1, <1>2 DEF OP2!Spec
+
+(*****************************************************************************)
+(* REFINEMENT OF TASKPROCESSING2 -- assembles TP2!Spec (conditional on the    *)
+(* GraphProcessing1 refinement, whose task-fairness fragment supplies the      *)
+(* leads-to engine). Safety via LemRefineTP2InitNext; each TP2!Fairness         *)
+(* conjunct via its lemma. SetTaskRetries / StageTasks / ProcessTasks by the    *)
+(* (a)+(b) mapping; CompleteTasks / AbortTasks / RetryTasks by lifting          *)
+(* GP1_TaskEventualFinalization (LemLeavesFromEngine + the LemWFTP2 lemmas).   *)
+(* WIP: RegisterTasks (LemFairTP2RegisterTasks) not yet proved.                 *)
+(*****************************************************************************)
+(*
+THEOREM GP2_RefineTaskProcessing2 ==
+    (Spec => RefineGraphProcessing1) => (Spec => RefineTaskProcessing2)
+<1>. SUFFICES ASSUME Spec => RefineGraphProcessing1, Spec
+              PROVE  TP2!Spec
+    BY DEF RefineTaskProcessing2
+<1>g. GP1!Spec
+    BY DEF RefineGraphProcessing1
+<1>1. TP2!Init /\ [][TP2!Next]_(TP2!vars)
+    BY LemRefineTP2InitNext DEF Spec
+<1>2. TP2!Fairness
+    <2>tok. []TypeOk
+        BY GP2_TypeOk
+    <2>gsi. []GSI_TaskPreds
+        BY LemGSITaskPreds DEF Spec
+    <2>rdd. []RetryDataDependenciesValidity
+        BY LemRetryDataDeps DEF Spec
+    <2>tai. []TP2!TaskAttemptsIntegrity
+        BY GP2_TP2TaskAttemptsIntegrity DEF Spec
+    <2>tsi. []TP2!TaskSafetyInv
+        BY GP2_TP2TaskSafetyInv DEF Spec
+    <2>. SUFFICES ASSUME NEW t \in Task
+                  PROVE  /\ WF_(TP2!vars)(\E u \in Task : TP2!SetTaskRetries({t}, {u}))
+                         /\ WF_(TP2!vars)(TP2!RegisterTasks({nextAttemptOf[t]}))
+                         /\ WF_(TP2!vars)(TP2!StageTasks({nextAttemptOf[t]}))
+                         /\ SF_(TP2!vars)(TP2!ProcessTasks({t}))
+                         /\ WF_(TP2!vars)(TP2!CompleteTasks({t}))
+                         /\ WF_(TP2!vars)(TP2!AbortTasks({t}))
+                         /\ WF_(TP2!vars)(TP2!RetryTasks({t}))
+        BY DEF TP2!Fairness
+    <2>fr. Fairness
+        BY DEF Spec
+    \* --- SetTaskRetries: (a)+(b) mapping ---
+    <2>sr. WF_(TP2!vars)(\E u \in Task : TP2!SetTaskRetries({t}, {u}))
+        <3>1. WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
+            BY <2>fr DEF Fairness
+        <3>. QED
+            BY <3>1, <2>tsi, LemGP1FairSetTaskRetries
+    \* --- ProcessTasks: (a)+(b) mapping ---
+    <2>pt. SF_(TP2!vars)(TP2!ProcessTasks({t}))
+        <3>1. SF_vars(ProcessTasks({t}))
+            BY <2>fr DEF Fairness
+        <3>. QED
+            BY <3>1, <2>tok, LemFairTP2ProcessTasks
+    \* --- StageTasks: (a)+(b) mapping (retry clone) ---
+    <2>st. WF_(TP2!vars)(TP2!StageTasks({nextAttemptOf[t]}))
+        <3>1. WF_vars(StageTasks({nextAttemptOf[t]}))
+            BY <2>fr DEF Fairness
+        <3>. QED
+            BY <3>1, <2>tok, <2>gsi, <2>rdd, <2>tai, LemFairTP2StageTasks
+    \* --- CompleteTasks / AbortTasks / RetryTasks: lift GP1's leads-to ---
+    <2>eng. t \in GP1!ProcessedTask ~> t \in GP1!FinalizedTask
+        BY <1>g, GP1!GP1_TaskEventualFinalization, GP1SameAssumptions, Isa
+    <2>lv. /\ [](t \in SucceededTask => <>(~ (t \in SucceededTask)))
+           /\ [](t \in DiscardedTask => <>(~ (t \in DiscardedTask)))
+           /\ [](t \in FailedTask => <>(~ (t \in FailedTask)))
+        BY <2>tok, <2>eng, LemLeavesFromEngine
+    <2>ct. WF_(TP2!vars)(TP2!CompleteTasks({t}))
+        BY <2>lv, LemWFTP2CompleteTasks
+    <2>at. WF_(TP2!vars)(TP2!AbortTasks({t}))
+        BY <2>lv, LemWFTP2AbortTasks
+    <2>rt. WF_(TP2!vars)(TP2!RetryTasks({t}))
+        BY <2>lv, LemWFTP2RetryTasks
+    \* --- RegisterTasks: (a)+(b) mapping (retry subgraph registration) ---
+    <2>rg. WF_(TP2!vars)(TP2!RegisterTasks({nextAttemptOf[t]}))
+        <3>1. WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
+            BY <2>fr DEF Fairness
+        <3>. QED
+            BY <3>1, <2>tok, <2>gsi, <2>rdd, <2>tai, LemFairTP2RegisterTasks
+    <2>. QED
+        BY <2>sr, <2>pt, <2>st, <2>ct, <2>at, <2>rt, <2>rg
+<1>. QED
+    BY <1>1, <1>2 DEF TP2!Spec
+*)
 
 (*****************************************************************************)
 (* LIVENESS PROPERTIES (reformulated -- see GraphProcessing2)                *)

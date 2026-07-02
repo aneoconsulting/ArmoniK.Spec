@@ -95,6 +95,18 @@ LEMMA LemRefineTaskProcessing1Fairness ==
 THEOREM GP1_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
 
 (**
+ * LIVENESS (lifted from TaskProcessing1). Every processed task is eventually
+ * finalized. Obtained from TP1!EventualFinalization through the task-processing
+ * refinement (GP1_RefineTaskProcessing1). Reused -- under the Bar -- by
+ * GraphProcessing2 to discharge the WF of CompleteTasks / AbortTasks /
+ * RetryTasks, whose enabled-forever negation reduces to a task staying
+ * succeeded / discarded / failed forever (i.e. never finalized).
+ *)
+THEOREM GP1_TaskEventualFinalization ==
+    ASSUME NEW s \in Task
+    PROVE  Spec => (s \in ProcessedTask ~> s \in FinalizedTask)
+
+(**
  * Transition relation of taskState[t] under any system step: a task either
  * keeps its state or follows the registered -> staged/processed ->
  * assigned/processed -> finalized lifecycle.
