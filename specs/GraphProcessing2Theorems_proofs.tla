@@ -3425,10 +3425,8 @@ LEMMA LemGP1FairProcessTasks ==
     <2>1. [](TypeOk /\ ENABLED <<GP1!ProcessTasks({t})>>_(GP1!vars)
              => ENABLED <<ProcessTasks({t})>>_vars)
         BY <1>1, PTL
-    <2>2. [](<<ProcessTasks({t})>>_vars => <<GP1!ProcessTasks({t})>>_(GP1!vars))
-        BY <1>2, PTL
     <2>. QED
-        BY <2>1, <2>2, PTL
+        BY <2>1, <1>2, PTL
 
 (* Aborted objects and registered-task predecessors are stable, used by the    *)
 (* StageTasks <>[]P argument below.                                             *)
@@ -3621,19 +3619,16 @@ LEMMA LemGP1FairStageTasks ==
     \* boxed facts for the temporal contradiction
     <2>f1. [](ENABLED <<GP1!StageTasks({t})>>_(GP1!vars) => t \in RegisteredTask)
         BY <2>en, PTL
-    <2>f2. [](<<DiscardOnAbortedInput(t)>>_vars
-              => ~ (t \in RegisteredTask)')
-        <3>1. t \in DiscardedTask => ~ t \in RegisteredTask
+    <2>f2. <<DiscardOnAbortedInput(t)>>_vars
+           => ~ (t \in RegisteredTask)'
+        <3>1. (t \in DiscardedTask)' => ~ (t \in RegisteredTask)'
             BY DEF DiscardedTask, RegisteredTask
         <3>. QED
-            BY <2>d1, <3>1, PTL
+            BY <2>d1, <3>1
     <2>f3. [](ENABLED <<DiscardOnAbortedInput(t)>>_vars
               <=> Predecessor(deps, t) \intersect AbortedObject /= {}
                   /\ t \in (RegisteredTask \union StagedTask))
         BY <1>d0, PTL
-    <2>f4. [](Predecessor(deps, t) \intersect AbortedObject /= {} /\ t \in RegisteredTask
-              /\ [Next]_vars => (Predecessor(deps, t) \intersect AbortedObject /= {})')
-        BY <2>mono, PTL
     <2>wf. WF_vars(DiscardOnAbortedInput(t))
         OBVIOUS
     <2>nx. [][Next]_vars
@@ -3655,7 +3650,7 @@ LEMMA LemGP1FairStageTasks ==
         BY <2>f1, PTL
     <2>b. <>[](t \in RegisteredTask) /\ ~ <>[](Predecessor(deps, t) \intersect AbortedObject = {})
           => <>[](Predecessor(deps, t) \intersect AbortedObject /= {} /\ t \in RegisteredTask)
-        BY <2>f4, <2>nx, <2>neg, PTL
+        BY <2>mono, <2>nx, <2>neg, PTL
     <2>c. <>[](Predecessor(deps, t) \intersect AbortedObject /= {} /\ t \in RegisteredTask)
           => []<>(<<DiscardOnAbortedInput(t)>>_vars)
         <3>1. <>[](Predecessor(deps, t) \intersect AbortedObject /= {} /\ t \in RegisteredTask)
@@ -3673,10 +3668,8 @@ LEMMA LemGP1FairStageTasks ==
              /\ ENABLED <<GP1!StageTasks({t})>>_(GP1!vars)
              => ENABLED <<StageTasks({t})>>_vars)
         BY <1>1, PTL
-    <2>2. [](<<StageTasks({t})>>_vars => <<GP1!StageTasks({t})>>_(GP1!vars))
-        BY <1>2, PTL
     <2>. QED
-        BY <2>1, <2>2, <1>3, PTL
+        BY <2>1, <1>2, <1>3, PTL
 
 (* GP1!OpenUpstreamEventuallyClosed refinement. GP2's IsOpenNode now matches  *)
 (* GP1!IsOpenNode under the Bar (GP1OpenNodeBridge), so the open-induced       *)
@@ -3700,41 +3693,24 @@ LEMMA LemOpenAncBridgeBox ==
 
 LEMMA LemOpenAncStutterBox ==
     ASSUME NEW o \in Object
-    PROVE  [](UNCHANGED vars => (AncestorSubGraph(deps, o, IsOpenNode).node)'
-                                = AncestorSubGraph(deps, o, IsOpenNode).node)
-<1>1. UNCHANGED vars => (AncestorSubGraph(deps, o, IsOpenNode).node)'
-                        = AncestorSubGraph(deps, o, IsOpenNode).node
-    BY LemOpenAncStutter
-<1>. QED
-    BY <1>1, PTL
+    PROVE  UNCHANGED vars => (AncestorSubGraph(deps, o, IsOpenNode).node)'
+                             = AncestorSubGraph(deps, o, IsOpenNode).node
+BY LemOpenAncStutter
 
 LEMMA LemOpenStepBox ==
     ASSUME NEW o \in Object
-    PROVE  []( /\ GP1!AncestorSubGraph(deps, o, GP1!IsOpenNode).node
-                  = AncestorSubGraph(deps, o, IsOpenNode).node
-               /\ (GP1!AncestorSubGraph(deps, o, GP1!IsOpenNode).node
-                   = AncestorSubGraph(deps, o, IsOpenNode).node)'
-               /\ (UNCHANGED vars => (AncestorSubGraph(deps, o, IsOpenNode).node)'
-                                     = AncestorSubGraph(deps, o, IsOpenNode).node)
-               => ([(AncestorSubGraph(deps, o, IsOpenNode).node)'
-                    \subseteq AncestorSubGraph(deps, o, IsOpenNode).node]_vars
-                   => [(GP1!AncestorSubGraph(deps, o, GP1!IsOpenNode).node)'
-                       \subseteq GP1!AncestorSubGraph(deps, o, GP1!IsOpenNode).node
-                      ]_(GP1!AncestorSubGraph(deps, o, GP1!IsOpenNode).node)) )
-<1>1. /\ GP1!AncestorSubGraph(deps, o, GP1!IsOpenNode).node
-         = AncestorSubGraph(deps, o, IsOpenNode).node
-      /\ (GP1!AncestorSubGraph(deps, o, GP1!IsOpenNode).node
-          = AncestorSubGraph(deps, o, IsOpenNode).node)'
-      /\ (UNCHANGED vars => (AncestorSubGraph(deps, o, IsOpenNode).node)'
-                            = AncestorSubGraph(deps, o, IsOpenNode).node)
-      => ([(AncestorSubGraph(deps, o, IsOpenNode).node)'
-           \subseteq AncestorSubGraph(deps, o, IsOpenNode).node]_vars
-          => [(GP1!AncestorSubGraph(deps, o, GP1!IsOpenNode).node)'
-              \subseteq GP1!AncestorSubGraph(deps, o, GP1!IsOpenNode).node
-             ]_(GP1!AncestorSubGraph(deps, o, GP1!IsOpenNode).node))
-    OBVIOUS
-<1>. QED
-    BY <1>1, PTL
+    PROVE  /\ GP1!AncestorSubGraph(deps, o, GP1!IsOpenNode).node
+              = AncestorSubGraph(deps, o, IsOpenNode).node
+           /\ (GP1!AncestorSubGraph(deps, o, GP1!IsOpenNode).node
+               = AncestorSubGraph(deps, o, IsOpenNode).node)'
+           /\ (UNCHANGED vars => (AncestorSubGraph(deps, o, IsOpenNode).node)'
+                                 = AncestorSubGraph(deps, o, IsOpenNode).node)
+           => ([(AncestorSubGraph(deps, o, IsOpenNode).node)'
+                \subseteq AncestorSubGraph(deps, o, IsOpenNode).node]_vars
+               => [(GP1!AncestorSubGraph(deps, o, GP1!IsOpenNode).node)'
+                   \subseteq GP1!AncestorSubGraph(deps, o, GP1!IsOpenNode).node
+                  ]_(GP1!AncestorSubGraph(deps, o, GP1!IsOpenNode).node))
+OBVIOUS
 
 LEMMA LemGP1OpenUpstream ==
     []TypeOk /\ OpenUpstreamEventuallyClosed => GP1!OpenUpstreamEventuallyClosed
@@ -3751,11 +3727,8 @@ LEMMA LemGP1OpenUpstream ==
 <1>b1. [](GP1!AncestorSubGraph(deps, o, GP1!IsOpenNode).node
           = AncestorSubGraph(deps, o, IsOpenNode).node)
     BY LemOpenAncBridgeBox, PTL
-<1>b2. [](UNCHANGED vars => (AncestorSubGraph(deps, o, IsOpenNode).node)'
-                            = AncestorSubGraph(deps, o, IsOpenNode).node)
-    BY LemOpenAncStutterBox
 <1>. QED
-    BY <1>g, <1>b1, <1>b2, LemOpenStepBox, PTL
+    BY <1>g, <1>b1, LemOpenAncStutterBox, LemOpenStepBox, PTL
 
 (* The upstream-open-path guard coincides with GP1's under the Bar. GP2's       *)
 (* guard adds o \in RegisteredObject, but that is forced: an open path ends at  *)
@@ -3891,10 +3864,8 @@ LEMMA LemGP1FairAssignTasks ==
     <2>1. [](TypeOk /\ GSI_Nodes /\ ENABLED <<AbsA>>_(GP1!vars)
              => ENABLED <<AssignUpstream(t)>>_vars)
         BY <1>1, PTL
-    <2>2. [](TypeOk /\ GSI_Nodes /\ <<AssignUpstream(t)>>_vars => <<AbsA>>_(GP1!vars))
-        BY <1>2, PTL
     <2>. QED
-        BY <2>1, <2>2, PTL
+        BY <2>1, <1>2, PTL
 
 (* GP2 refines TP2's SetTaskRetries fairness. GP2's SetTaskRetries is TP2's      *)
 (* (identity task mapping) conjoined with UNCHANGED object variables, so the     *)
@@ -4035,10 +4006,8 @@ LEMMA LemGP1FairSetTaskRetries ==
 <1>. QED
     <2>1. [](TP2!TaskSafetyInv /\ ENABLED <<AbsA>>_(TP2!vars) => ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars)
         BY <1>1, PTL
-    <2>2. [](<<\E u \in Task : SetTaskRetries({t}, {u})>>_vars => <<AbsA>>_(TP2!vars))
-        BY <1>2, PTL
     <2>. QED
-        BY <2>1, <2>2, PTL
+        BY <2>1, <1>2, PTL
 
 (* GP2's own eventual-retry leads-to. Re-proved directly rather than retrieved  *)
 (* through TP2!LemFailedTaskEventualRetry: an INSTANCE cannot rebind that        *)
@@ -4567,21 +4536,13 @@ LEMMA LemNoUnknownCloneUnderQuiescence ==
         BY <2>2, <2>3 DEF UnknownTask
 \* --- PTL assembly: Pb would persist, keep A enabled, and force a growth step ---
 <1>. QED
-    <2>b1. [](TypeOk /\ Pb /\ [Next]_vars => Pb' \/ X')
-        BY <1>s, PTL
-    <2>b2. [](/\ TypeOk /\ TypeOk' /\ GSI_Nodes /\ o \in RegisteredObject
-              /\ (o \in RegisteredObject)' /\ Pb /\ [Next]_vars /\ X'
-              => ~ [S' \subseteq S]_vars)
-        BY <1>g, PTL
     <2>b3. [](/\ TypeOk /\ DependencyGraphCompliant /\ DepsNodeFinite /\ GSI_Nodes
               /\ GSI_ObjPreds /\ UnknownAttemptImpliesFailed /\ TP2!TaskAttemptsIntegrity
               /\ Pb
               => ENABLED <<A>>_vars)
         BY <1>e, PTL
-    <2>b4. [](Pb /\ <<A>>_vars => X')
-        BY <1>f, PTL
     <2>. QED
-        BY <2>b1, <2>b2, <2>b3, <2>b4, PTL
+        BY <1>s, <1>g, <1>f, <2>b3, PTL
 
 (* Companion corollary: under the same quiescence, no producer of o can ever *)
 (* sit failed-and-unlinked either -- WF(SetTaskRetries) would link it,       *)
@@ -4636,10 +4597,7 @@ LEMMA LemNoUnretriedProducerUnderQuiescence ==
     <2>. QED
         BY <2>1 DEF Predecessor
 <1>. QED
-    <2>1. [](t \in Predecessor(deps, o) /\ [Next]_vars => (t \in Predecessor(deps, o))')
-        BY <1>3, PTL
-    <2>. QED
-        BY <1>1, <1>2, <2>1, PTL
+    BY <1>1, <1>2, <1>3, PTL
 
 (* The payoff: under quiescence, every registered object with producers      *)
 (* permanently retains a STRONG producer -- neither finalized nor FAILED.    *)
@@ -4977,12 +4935,6 @@ LEMMA LemFailedProducerEventuallyRetired ==
 \* --- PTL assembly: bad persists-or-retires; retired is terminal and clean; ---
 \* --- while bad the retry is enabled, so weak fairness eventually fires it  ---
 <1>. QED
-    <2>b1. [](TypeOk /\ Pb /\ [Next]_vars => Pb' \/ (t \in RetriedTask)')
-        BY <1>s, PTL
-    <2>b2. [](TypeOk /\ t \in RetriedTask /\ [Next]_vars => (t \in RetriedTask)')
-        BY <1>r, PTL
-    <2>b3. [](Pb /\ <<RetryTasks({t})>>_vars => (t \in RetriedTask)')
-        BY <1>f, PTL
     <2>b4. [](/\ TypeOk /\ DependencyGraphCompliant /\ RegisteredObjectHasLiveProducer
               /\ Pb /\ ~ (t \in UnretriedTask) /\ ~ (nextAttemptOf[t] \in UnknownTask)
               => ENABLED <<RetryTasks({t})>>_vars)
@@ -4990,7 +4942,7 @@ LEMMA LemFailedProducerEventuallyRetired ==
     <2>b5. [](t \in RetriedTask => ~ Pb)
         BY <1>x, PTL
     <2>. QED
-        BY <1>1, <1>2, <2>b1, <2>b2, <2>b3, <2>b4, <2>b5, PTL
+        BY <1>1, <1>2, <1>s, <1>r, <1>f, <2>b4, <2>b5, PTL
 
 (* Under quiescence the producer set of o is frozen: a new producer would be *)
 (* a freshly registered (hence open) task adjacent to o, entering o's open   *)
@@ -5125,13 +5077,7 @@ LEMMA LemPredsFrozenUnderQuiescence ==
     <2>. QED
         BY <2>u, <2>n
 <1>. QED
-    <2>1. [](/\ TypeOk /\ TypeOk' /\ DependencyGraphCompliant' /\ GSI_Nodes
-             /\ (o \in RegisteredObject)'
-             /\ [Next]_vars /\ [S' \subseteq S]_vars
-             => Predecessor(deps, o)' = Predecessor(deps, o))
-        BY <1>s, PTL
-    <2>. QED
-        BY <2>1, PTL
+    BY <1>s, PTL
 
 (* State-level cores for the object-side drains, kept in clean contexts:     *)
 (* fairness hypotheses in the ambient sequent crash the SMT translator.      *)
@@ -5243,12 +5189,6 @@ LEMMA LemSucceededProducerCompletesObject ==
               /\ o \in RegisteredObject
               => ENABLED <<CompleteObjects({o})>>_vars)
         BY <1>e, PTL
-    <2>b2. [](<<CompleteObjects({o})>>_vars => (o \in CompletedObject)')
-        BY <1>f, PTL
-    <2>b3. [](TypeOk /\ o \in CompletedObject /\ [Next]_vars => (o \in CompletedObject)')
-        BY <1>c, PTL
-    <2>b4. [](TypeOk /\ o \in AbortedObject /\ [Next]_vars => (o \in AbortedObject)')
-        BY <1>a, PTL
     <2>b5. [](/\ TypeOk /\ GSI_Nodes /\ t \in Predecessor(deps, o)
               /\ ~ (o \in RegisteredObject)
               => o \in CompletedObject \/ o \in AbortedObject)
@@ -5256,7 +5196,7 @@ LEMMA LemSucceededProducerCompletesObject ==
     <2>b6. [](o \in CompletedObject \/ o \in AbortedObject => ~ (o \in RegisteredObject))
         BY <1>x, PTL
     <2>. QED
-        BY <2>b1, <2>b2, <2>b3, <2>b4, <2>b5, <2>b6, PTL
+        BY <2>b1, <1>f, <1>c, <1>a, <2>b5, <2>b6, PTL
 
 (* A finalized task's state is frozen: no action's source set intersects     *)
 (* {COMPLETED, ABORTED, RETRIED}.                                            *)
@@ -5469,11 +5409,6 @@ LEMMA LemDiscardedProducerRetainsWitness ==
        /\ Car
        => (Car)'
     BY LemCarSetStable, Zenon
-<1>b2. [](/\ TypeOk /\ [Next]_vars
-          /\ [Predecessor(deps, o)' = Predecessor(deps, o)]_vars
-          /\ Car
-          => (Car)')
-    BY <1>e2, PTL
 <1>e3. /\ TypeOk /\ t \in Predecessor(deps, o) /\ t \in DiscardedTask
        /\ Car /\ o \in RegisteredObject
        => ENABLED <<AbortObjects({o})>>_vars
@@ -5482,17 +5417,11 @@ LEMMA LemDiscardedProducerRetainsWitness ==
           /\ Car /\ o \in RegisteredObject
           => ENABLED <<AbortObjects({o})>>_vars)
     BY <1>e3, PTL
-<1>b4. [](<<AbortObjects({o})>>_vars => (o \in AbortedObject)')
-    <2>1. <<AbortObjects({o})>>_vars => (o \in AbortedObject)'
-        BY DEF AbortedObject, AbortObjects, RegisteredObject, vars
-    <2>. QED
-        BY <2>1, PTL
+<1>b4. <<AbortObjects({o})>>_vars => (o \in AbortedObject)'
+    BY DEF AbortedObject, AbortObjects, RegisteredObject, vars
 <1>e5. /\ TypeOk /\ (o \in CompletedObject \/ o \in AbortedObject) /\ [Next]_vars
        => (o \in CompletedObject \/ o \in AbortedObject)'
     BY LemObjectFinalStable, Zenon
-<1>b5. [](/\ TypeOk /\ (o \in CompletedObject \/ o \in AbortedObject) /\ [Next]_vars
-          => (o \in CompletedObject \/ o \in AbortedObject)')
-    BY <1>e5, PTL
 <1>e6. /\ TypeOk /\ GSI_Nodes /\ t \in Predecessor(deps, o)
        /\ ~ (o \in RegisteredObject)
        => o \in CompletedObject \/ o \in AbortedObject
@@ -5517,7 +5446,7 @@ LEMMA LemDiscardedProducerRetainsWitness ==
     <2>. QED
         BY <2>1, PTL
 <1>. QED
-    BY <1>b1, <1>b2, <1>b3, <1>b4, <1>b5, <1>b6, <1>b7, <1>b8, <1>b9, PTL
+    BY <1>b1, <1>e2, <1>b3, <1>b4, <1>e5, <1>b6, <1>b7, <1>b8, <1>b9, PTL
 
 (* Every task's SUCCEEDED/DISCARDED status stabilizes: SUCCEEDED exits only  *)
 (* to COMPLETED and DISCARDED only to ABORTED, both terminal and outside     *)
@@ -5599,21 +5528,11 @@ LEMMA LemTaskSDStabilizes ==
       => ~ (t \in SucceededTask) /\ ~ (t \in DiscardedTask)
     BY DEF AbortedTask, CompletedTask, DiscardedTask, SucceededTask
 <1>. QED
-    <2>b1. [](TypeOk /\ t \in SucceededTask /\ [Next]_vars
-              => (t \in SucceededTask)' \/ (t \in CompletedTask)')
-        BY <1>s1, PTL
-    <2>b2. [](TypeOk /\ t \in DiscardedTask /\ [Next]_vars
-              => (t \in DiscardedTask)' \/ (t \in AbortedTask)')
-        BY <1>s2, PTL
-    <2>b3. [](TypeOk /\ t \in CompletedTask /\ [Next]_vars => (t \in CompletedTask)')
-        BY <1>c, PTL
-    <2>b4. [](TypeOk /\ t \in AbortedTask /\ [Next]_vars => (t \in AbortedTask)')
-        BY <1>a, PTL
     <2>b5. [](t \in CompletedTask \/ t \in AbortedTask
               => ~ (t \in SucceededTask) /\ ~ (t \in DiscardedTask))
         BY <1>x, PTL
     <2>. QED
-        BY <2>b1, <2>b2, <2>b3, <2>b4, <2>b5, PTL
+        BY <1>s1, <1>s2, <1>c, <1>a, <2>b5, PTL
 
 (* Stuttering steps freeze the producer set (kept in a clean context: the    *)
 (* tuple projections need SMT).                                              *)
@@ -5625,6 +5544,17 @@ LEMMA LemPredsStutter ==
     OBVIOUS
 <1>. QED
     BY SMT DEF Predecessor, vars
+
+(* Unconditional producer-set constancy from the subscripted box.            *)
+LEMMA LemPredsBoxUncond ==
+    ASSUME NEW o \in Object
+    PROVE  [][Predecessor(deps, o)' = Predecessor(deps, o)]_vars
+           => [][FALSE]_(Predecessor(deps, o))
+<1>1. [Predecessor(deps, o)' = Predecessor(deps, o)]_vars
+      => [FALSE]_(Predecessor(deps, o))
+    BY LemPredsStutter, Zenon
+<1>. QED
+    BY <1>1, PTL
 
 (* Conjoining one more producer into a stable no-failure box (kept in a     *)
 (* clean context so the state-level merge step can be []-lifted).            *)
@@ -5754,15 +5684,8 @@ LEMMA LemNoFailedProducersUnderQuiescence ==
 <1>pf. [][Predecessor(deps, o)' = Predecessor(deps, o)]_vars
     BY LemPredsFrozenUnderQuiescence, Isa
 <1>. HIDE DEF S
-<1>pc. [](Predecessor(deps, o)' = Predecessor(deps, o))
-    <2>1. [Predecessor(deps, o)' = Predecessor(deps, o)]_vars
-          => Predecessor(deps, o)' = Predecessor(deps, o)
-        BY LemPredsStutter, Zenon
-    <2>2. []([Predecessor(deps, o)' = Predecessor(deps, o)]_vars
-             => Predecessor(deps, o)' = Predecessor(deps, o))
-        BY <2>1, PTL
-    <2>. QED
-        BY <1>pf, <2>2, PTL
+<1>pc. [][FALSE]_(Predecessor(deps, o))
+    BY <1>pf, LemPredsBoxUncond, PTL
 <1>now. TypeOk /\ DependencyGraphCompliant /\ DepsNodeFinite
     BY PTL
 <1>tk. Predecessor(deps, o) \subseteq Task
@@ -5783,6 +5706,8 @@ LEMMA LemNoFailedProducersUnderQuiescence ==
               /\ Predecessor(deps, o)' = Predecessor(deps, o)
               => (Predecessor(deps, o) = P)'
     OBVIOUS
+<1>un. [FALSE]_(Predecessor(deps, o)) => Predecessor(deps, o)' = Predecessor(deps, o)
+    OBVIOUS
 <1>. DEFINE Q(P) == [](Predecessor(deps, o) = P)
 <1>. HIDE DEF Q
 <1>ex. \E P \in SUBSET Task : IsFiniteSet(P) /\ Q(P)
@@ -5790,12 +5715,8 @@ LEMMA LemNoFailedProducersUnderQuiescence ==
                          Predecessor(deps, o) = P
                   PROVE  \E P2 \in SUBSET Task : IsFiniteSet(P2) /\ Q(P2)
         BY <1>tk, <1>fin, Zenon
-    <2>bst. [](/\ Predecessor(deps, o) = P
-               /\ Predecessor(deps, o)' = Predecessor(deps, o)
-               => (Predecessor(deps, o) = P)')
-        BY <1>st, PTL
     <2>lift. [](Predecessor(deps, o) = P)
-        BY <1>pc, <2>bst, PTL
+        BY <1>un, <1>pc, <1>st, PTL
     <2>fold. Q(P)
         BY <2>lift DEF Q
     <2>. QED
@@ -5955,15 +5876,12 @@ LEMMA LemObjectRegDichotomy ==
 <1>e5. /\ TypeOk /\ (o \in CompletedObject \/ o \in AbortedObject) /\ [Next]_vars
        => (o \in CompletedObject \/ o \in AbortedObject)'
     BY LemObjectFinalStable, Zenon
-<1>b5. [](/\ TypeOk /\ (o \in CompletedObject \/ o \in AbortedObject) /\ [Next]_vars
-          => (o \in CompletedObject \/ o \in AbortedObject)')
-    BY <1>e5, PTL
 <1>x. o \in CompletedObject \/ o \in AbortedObject => ~ (o \in RegisteredObject)
     BY DEF AbortedObject, CompletedObject, RegisteredObject
 <1>bx. [](o \in CompletedObject \/ o \in AbortedObject => ~ (o \in RegisteredObject))
     BY <1>x, PTL
 <1>. QED
-    BY <1>b5, <1>b6, <1>bx, PTL
+    BY <1>e5, <1>b6, <1>bx, PTL
 
 (* Shifted S-case: once t is permanently a SUCCEEDED producer of o, o        *)
 (* permanently leaves REGISTERED.                                            *)
@@ -6107,16 +6025,18 @@ LEMMA LemOutputsPin ==
     ASSUME NEW t \in Task
     PROVE  /\ Successor(deps, t) \subseteq Object
            /\ IsFiniteSet(Successor(deps, t))
-           /\ [](Successor(deps, t)' = Successor(deps, t))
+           /\ [][FALSE]_(Successor(deps, t))
            => \E P \in SUBSET Object : IsFiniteSet(P) /\ [](Successor(deps, t) = P)
 <1>st. ASSUME NEW P
        PROVE  /\ Successor(deps, t) = P
               /\ Successor(deps, t)' = Successor(deps, t)
               => (Successor(deps, t) = P)'
     OBVIOUS
+<1>un. [FALSE]_(Successor(deps, t)) => Successor(deps, t)' = Successor(deps, t)
+    OBVIOUS
 <1>. SUFFICES ASSUME Successor(deps, t) \subseteq Object,
                      IsFiniteSet(Successor(deps, t)),
-                     [](Successor(deps, t)' = Successor(deps, t))
+                     [][FALSE]_(Successor(deps, t))
               PROVE  \E P \in SUBSET Object : IsFiniteSet(P) /\ [](Successor(deps, t) = P)
     OBVIOUS
 <1>. DEFINE Q2(P) == [](Successor(deps, t) = P)
@@ -6126,12 +6046,8 @@ LEMMA LemOutputsPin ==
                          Successor(deps, t) = P
                   PROVE  \E P2 \in SUBSET Object : IsFiniteSet(P2) /\ Q2(P2)
         BY Zenon
-    <2>bst. [](/\ Successor(deps, t) = P
-               /\ Successor(deps, t)' = Successor(deps, t)
-               => (Successor(deps, t) = P)')
-        BY <1>st, PTL
     <2>lift. [](Successor(deps, t) = P)
-        BY <2>bst, PTL
+        BY <1>un, <1>st, PTL
     <2>fold. Q2(P)
         BY <2>lift DEF Q2
     <2>. QED
@@ -6319,6 +6235,8 @@ LEMMA LemSPRDischarge ==
         BY DEF DiscardedTask, SucceededTask, UnknownTask
     <2>. QED
         BY <2>1, PTL
+<1>bx. Successor(deps, t)' = Successor(deps, t) => [FALSE]_(Successor(deps, t))
+    OBVIOUS
 <1>. SUFFICES ASSUME []TypeOk, []DependencyGraphCompliant, []DepsNodeFinite,
                      []GSI_Nodes, []GSI_ObjPreds,
                      []UnknownAttemptImpliesFailed, []TP2!TaskAttemptsIntegrity,
@@ -6341,16 +6259,13 @@ LEMMA LemSPRDischarge ==
        => <>[]((t \in SucceededTask \/ t \in DiscardedTask)
                    => StrongProducerRetention(t))
     BY PTL
-<1>nsf. [](/\ TypeOk /\ ~ (t \in UnknownTask) /\ [Next]_vars
-           => Successor(deps, t)' = Successor(deps, t))
-    BY LemSuccessorFrozen, PTL
 <1>nob. [](TypeOk /\ DependencyGraphCompliant => Successor(deps, t) \subseteq Object)
     BY LemTaskOutputsObjects, PTL
 <1>nfi. [](TypeOk /\ DepsNodeFinite => IsFiniteSet(Successor(deps, t)))
     BY LemOutputsFinite, PTL
 <1>npin. [](/\ Successor(deps, t) \subseteq Object
             /\ IsFiniteSet(Successor(deps, t))
-            /\ [](Successor(deps, t)' = Successor(deps, t))
+            /\ [][FALSE]_(Successor(deps, t))
             => \E P \in SUBSET Object : IsFiniteSet(P) /\ [](Successor(deps, t) = P))
     BY LemOutputsPin, PTL
 <1>main. ASSUME <>[](t \in SucceededTask) \/ <>[](t \in DiscardedTask)
@@ -6360,8 +6275,8 @@ LEMMA LemSPRDischarge ==
         BY <1>main, <1>ku, PTL
     <2>ev. <>(/\ Successor(deps, t) \subseteq Object
               /\ IsFiniteSet(Successor(deps, t))
-              /\ [](Successor(deps, t)' = Successor(deps, t)))
-        BY <2>nu, <1>nsf, <1>nob, <1>nfi, PTL
+              /\ [][FALSE]_(Successor(deps, t)))
+        BY <2>nu, <1>bx, LemSuccessorFrozen, <1>nob, <1>nfi, PTL
     <2>pin. <>(\E P \in SUBSET Object : IsFiniteSet(P) /\ [](Successor(deps, t) = P))
         BY <2>ev, <1>npin, PTL
     <2>pin2. \E P \in SUBSET Object : IsFiniteSet(P) /\ <>[](Successor(deps, t) = P)
@@ -6572,38 +6487,26 @@ LEMMA LemTaskSDDrain ==
            /\ WF_vars(CompleteTasks({t}))
            /\ WF_vars(AbortTasks({t}))
            => <>[](~ (t \in SucceededTask) /\ ~ (t \in DiscardedTask))
-<1>f1. [](<<CompleteTasks({t})>>_vars => (t \in CompletedTask)')
-    <2>1. <<CompleteTasks({t})>>_vars => (t \in CompletedTask)'
-        BY DEF CompletedTask, CompleteTasks, vars
+<1>f1. <<CompleteTasks({t})>>_vars => (t \in CompletedTask)'
+    BY DEF CompletedTask, CompleteTasks, vars
+<1>f2. <<AbortTasks({t})>>_vars => (t \in AbortedTask)'
+    BY DEF AbortedTask, AbortTasks, vars
+<1>bc. TypeOk /\ t \in CompletedTask /\ [Next]_vars => (t \in CompletedTask)'
+    <2>. SUFFICES ASSUME TypeOk, t \in CompletedTask, [Next]_vars
+                  PROVE  (t \in CompletedTask)'
+        OBVIOUS
+    <2>1. taskState'[t] = taskState[t]
+        BY LemFinalizedTaskFrozen, Zenon
     <2>. QED
-        BY <2>1, PTL
-<1>f2. [](<<AbortTasks({t})>>_vars => (t \in AbortedTask)')
-    <2>1. <<AbortTasks({t})>>_vars => (t \in AbortedTask)'
-        BY DEF AbortedTask, AbortTasks, vars
+        BY <2>1 DEF CompletedTask
+<1>ba. TypeOk /\ t \in AbortedTask /\ [Next]_vars => (t \in AbortedTask)'
+    <2>. SUFFICES ASSUME TypeOk, t \in AbortedTask, [Next]_vars
+                  PROVE  (t \in AbortedTask)'
+        OBVIOUS
+    <2>1. taskState'[t] = taskState[t]
+        BY LemFinalizedTaskFrozen, Zenon
     <2>. QED
-        BY <2>1, PTL
-<1>bc. [](TypeOk /\ t \in CompletedTask /\ [Next]_vars => (t \in CompletedTask)')
-    <2>1. TypeOk /\ t \in CompletedTask /\ [Next]_vars => (t \in CompletedTask)'
-        <3>. SUFFICES ASSUME TypeOk, t \in CompletedTask, [Next]_vars
-                      PROVE  (t \in CompletedTask)'
-            OBVIOUS
-        <3>1. taskState'[t] = taskState[t]
-            BY LemFinalizedTaskFrozen, Zenon
-        <3>. QED
-            BY <3>1 DEF CompletedTask
-    <2>. QED
-        BY <2>1, PTL
-<1>ba. [](TypeOk /\ t \in AbortedTask /\ [Next]_vars => (t \in AbortedTask)')
-    <2>1. TypeOk /\ t \in AbortedTask /\ [Next]_vars => (t \in AbortedTask)'
-        <3>. SUFFICES ASSUME TypeOk, t \in AbortedTask, [Next]_vars
-                      PROVE  (t \in AbortedTask)'
-            OBVIOUS
-        <3>1. taskState'[t] = taskState[t]
-            BY LemFinalizedTaskFrozen, Zenon
-        <3>. QED
-            BY <3>1 DEF AbortedTask
-    <2>. QED
-        BY <2>1, PTL
+        BY <2>1 DEF AbortedTask
 <1>bx. [](t \in CompletedTask \/ t \in AbortedTask
           => ~ (t \in SucceededTask) /\ ~ (t \in DiscardedTask))
     <2>1. t \in CompletedTask \/ t \in AbortedTask
@@ -6676,16 +6579,18 @@ LEMMA LemPredsPin ==
     ASSUME NEW o \in Object
     PROVE  /\ Predecessor(deps, o) \subseteq Task
            /\ IsFiniteSet(Predecessor(deps, o))
-           /\ [](Predecessor(deps, o)' = Predecessor(deps, o))
+           /\ [][FALSE]_(Predecessor(deps, o))
            => \E P \in SUBSET Task : IsFiniteSet(P) /\ [](Predecessor(deps, o) = P)
 <1>st. ASSUME NEW P
        PROVE  /\ Predecessor(deps, o) = P
               /\ Predecessor(deps, o)' = Predecessor(deps, o)
               => (Predecessor(deps, o) = P)'
     OBVIOUS
+<1>un. [FALSE]_(Predecessor(deps, o)) => Predecessor(deps, o)' = Predecessor(deps, o)
+    OBVIOUS
 <1>. SUFFICES ASSUME Predecessor(deps, o) \subseteq Task,
                      IsFiniteSet(Predecessor(deps, o)),
-                     [](Predecessor(deps, o)' = Predecessor(deps, o))
+                     [][FALSE]_(Predecessor(deps, o))
               PROVE  \E P \in SUBSET Task : IsFiniteSet(P) /\ [](Predecessor(deps, o) = P)
     OBVIOUS
 <1>. DEFINE Q3(P) == [](Predecessor(deps, o) = P)
@@ -6695,12 +6600,8 @@ LEMMA LemPredsPin ==
                          Predecessor(deps, o) = P
                   PROVE  \E P2 \in SUBSET Task : IsFiniteSet(P2) /\ Q3(P2)
         BY Zenon
-    <2>bst. [](/\ Predecessor(deps, o) = P
-               /\ Predecessor(deps, o)' = Predecessor(deps, o)
-               => (Predecessor(deps, o) = P)')
-        BY <1>st, PTL
     <2>lift. [](Predecessor(deps, o) = P)
-        BY <2>bst, PTL
+        BY <1>un, <1>st, PTL
     <2>fold. Q3(P)
         BY <2>lift DEF Q3
     <2>. QED
@@ -6835,17 +6736,6 @@ LEMMA LemCompleteObjectsBarFire ==
         BY <2>1, <2>2, SMT DEF GP1!vars
 <1>. QED
     BY <1>2, <1>3
-
-(* Unconditional producer-set constancy from the subscripted box.            *)
-LEMMA LemPredsBoxUncond ==
-    ASSUME NEW o \in Object
-    PROVE  []([Predecessor(deps, o)' = Predecessor(deps, o)]_vars
-              => Predecessor(deps, o)' = Predecessor(deps, o))
-<1>1. [Predecessor(deps, o)' = Predecessor(deps, o)]_vars
-      => Predecessor(deps, o)' = Predecessor(deps, o)
-    BY LemPredsStutter, Zenon
-<1>. QED
-    BY <1>1, PTL
 
 (* THE E3 CONJUNCT (C2): WF of the abstract object finalization. While the   *)
 (* abstract action stays enabled, o stays registered and quiescence sets in; *)
@@ -7001,7 +6891,7 @@ LEMMA LemGP1FinalizeObjectsFire ==
         BY LemPredsFrozenUnderQuiescence, PTL
     <2>. QED
         BY <2>n3, <1>reg, <1>ou, PTL
-<1>pc. <>[](Predecessor(deps, o)' = Predecessor(deps, o))
+<1>pc. <>[][FALSE]_(Predecessor(deps, o))
     BY <1>pf, LemPredsBoxUncond, PTL
 <1>pin. \E P \in SUBSET Task : IsFiniteSet(P) /\ <>[](Predecessor(deps, o) = P)
     <2>n1. [](TypeOk /\ DependencyGraphCompliant => Predecessor(deps, o) \subseteq Task)
@@ -7010,7 +6900,7 @@ LEMMA LemGP1FinalizeObjectsFire ==
         BY LemPredsFinite, PTL
     <2>np. [](/\ Predecessor(deps, o) \subseteq Task
               /\ IsFiniteSet(Predecessor(deps, o))
-              /\ [](Predecessor(deps, o)' = Predecessor(deps, o))
+              /\ [][FALSE]_(Predecessor(deps, o))
               => \E P \in SUBSET Task : IsFiniteSet(P) /\ [](Predecessor(deps, o) = P))
         BY LemPredsPin, PTL
     <2>ev. <>(\E P \in SUBSET Task : IsFiniteSet(P) /\ [](Predecessor(deps, o) = P))
@@ -7129,11 +7019,8 @@ LEMMA LemGP1FinalizeObjectsFire ==
 <1>fire. <><<CompleteObjects({o})>>_vars
     BY <1>en, <1>wfo, PTL
 <1>. QED
-    <2>bf. [](TypeOk /\ <<CompleteObjects({o})>>_vars
-              => <<GP1!FinalizeObjects({o})>>_(GP1!vars))
-        BY LemCompleteObjectsBarFire, PTL
     <2>. QED
-        BY <1>fire, <2>bf, PTL
+        BY <1>fire, LemCompleteObjectsBarFire, PTL
 
 (* THE E3 CONJUNCT, WF form: necessitating the fire lemma (module facts are  *)
 (* boxed) turns []ENABLED |- <>fire into weak fairness, once every           *)
@@ -7384,12 +7271,8 @@ LEMMA LemFairTP2RegisterTasks ==
              /\ ENABLED <<AbsA>>_(TP2!vars)
              => ENABLED <<RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t]))>>_vars)
         BY <1>2, PTL
-    <2>2. [](/\ TypeOk /\ DependencyGraphCompliant /\ ENABLED <<AbsA>>_(TP2!vars)
-             /\ <<RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t]))>>_vars
-             => <<AbsA>>_(TP2!vars))
-        BY <1>1, <1>3, PTL
     <2>. QED
-        BY <2>1, <2>2, PTL
+        BY <2>1, <1>1, <1>3, PTL
 
 (* WF(GP1!FinalizeTasks) refinement. A registered finalizable task is matched   *)
 (* by one of GP2's CompleteTasks / AbortTasks / RetryTasks. For the FAILED       *)
@@ -7762,16 +7645,10 @@ LEMMA LemGP1FairFinalizeTasks ==
                          <>[]Psd
                   PROVE  WF_(GP1!vars)(GP1!FinalizeTasks({t}))
         OBVIOUS
-    <2>2. [](<<CompleteTasks({t})>>_vars => <<GP1!FinalizeTasks({t})>>_(GP1!vars))
-        BY <1>2c, PTL
-    <2>3. [](<<AbortTasks({t})>>_vars => <<GP1!FinalizeTasks({t})>>_(GP1!vars))
-        BY <1>2a, PTL
-    <2>4. [](<<RetryTasks({t})>>_vars => <<GP1!FinalizeTasks({t})>>_(GP1!vars))
-        BY <1>2r, PTL
     <2>5. <>[]Pf
         BY <1>5
     <2>. QED
-        BY <1>1, <2>2, <2>3, <2>4, <2>5, PTL
+        BY <1>1, <1>2c, <1>2a, <1>2r, <2>5, PTL
 
 (*****************************************************************************)
 (* REFINEMENT OF GraphProcessing1 -- LIVENESS (provable fragment)            *)
@@ -7887,10 +7764,8 @@ LEMMA LemFairTP2ProcessTasks ==
     <2>1. [](TypeOk /\ ENABLED <<TP2!ProcessTasks({t})>>_(TP2!vars)
              => ENABLED <<ProcessTasks({t})>>_vars)
         BY <1>1, PTL
-    <2>2. [](<<ProcessTasks({t})>>_vars => <<TP2!ProcessTasks({t})>>_(TP2!vars))
-        BY <1>2, PTL
     <2>. QED
-        BY <2>1, <2>2, PTL
+        BY <2>1, <1>2, PTL
 
 (* WF(StageTasks) refines WF(TP2!StageTasks) for the retry clone nextAttemptOf[t]. *)
 (* The task-staging fairness of GP2!Fairness in \A-form -- exactly the        *)
@@ -8037,11 +7912,7 @@ LEMMA NextAttemptStageWF ==
       => <<StageTasks({nextAttemptOf[u]})>>_vars
     BY Zenon DEF StageTasks, vars
 <1>. QED
-    <2>1. [](<<StageTasks({c})>>_vars /\ nextAttemptOf[u] = c
-             => <<StageTasks({nextAttemptOf[u]})>>_vars)
-        BY <1>5, PTL
-    <2>. QED
-        BY <1>4, <1>eq, <2>1, PTL
+    BY <1>4, <1>eq, <1>5, PTL
 
 (* GP2!StageTasks carries a "all inputs COMPLETED" guard absent from TP2!StageTasks *)
 (* (which only asks the task be REGISTERED). The gap is closed by invariants: a     *)
@@ -8122,11 +7993,8 @@ LEMMA LemFairTP2StageTasks ==
              /\ ENABLED <<TP2!StageTasks({nextAttemptOf[t]})>>_(TP2!vars)
              => ENABLED <<StageTasks({nextAttemptOf[t]})>>_vars)
         BY <1>1, PTL
-    <2>2. [](<<StageTasks({nextAttemptOf[t]})>>_vars
-             => <<TP2!StageTasks({nextAttemptOf[t]})>>_(TP2!vars))
-        BY <1>2, PTL
     <2>. QED
-        BY <2>1, <2>2, PTL
+        BY <2>1, <1>2, PTL
 
 (*****************************************************************************)
 (* The three finalizing task actions (Complete / Abort / Retry). Their WF     *)
