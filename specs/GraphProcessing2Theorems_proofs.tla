@@ -4005,8 +4005,10 @@ LEMMA LemGP1FairSetTaskRetries ==
                     /\ taskStatep = taskState
                     /\ nextAttemptOfp = nextAttemptOf)
             BY ONLY <3>4, <3>5, Zenon
+        <3>w. WITNESS deps, objectState, objectTargets, taskState,
+                      [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]]
         <3>. QED
-            BY ONLY <3>6, SMTT(120)
+            BY ONLY <3>6, Zenon
     <2>. QED
         BY <2>1, <2>2
 \* --- (2) step refinement: concrete step => abstract step ---
@@ -4148,8 +4150,10 @@ LEMMA LemGP1FailedTaskEventualRetry ==
                 /\ taskStatep = taskState
                 /\ nextAttemptOfp = nextAttemptOf)
         BY ONLY <2>4, <2>5, Zenon
+    <2>w. WITNESS deps, objectState, objectTargets, taskState,
+                  [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]]
     <2>. QED
-        BY ONLY <2>6, SMTT(120)
+        BY ONLY <2>6, Zenon
 \* --- a SetTaskRetries step achieves the target ---
 <1>3. <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
       => (t \in FailedTask /\ nextAttemptOf[t] \in UnknownTask)'
@@ -7772,22 +7776,22 @@ LEMMA LemGP1FairFinalizeTasks ==
 (*****************************************************************************)
 (* REFINEMENT OF GraphProcessing1 -- LIVENESS (provable fragment)            *)
 (*                                                                           *)
-(* GP2's full Spec does NOT refine GP1!Spec. GP1!Fairness contains           *)
-(* WF(GP1!FinalizeObjects({o})), which GP2 cannot satisfy: GP1!FinalizeObjects *)
-(* is enabled whenever o is registered and has ANY producer in ProcessedTask  *)
-(* (= Succeeded/Discarded/Failed under the Bar), whereas GP2 finalizes        *)
-(* objects only via CompleteObjects (needs a SUCCEEDED producer) or           *)
-(* AbortObjects (needs a discarded producer AND every other producer          *)
-(* terminal). An unbounded stream of fresh registered-then-discarded          *)
-(* producers of o keeps AbortObjects({o}) infinitely-often disabled (so its   *)
-(* WF is vacuous) while GP1!FinalizeObjects({o}) stays perpetually enabled    *)
-(* yet never matched -- the discard-churn run, fair for GP2 (see              *)
-(* GraphProcessing2_UnderivableAbortion_finding.md). So GP2's object-         *)
-(* finalization fairness is strictly weaker than GP1's, and Spec => GP1!Spec  *)
-(* is genuinely false.                                                       *)
+(* GP2's full Spec DOES refine GP1!Spec (GP2_RefineGraphProcessing1 below).  *)
+(* Historical note: under the earlier target-gated                            *)
+(* OpenUpstreamEventuallyClosed this was false -- an unbounded stream of      *)
+(* fresh registered-then-discarded producers of o kept AbortObjects({o})     *)
+(* infinitely-often disabled while GP1!FinalizeObjects({o}) stayed enabled    *)
+(* (the discard-churn run; GraphProcessing2_UnderivableAbortion_finding.md). *)
+(* The now-unconditional constraint excludes that churn (each fresh producer  *)
+(* grows o's open ancestry), and WF(GP1!FinalizeObjects) is proved by the     *)
+(* post-quiescence drain (LemGP1FairFinalizeObjects): producers eventually    *)
+(* leave SUCCEEDED/DISCARDED permanently (their own finalization fairness,    *)
+(* fed by the discharged StrongProducerRetention) and FAILED permanently      *)
+(* (the clone-registration engine), so the abstract guard collapses to the    *)
+(* source branch and WF(CompleteObjects) produces the finalizing step.        *)
 (*                                                                           *)
-(* The remaining components of GP1!Spec ARE refined. GP2_RefineGP1Fragment   *)
-(* below packages the proved part: the GP1 step simulation                   *)
+(* GP2_RefineGP1Fragment below packages the task-fairness part: the GP1      *)
+(* step simulation                                                            *)
 (* (LemRefineGP1InitNext), GP1!OpenUpstreamEventuallyClosed (LemGP1OpenUpstream *)
 (* via the open-node bridge), and ALL task-fairness conjuncts of GP1!Fairness: *)
 (* StageTasks (WF) / AssignTasks (WF, upstream-guarded) / ProcessTasks (SF) /   *)
@@ -7802,8 +7806,8 @@ LEMMA LemGP1FairFinalizeTasks ==
 (* (excluding FAILED co-producers -- the abort/success-race fixes) exceed what   *)
 (* ENABLED <<GP1!FinalizeTasks>> supplies; their eventually-stable retention     *)
 (* (StrongProducerRetention) is carried as a per-task hypothesis of the          *)
-(* fragment, deferred to the OpenUpstreamEventuallyClosed strengthening. Only    *)
-(* WF(GP1!FinalizeObjects) is unattainable, per the discard-churn argument above.*)
+(* fragment and discharged from Spec by LemSPRDischarge (the post-quiescence     *)
+(* engine) when the full theorem GP2_RefineGraphProcessing1 is assembled.        *)
 (*****************************************************************************)
 
 (*****************************************************************************)
@@ -8282,9 +8286,8 @@ LEMMA LemWFTP2RetryTasks ==
     BY <1>ns, <1>en, PTL
 
 (* The FinalizeTasks conjunct additionally assumes, per task, the eventually-   *)
-(* stable strengthened producer retention (see LemGP1FairFinalizeTasks): the     *)
-(* bounded-retry-chain liveness that discharges it from Spec alone is deferred   *)
-(* to the OpenUpstreamEventuallyClosed strengthening.                            *)
+(* stable strengthened producer retention (see LemGP1FairFinalizeTasks); it is   *)
+(* discharged from Spec by LemSPRDischarge in GP2_RefineGraphProcessing1 below.  *)
 THEOREM GP2_RefineGP1Fragment ==
     /\ Spec
     /\ \A s \in Task :
@@ -8402,16 +8405,102 @@ THEOREM GP2_RefineGP1Fragment ==
         BY <2>a, <2>b, <2>c
 
 (*****************************************************************************)
+(* REFINEMENT OF GraphProcessing1 -- THE FULL THEOREM                        *)
+(*                                                                           *)
+(* Spec => GP1!Spec. The fragment's per-task retention hypothesis is         *)
+(* discharged by LemSPRDischarge (C1), and the object-finalization conjunct  *)
+(* -- once thought unrefinable -- by LemGP1FairFinalizeObjects (C2), both    *)
+(* powered by the unconditional OpenUpstreamEventuallyClosed constraint.     *)
+(*****************************************************************************)
+THEOREM GP2_RefineGraphProcessing1 == Spec => RefineGraphProcessing1
+<1>. SUFFICES ASSUME Spec
+              PROVE  GP1!Spec
+    BY DEF RefineGraphProcessing1
+\* --- Spec-supplied facts, shared by the discharge and the object conjunct ---
+<1>s1. []TypeOk
+    BY GP2_TypeOk
+<1>s2. []DependencyGraphCompliant
+    BY GP2_DependencyGraphCompliant
+<1>s3. []DepsNodeFinite
+    BY LemDepsNodeFinite DEF Spec
+<1>s4. []GSI_Nodes
+    BY GP2_GSINodes
+<1>s5. []GSI_ObjPreds
+    BY LemGSIObjPreds DEF Spec
+<1>s6. []UnknownAttemptImpliesFailed
+    BY LemUnknownAttemptImpliesFailed DEF Spec
+<1>s7. []TP2!TaskAttemptsIntegrity
+    BY GP2_TP2TaskAttemptsIntegrity DEF Spec
+<1>s8. []TP2!TaskSafetyInv
+    BY GP2_TP2TaskSafetyInv DEF Spec
+<1>s9. []RegisteredObjectHasLiveProducer
+    BY LemRegisteredObjectHasLiveProducer DEF Spec
+<1>s10. [][Next]_vars
+    BY DEF Spec
+<1>s11. \A ob \in Object : WF_vars(CompleteObjects({ob}))
+    BY Isa DEF Spec, Fairness
+<1>s12. \A ob \in Object : WF_vars(AbortObjects({ob}))
+    BY Isa DEF Spec, Fairness
+<1>s13. \A s \in Task : WF_vars(RetryTasks({s}))
+    BY Isa DEF Spec, Fairness
+<1>s14. \A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u}))
+    BY Isa DEF Spec, Fairness
+<1>s15. \A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s])))
+    BY Isa DEF Spec, Fairness
+<1>s16. \A s \in Task : WF_vars(CompleteTasks({s}))
+    BY Isa DEF Spec, Fairness
+<1>s17. \A s \in Task : WF_vars(AbortTasks({s}))
+    BY Isa DEF Spec, Fairness
+<1>s18. OpenUpstreamEventuallyClosed
+    BY DEF Spec
+\* --- discharge the fragment's per-task retention hypothesis (C1) ---
+<1>spr. \A s \in Task :
+            <>[]((s \in SucceededTask \/ s \in DiscardedTask) => StrongProducerRetention(s))
+    <2>. DEFINE H2(x) == <>[]((x \in SucceededTask \/ x \in DiscardedTask)
+                                  => StrongProducerRetention(x))
+    <2>. HIDE DEF H2
+    <2>1. ASSUME NEW t \in Task
+          PROVE  H2(t)
+        <3>1. <>[]((t \in SucceededTask \/ t \in DiscardedTask)
+                       => StrongProducerRetention(t))
+            BY <1>s1, <1>s2, <1>s3, <1>s4, <1>s5, <1>s6, <1>s7, <1>s8, <1>s9, <1>s10,
+               <1>s11, <1>s12, <1>s13, <1>s14, <1>s15, <1>s18,
+               LemSPRDischarge, Isa
+        <3>. QED
+            BY <3>1 DEF H2
+    <2>2. \A s \in Task : H2(s)
+        BY <2>1, Isa
+    <2>. QED
+        BY <2>2 DEF H2
+\* --- the task-fairness fragment, Init/Next and OUEC ---
+<1>frag. /\ GP1!Init /\ [][GP1!Next]_(GP1!vars)
+         /\ GP1!OpenUpstreamEventuallyClosed
+         /\ \A t \in Task :
+                /\ WF_(GP1!vars)(GP1!StageTasks({t}))
+                /\ WF_(GP1!vars)(/\ \E o \in Object : GP1!IsTaskUpstreamOnOpenPathToTarget(t, o)
+                                 /\ GP1!AssignTasks({t}))
+                /\ SF_(GP1!vars)(GP1!ProcessTasks({t}))
+                /\ WF_(GP1!vars)(GP1!FinalizeTasks({t}))
+    BY <1>spr, GP2_RefineGP1Fragment, Isa
+\* --- the object-fairness conjunct (C2) ---
+<1>fo. \A o \in Object : WF_(GP1!vars)(GP1!FinalizeObjects({o}))
+    BY <1>s1, <1>s2, <1>s3, <1>s4, <1>s5, <1>s6, <1>s7, <1>s8, <1>s9, <1>s10,
+       <1>s11, <1>s12, <1>s13, <1>s14, <1>s15, <1>s16, <1>s17, <1>s18,
+       LemGP1FairFinalizeObjects, Isa
+<1>. QED
+    BY <1>frag, <1>fo, Isa DEF GP1!Fairness, GP1!Spec
+
+(*****************************************************************************)
 (* REFINEMENT OF ObjectProcessing2 -- FAIRNESS                               *)
 (*                                                                           *)
-(* Conditional on GP2 refining GP1 (Spec => RefineGraphProcessing1), GP2      *)
-(* refines OP2. The two OP2 object-fairness conjuncts WF(o targeted /\        *)
+(* GP2 refines OP2 (via GP2_RefineGraphProcessing1). The two OP2 object-      *)
+(* fairness conjuncts WF(o targeted /\                                        *)
 (* CompleteObjects) / WF(o targeted /\ AbortObjects) are both enabled exactly *)
 (* when o is a registered target (OP2!RegisteredObject = GP1!RegisteredObject  *)
 (* under the Bar). A registered target cannot persist forever -- its open-     *)
 (* ancestor cardinality would descend below every bound -- which is precisely *)
 (* GP1!LemTargetedRegisteredImpossible. Its GP1-side hypotheses (GraphSafetyInv*)
-(* / Next / Fairness) come from the assumed GP1 refinement; the open-ancestor  *)
+(* / Next / Fairness) come from the GP1 refinement; the open-ancestor          *)
 (* measure from GP1!OpenUpstreamEventuallyClosed, which GP2 supplies via        *)
 (* LemGP1OpenUpstream. The whole object-finalization engine is thus lifted     *)
 (* verbatim from GraphProcessing1.                                            *)
@@ -8518,13 +8607,12 @@ LEMMA LemWFAbortFromMeasure ==
 <1>. QED
     BY GP1!LemTargetedRegisteredImpossible, GP1SameAssumptions, Isa
 
-THEOREM GP2_RefineObjectProcessing2 ==
-    (Spec => RefineGraphProcessing1) => (Spec => RefineObjectProcessing2)
-<1>. SUFFICES ASSUME Spec => RefineGraphProcessing1, Spec
+THEOREM GP2_RefineObjectProcessing2 == Spec => RefineObjectProcessing2
+<1>. SUFFICES ASSUME Spec
               PROVE  OP2!Spec
     BY DEF RefineObjectProcessing2
 <1>g. GP1!Spec
-    BY DEF RefineGraphProcessing1
+    BY GP2_RefineGraphProcessing1 DEF RefineGraphProcessing1
 <1>1. OP2!Init /\ [][OP2!Next]_(OP2!vars)
     BY LemRefineOP2InitNext DEF Spec
 <1>2. OP2!Fairness
@@ -8564,26 +8652,21 @@ THEOREM GP2_RefineObjectProcessing2 ==
     BY <1>1, <1>2 DEF OP2!Spec
 
 (*****************************************************************************)
-(* REFINEMENT OF TASKPROCESSING2 -- assembles TP2!Spec (conditional on the    *)
-(* GraphProcessing1 refinement, whose task-fairness fragment supplies the      *)
-(* leads-to engine). Safety via LemRefineTP2InitNext; each TP2!Fairness         *)
-(* conjunct via its lemma. SetTaskRetries / StageTasks / ProcessTasks by the    *)
-(* (a)+(b) mapping; CompleteTasks / AbortTasks / RetryTasks by lifting          *)
-(* GP1_TaskEventualFinalization (LemLeavesFromEngine + the LemWFTP2 lemmas).   *)
-(* LemFairTP2RegisterTasks is now proved (clone-registration engine above);     *)
-(* the assembly stays commented because its antecedent                          *)
-(* Spec => RefineGraphProcessing1 is not yet provable -- WF(GP1!FinalizeObjects) *)
-(* remains unrefinable until the OpenUpstreamEventuallyClosed strengthening --   *)
-(* so the Complete/Abort/Retry conjuncts still lack their leads-to engine.       *)
+(* REFINEMENT OF TASKPROCESSING2 -- assembles TP2!Spec, using the              *)
+(* GraphProcessing1 refinement (GP2_RefineGraphProcessing1), whose task-       *)
+(* fairness supplies the leads-to engine. Safety via LemRefineTP2InitNext;     *)
+(* each TP2!Fairness conjunct via its lemma. SetTaskRetries / StageTasks /     *)
+(* ProcessTasks by the (a)+(b) mapping; CompleteTasks / AbortTasks /           *)
+(* RetryTasks by lifting GP1_TaskEventualFinalization (LemLeavesFromEngine +   *)
+(* the LemWFTP2 lemmas); RegisterTasks by the clone-registration engine        *)
+(* (LemFairTP2RegisterTasks).                                                  *)
 (*****************************************************************************)
-(*
-THEOREM GP2_RefineTaskProcessing2 ==
-    (Spec => RefineGraphProcessing1) => (Spec => RefineTaskProcessing2)
-<1>. SUFFICES ASSUME Spec => RefineGraphProcessing1, Spec
+THEOREM GP2_RefineTaskProcessing2 == Spec => RefineTaskProcessing2
+<1>. SUFFICES ASSUME Spec
               PROVE  TP2!Spec
     BY DEF RefineTaskProcessing2
 <1>g. GP1!Spec
-    BY DEF RefineGraphProcessing1
+    BY GP2_RefineGraphProcessing1 DEF RefineGraphProcessing1
 <1>1. TP2!Init /\ [][TP2!Next]_(TP2!vars)
     BY LemRefineTP2InitNext DEF Spec
 <1>2. TP2!Fairness
@@ -8597,6 +8680,18 @@ THEOREM GP2_RefineTaskProcessing2 ==
         BY GP2_TP2TaskAttemptsIntegrity DEF Spec
     <2>tsi. []TP2!TaskSafetyInv
         BY GP2_TP2TaskSafetyInv DEF Spec
+    <2>dgc. []DependencyGraphCompliant
+        BY GP2_DependencyGraphCompliant
+    <2>dnf. []DepsNodeFinite
+        BY LemDepsNodeFinite DEF Spec
+    <2>gsn. []GSI_Nodes
+        BY GP2_GSINodes
+    <2>gso. []GSI_ObjPreds
+        BY LemGSIObjPreds DEF Spec
+    <2>uaf. []UnknownAttemptImpliesFailed
+        BY LemUnknownAttemptImpliesFailed DEF Spec
+    <2>nxt. [][Next]_vars
+        BY DEF Spec
     <2>. SUFFICES ASSUME NEW t \in Task
                   PROVE  /\ WF_(TP2!vars)(\E u \in Task : TP2!SetTaskRetries({t}, {u}))
                          /\ WF_(TP2!vars)(TP2!RegisterTasks({nextAttemptOf[t]}))
@@ -8629,12 +8724,27 @@ THEOREM GP2_RefineTaskProcessing2 ==
         <3>. QED
             BY <3>2, <2>tok, <2>gsi, <2>rdd, <2>tai, LemFairTP2StageTasks
     \* --- CompleteTasks / AbortTasks / RetryTasks: lift GP1's leads-to ---
+    <2>. DEFINE Eng(x) == x \in GP1!ProcessedTask ~> x \in GP1!FinalizedTask
+    <2>. HIDE DEF Eng
+    <2>eng0. \A s \in Task : Eng(s)
+        <3>1. ASSUME NEW s \in Task
+              PROVE  Eng(s)
+            <4>1. s \in GP1!ProcessedTask ~> s \in GP1!FinalizedTask
+                BY <1>g, GP1!GP1_TaskEventualFinalization, GP1SameAssumptions, Isa
+            <4>. QED
+                BY <4>1 DEF Eng
+        <3>. QED
+            BY <3>1, Isa
+    <2>eng1. Eng(t)
+        BY <2>eng0, Zenon
     <2>eng. t \in GP1!ProcessedTask ~> t \in GP1!FinalizedTask
-        BY <1>g, GP1!GP1_TaskEventualFinalization, GP1SameAssumptions, Isa
+        BY <2>eng1 DEF Eng
+    <2>lv0. [](t \in GP1!ProcessedTask => <>(t \in GP1!FinalizedTask))
+        BY <2>eng, PTL
     <2>lv. /\ [](t \in SucceededTask => <>(~ (t \in SucceededTask)))
            /\ [](t \in DiscardedTask => <>(~ (t \in DiscardedTask)))
            /\ [](t \in FailedTask => <>(~ (t \in FailedTask)))
-        BY <2>tok, <2>eng, LemLeavesFromEngine
+        BY <2>tok, <2>lv0, LemLeavesFromEngine, Isa
     <2>ct. WF_(TP2!vars)(TP2!CompleteTasks({t}))
         BY <2>lv, LemWFTP2CompleteTasks
     <2>at. WF_(TP2!vars)(TP2!AbortTasks({t}))
@@ -8644,14 +8754,14 @@ THEOREM GP2_RefineTaskProcessing2 ==
     \* --- RegisterTasks: (a)+(b) mapping (retry subgraph registration) ---
     <2>rg. WF_(TP2!vars)(TP2!RegisterTasks({nextAttemptOf[t]}))
         <3>1. WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
-            BY <2>fr DEF Fairness
+            BY <2>fr, Isa DEF Fairness
         <3>. QED
-            BY <3>1, <2>tok, <2>gsi, <2>rdd, <2>tai, LemFairTP2RegisterTasks
+            BY <3>1, <2>tok, <2>dgc, <2>dnf, <2>gsn, <2>gso, <2>uaf, <2>tai, <2>nxt,
+               LemFairTP2RegisterTasks, Isa
     <2>. QED
         BY <2>sr, <2>pt, <2>st, <2>ct, <2>at, <2>rt, <2>rg
 <1>. QED
     BY <1>1, <1>2 DEF TP2!Spec
-*)
 
 (*****************************************************************************)
 (* LIVENESS PROPERTIES (reformulated -- see GraphProcessing2)                *)
