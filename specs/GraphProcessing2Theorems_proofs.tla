@@ -1263,37 +1263,233 @@ THEOREM GP2_AbortedObjectTaskDependenciesInvariant ==
     BY <1>1, <1>2, LemDependencyGraphCompliant, LemTypeOk, PTL DEF Spec
 
 (*****************************************************************************)
+(* REFINEMENT OF TaskProcessing2 -- INITIAL STATE & STEP SIMULATION          *)
+(*                                                                           *)
+(* The task-only projection of every GP2 step is a TaskProcessing2 step (or  *)
+(* a TP2 stutter): RegisterGraph registers its task nodes, the task actions  *)
+(* coincide on (taskState, nextAttemptOf), and the object/target actions     *)
+(* leave the task state untouched. This is the safety half of the            *)
+(* refinement; the fairness half is liveness-coupled and handled separately. *)
+(*****************************************************************************)
+
+LEMMA LemRefineTP2InitNext ==
+    Init /\ [][Next]_vars => TP2!Init /\ [][TP2!Next]_(TP2!vars)
+<1>1. Init => TP2!Init
+    BY DEF Init, TP2!Init
+<1>2. TypeOk /\ [Next]_vars => [TP2!Next]_(TP2!vars)
+    <2>. SUFFICES ASSUME TypeOk, [Next]_vars PROVE [TP2!Next]_(TP2!vars)
+        OBVIOUS
+    <2>1. ASSUME NEW G \in DirectedGraphOf(Task \union Object), RegisterGraph(G)
+          PROVE \/ \E T \in SUBSET Task : TP2!RegisterTasks(T)
+                \/ UNCHANGED TP2!vars
+        <3>1. CASE G.node \cap Task = {}
+            <4>1. \A tt \in Task : tt \notin G.node
+                BY <3>1
+            <4>2. taskState' = taskState
+                BY <2>1, <4>1 DEF RegisterGraph, TypeOk
+            <4>. QED
+                BY <2>1, <4>2 DEF RegisterGraph, TP2!vars
+        <3>2. CASE G.node \cap Task /= {}
+            <4>1. (G.node \cap Task) \subseteq UnknownTask
+                BY <2>1 DEF RegisterGraph
+            <4>2. IsFiniteSet(G.node \cap Task)
+                <5>1. IsFiniteSet(G.node)
+                    BY <2>1 DEF RegisterGraph
+                <5>. QED
+                    BY <5>1, FS_Subset
+            <4>3. taskState' = [tt \in Task |-> IF tt \in (G.node \cap Task) THEN TASK_REGISTERED ELSE taskState[tt]]
+                BY <2>1 DEF RegisterGraph
+            <4>4. nextAttemptOf' = nextAttemptOf
+                BY <2>1 DEF RegisterGraph
+            <4>5. TP2!RegisterTasks(G.node \cap Task)
+                <5>1. TP2!IsFiniteSet(G.node \cap Task)
+                    BY <4>2, TP2Bridges
+                <5>. QED
+                    BY <3>2, <4>1, <4>3, <4>4, <5>1 DEF TP2!RegisterTasks, TP2!UnknownTask,
+                        UnknownTask
+            <4>. QED
+                BY <4>5
+        <3>. QED
+            BY <3>1, <3>2
+    <2>2. ASSUME NEW O \in SUBSET Object, TargetObjects(O) PROVE UNCHANGED TP2!vars
+        BY <2>2 DEF TargetObjects, TP2!vars
+    <2>3. ASSUME NEW O \in SUBSET Object, UntargetObjects(O) PROVE UNCHANGED TP2!vars
+        BY <2>3 DEF TP2!vars, UntargetObjects
+    <2>4. ASSUME NEW O \in SUBSET Object, CompleteObjects(O) PROVE UNCHANGED TP2!vars
+        BY <2>4 DEF CompleteObjects, TP2!vars
+    <2>5. ASSUME NEW O \in SUBSET Object, AbortObjects(O) PROVE UNCHANGED TP2!vars
+        BY <2>5 DEF AbortObjects, TP2!vars
+    <2>6. ASSUME NEW T \in SUBSET Task, StageTasks(T) PROVE TP2!StageTasks(T)
+        BY <2>6 DEF RegisteredTask, StageTasks, TP2!RegisteredTask, TP2!StageTasks
+    <2>7. ASSUME NEW T \in SUBSET Task, DiscardTasks(T) PROVE TP2!DiscardTasks(T)
+        BY <2>7 DEF DiscardTasks, RegisteredTask, StagedTask, TP2!DiscardTasks,
+            TP2!RegisteredTask, TP2!StagedTask
+    <2>8. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U)
+          PROVE \E UU \in SUBSET Task : TP2!SetTaskRetries(T, UU)
+        <3>1. TP2!SetTaskRetries(T, U)
+            BY <2>8, TP2Bridges DEF FailedTask, SetTaskRetries, TP2!FailedTask,
+                TP2!SetTaskRetries, TP2!UnknownTask, TP2!UnretriedTask, UnknownTask,
+                UnretriedTask
+        <3>. QED
+            BY <3>1
+    <2>9. ASSUME NEW T \in SUBSET Task, AssignTasks(T) PROVE TP2!AssignTasks(T)
+        BY <2>9 DEF AssignTasks, StagedTask, TP2!AssignTasks, TP2!StagedTask
+    <2>10. ASSUME NEW T \in SUBSET Task, ReleaseTasks(T) PROVE TP2!ReleaseTasks(T)
+        BY <2>10 DEF AssignedTask, ReleaseTasks, TP2!AssignedTask, TP2!ReleaseTasks
+    <2>11. ASSUME NEW T \in SUBSET Task, ProcessTasks(T) PROVE TP2!ProcessTasks(T)
+        BY <2>11, TP2Bridges DEF AssignedTask, ProcessTasks, TP2!AssignedTask,
+            TP2!ProcessTasks
+    <2>12. ASSUME NEW T \in SUBSET Task, CompleteTasks(T) PROVE TP2!CompleteTasks(T)
+        BY <2>12 DEF CompleteTasks, SucceededTask, TP2!CompleteTasks, TP2!SucceededTask
+    <2>13. ASSUME NEW T \in SUBSET Task, AbortTasks(T) PROVE TP2!AbortTasks(T)
+        BY <2>13 DEF AbortTasks, DiscardedTask, TP2!AbortTasks, TP2!DiscardedTask
+    <2>14. ASSUME NEW T \in SUBSET Task, RetryTasks(T) PROVE TP2!RetryTasks(T)
+        BY <2>14 DEF FailedTask, RetryTasks, TP2!FailedTask, TP2!RetryTasks,
+            TP2!UnretriedTask, UnretriedTask
+    <2>15. CASE Terminating
+        BY <2>15 DEF AssignedTask, DiscardedTask, FailedTask, SucceededTask, Terminating,
+            TP2!AssignedTask, TP2!DiscardedTask, TP2!FailedTask, TP2!SucceededTask,
+            TP2!Terminating, TP2!vars, vars
+    <2>16. CASE UNCHANGED vars
+        BY <2>16 DEF TP2!vars, vars
+    <2>. QED
+        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11, <2>12, <2>13,
+            <2>14, <2>15, <2>16, Zenon DEF Next, TP2!Next
+<1>. QED
+    BY <1>1, <1>2, LemTypeOk, PTL
+
+(*****************************************************************************)
+(* REFINEMENT OF ObjectProcessing2 -- INITIAL STATE & STEP SIMULATION        *)
+(*                                                                           *)
+(* The object-only projection of every GP2 step is an ObjectProcessing2 step *)
+(* (or an OP2 stutter): RegisterGraph registers its unknown objects, the     *)
+(* object/target actions coincide on (objectState, objectTargets), and the   *)
+(* task actions leave the object state untouched.                            *)
+(*****************************************************************************)
+
+LEMMA LemRefineOP2InitNext ==
+    Init /\ [][Next]_vars => OP2!Init /\ [][OP2!Next]_(OP2!vars)
+<1>1. Init => OP2!Init
+    BY DEF Init, OP2!Init
+<1>2. TypeOk /\ [Next]_vars => [OP2!Next]_(OP2!vars)
+    <2>. SUFFICES ASSUME TypeOk, [Next]_vars PROVE [OP2!Next]_(OP2!vars)
+        OBVIOUS
+    <2>1. ASSUME NEW G \in DirectedGraphOf(Task \union Object), RegisterGraph(G)
+          PROVE \/ \E O \in SUBSET Object : OP2!RegisterObjects(O)
+                \/ UNCHANGED OP2!vars
+        <3>1. objectState' = [oo \in Object |->
+                IF oo \in G.node \intersect UnknownObject THEN OBJECT_REGISTERED ELSE objectState[oo]]
+            BY <2>1 DEF RegisterGraph
+        <3>2. objectTargets' = objectTargets
+            BY <2>1 DEF RegisterGraph
+        <3>3. CASE G.node \intersect UnknownObject = {}
+            <4>1. objectState' = objectState
+                BY <3>1, <3>3 DEF TypeOk
+            <4>. QED
+                BY <3>2, <4>1 DEF OP2!vars
+        <3>4. CASE G.node \intersect UnknownObject /= {}
+            <4>1. OP2!RegisterObjects(G.node \intersect UnknownObject)
+                BY <3>1, <3>2, <3>4 DEF OP2!RegisterObjects, OP2!UnknownObject,
+                    UnknownObject
+            <4>. QED
+                BY <4>1 DEF UnknownObject
+        <3>. QED
+            BY <3>3, <3>4
+    <2>2. ASSUME NEW O \in SUBSET Object, TargetObjects(O) PROVE OP2!TargetObjects(O)
+        BY <2>2 DEF AbortedObject, CompletedObject, OP2!AbortedObject, OP2!CompletedObject,
+            OP2!RegisteredObject, OP2!TargetObjects, RegisteredObject, TargetObjects
+    <2>3. ASSUME NEW O \in SUBSET Object, UntargetObjects(O) PROVE OP2!UntargetObjects(O)
+        BY <2>3 DEF OP2!UntargetObjects, UntargetObjects
+    <2>4. ASSUME NEW O \in SUBSET Object, CompleteObjects(O) PROVE OP2!CompleteObjects(O)
+        BY <2>4 DEF CompleteObjects, OP2!CompleteObjects, OP2!RegisteredObject,
+            RegisteredObject
+    <2>5. ASSUME NEW O \in SUBSET Object, AbortObjects(O) PROVE OP2!AbortObjects(O)
+        BY <2>5 DEF AbortObjects, OP2!AbortObjects, OP2!RegisteredObject, RegisteredObject
+    <2>6. ASSUME NEW T \in SUBSET Task, StageTasks(T) PROVE UNCHANGED OP2!vars
+        BY <2>6 DEF OP2!vars, StageTasks
+    <2>7. ASSUME NEW T \in SUBSET Task, DiscardTasks(T) PROVE UNCHANGED OP2!vars
+        BY <2>7 DEF DiscardTasks, OP2!vars
+    <2>8. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U)
+          PROVE UNCHANGED OP2!vars
+        BY <2>8 DEF OP2!vars, SetTaskRetries
+    <2>9. ASSUME NEW T \in SUBSET Task, AssignTasks(T) PROVE UNCHANGED OP2!vars
+        BY <2>9 DEF AssignTasks, OP2!vars
+    <2>10. ASSUME NEW T \in SUBSET Task, ReleaseTasks(T) PROVE UNCHANGED OP2!vars
+        BY <2>10 DEF OP2!vars, ReleaseTasks
+    <2>11. ASSUME NEW T \in SUBSET Task, ProcessTasks(T) PROVE UNCHANGED OP2!vars
+        BY <2>11 DEF OP2!vars, ProcessTasks
+    <2>12. ASSUME NEW T \in SUBSET Task, CompleteTasks(T) PROVE UNCHANGED OP2!vars
+        BY <2>12 DEF CompleteTasks, OP2!vars
+    <2>13. ASSUME NEW T \in SUBSET Task, AbortTasks(T) PROVE UNCHANGED OP2!vars
+        BY <2>13 DEF AbortTasks, OP2!vars
+    <2>14. ASSUME NEW T \in SUBSET Task, RetryTasks(T) PROVE UNCHANGED OP2!vars
+        BY <2>14 DEF OP2!vars, RetryTasks
+    <2>15. CASE Terminating
+        BY <2>15 DEF AbortedObject, CompletedObject, OP2!AbortedObject, OP2!CompletedObject,
+            OP2!Terminating, OP2!vars, Terminating, vars
+    <2>16. CASE UNCHANGED vars
+        BY <2>16 DEF OP2!vars, vars
+    <2>. QED
+        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11, <2>12, <2>13,
+            <2>14, <2>15, <2>16, Zenon DEF Next, OP2!Next
+<1>. QED
+    BY <1>1, <1>2, LemTypeOk, PTL
+
+(*****************************************************************************)
+(* INHERITED INVARIANTS                                                      *)
+(*                                                                           *)
+(* The safety refinements lift the abstract specs' invariants to GP2 without *)
+(* re-proving them: the projected GP2 behaviour is a TP2 / OP2 / GP1          *)
+(* behaviour, so any invariant they keep over Init /\ [][Next] holds of GP2. *)
+(*****************************************************************************)
+
+\* Task-level invariants inherited from TaskProcessing2.
+LEMMA GP2_TP2Type == Init /\ [][Next]_vars => []TP2!TypeOk
+<1>1. TP2!Init /\ [][TP2!Next]_(TP2!vars) => []TP2!TypeOk
+    BY TP2!LemType, TP2SameAssumptions, Isa
+<1>. QED
+    BY <1>1, LemRefineTP2InitNext, PTL
+LEMMA GP2_TP2TaskAttemptsIntegrity == Init /\ [][Next]_vars => []TP2!TaskAttemptsIntegrity
+<1>1. TP2!Init /\ [][TP2!Next]_(TP2!vars) => []TP2!TaskAttemptsIntegrity
+    BY TP2!LemTaskAttemptsIntegrity, TP2SameAssumptions, Isa
+<1>. QED
+    BY <1>1, LemRefineTP2InitNext, PTL
+LEMMA GP2_TP2AttemptsIsBounded == Init /\ [][Next]_vars => []TP2!AttemptsIsBounded
+<1>1. TP2!Init /\ [][TP2!Next]_(TP2!vars) => []TP2!AttemptsIsBounded
+    BY TP2!LemAttemptsIsBounded, TP2SameAssumptions, Isa
+<1>. QED
+    BY <1>1, LemRefineTP2InitNext, PTL
+LEMMA GP2_TP2TaskSafetyInv == Init /\ [][Next]_vars => []TP2!TaskSafetyInv
+<1>1. TP2!Init /\ [][TP2!Next]_(TP2!vars) => []TP2!TaskSafetyInv
+    BY TP2!LemTaskSafetyInv, TP2SameAssumptions, Isa
+<1>. QED
+    BY <1>1, LemRefineTP2InitNext, PTL
+
+\* Object-level invariants inherited from ObjectProcessing2.
+LEMMA GP2_OP2Type == Init /\ [][Next]_vars => []OP2!TypeOk
+<1>1. OP2!Init /\ [][OP2!Next]_(OP2!vars) => []OP2!TypeOk
+    BY OP2!LemType, OP2SameAssumptions, Isa
+<1>. QED
+    BY <1>1, LemRefineOP2InitNext, PTL
+
+(*****************************************************************************)
 (* RETRY DATA DEPENDENCIES VALIDITY                                          *)
 (*                                                                           *)
 (* Once a retry target u = nextAttemptOf[t] has been registered, it carries  *)
 (* exactly t's data dependencies. Auxiliary fact: a task that has a next     *)
-(* attempt is itself known (it was failed when the attempt was recorded, and *)
-(* no task ever returns to the unknown state).                               *)
+(* attempt is itself known -- a pointwise consequence of                     *)
+(* TP2!TaskAttemptsIntegrity (linked tasks are FAILED or RETRIED), inherited *)
+(* through the TP2 refinement rather than re-proved by induction.            *)
 (*****************************************************************************)
 
 NextAttemptKnown == \A t \in Task : nextAttemptOf[t] /= NULL => t \notin UnknownTask
 
 LEMMA LemNextAttemptKnown == Init /\ [][Next]_vars => []NextAttemptKnown
-<1>1. Init => NextAttemptKnown
-    BY DEF Init, NextAttemptKnown
-<1>2. TypeOk /\ NextAttemptKnown /\ [Next]_vars => NextAttemptKnown'
-    <2>. SUFFICES ASSUME TypeOk, NextAttemptKnown, [Next]_vars,
-                         NEW t \in Task, (nextAttemptOf[t] /= NULL)'
-                  PROVE (t \notin UnknownTask)'
-        BY DEF NextAttemptKnown
-    <2>1. ASSUME NEW G \in DirectedGraphOf(Task \union Object), RegisterGraph(G)
-          PROVE (t \notin UnknownTask)'
-        BY <2>1 DEF NextAttemptKnown, RegisterGraph, UnknownTask
-    <2>2. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U)
-          PROVE (t \notin UnknownTask)'
-        BY <2>2 DEF FailedTask, NextAttemptKnown, SetTaskRetries, UnknownTask, UnretriedTask
-    <2>. QED
-        BY <2>1, <2>2 DEF AbortObjects, AbortTasks, AssignTasks, CompleteObjects,
-            CompleteTasks, DiscardTasks, Next, NextAttemptKnown, ProcessTasks, ReleaseTasks,
-            RetryTasks, StageTasks, TargetObjects, Terminating, UnknownTask,
-            UntargetObjects, vars
+<1>1. TP2!TaskAttemptsIntegrity => NextAttemptKnown
+    BY DEF FailedTask, NextAttemptKnown, RetriedTask, TP2!FailedTask, TP2!RetriedTask,
+        TP2!TaskAttemptsIntegrity, UnknownTask
 <1>. QED
-    BY <1>1, <1>2, LemTypeOk, PTL
+    BY <1>1, GP2_TP2TaskAttemptsIntegrity, PTL
 
 (*****************************************************************************)
 (* CLONE-REGISTRATION SUPPORT INVARIANTS                                     *)
@@ -1306,8 +1502,9 @@ LEMMA LemNextAttemptKnown == Init /\ [][Next]_vars => []NextAttemptKnown
 (* its original is FAILED, hence non-terminal, so none of its outputs can be *)
 (* aborted (GSI_ObjPreds) and the retry subgraph stays registrable.          *)
 (*                                                                           *)
-(* DepsNodeFinite: the dependency graph has finitely many nodes -- only      *)
-(* RegisterGraph grows it, by a guarded-finite node set.                     *)
+(* DepsNodeFinite: the dependency graph has finitely many nodes -- GP1's     *)
+(* DependencyGraphFinite (deps is identity-mapped), inherited through the    *)
+(* refinement rather than re-proved by induction.                            *)
 (*****************************************************************************)
 
 UnknownAttemptImpliesFailed ==
@@ -1345,28 +1542,12 @@ LEMMA LemUnknownAttemptImpliesFailed ==
 
 LEMMA LemDepsNodeFinite ==
     Init /\ [][Next]_vars => []DepsNodeFinite
-<1>1. Init => DepsNodeFinite
-    BY FS_EmptySet DEF DepsNodeFinite, EmptyGraph, Init
-<1>2. DepsNodeFinite /\ [Next]_vars => DepsNodeFinite'
-    <2>. SUFFICES ASSUME DepsNodeFinite, [Next]_vars PROVE DepsNodeFinite'
-        OBVIOUS
-    <2>1. ASSUME NEW G \in DirectedGraphOf(Task \union Object), RegisterGraph(G)
-          PROVE DepsNodeFinite'
-        <3>1. IsFiniteSet(G.node)
-            BY <2>1 DEF RegisterGraph
-        <3>2. deps'.node = deps.node \union G.node
-            BY <2>1 DEF GraphUnion, RegisterGraph
-        <3>. QED
-            BY <3>1, <3>2, FS_Union DEF DepsNodeFinite
-    <2>2. deps' = deps => DepsNodeFinite'
-        BY DEF DepsNodeFinite
-    <2>. QED
-        BY <2>1, <2>2, Zenon
-        DEF AbortObjects, AbortTasks, AssignTasks, CompleteObjects, CompleteTasks,
-            DiscardTasks, Next, ProcessTasks, ReleaseTasks, RetryTasks, SetTaskRetries,
-            StageTasks, TargetObjects, Terminating, UntargetObjects, vars
+<1>1. GP1!Init /\ [][GP1!Next]_(GP1!vars) => []GP1!DependencyGraphFinite
+    BY GP1SameAssumptions, GP1!LemDependencyGraphFinite, Isa
+<1>2. GP1!DependencyGraphFinite => DepsNodeFinite
+    BY GP1GraphBridges DEF DepsNodeFinite, GP1!DependencyGraphFinite
 <1>. QED
-    BY <1>1, <1>2, PTL
+    BY <1>1, <1>2, LemRefineGP1InitNext, PTL
 
 (* deps grows monotonically: only RegisterGraph changes it, by graph union.  *)
 LEMMA LemDepsMonotone ==
@@ -1983,210 +2164,6 @@ BY GP2_DependencyGraphCompliant, GP2_GSINodes, GP2_GraphStateIntegrity, GP2_Type
 (* inline (retry/discard cascade; viable-ancestor monotonicity).             *)
 (*****************************************************************************)
 
-(*****************************************************************************)
-(* REFINEMENT OF TaskProcessing2 -- INITIAL STATE & STEP SIMULATION          *)
-(*                                                                           *)
-(* The task-only projection of every GP2 step is a TaskProcessing2 step (or  *)
-(* a TP2 stutter): RegisterGraph registers its task nodes, the task actions  *)
-(* coincide on (taskState, nextAttemptOf), and the object/target actions     *)
-(* leave the task state untouched. This is the safety half of the            *)
-(* refinement; the fairness half is liveness-coupled and handled separately. *)
-(*****************************************************************************)
-
-LEMMA LemRefineTP2InitNext ==
-    Init /\ [][Next]_vars => TP2!Init /\ [][TP2!Next]_(TP2!vars)
-<1>1. Init => TP2!Init
-    BY DEF Init, TP2!Init
-<1>2. TypeOk /\ [Next]_vars => [TP2!Next]_(TP2!vars)
-    <2>. SUFFICES ASSUME TypeOk, [Next]_vars PROVE [TP2!Next]_(TP2!vars)
-        OBVIOUS
-    <2>1. ASSUME NEW G \in DirectedGraphOf(Task \union Object), RegisterGraph(G)
-          PROVE \/ \E T \in SUBSET Task : TP2!RegisterTasks(T)
-                \/ UNCHANGED TP2!vars
-        <3>1. CASE G.node \cap Task = {}
-            <4>1. \A tt \in Task : tt \notin G.node
-                BY <3>1
-            <4>2. taskState' = taskState
-                BY <2>1, <4>1 DEF RegisterGraph, TypeOk
-            <4>. QED
-                BY <2>1, <4>2 DEF RegisterGraph, TP2!vars
-        <3>2. CASE G.node \cap Task /= {}
-            <4>1. (G.node \cap Task) \subseteq UnknownTask
-                BY <2>1 DEF RegisterGraph
-            <4>2. IsFiniteSet(G.node \cap Task)
-                <5>1. IsFiniteSet(G.node)
-                    BY <2>1 DEF RegisterGraph
-                <5>. QED
-                    BY <5>1, FS_Subset
-            <4>3. taskState' = [tt \in Task |-> IF tt \in (G.node \cap Task) THEN TASK_REGISTERED ELSE taskState[tt]]
-                BY <2>1 DEF RegisterGraph
-            <4>4. nextAttemptOf' = nextAttemptOf
-                BY <2>1 DEF RegisterGraph
-            <4>5. TP2!RegisterTasks(G.node \cap Task)
-                <5>1. TP2!IsFiniteSet(G.node \cap Task)
-                    BY <4>2, TP2Bridges
-                <5>. QED
-                    BY <3>2, <4>1, <4>3, <4>4, <5>1 DEF TP2!RegisterTasks, TP2!UnknownTask,
-                        UnknownTask
-            <4>. QED
-                BY <4>5
-        <3>. QED
-            BY <3>1, <3>2
-    <2>2. ASSUME NEW O \in SUBSET Object, TargetObjects(O) PROVE UNCHANGED TP2!vars
-        BY <2>2 DEF TargetObjects, TP2!vars
-    <2>3. ASSUME NEW O \in SUBSET Object, UntargetObjects(O) PROVE UNCHANGED TP2!vars
-        BY <2>3 DEF TP2!vars, UntargetObjects
-    <2>4. ASSUME NEW O \in SUBSET Object, CompleteObjects(O) PROVE UNCHANGED TP2!vars
-        BY <2>4 DEF CompleteObjects, TP2!vars
-    <2>5. ASSUME NEW O \in SUBSET Object, AbortObjects(O) PROVE UNCHANGED TP2!vars
-        BY <2>5 DEF AbortObjects, TP2!vars
-    <2>6. ASSUME NEW T \in SUBSET Task, StageTasks(T) PROVE TP2!StageTasks(T)
-        BY <2>6 DEF RegisteredTask, StageTasks, TP2!RegisteredTask, TP2!StageTasks
-    <2>7. ASSUME NEW T \in SUBSET Task, DiscardTasks(T) PROVE TP2!DiscardTasks(T)
-        BY <2>7 DEF DiscardTasks, RegisteredTask, StagedTask, TP2!DiscardTasks,
-            TP2!RegisteredTask, TP2!StagedTask
-    <2>8. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U)
-          PROVE \E UU \in SUBSET Task : TP2!SetTaskRetries(T, UU)
-        <3>1. TP2!SetTaskRetries(T, U)
-            BY <2>8, TP2Bridges DEF FailedTask, SetTaskRetries, TP2!FailedTask,
-                TP2!SetTaskRetries, TP2!UnknownTask, TP2!UnretriedTask, UnknownTask,
-                UnretriedTask
-        <3>. QED
-            BY <3>1
-    <2>9. ASSUME NEW T \in SUBSET Task, AssignTasks(T) PROVE TP2!AssignTasks(T)
-        BY <2>9 DEF AssignTasks, StagedTask, TP2!AssignTasks, TP2!StagedTask
-    <2>10. ASSUME NEW T \in SUBSET Task, ReleaseTasks(T) PROVE TP2!ReleaseTasks(T)
-        BY <2>10 DEF AssignedTask, ReleaseTasks, TP2!AssignedTask, TP2!ReleaseTasks
-    <2>11. ASSUME NEW T \in SUBSET Task, ProcessTasks(T) PROVE TP2!ProcessTasks(T)
-        BY <2>11, TP2Bridges DEF AssignedTask, ProcessTasks, TP2!AssignedTask,
-            TP2!ProcessTasks
-    <2>12. ASSUME NEW T \in SUBSET Task, CompleteTasks(T) PROVE TP2!CompleteTasks(T)
-        BY <2>12 DEF CompleteTasks, SucceededTask, TP2!CompleteTasks, TP2!SucceededTask
-    <2>13. ASSUME NEW T \in SUBSET Task, AbortTasks(T) PROVE TP2!AbortTasks(T)
-        BY <2>13 DEF AbortTasks, DiscardedTask, TP2!AbortTasks, TP2!DiscardedTask
-    <2>14. ASSUME NEW T \in SUBSET Task, RetryTasks(T) PROVE TP2!RetryTasks(T)
-        BY <2>14 DEF FailedTask, RetryTasks, TP2!FailedTask, TP2!RetryTasks,
-            TP2!UnretriedTask, UnretriedTask
-    <2>15. CASE Terminating
-        BY <2>15 DEF AssignedTask, DiscardedTask, FailedTask, SucceededTask, Terminating,
-            TP2!AssignedTask, TP2!DiscardedTask, TP2!FailedTask, TP2!SucceededTask,
-            TP2!Terminating, TP2!vars, vars
-    <2>16. CASE UNCHANGED vars
-        BY <2>16 DEF TP2!vars, vars
-    <2>. QED
-        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11, <2>12, <2>13,
-            <2>14, <2>15, <2>16, Zenon DEF Next, TP2!Next
-<1>. QED
-    BY <1>1, <1>2, LemTypeOk, PTL
-
-(*****************************************************************************)
-(* REFINEMENT OF ObjectProcessing2 -- INITIAL STATE & STEP SIMULATION        *)
-(*                                                                           *)
-(* The object-only projection of every GP2 step is an ObjectProcessing2 step *)
-(* (or an OP2 stutter): RegisterGraph registers its unknown objects, the     *)
-(* object/target actions coincide on (objectState, objectTargets), and the   *)
-(* task actions leave the object state untouched.                            *)
-(*****************************************************************************)
-
-LEMMA LemRefineOP2InitNext ==
-    Init /\ [][Next]_vars => OP2!Init /\ [][OP2!Next]_(OP2!vars)
-<1>1. Init => OP2!Init
-    BY DEF Init, OP2!Init
-<1>2. TypeOk /\ [Next]_vars => [OP2!Next]_(OP2!vars)
-    <2>. SUFFICES ASSUME TypeOk, [Next]_vars PROVE [OP2!Next]_(OP2!vars)
-        OBVIOUS
-    <2>1. ASSUME NEW G \in DirectedGraphOf(Task \union Object), RegisterGraph(G)
-          PROVE \/ \E O \in SUBSET Object : OP2!RegisterObjects(O)
-                \/ UNCHANGED OP2!vars
-        <3>1. objectState' = [oo \in Object |->
-                IF oo \in G.node \intersect UnknownObject THEN OBJECT_REGISTERED ELSE objectState[oo]]
-            BY <2>1 DEF RegisterGraph
-        <3>2. objectTargets' = objectTargets
-            BY <2>1 DEF RegisterGraph
-        <3>3. CASE G.node \intersect UnknownObject = {}
-            <4>1. objectState' = objectState
-                BY <3>1, <3>3 DEF TypeOk
-            <4>. QED
-                BY <3>2, <4>1 DEF OP2!vars
-        <3>4. CASE G.node \intersect UnknownObject /= {}
-            <4>1. OP2!RegisterObjects(G.node \intersect UnknownObject)
-                BY <3>1, <3>2, <3>4 DEF OP2!RegisterObjects, OP2!UnknownObject,
-                    UnknownObject
-            <4>. QED
-                BY <4>1 DEF UnknownObject
-        <3>. QED
-            BY <3>3, <3>4
-    <2>2. ASSUME NEW O \in SUBSET Object, TargetObjects(O) PROVE OP2!TargetObjects(O)
-        BY <2>2 DEF AbortedObject, CompletedObject, OP2!AbortedObject, OP2!CompletedObject,
-            OP2!RegisteredObject, OP2!TargetObjects, RegisteredObject, TargetObjects
-    <2>3. ASSUME NEW O \in SUBSET Object, UntargetObjects(O) PROVE OP2!UntargetObjects(O)
-        BY <2>3 DEF OP2!UntargetObjects, UntargetObjects
-    <2>4. ASSUME NEW O \in SUBSET Object, CompleteObjects(O) PROVE OP2!CompleteObjects(O)
-        BY <2>4 DEF CompleteObjects, OP2!CompleteObjects, OP2!RegisteredObject,
-            RegisteredObject
-    <2>5. ASSUME NEW O \in SUBSET Object, AbortObjects(O) PROVE OP2!AbortObjects(O)
-        BY <2>5 DEF AbortObjects, OP2!AbortObjects, OP2!RegisteredObject, RegisteredObject
-    <2>6. ASSUME NEW T \in SUBSET Task, StageTasks(T) PROVE UNCHANGED OP2!vars
-        BY <2>6 DEF OP2!vars, StageTasks
-    <2>7. ASSUME NEW T \in SUBSET Task, DiscardTasks(T) PROVE UNCHANGED OP2!vars
-        BY <2>7 DEF DiscardTasks, OP2!vars
-    <2>8. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U)
-          PROVE UNCHANGED OP2!vars
-        BY <2>8 DEF OP2!vars, SetTaskRetries
-    <2>9. ASSUME NEW T \in SUBSET Task, AssignTasks(T) PROVE UNCHANGED OP2!vars
-        BY <2>9 DEF AssignTasks, OP2!vars
-    <2>10. ASSUME NEW T \in SUBSET Task, ReleaseTasks(T) PROVE UNCHANGED OP2!vars
-        BY <2>10 DEF OP2!vars, ReleaseTasks
-    <2>11. ASSUME NEW T \in SUBSET Task, ProcessTasks(T) PROVE UNCHANGED OP2!vars
-        BY <2>11 DEF OP2!vars, ProcessTasks
-    <2>12. ASSUME NEW T \in SUBSET Task, CompleteTasks(T) PROVE UNCHANGED OP2!vars
-        BY <2>12 DEF CompleteTasks, OP2!vars
-    <2>13. ASSUME NEW T \in SUBSET Task, AbortTasks(T) PROVE UNCHANGED OP2!vars
-        BY <2>13 DEF AbortTasks, OP2!vars
-    <2>14. ASSUME NEW T \in SUBSET Task, RetryTasks(T) PROVE UNCHANGED OP2!vars
-        BY <2>14 DEF OP2!vars, RetryTasks
-    <2>15. CASE Terminating
-        BY <2>15 DEF AbortedObject, CompletedObject, OP2!AbortedObject, OP2!CompletedObject,
-            OP2!Terminating, OP2!vars, Terminating, vars
-    <2>16. CASE UNCHANGED vars
-        BY <2>16 DEF OP2!vars, vars
-    <2>. QED
-        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11, <2>12, <2>13,
-            <2>14, <2>15, <2>16, Zenon DEF Next, OP2!Next
-<1>. QED
-    BY <1>1, <1>2, LemTypeOk, PTL
-
-(*****************************************************************************)
-(* INHERITED INVARIANTS                                                      *)
-(*                                                                           *)
-(* The safety refinements lift the abstract specs' invariants to GP2 without *)
-(* re-proving them: the projected GP2 behaviour is a TP2 / OP2 / GP1          *)
-(* behaviour, so any invariant they keep over Init /\ [][Next] holds of GP2. *)
-(*****************************************************************************)
-
-\* Task-level invariants inherited from TaskProcessing2.
-LEMMA GP2_TP2Type == Init /\ [][Next]_vars => []TP2!TypeOk
-<1>1. TP2!Init /\ [][TP2!Next]_(TP2!vars) => []TP2!TypeOk
-    BY TP2!LemType, TP2SameAssumptions, Isa
-<1>. QED
-    BY <1>1, LemRefineTP2InitNext, PTL
-LEMMA GP2_TP2TaskAttemptsIntegrity == Init /\ [][Next]_vars => []TP2!TaskAttemptsIntegrity
-<1>1. TP2!Init /\ [][TP2!Next]_(TP2!vars) => []TP2!TaskAttemptsIntegrity
-    BY TP2!LemTaskAttemptsIntegrity, TP2SameAssumptions, Isa
-<1>. QED
-    BY <1>1, LemRefineTP2InitNext, PTL
-LEMMA GP2_TP2AttemptsIsBounded == Init /\ [][Next]_vars => []TP2!AttemptsIsBounded
-<1>1. TP2!Init /\ [][TP2!Next]_(TP2!vars) => []TP2!AttemptsIsBounded
-    BY TP2!LemAttemptsIsBounded, TP2SameAssumptions, Isa
-<1>. QED
-    BY <1>1, LemRefineTP2InitNext, PTL
-LEMMA GP2_TP2TaskSafetyInv == Init /\ [][Next]_vars => []TP2!TaskSafetyInv
-<1>1. TP2!Init /\ [][TP2!Next]_(TP2!vars) => []TP2!TaskSafetyInv
-    BY TP2!LemTaskSafetyInv, TP2SameAssumptions, Isa
-<1>. QED
-    BY <1>1, LemRefineTP2InitNext, PTL
-
-\* Object-level invariants inherited from ObjectProcessing2.
 
 (*****************************************************************************)
 (* The LIVE-producer refinement of RegisteredObjectHasOpenProducer: a        *)
@@ -2693,12 +2670,6 @@ LEMMA LemRegisteredObjectHasLiveProducer ==
             LemTypeOk
     <2>. QED
         BY <1>1, <1>2, <2>1, PTL
-
-LEMMA GP2_OP2Type == Init /\ [][Next]_vars => []OP2!TypeOk
-<1>1. OP2!Init /\ [][OP2!Next]_(OP2!vars) => []OP2!TypeOk
-    BY OP2!LemType, OP2SameAssumptions, Isa
-<1>. QED
-    BY <1>1, LemRefineOP2InitNext, PTL
 
 (* Lifted to the full specification. *)
 THEOREM GP2_RefineTaskProcessing2Safety == Spec => []TP2!TypeOk
