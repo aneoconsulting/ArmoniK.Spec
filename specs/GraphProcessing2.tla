@@ -287,10 +287,7 @@ Fairness ==
         /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
         /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
         /\ WF_vars(StageTasks({t}))
-        /\ WF_vars(
-            /\ \E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)
-            /\ Predecessor(deps, t) \intersect AbortedObject /= {}
-            /\ DiscardTasks({t}))
+        /\ WF_vars(Predecessor(deps, t) \intersect AbortedObject /= {} /\ DiscardTasks({t}))
         /\ WF_vars(
             /\ \E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)
             /\ AssignTasks({t}))

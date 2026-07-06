@@ -105,6 +105,50 @@ transitive-closure action) keeps every liveness argument a plain WF argument
 with a single driver, at the cost of only eventual — not immediate —
 propagation.
 
+### Why this WF must stay unconditional (no "fully lazy" variant)
+
+An attempt (2026-07-06) to make propagation *fully* lazy — forcing the
+discard only for tasks upstream of a target, i.e.
+
+```tla
+WF_vars(/\ \E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)
+        /\ Predecessor(deps, t) \intersect AbortedObject /= {}
+        /\ DiscardTasks({t}))
+```
+
+— makes `Spec => GP1!Spec` **false**, and was rolled back. The obstruction is
+GraphProcessing1's *unconditional* `WF_vars(StageTasks({t}))` combined with
+the guard gap between the two stage actions: `GP1!StageTasks` accepts inputs
+that are merely FINALIZED-bar (completed **or aborted**), while
+`GP2!StageTasks` requires them COMPLETED. A GP2 task with an aborted input
+can therefore never take a bar-`StageTasks` step; the only way GP2 can honor
+GP1's stage fairness is to *disable* it — leave `RegisteredTask` — which is
+exactly what the forced discard provides. Condition the discard on
+targetedness and the disabling disappears for untargeted tasks:
+
+> Register `i -> t1 -> a -> t2 -> o`; complete the source `i`; stage, assign
+> and process `t1` on its DISCARDED branch; abort `a` (its only producer is
+> discarded); let `WF(AbortTasks)` finalize `t1`; target nothing. Now `t2`
+> sits REGISTERED forever with the aborted input `a`: every conjunct of the
+> lazy fairness is satisfied (the discard-WF is vacuous — `t2` is upstream of
+> no target), yet `GP1!StageTasks({t2})` is bar-enabled at every state and
+> never taken — `WF_(GP1!vars)(GP1!StageTasks({t2}))` is violated.
+
+So under the current abstraction stack, full laziness is not a fairness
+tuning knob of GP2 alone. Making it work would require mirroring the
+laziness *upward*: guarding GraphProcessing1's own `WF(StageTasks({t}))`
+with the same upstream-of-target condition it already uses for
+`AssignTasks`. That is the only casualty in the stack — TaskProcessing1 has
+no stage fairness at all, TaskProcessing2's stage fairness concerns retry
+clones only (derived from GP2's unconditional stage-WF, which is untouched),
+and ObjectProcessing1/2 object fairness is already target-conditioned; even
+GP1's unconditional `WF(FinalizeObjects)` survives, since the S/D/F producer
+drains run on unconditional task fairness. The cost is a spec change to
+GraphProcessing1 plus repairs to its targeted-descent engine (the
+`IsMRoot` stage step, which has the guard available in context and the
+identically-guarded `AssignTasks` step beside it as a template) — deliberate
+future work, not a proof repair.
+
 ## 6. Minimal fairness: clone staging fairness is derived, not assumed
 
 `WF_vars(StageTasks({nextAttemptOf[t]}))` was removed from `Fairness`; it is

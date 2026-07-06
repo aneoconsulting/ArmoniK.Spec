@@ -8053,8 +8053,8 @@ THEOREM GP2_CommittedObjectsEventualFinalization ==
 (*   (iv) permanence of both outcomes via LemObjectFinalStable;              *)
 (*   (v)  PTL: ETF yields <>(completed \/ aborted); the wrong disjunct       *)
 (*        contradicts the stabilized-derivability hypothesis by (ii)-(iv).   *)
-(* Left OMITTED until the refinement chain is repaired for the lazy          *)
-(* discard-propagation fairness (target-conditioned DiscardTasks WF).        *)
+(* Left OMITTED -- the lift and assembly are mapped out above but not yet    *)
+(* mechanized.                                                               *)
 (*****************************************************************************)
 
 THEOREM GP2_DerivableObjectsEventualCompletion ==
@@ -8068,9 +8068,9 @@ OMITTED
 (*****************************************************************************)
 (* UnblockedAncestryPermanentDerivability                                    *)
 (*                                                                           *)
-(* Fairness-free (pure safety + PTL, independent of the fairness-change      *)
-(* repairs). Per-state core: at any state where o is not unknown, IsDag(deps)*)
-(* (DependencyGraphCompliant), o \in deps.node (GSI_Nodes) and the           *)
+(* Fairness-free (pure safety + PTL). Per-state core: at any state where o   *)
+(* is not unknown, IsDag(deps) (DependencyGraphCompliant), o \in deps.node   *)
+(* (GSI_Nodes) and the                                                       *)
 (* hypothesis's all-ancestors-viable give                                    *)
 (* DDG_UnblockedAncestryIsDerivation -- the ancestor-induced subgraph is a   *)
 (* derivation -- so GP2Derivation(o) /= {}. PTL assembly: pin the <>-instant *)
