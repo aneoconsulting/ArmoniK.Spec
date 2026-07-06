@@ -1589,16 +1589,13 @@ THEOREM DDG_DerivationProperties ==
 <1>. QED
     BY <1>6, <1>8, <1>4, <1>7
 
-THEOREM DDG_NoDerivationMeansBlockedAncestor ==
+THEOREM DDG_UnblockedAncestryIsDerivation ==
     ASSUME NEW T, NEW G, IsDag(G),
-           NEW n \in G.node, NEW Op(_)
-    PROVE  Derivation(G, n, Op, T) = {} => \E m \in Ancestor(G, n) : ~Op(m)
-(* Contrapositive: if every ancestor of n is Op, the ancestor-induced        *)
-(* subgraph A is a derivation, contradicting Derivation = {}.                 *)
-<1> SUFFICES ASSUME Derivation(G, n, Op, T) = {},
-                    \A m \in Ancestor(G, n) : Op(m)
-             PROVE  FALSE
-    OBVIOUS
+           NEW n \in G.node, NEW Op(_),
+           \A m \in Ancestor(G, n) : Op(m)
+    PROVE  [node |-> Ancestor(G, n),
+            edge |-> G.edge \cap (Ancestor(G, n) \X Ancestor(G, n))]
+               \in Derivation(G, n, Op, T)
 <1> DEFINE Anc == Ancestor(G, n)
 <1> DEFINE A == [node |-> Anc, edge |-> G.edge \cap (Anc \X Anc)]
 <1> DEFINE InducedNodes == {y \in G.node : Op(y)}
@@ -1641,7 +1638,7 @@ THEOREM DDG_NoDerivationMeansBlockedAncestor ==
         <3>. QED
             BY <3>1, <2>1, <1>1
     <2>3. p \in SimplePath(InducedGraph) /\ p[1] = x /\ p[Len(p)] = n
-        BY <2>1, <2>2, <1>1, DDG_PathLiftToOpInduced
+        BY <2>1, <2>2, <1>1, DDG_PathLiftToOpInduced, Isa
     <2>. QED
         BY <2>3 DEF AreConnectedIn, Ancestor
 (* A is a directed subgraph of V *)
@@ -1735,10 +1732,28 @@ THEOREM DDG_NoDerivationMeansBlockedAncestor ==
         OBVIOUS
     <2>. QED
         BY <1>1, <1>2
-(* A is a derivation, contradicting Derivation = {} *)
+(* A is a derivation *)
 <1>8. A \in Derivation(G, n, Op, T)
     BY <1>4, <1>5, <1>6, <1>7 DEF Derivation
 <1>. QED
     BY <1>8
+
+(* Contrapositive corollary: an empty derivation set forces a blocked        *)
+(* ancestor, since an unblocked ancestry would itself be a derivation.       *)
+THEOREM DDG_NoDerivationMeansBlockedAncestor ==
+    ASSUME NEW T, NEW G, IsDag(G),
+           NEW n \in G.node, NEW Op(_)
+    PROVE  Derivation(G, n, Op, T) = {} => \E m \in Ancestor(G, n) : ~Op(m)
+<1> SUFFICES ASSUME Derivation(G, n, Op, T) = {},
+                    \A m \in Ancestor(G, n) : Op(m)
+             PROVE  FALSE
+    OBVIOUS
+<1>1. [node |-> Ancestor(G, n),
+       edge |-> G.edge \cap (Ancestor(G, n) \X Ancestor(G, n))]
+          \in Derivation(G, n, Op, T)
+    BY ONLY IsDag(G), n \in G.node, \A m \in Ancestor(G, n) : Op(m),
+        DDG_UnblockedAncestryIsDerivation, Isa
+<1>. QED
+    BY <1>1
 
 ================================================================================

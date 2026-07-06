@@ -304,12 +304,27 @@ THEOREM DDG_DerivationProperties ==
            /\ \A m \in D.node : AreConnectedIn(D, m, n)
 
 (******************************************************************************)
+(* An unblocked ancestry is itself a derivation: if every ancestor of n       *)
+(* satisfies Op, the ancestor-induced subgraph of n is a derivation of n.     *)
+(* This is the graph half of the "crash-free ancestry" sufficient condition   *)
+(* for DerivableObjectsEventualCompletion (GraphProcessing2): an object       *)
+(* whose ancestry never meets a crashed node is derivable in every state.     *)
+(******************************************************************************)
+THEOREM DDG_UnblockedAncestryIsDerivation ==
+    ASSUME NEW T, NEW G, IsDag(G),
+           NEW n \in G.node, NEW Op(_),
+           \A m \in Ancestor(G, n) : Op(m)
+    PROVE  [node |-> Ancestor(G, n),
+            edge |-> G.edge \cap (Ancestor(G, n) \X Ancestor(G, n))]
+               \in Derivation(G, n, Op, T)
+
+(******************************************************************************)
 (* Non-existence criterion: if no derivation of n exists, then some ancestor *)
-(* of n fails Op. Contrapositively, if every ancestor of n satisfies Op then *)
-(* the ancestor-induced subgraph of n is itself a derivation. (Note: a       *)
-(* "clean simple path" to n is NOT sufficient for a derivation, because a    *)
-(* task needs ALL of its inputs Op, not just the one on the path -- hence    *)
-(* the criterion quantifies over all ancestors, not over a single path.)     *)
+(* of n fails Op -- the contrapositive corollary of                          *)
+(* DDG_UnblockedAncestryIsDerivation. (Note: a "clean simple path" to n is   *)
+(* NOT sufficient for a derivation, because a task needs ALL of its inputs   *)
+(* Op, not just the one on the path -- hence the criterion quantifies over   *)
+(* all ancestors, not over a single path.)                                    *)
 (******************************************************************************)
 THEOREM DDG_NoDerivationMeansBlockedAncestor ==
     ASSUME NEW T, NEW G, IsDag(G),

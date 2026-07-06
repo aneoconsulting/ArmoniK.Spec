@@ -2159,9 +2159,12 @@ BY GP2_DependencyGraphCompliant, GP2_GSINodes, GP2_GraphStateIntegrity, GP2_Type
 (*                                                                           *)
 (* CommittedObjectsEventualFinalization is proved at the END of this module  *)
 (* (after the stability helper lemmas it cites), mirroring GP1's WF1 proof.  *)
-(* UnderivableObjectsEventualAbortion and UnderivableQuiescence are stated    *)
-(* there too but left OMITTED -- their proof strategies are documented        *)
-(* inline (retry/discard cascade; viable-ancestor monotonicity).             *)
+(* DerivableObjectsEventualCompletion, UnderivableObjectsEventualAbortion,   *)
+(* UnblockedAncestryPermanentDerivability and UnderivableQuiescence are      *)
+(* stated there too but left OMITTED -- their proof strategies are           *)
+(* documented inline (EventualTargetFinalization lift + derivability-limit   *)
+(* contradiction; DDG_UnblockedAncestryIsDerivation core; viable-ancestor    *)
+(* monotonicity).                                                            *)
 (*****************************************************************************)
 
 
@@ -8032,20 +8035,52 @@ THEOREM GP2_CommittedObjectsEventualFinalization ==
     BY <1>1, <1>2
 
 (*****************************************************************************)
-(* UnderivableObjectsEventualAbortion                                        *)
+(* DerivableObjectsEventualCompletion / UnderivableObjectsEventualAbortion   *)
 (*                                                                           *)
-(* Conjunct 1 (a permanently-underivable registered object is aborted) is a  *)
-(* PTL corollary of conjunct 2 under [](GP2Derivation(o) = {}): conjunct 2   *)
-(* yields <>(aborted \/ derivable), and [](underivable) rules out the        *)
-(* "derivable" disjunct, leaving <>aborted. Conjunct 2 itself -- the         *)
-(* discard/abort cascade that finalizes a stranded object, terminating       *)
-(* because retries are bounded (TP2!AttemptsIsBounded, reused via the safety *)
-(* refinement) so the last attempt is SUCCEEDED or DISCARDED -- is the       *)
-(* liveness frontier and is left OMITTED.                                    *)
+(* The derivability-limit split of EventualTargetFinalization (ETF). Proof   *)
+(* plan for both:                                                            *)
+(*   (i)  lift ETF: Spec => GP1!Spec (GP2_RefineGraphProcessing1) and        *)
+(*        GP1!Spec => OP1-ETF (GP1's GP1_RefineObjectProcessing1), via the   *)
+(*        retrieval idiom used for the safety invariants; under the bars     *)
+(*        OP1!FinalizedObject = CompletedObject \union AbortedObject and     *)
+(*        objectTargets is unsubstituted, giving                             *)
+(*        \A o : <>[](o \in objectTargets) => <>(o \in Completed \/ Aborted);*)
+(*   (ii) a state lemma LemAbortedObjectUnderivable:                         *)
+(*        o \in AbortedObject => GP2Derivation(o) = {} (the sink is not      *)
+(*        viable, so its viable ancestry is empty and Sink(D) = {o} is       *)
+(*        unsatisfiable);                                                    *)
+(*   (iii) GP2_CompletedObjectHasDerivation for the completion side;         *)
+(*   (iv) permanence of both outcomes via LemObjectFinalStable;              *)
+(*   (v)  PTL: ETF yields <>(completed \/ aborted); the wrong disjunct       *)
+(*        contradicts the stabilized-derivability hypothesis by (ii)-(iv).   *)
+(* Left OMITTED until the refinement chain is repaired for the lazy          *)
+(* discard-propagation fairness (target-conditioned DiscardTasks WF).        *)
 (*****************************************************************************)
+
+THEOREM GP2_DerivableObjectsEventualCompletion ==
+    Spec => DerivableObjectsEventualCompletion
+OMITTED
 
 THEOREM GP2_UnderivableObjectsEventualAbortion ==
     Spec => UnderivableObjectsEventualAbortion
+OMITTED
+
+(*****************************************************************************)
+(* UnblockedAncestryPermanentDerivability                                    *)
+(*                                                                           *)
+(* Fairness-free (pure safety + PTL, independent of the fairness-change      *)
+(* repairs). Per-state core: at any state where o is not unknown, IsDag(deps)*)
+(* (DependencyGraphCompliant), o \in deps.node (GSI_Nodes) and the           *)
+(* hypothesis's all-ancestors-viable give                                    *)
+(* DDG_UnblockedAncestryIsDerivation -- the ancestor-induced subgraph is a   *)
+(* derivation -- so GP2Derivation(o) /= {}. PTL assembly: pin the <>-instant *)
+(* where o is registered, carry "not unknown" forward by object-state        *)
+(* monotonicity (LemObjMono), and box the per-state core under the           *)
+(* []-hypothesis.                                                            *)
+(*****************************************************************************)
+
+THEOREM GP2_UnblockedAncestryPermanentDerivability ==
+    Spec => UnblockedAncestryPermanentDerivability
 OMITTED
 
 (*****************************************************************************)

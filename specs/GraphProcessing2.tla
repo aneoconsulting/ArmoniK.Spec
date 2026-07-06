@@ -287,7 +287,10 @@ Fairness ==
         /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
         /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
         /\ WF_vars(StageTasks({t}))
-        /\ WF_vars(Predecessor(deps, t) \intersect AbortedObject /= {} /\ DiscardTasks({t}))
+        /\ WF_vars(
+            /\ \E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)
+            /\ Predecessor(deps, t) \intersect AbortedObject /= {}
+            /\ DiscardTasks({t}))
         /\ WF_vars(
             /\ \E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)
             /\ AssignTasks({t}))
@@ -437,18 +440,61 @@ CommittedObjectsEventualFinalization ==
 
 (**
  * LIVENESS
- * A registered object that stays underivable is eventually aborted; and a
- * registered underivable object eventually either aborts or regains a
- * derivation (e.g. through a registered retry clone). Both are restricted to
- * RegisteredObject -- an unknown object is underivable yet can never be
- * aborted, and a completed object always has a derivation.
+ * The outcome split of EventualTargetFinalization (inherited from
+ * ObjectProcessing1 through the GraphProcessing1 refinement): an object that
+ * is eventually permanently targeted is eventually finalized, and the limit
+ * of its DERIVABILITY decides which way. A derivation is a crash-free
+ * production witness (IsViableNode excludes discarded/failed/aborted/retried
+ * tasks and aborted objects), so:
+ *   - derivability stabilizes non-empty -- some crash-free derivation
+ *     survives the crash cascades -- and the object is COMPLETED;
+ *   - derivability stabilizes empty -- crashes destroyed every derivation
+ *     and no submission revives one -- and the object is ABORTED.
+ * The split is exact. Each hypothesis is sufficient: finalization is forced,
+ * and the opposite outcome contradicts the derivability limit (an aborted
+ * object is non-viable, hence permanently underivable; a completed object
+ * has a derivation in every state, by CompletedObjectHasDerivation). Each is
+ * necessary for the same reason, so on eventually-permanently-targeted runs
+ * exactly one hypothesis holds and it names the outcome. The <>[] form is
+ * deliberate: derivability may transiently drop between a producer's failure
+ * and its retry clone's registration -- only the limit matters.
+ * Two sufficient conditions relate the hypotheses to graph executions:
+ *   - if no node of o's ancestry ever crashes, derivability is permanent
+ *     (DDG_UnblockedAncestryIsDerivation: the clean ancestor-induced
+ *     subgraph is itself a derivation);
+ *   - if o is underivable and no future RegisterGraph changes its viable
+ *     ancestry, underivability is permanent (UnderivableQuiescence below).
+ * This supersedes a pre-targeting draft of UnderivableObjectsEventualAbortion
+ * whose untargeted statement is false -- producer churn keeps an underivable
+ * object registered forever (see GraphProcessing2_UnderivableAbortion_finding.md).
  *)
+DerivableObjectsEventualCompletion ==
+    \A o \in Object :
+        /\ <>[](o \in objectTargets)
+        /\ <>[](GP2Derivation(o) /= {})
+        => <>(o \in CompletedObject)
+
 UnderivableObjectsEventualAbortion ==
     \A o \in Object :
-        /\ (o \in RegisteredObject /\ [](GP2Derivation(o) = {}))
-           ~> o \in AbortedObject
-        /\ (o \in RegisteredObject /\ GP2Derivation(o) = {})
-           ~> o \in AbortedObject \/ GP2Derivation(o) /= {}
+        /\ <>[](o \in objectTargets)
+        /\ <>[](GP2Derivation(o) = {})
+        => <>(o \in AbortedObject)
+
+(**
+ * LIVENESS (persistence)
+ * Derivability is permanent under an unblocked ancestry: if no node of o's
+ * ancestry ever crashes (every ancestor stays viable, including the nodes a
+ * future RegisterGraph may attach), then from the moment o is registered the
+ * ancestor-induced subgraph is itself a crash-free derivation
+ * (DDG_UnblockedAncestryIsDerivation), so o is derivable forever. This
+ * bridges the graph execution to the stabilized-derivability hypothesis
+ * <>[](GP2Derivation(o) /= {}) of DerivableObjectsEventualCompletion above.
+ *)
+UnblockedAncestryPermanentDerivability ==
+    \A o \in Object :
+        /\ <>(o \in RegisteredObject)
+        /\ [](\A m \in Ancestor(deps, o) : IsViableNode(m))
+        => <>[](GP2Derivation(o) /= {})
 
 (**
  * The viable induced ancestor subgraph of o: the part of the dependency graph
@@ -463,8 +509,9 @@ ViableAncestry(o) == AncestorSubGraph(deps, o, IsViableNode)
  * Underivability is permanent once no further user submission revives o's
  * upstream: if every RegisterGraph step leaves o's viable induced ancestor
  * subgraph unchanged, then once o is underivable it stays underivable. This
- * bridges the user-controllable RegisterGraph action to the permanent-
- * underivability hypothesis [](GP2Derivation(o) = {}) used above.
+ * bridges the user-controllable RegisterGraph action to the stabilized-
+ * underivability hypothesis <>[](GP2Derivation(o) = {}) of
+ * UnderivableObjectsEventualAbortion above.
  *)
 UnderivableQuiescence ==
     \A o \in Object :
