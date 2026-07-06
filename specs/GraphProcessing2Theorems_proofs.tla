@@ -2161,10 +2161,11 @@ BY GP2_DependencyGraphCompliant, GP2_GSINodes, GP2_GraphStateIntegrity, GP2_Type
 (* (after the stability helper lemmas it cites), mirroring GP1's WF1 proof.  *)
 (* DerivableObjectsEventualCompletion, UnderivableObjectsEventualAbortion,   *)
 (* UnblockedAncestryPermanentDerivability and UnderivableQuiescence are      *)
-(* stated there too but left OMITTED -- their proof strategies are           *)
-(* documented inline (EventualTargetFinalization lift + derivability-limit   *)
-(* contradiction; DDG_UnblockedAncestryIsDerivation core; viable-ancestor    *)
-(* monotonicity).                                                            *)
+(* PROVED there as well: the EventualTargetFinalization lift through the     *)
+(* ObjectProcessing2 refinement plus the derivability-limit contradiction;   *)
+(* the DDG_UnblockedAncestryIsDerivation state core; and the viable-         *)
+(* ancestry antitonicity engine (DDG_AncestorSubGraphMono /                  *)
+(* DDG_DerivationAntitone).                                                  *)
 (*****************************************************************************)
 
 
@@ -8037,33 +8038,114 @@ THEOREM GP2_CommittedObjectsEventualFinalization ==
 (*****************************************************************************)
 (* DerivableObjectsEventualCompletion / UnderivableObjectsEventualAbortion   *)
 (*                                                                           *)
-(* The derivability-limit split of EventualTargetFinalization (ETF). Proof   *)
-(* plan for both:                                                            *)
-(*   (i)  lift ETF: Spec => GP1!Spec (GP2_RefineGraphProcessing1) and        *)
-(*        GP1!Spec => OP1-ETF (GP1's GP1_RefineObjectProcessing1), via the   *)
-(*        retrieval idiom used for the safety invariants; under the bars     *)
-(*        OP1!FinalizedObject = CompletedObject \union AbortedObject and     *)
-(*        objectTargets is unsubstituted, giving                             *)
+(* The derivability-limit split of EventualTargetFinalization (ETF), proved: *)
+(*   (i)  lift ETF through the ObjectProcessing2 refinement                  *)
+(*        (LemEventualTargetFinalization): Spec => OP2!Spec => OP2!OP1!Spec  *)
+(*        => OP2!OP1!EventualTargetFinalization, with objectTargets          *)
+(*        unsubstituted and OP2!OP1!FinalizedObject = CompletedObject \union *)
+(*        AbortedObject under TypeOk, giving                                 *)
 (*        \A o : <>[](o \in objectTargets) => <>(o \in Completed \/ Aborted);*)
-(*   (ii) a state lemma LemAbortedObjectUnderivable:                         *)
-(*        o \in AbortedObject => GP2Derivation(o) = {} (the sink is not      *)
-(*        viable, so its viable ancestry is empty and Sink(D) = {o} is       *)
-(*        unsatisfiable);                                                    *)
+(*   (ii) LemAbortedObjectUnderivable: an aborted sink is not viable, so its *)
+(*        viable ancestry is empty (DDG_DerivationBlockedSink);              *)
 (*   (iii) GP2_CompletedObjectHasDerivation for the completion side;         *)
-(*   (iv) permanence of both outcomes via LemObjectFinalStable;              *)
+(*   (iv) permanence of both outcomes (LemAbortedObjectStable / LemObjMono); *)
 (*   (v)  PTL: ETF yields <>(completed \/ aborted); the wrong disjunct       *)
 (*        contradicts the stabilized-derivability hypothesis by (ii)-(iv).   *)
-(* Left OMITTED -- the lift and assembly are mapped out above but not yet    *)
-(* mechanized.                                                               *)
 (*****************************************************************************)
+
+(* Aborted objects are permanently underivable: the sink itself is not       *)
+(* viable, so its viable ancestry is empty and no derivation can have it as  *)
+(* its sink (DDG_DerivationBlockedSink).                                     *)
+LEMMA LemAbortedObjectUnderivable ==
+    ASSUME NEW o \in Object
+    PROVE  o \in AbortedObject => GP2Derivation(o) = {}
+<1> SUFFICES ASSUME o \in AbortedObject PROVE GP2Derivation(o) = {}
+    OBVIOUS
+<1>1. ~IsViableNode(o)
+    BY DEF IsViableNode
+<1>. QED
+    BY <1>1, DDG_DerivationBlockedSink, Isa DEF GP2Derivation
+
+(* EventualTargetFinalization, lifted from ObjectProcessing1 through the     *)
+(* ObjectProcessing2 refinement: an eventually-permanently-targeted object   *)
+(* is eventually finalized -- in GP2's vocabulary, completed or aborted.     *)
+(* The OP2 route is one bar shallower than GP1's: GP2 -> OP2 is the identity *)
+(* on (objectState, objectTargets), and OP2 -> OP1 collapses COMPLETED and   *)
+(* ABORTED to FINALIZED, so OP2!OP1!FinalizedObject is exactly               *)
+(* CompletedObject \union AbortedObject under TypeOk.                        *)
+LEMMA LemEventualTargetFinalization ==
+    ASSUME NEW o \in Object
+    PROVE  Spec => (<>[](o \in objectTargets)
+                    => <>(o \in CompletedObject \/ o \in AbortedObject))
+<1>1. Spec => OP2!Spec
+    BY GP2_RefineObjectProcessing2 DEF RefineObjectProcessing2
+<1>2. OP2!Spec => OP2!OP1!Spec
+    BY OP2SameAssumptions, OP2!OP2_RefineObjectProcessing1, Isa
+       DEF OP2!RefineObjectProcessing1
+<1>3. OP2!OP1!Spec => OP2!OP1!EventualTargetFinalization
+    BY OP2SameAssumptions, OP2!SameAssumptions,
+       OP2!OP1!OP1_EventualTargetFinalizationCorrect, Isa
+<1>4. OP2!OP1!EventualTargetFinalization
+      => (<>[](o \in objectTargets) => <>(o \in OP2!OP1!FinalizedObject))
+    BY Isa DEF OP2!OP1!EventualTargetFinalization
+<1>5. TypeOk => (o \in OP2!OP1!FinalizedObject
+                 <=> o \in CompletedObject \/ o \in AbortedObject)
+    BY DEF AbortedObject, CompletedObject, OP2!OP1!FinalizedObject,
+        OP2!OP1!OBJECT_FINALIZED, OP2!OBJECT_ABORTED, OP2!OBJECT_COMPLETED,
+        OP2!OBJECT_FINALIZED, OP2!objectStateBar, OP2State, TypeOk
+<1>6. Spec => []TypeOk
+    BY GP2_TypeOk
+<1>. QED
+    BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, PTL
 
 THEOREM GP2_DerivableObjectsEventualCompletion ==
     Spec => DerivableObjectsEventualCompletion
-OMITTED
+<1>. SUFFICES ASSUME NEW o \in Object
+              PROVE  Spec => (/\ <>[](o \in objectTargets)
+                              /\ <>[](GP2Derivation(o) /= {})
+                              => <>(o \in CompletedObject))
+    BY DEF DerivableObjectsEventualCompletion
+<1>1. Spec => (<>[](o \in objectTargets)
+               => <>(o \in CompletedObject \/ o \in AbortedObject))
+    BY LemEventualTargetFinalization
+<1>2. o \in AbortedObject => GP2Derivation(o) = {}
+    BY LemAbortedObjectUnderivable
+<1>3. TypeOk /\ o \in AbortedObject /\ [Next]_vars => (o \in AbortedObject)'
+    BY LemAbortedObjectStable
+<1>4. GP2Derivation(o) /= {} <=> ~(GP2Derivation(o) = {})
+    OBVIOUS
+<1>5. Spec => []TypeOk
+    BY GP2_TypeOk
+<1>6. Spec => [][Next]_vars
+    BY DEF Spec
+<1>. QED
+    BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, PTL
 
 THEOREM GP2_UnderivableObjectsEventualAbortion ==
     Spec => UnderivableObjectsEventualAbortion
-OMITTED
+<1>. SUFFICES ASSUME NEW o \in Object
+              PROVE  Spec => (/\ <>[](o \in objectTargets)
+                              /\ <>[](GP2Derivation(o) = {})
+                              => <>(o \in AbortedObject))
+    BY DEF UnderivableObjectsEventualAbortion
+<1>1. Spec => (<>[](o \in objectTargets)
+               => <>(o \in CompletedObject \/ o \in AbortedObject))
+    BY LemEventualTargetFinalization
+<1>2. CompletedObjectHasDerivation /\ o \in CompletedObject
+      => GP2Derivation(o) /= {}
+    BY DEF CompletedObjectHasDerivation
+<1>3. TypeOk /\ o \in CompletedObject /\ [Next]_vars => (o \in CompletedObject)'
+    BY LemObjMono DEF CompletedObject
+<1>4. GP2Derivation(o) /= {} <=> ~(GP2Derivation(o) = {})
+    OBVIOUS
+<1>5. Spec => []TypeOk
+    BY GP2_TypeOk
+<1>6. Spec => [][Next]_vars
+    BY DEF Spec
+<1>7. Spec => []CompletedObjectHasDerivation
+    BY GP2_CompletedObjectHasDerivation
+<1>. QED
+    BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, PTL
 
 (*****************************************************************************)
 (* UnblockedAncestryPermanentDerivability                                    *)
@@ -8081,7 +8163,46 @@ OMITTED
 
 THEOREM GP2_UnblockedAncestryPermanentDerivability ==
     Spec => UnblockedAncestryPermanentDerivability
-OMITTED
+<1>. SUFFICES ASSUME NEW o \in Object
+              PROVE  Spec => (/\ <>(o \in RegisteredObject)
+                              /\ [](\A m \in Ancestor(deps, o) : IsViableNode(m))
+                              => <>[](GP2Derivation(o) /= {}))
+    BY DEF UnblockedAncestryPermanentDerivability
+<1>1. /\ TypeOk /\ DependencyGraphCompliant /\ GSI_Nodes /\ o \notin UnknownObject
+      /\ (\A m \in Ancestor(deps, o) : IsViableNode(m))
+      => GP2Derivation(o) /= {}
+    <2> SUFFICES ASSUME TypeOk, DependencyGraphCompliant, GSI_Nodes,
+                        o \notin UnknownObject,
+                        \A m \in Ancestor(deps, o) : IsViableNode(m)
+                 PROVE  GP2Derivation(o) /= {}
+        OBVIOUS
+    <2>1. IsDag(deps)
+        BY DEF DependencyGraphCompliant, IsDDGraph
+    <2>2. o \in deps.node
+        BY DEF GSI_Nodes
+    <2>3. [node |-> Ancestor(deps, o),
+           edge |-> deps.edge \cap (Ancestor(deps, o) \X Ancestor(deps, o))]
+              \in Derivation(deps, o, IsViableNode, Task)
+        BY <2>1, <2>2, DDG_UnblockedAncestryIsDerivation, Isa
+    <2>. QED
+        BY <2>3 DEF GP2Derivation
+<1>2. o \notin UnknownObject /\ [Next]_vars => (o \notin UnknownObject)'
+    BY DEF AbortObjects, AbortTasks, AssignTasks, CompleteObjects, CompleteTasks,
+        DiscardTasks, Next, ProcessTasks, RegisterGraph, ReleaseTasks, RetryTasks,
+        SetTaskRetries, StageTasks, TargetObjects, Terminating, UnknownObject,
+        UntargetObjects, vars
+<1>3. o \in RegisteredObject => o \notin UnknownObject
+    BY DEF RegisteredObject, UnknownObject
+<1>4. Spec => []TypeOk
+    BY GP2_TypeOk
+<1>5. Spec => []DependencyGraphCompliant
+    BY GP2_DependencyGraphCompliant
+<1>6. Spec => []GSI_Nodes
+    BY GP2_GSINodes
+<1>7. Spec => [][Next]_vars
+    BY DEF Spec
+<1>. QED
+    BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, PTL
 
 (*****************************************************************************)
 (* UnderivableQuiescence (quiescence form [](X => []X))                      *)
@@ -8089,14 +8210,90 @@ OMITTED
 (* If every RegisterGraph step leaves o's viable induced ancestor subgraph   *)
 (* unchanged, underivability is permanent. By PTL this reduces to a one-step  *)
 (* stability fact: a step that either leaves ViableAncestry(o) unchanged      *)
-(* (RegisterGraph, by hypothesis) or only shrinks it (every other action --  *)
-(* non-viable task/object states are terminal, so no node regains viability)  *)
-(* cannot turn an empty derivation set non-empty. That graph-monotonicity     *)
-(* fact (<1>1) is left OMITTED: it needs Derivation / AncestorSubGraph        *)
-(* monotonicity lemmas not yet available in DDGraphTheorems.                  *)
+(* (RegisterGraph, by hypothesis) or fixes deps while viability pointwise     *)
+(* shrinks (every other action: non-viable task/object states are terminal,  *)
+(* LemTaskMono / LemObjMono) can only shrink the viable ancestor subgraph     *)
+(* (DDG_AncestorSubGraphMono), and under deps-growth (LemDepsMonotone) a      *)
+(* shrinking ancestry admits no new derivations (DDG_DerivationAntitone).    *)
+(* IsViableNodeP names the primed viability predicate so the DDG lemmas can  *)
+(* be instantiated at the next state (the OpPrimed idiom).                    *)
 (*****************************************************************************)
 
+IsViableNodeP(n) == (IsViableNode(n))'
+
 THEOREM GP2_UnderivableQuiescence == Spec => UnderivableQuiescence
-OMITTED
+<1>. SUFFICES ASSUME NEW o \in Object
+              PROVE  Spec
+                     => (( [][ (\E G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G))
+                                 => UNCHANGED ViableAncestry(o) ]_vars )
+                         => [](GP2Derivation(o) = {} => [](GP2Derivation(o) = {})))
+    BY DEF UnderivableQuiescence
+<1> DEFINE HS == (\E G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G))
+                    => UNCHANGED ViableAncestry(o)
+<1>1. GP2Derivation(o)' = Derivation(deps', o, IsViableNodeP, Task)
+    BY DEF AncestorSubGraph, Derivation, GP2Derivation, IsViableNodeP
+<1>2. ViableAncestry(o)' = AncestorSubGraph(deps', o, IsViableNodeP)
+    BY DEF AncestorSubGraph, IsViableNodeP, ViableAncestry
+<1>3. [Next]_vars => \A n : IsViableNodeP(n) => IsViableNode(n)
+    <2> SUFFICES ASSUME [Next]_vars, NEW n, ~IsViableNode(n)
+                 PROVE  ~IsViableNodeP(n)
+        OBVIOUS
+    <2>1. CASE n \in DiscardedTask \/ n \in AbortedTask
+        BY <2>1, LemTaskMono DEF AbortedTask, DiscardedTask, IsViableNode, IsViableNodeP
+    <2>2. CASE n \in FailedTask \/ n \in RetriedTask
+        BY <2>2, LemTaskMono DEF FailedTask, IsViableNode, IsViableNodeP, RetriedTask
+    <2>3. CASE n \in AbortedObject
+        BY <2>3, LemObjMono DEF AbortedObject, IsViableNode, IsViableNodeP
+    <2>. QED
+        BY <2>1, <2>2, <2>3 DEF IsViableNode
+<1>4. [Next]_vars => (\E G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G))
+                     \/ deps' = deps
+    BY DEF AbortObjects, AbortTasks, AssignTasks, CompleteObjects, CompleteTasks,
+        DiscardTasks, Next, ProcessTasks, ReleaseTasks, RetryTasks, SetTaskRetries,
+        StageTasks, TargetObjects, Terminating, UntargetObjects, vars
+<1>5. TypeOk /\ TypeOk' /\ [Next]_vars /\ [HS]_vars /\ GP2Derivation(o) = {}
+      => (GP2Derivation(o) = {})'
+    <2> SUFFICES ASSUME TypeOk, TypeOk', [Next]_vars, [HS]_vars,
+                        GP2Derivation(o) = {}
+                 PROVE  (GP2Derivation(o) = {})'
+        OBVIOUS
+    <2>0. IsDirectedGraph(deps) /\ IsDirectedGraph(deps')
+        BY DEF DirectedGraphOf, TypeOk
+    <2>1. deps.node \subseteq deps'.node /\ deps.edge \subseteq deps'.edge
+        BY LemDepsMonotone
+    <2>2. /\ AncestorSubGraph(deps', o, IsViableNodeP).node
+             \subseteq AncestorSubGraph(deps, o, IsViableNode).node
+          /\ AncestorSubGraph(deps', o, IsViableNodeP).edge
+             \subseteq AncestorSubGraph(deps, o, IsViableNode).edge
+        <3>1. CASE deps' = deps
+            <4>1. /\ AncestorSubGraph(deps, o, IsViableNodeP).node
+                     \subseteq AncestorSubGraph(deps, o, IsViableNode).node
+                  /\ AncestorSubGraph(deps, o, IsViableNodeP).edge
+                     \subseteq AncestorSubGraph(deps, o, IsViableNode).edge
+                BY <1>3, <2>0, DDG_AncestorSubGraphMono, Isa
+            <4>. QED
+                BY <3>1, <4>1
+        <3>2. CASE deps' /= deps
+            <4>1. \E G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G)
+                BY <1>4, <3>2
+            <4>2. HS
+                BY <3>2 DEF vars
+            <4>3. AncestorSubGraph(deps', o, IsViableNodeP) = ViableAncestry(o)
+                BY <4>1, <4>2, <1>2
+            <4>. QED
+                BY <4>3 DEF ViableAncestry
+        <3>. QED
+            BY <3>1, <3>2
+    <2>3. Derivation(deps', o, IsViableNodeP, Task)
+             \subseteq Derivation(deps, o, IsViableNode, Task)
+        BY <2>0, <2>1, <2>2, DDG_DerivationAntitone, Isa
+    <2>. QED
+        BY <1>1, <2>3 DEF GP2Derivation
+<1>6. Spec => []TypeOk
+    BY GP2_TypeOk
+<1>7. Spec => [][Next]_vars
+    BY DEF Spec
+<1>. QED
+    BY <1>5, <1>6, <1>7, PTL
 
 ================================================================================

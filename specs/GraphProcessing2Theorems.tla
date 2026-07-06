@@ -287,10 +287,11 @@ THEOREM GP2_CompletedObjectHasDerivation == Spec => []CompletedObjectHasDerivati
 (* (after the stability helper lemmas it cites), mirroring GP1's WF1 proof.  *)
 (* DerivableObjectsEventualCompletion, UnderivableObjectsEventualAbortion,   *)
 (* UnblockedAncestryPermanentDerivability and UnderivableQuiescence are      *)
-(* stated there too but left OMITTED -- their proof strategies are           *)
-(* documented inline (EventualTargetFinalization lift + derivability-limit   *)
-(* contradiction; DDG_UnblockedAncestryIsDerivation core; viable-ancestor    *)
-(* monotonicity).                                                            *)
+(* PROVED there as well: the EventualTargetFinalization lift through the     *)
+(* ObjectProcessing2 refinement plus the derivability-limit contradiction;   *)
+(* the DDG_UnblockedAncestryIsDerivation state core; and the viable-         *)
+(* ancestry antitonicity engine (DDG_AncestorSubGraphMono /                  *)
+(* DDG_DerivationAntitone).                                                  *)
 (*****************************************************************************)
 
 (*****************************************************************************)
@@ -1331,25 +1332,29 @@ THEOREM GP2_CommittedObjectsEventualFinalization ==
 (*****************************************************************************)
 (* DerivableObjectsEventualCompletion / UnderivableObjectsEventualAbortion   *)
 (*                                                                           *)
-(* The derivability-limit split of EventualTargetFinalization (ETF). Proof   *)
-(* plan for both:                                                            *)
-(*   (i)  lift ETF: Spec => GP1!Spec (GP2_RefineGraphProcessing1) and        *)
-(*        GP1!Spec => OP1-ETF (GP1's GP1_RefineObjectProcessing1), via the   *)
-(*        retrieval idiom used for the safety invariants; under the bars     *)
-(*        OP1!FinalizedObject = CompletedObject \union AbortedObject and     *)
-(*        objectTargets is unsubstituted, giving                             *)
+(* The derivability-limit split of EventualTargetFinalization (ETF), proved: *)
+(*   (i)  lift ETF through the ObjectProcessing2 refinement                  *)
+(*        (LemEventualTargetFinalization): Spec => OP2!Spec => OP2!OP1!Spec  *)
+(*        => OP2!OP1!EventualTargetFinalization, with objectTargets          *)
+(*        unsubstituted and OP2!OP1!FinalizedObject = CompletedObject \union *)
+(*        AbortedObject under TypeOk, giving                                 *)
 (*        \A o : <>[](o \in objectTargets) => <>(o \in Completed \/ Aborted);*)
-(*   (ii) a state lemma LemAbortedObjectUnderivable:                         *)
-(*        o \in AbortedObject => GP2Derivation(o) = {} (the sink is not      *)
-(*        viable, so its viable ancestry is empty and Sink(D) = {o} is       *)
-(*        unsatisfiable);                                                    *)
+(*   (ii) LemAbortedObjectUnderivable: an aborted sink is not viable, so its *)
+(*        viable ancestry is empty (DDG_DerivationBlockedSink);              *)
 (*   (iii) GP2_CompletedObjectHasDerivation for the completion side;         *)
-(*   (iv) permanence of both outcomes via LemObjectFinalStable;              *)
+(*   (iv) permanence of both outcomes (LemAbortedObjectStable / LemObjMono); *)
 (*   (v)  PTL: ETF yields <>(completed \/ aborted); the wrong disjunct       *)
 (*        contradicts the stabilized-derivability hypothesis by (ii)-(iv).   *)
-(* Left OMITTED -- the lift and assembly are mapped out above but not yet    *)
-(* mechanized.                                                               *)
 (*****************************************************************************)
+
+LEMMA LemAbortedObjectUnderivable ==
+    ASSUME NEW o \in Object
+    PROVE  o \in AbortedObject => GP2Derivation(o) = {}
+
+LEMMA LemEventualTargetFinalization ==
+    ASSUME NEW o \in Object
+    PROVE  Spec => (<>[](o \in objectTargets)
+                    => <>(o \in CompletedObject \/ o \in AbortedObject))
 
 THEOREM GP2_DerivableObjectsEventualCompletion ==
     Spec => DerivableObjectsEventualCompletion
@@ -1378,12 +1383,16 @@ THEOREM GP2_UnblockedAncestryPermanentDerivability ==
 (* If every RegisterGraph step leaves o's viable induced ancestor subgraph   *)
 (* unchanged, underivability is permanent. By PTL this reduces to a one-step  *)
 (* stability fact: a step that either leaves ViableAncestry(o) unchanged      *)
-(* (RegisterGraph, by hypothesis) or only shrinks it (every other action --  *)
-(* non-viable task/object states are terminal, so no node regains viability)  *)
-(* cannot turn an empty derivation set non-empty. That graph-monotonicity     *)
-(* fact (<1>1) is left OMITTED: it needs Derivation / AncestorSubGraph        *)
-(* monotonicity lemmas not yet available in DDGraphTheorems.                  *)
+(* (RegisterGraph, by hypothesis) or fixes deps while viability pointwise     *)
+(* shrinks (every other action: non-viable task/object states are terminal,  *)
+(* LemTaskMono / LemObjMono) can only shrink the viable ancestor subgraph     *)
+(* (DDG_AncestorSubGraphMono), and under deps-growth (LemDepsMonotone) a      *)
+(* shrinking ancestry admits no new derivations (DDG_DerivationAntitone).    *)
+(* IsViableNodeP names the primed viability predicate so the DDG lemmas can  *)
+(* be instantiated at the next state (the OpPrimed idiom).                    *)
 (*****************************************************************************)
+
+IsViableNodeP(n) == (IsViableNode(n))'
 
 THEOREM GP2_UnderivableQuiescence == Spec => UnderivableQuiescence
 ================================================================================

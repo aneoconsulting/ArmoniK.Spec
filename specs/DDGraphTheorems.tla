@@ -288,6 +288,41 @@ THEOREM DDG_AncestorSubGraphBasic ==
            /\ A.node \subseteq {y \in G.node : Op(y)}
 
 (******************************************************************************)
+(* AncestorSubGraph is monotone in the induction predicate: strengthening     *)
+(* Op pointwise can only shrink the induced ancestor subgraph, node- and      *)
+(* edge-wise.                                                                  *)
+(******************************************************************************)
+THEOREM DDG_AncestorSubGraphMono ==
+    ASSUME NEW G, IsDirectedGraph(G), NEW n, NEW Op(_), NEW Op2(_),
+           \A m : Op2(m) => Op(m)
+    PROVE  /\ AncestorSubGraph(G, n, Op2).node \subseteq AncestorSubGraph(G, n, Op).node
+           /\ AncestorSubGraph(G, n, Op2).edge \subseteq AncestorSubGraph(G, n, Op).edge
+
+(******************************************************************************)
+(* An Op-blocked sink has no derivations: ~Op(n) empties the induced ancestor *)
+(* subgraph, so no subgraph of it can have {n} as its sink set. Needs neither *)
+(* n \in G.node nor any structure on G.                                        *)
+(******************************************************************************)
+THEOREM DDG_DerivationBlockedSink ==
+    ASSUME NEW T, NEW G, NEW n, NEW Op(_), ~Op(n)
+    PROVE  Derivation(G, n, Op, T) = {}
+
+(******************************************************************************)
+(* Derivations are antitone under simultaneous graph growth and ancestor-     *)
+(* subgraph shrinkage: a derivation of n in the larger graph G2 whose ambient *)
+(* induced ancestor subgraph lies inside that of (G, Op) is already a         *)
+(* derivation of n in G.                                                       *)
+(******************************************************************************)
+THEOREM DDG_DerivationAntitone ==
+    ASSUME NEW T, NEW G, NEW G2,
+           IsDirectedGraph(G), IsDirectedGraph(G2),
+           G.node \subseteq G2.node, G.edge \subseteq G2.edge,
+           NEW n, NEW Op(_), NEW Op2(_),
+           AncestorSubGraph(G2, n, Op2).node \subseteq AncestorSubGraph(G, n, Op).node,
+           AncestorSubGraph(G2, n, Op2).edge \subseteq AncestorSubGraph(G, n, Op).edge
+    PROVE  Derivation(G2, n, Op2, T) \subseteq Derivation(G, n, Op, T)
+
+(******************************************************************************)
 (* Bundled properties of any derivation D of n in G under Op, T:              *)
 (*   - D is itself a DD graph over (T, O) (it inherits structure from G);    *)
 (*   - D is weakly connected (all its nodes reach n through directed paths   *)

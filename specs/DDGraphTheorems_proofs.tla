@@ -1505,6 +1505,126 @@ THEOREM DDG_AncestorSubGraphBasic ==
 <1>. QED
     BY <1>1, <1>2
 
+(* AncestorSubGraph is monotone in the induction predicate: strengthening    *)
+(* Op pointwise can only shrink the induced ancestor subgraph, node- and     *)
+(* edge-wise. The node inclusion is a path lift between the two induced      *)
+(* graphs; the edge inclusion follows from it.                                *)
+THEOREM DDG_AncestorSubGraphMono ==
+    ASSUME NEW G, IsDirectedGraph(G), NEW n, NEW Op(_), NEW Op2(_),
+           \A m : Op2(m) => Op(m)
+    PROVE  /\ AncestorSubGraph(G, n, Op2).node \subseteq AncestorSubGraph(G, n, Op).node
+           /\ AncestorSubGraph(G, n, Op2).edge \subseteq AncestorSubGraph(G, n, Op).edge
+<1> DEFINE Ind2 == {m \in G.node : Op2(m)}
+<1> DEFINE Ind1 == {m \in G.node : Op(m)}
+<1> DEFINE H2 == [node |-> Ind2, edge |-> G.edge \cap (Ind2 \X Ind2)]
+<1> DEFINE H1 == [node |-> Ind1, edge |-> G.edge \cap (Ind1 \X Ind1)]
+<1>1. Ind2 \subseteq Ind1
+    OBVIOUS
+<1>2. AncestorSubGraph(G, n, Op2).node \subseteq AncestorSubGraph(G, n, Op).node
+    <2>1. CASE n \notin Ind2
+        BY <2>1 DEF AncestorSubGraph
+    <2>2. CASE n \in Ind2
+        <3>1. Ancestor(H2, n) \subseteq Ancestor(H1, n)
+            <4> SUFFICES ASSUME NEW x \in Ancestor(H2, n) PROVE x \in Ancestor(H1, n)
+                OBVIOUS
+            <4>1. PICK p \in SimplePath(H2) : p[1] = x /\ p[Len(p)] = n
+                BY DEF Ancestor, AreConnectedIn
+            <4>2. /\ p \in Seq(H2.node) /\ Len(p) \in Nat /\ Len(p) >= 1
+                  /\ DOMAIN p = 1..Len(p)
+                  /\ \A i \in 1..(Len(p) - 1) : <<p[i], p[i+1]>> \in H2.edge
+                BY <4>1, DG_SimplePathIsSeq
+            <4>3. \A i \in 1..Len(p) : p[i] \in H1.node
+                BY <4>2, <1>1, ElementOfSeq
+            <4>4. \A i \in 1..(Len(p) - 1) : <<p[i], p[i+1]>> \in H1.edge
+                BY <4>2, <1>1
+            <4>5. p \in SimplePath(H1)
+                BY <4>1, <4>3, <4>4, DG_SimplePathLift
+            <4>6. x \in H1.node
+                BY <4>2, <4>3, <4>1
+            <4>. QED
+                BY <4>5, <4>1, <4>6 DEF Ancestor, AreConnectedIn
+        <3>. QED
+            BY <2>2, <1>1, <3>1 DEF AncestorSubGraph
+    <2>. QED
+        BY <2>1, <2>2
+<1>3. AncestorSubGraph(G, n, Op2).edge \subseteq AncestorSubGraph(G, n, Op).edge
+    BY <1>2 DEF AncestorSubGraph
+<1>. QED
+    BY <1>2, <1>3
+
+(* An Op-blocked sink has no derivations: ~Op(n) empties the induced          *)
+(* ancestor subgraph, so no subgraph of it can have {n} as its sink set.      *)
+(* Note the lemma needs neither n \in G.node nor any structure on G.          *)
+THEOREM DDG_DerivationBlockedSink ==
+    ASSUME NEW T, NEW G, NEW n, NEW Op(_), ~Op(n)
+    PROVE  Derivation(G, n, Op, T) = {}
+<1>1. AncestorSubGraph(G, n, Op).node = {}
+    BY DEF AncestorSubGraph
+<1>2. SUFFICES ASSUME NEW D \in Derivation(G, n, Op, T) PROVE FALSE
+    OBVIOUS
+<1>3. D.node \in SUBSET AncestorSubGraph(G, n, Op).node /\ Sink(D) = {n}
+    BY DEF Derivation, DirectedSubgraph
+<1>4. n \in D.node
+    BY <1>3 DEF Sink
+<1>. QED
+    BY <1>1, <1>3, <1>4
+
+(* Derivations are antitone under simultaneous graph growth and ancestor-     *)
+(* subgraph shrinkage: a derivation of n in the larger graph G2 whose         *)
+(* ambient induced ancestor subgraph lies inside that of (G, Op) is already   *)
+(* a derivation of n in G. Instantiated with a step of GraphProcessing2,      *)
+(* (G, Op) is the current state and (G2, Op2) the next state: every action    *)
+(* grows deps and shrinks viability, so derivations never appear.             *)
+THEOREM DDG_DerivationAntitone ==
+    ASSUME NEW T, NEW G, NEW G2,
+           IsDirectedGraph(G), IsDirectedGraph(G2),
+           G.node \subseteq G2.node, G.edge \subseteq G2.edge,
+           NEW n, NEW Op(_), NEW Op2(_),
+           AncestorSubGraph(G2, n, Op2).node \subseteq AncestorSubGraph(G, n, Op).node,
+           AncestorSubGraph(G2, n, Op2).edge \subseteq AncestorSubGraph(G, n, Op).edge
+    PROVE  Derivation(G2, n, Op2, T) \subseteq Derivation(G, n, Op, T)
+<1> DEFINE V2 == AncestorSubGraph(G2, n, Op2)
+<1> DEFINE V1 == AncestorSubGraph(G, n, Op)
+<1> SUFFICES ASSUME NEW D \in Derivation(G2, n, Op2, T)
+             PROVE  D \in Derivation(G, n, Op, T)
+    OBVIOUS
+<1>1. /\ D \in DirectedSubgraph(V2)
+      /\ Sink(D) = {n}
+      /\ Source(D) \subseteq Source(G2)
+      /\ \A t \in D.node \cap T : Predecessor(G2, t) \subseteq D.node
+    BY DEF Derivation
+<1>2. D \in DirectedSubgraph(V1)
+    <2>1. /\ IsDirectedGraph(D)
+          /\ D.node \in SUBSET V2.node /\ D.edge \in SUBSET (V2.node \X V2.node)
+          /\ D.edge \subseteq V2.edge
+        BY <1>1 DEF DirectedSubgraph
+    <2>2. D = [node |-> D.node, edge |-> D.edge]
+        BY <2>1 DEF IsDirectedGraph
+    <2>. QED
+        BY <2>1, <2>2 DEF DirectedSubgraph
+<1>3. V1.node \subseteq G.node
+    BY DDG_AncestorSubGraphBasic DEF DirectedSubgraph
+<1>4. Source(D) \subseteq Source(G)
+    <2> SUFFICES ASSUME NEW x \in Source(D) PROVE x \in Source(G)
+        OBVIOUS
+    <2>1. x \in D.node /\ x \in Source(G2)
+        BY <1>1 DEF Source
+    <2>2. x \in G.node
+        <3>1. D.node \subseteq V1.node
+            BY <1>2 DEF DirectedSubgraph
+        <3>. QED
+            BY <2>1, <3>1, <1>3
+    <2>3. Predecessor(G2, x) = {}
+        BY <2>1 DEF Source
+    <2>4. Predecessor(G, x) = {}
+        BY <2>3 DEF Predecessor
+    <2>. QED
+        BY <2>2, <2>4 DEF Source
+<1>5. \A t \in D.node \cap T : Predecessor(G, t) \subseteq D.node
+    BY <1>1 DEF Predecessor
+<1>. QED
+    BY <1>1, <1>2, <1>4, <1>5 DEF Derivation
+
 THEOREM DDG_DerivationProperties ==
     ASSUME NEW T, NEW O, NEW G, IsDDGraph(G, T, O), IsFiniteSet(G.node),
            NEW n \in O, NEW Op(_), NEW D \in Derivation(G, n, Op, T)
