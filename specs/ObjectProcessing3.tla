@@ -29,9 +29,21 @@ vars == << objectState, objectTargets, objectDeleted >>
 INSTANCE ObjectStates
 
 (**
+ * REFINEMENT MAPPING
+ * Projects the OP3-specific OBJECT_PURGED state back onto OBJECT_COMPLETED, so
+ * that a purged object (a completed object whose data has been freed) is seen
+ * as completed by ObjectProcessing2, which has no notion of purgation.
+ *)
+objectStateBar ==
+    [o \in Object |->
+        IF objectState[o] = OBJECT_PURGED
+            THEN OBJECT_COMPLETED
+            ELSE objectState[o]]
+
+(**
  * Imports ObjectProcessing2 definitions.
  *)
-OP2 == INSTANCE ObjectProcessing2_proofs
+OP2 == INSTANCE ObjectProcessing2_proofs WITH objectState <- objectStateBar
 
 (**
  * TYPE INVARIANT
@@ -117,13 +129,26 @@ AbortObjects(O) ==
     /\ UNCHANGED << objectTargets, objectDeleted >>
 
 (**
- * OBJECT FINALIZATION
+ * OBJECT PURGATION
+ * A set 'O' of completed objects is purged, meaning that their data has been
+ * freed to reclaim space. Their metadata is kept, but the data is no longer
+ * available for execution or user retrieval.
+ *)
+PurgeObjects(O) ==
+    /\ O /= {} /\ O \subseteq CompletedObject
+    /\ objectState' =
+        [o \in Object |-> IF o \in O THEN OBJECT_PURGED ELSE objectState[o]]
+    /\ UNCHANGED << objectTargets, objectDeleted >>
+
+(**
+ * OBJECT DELETION
  * A set 'O' of objects is deleted, meaning that the system no longer has
- * knowledge of these objects (metadata and associated data).
+ * knowledge of these objects (metadata and associated data). Only objects
+ * holding no data can be deleted, i.e. registered, aborted or purged objects.
  *)
 DeleteObjects(O) ==
     /\ O /= {}
-    /\ O \intersect UnknownObject = {}
+    /\ O \subseteq UNION {RegisteredObject, AbortedObject, PurgedObject}
     /\ O \intersect objectTargets \intersect RegisteredObject = {}
     /\ objectDeleted' = objectDeleted \union O
     /\ UNCHANGED << objectState, objectTargets >>
@@ -134,7 +159,7 @@ DeleteObjects(O) ==
  * targeted objects have been completed or aborted.
  *)
 Terminating ==
-    /\ objectTargets \subseteq (CompletedObject \union AbortedObject)
+    /\ objectTargets \subseteq (CompletedObject \union AbortedObject \union PurgedObject)
     /\ UNCHANGED vars
 
 -------------------------------------------------------------------------------
@@ -154,6 +179,7 @@ Next ==
         \/ UntargetObjects(O)
         \/ CompleteObjects(O)
         \/ AbortObjects(O)
+        \/ PurgeObjects(O)
         \/ DeleteObjects(O)
     \/ Terminating
 
@@ -198,9 +224,26 @@ RegisteredTargetsUndeleted ==
     \A o \in Object:
         o \in RegisteredObject /\ o \in objectTargets => ~ o \in objectDeleted
 
+(**
+ * SAFETY
+ * A deleted object holds no data: it is registered, aborted or purged. In
+ * particular, no completed object is ever deleted (it must be purged first).
+ *)
+DeletionNoData ==
+    /\ objectDeleted \subseteq UNION {RegisteredObject, AbortedObject, PurgedObject}
+    /\ CompletedObject \intersect objectDeleted = {}
+
 PermanentDeletion ==
     \A o \in Object:
         [](o \in objectDeleted => [](o \in objectDeleted))
+
+(**
+ * SAFETY
+ * Once an object has been purged, it remains purged permanently.
+ *)
+PermanentPurgation ==
+    \A o \in Object:
+        [](o \in PurgedObject => [](o \in PurgedObject))
 
 (**
  * SAFETY

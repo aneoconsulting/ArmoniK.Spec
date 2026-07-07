@@ -11,6 +11,10 @@ LEMMA LemDeletionValidity == Init /\ [][Next]_vars => []DeletionValidity
 
 THEOREM OP3_DeletionValidity == Spec => []DeletionValidity
 
+LEMMA LemDeletionNoData == Init /\ [][Next]_vars => []DeletionNoData
+
+THEOREM OP3_DeletionNoData == Spec => []DeletionNoData
+
 LEMMA LemRefineObjectProcessing2InitNext == Init /\ [][Next]_vars
                                          => OP2!Init /\ [][OP2!Next]_OP2!vars
 
@@ -25,6 +29,7 @@ ObjectSafetyInv ==
     /\ OP2!OP1!TargetValidity
     /\ DeletionValidity
     /\ RegisteredTargetsUndeleted
+    /\ DeletionNoData
 
 LEMMA LemObjectSafetyInv == Init /\ [][Next]_vars => []ObjectSafetyInv
 
@@ -35,6 +40,8 @@ LEMMA LemPermanentDeletion ==
         PROVE o \in objectDeleted /\ [Next]_vars => (o \in objectDeleted)'
 
 THEOREM OP3_PermanentDeletion == Spec => PermanentDeletion
+
+THEOREM OP3_PermanentPurgation == Spec => PermanentPurgation
 
 THEOREM OP3_DeletionQuiescence == Spec => DeletionQuiescence
 
