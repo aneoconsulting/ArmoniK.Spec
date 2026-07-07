@@ -23,6 +23,7 @@ OBJECT_REGISTERED == "OBJECT_REGISTERED" \* Object created with only its metadat
 OBJECT_FINALIZED  == "OBJECT_FINALIZED"  \* Object has been successfully generated
 OBJECT_COMPLETED  == "OBJECT_COMPLETED"  \* Object has been generated with a non-empty data
 OBJECT_ABORTED    == "OBJECT_ABORTED"    \* Object has been genereted without any data
+OBJECT_PURGED     == "OBJECT_PURGED"     \* Completed object whose data has been freed (metadata kept)
 
 (**
  * Sets of states accessible for each level of refinement.
@@ -31,7 +32,7 @@ OP1State == {OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_FINALIZED}
 OP2State == {OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_COMPLETED,
              OBJECT_ABORTED}
 OP3State == {OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_COMPLETED,
-             OBJECT_ABORTED}
+             OBJECT_ABORTED, OBJECT_PURGED}
 
 (**
  * Sets of objects by state.
@@ -41,5 +42,6 @@ RegisteredObject == {o \in Object: objectState[o] = OBJECT_REGISTERED}
 FinalizedObject  == {o \in Object: objectState[o] = OBJECT_FINALIZED}
 CompletedObject  == {o \in Object: objectState[o] = OBJECT_COMPLETED}
 AbortedObject    == {o \in Object: objectState[o] = OBJECT_ABORTED}
+PurgedObject     == {o \in Object: objectState[o] = OBJECT_PURGED}
 
 ===============================================================================
