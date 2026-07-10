@@ -1,5 +1,15 @@
 name: CI
 
+# One `verify` job runs per specs/*.tla module; which checks it performs is
+# decided by the module's kind (see the "Classify" step):
+#   1. SANY parsing                  every module
+#   2. Property coverage             real specifications ((Graph|Task|Object|Session)ProcessingN)
+#   3. TLC model checking            modules with a companion .cfg file
+#   4. Interface consistency         theorem interfaces (*Theorems)
+#   5. tlapm --strict proof checking proof files (*_proofs)
+# The `pairing` job additionally enforces repo-wide that theorem interfaces
+# and proof files come in <X>Theorems.tla / <X>Theorems_proofs.tla pairs.
+
 on:
   pull_request:
   push:
@@ -7,37 +17,56 @@ on:
 
 jobs:
   discover:
-    name: Discover test + proof modules
+    name: Discover specifications
     runs-on: ubuntu-latest
     outputs:
-      tlc_tests: ${{ steps.list.outputs.tlc_tests }}
-      proofs:    ${{ steps.list.outputs.proofs }}
+      specs: ${{ steps.list.outputs.specs }}
     steps:
       - uses: actions/checkout@v5
 
       - id: list
-        name: List specs/*Tests.tla and specs/*_proofs.tla
+        name: List specs/*.tla modules
         run: |
           set -euo pipefail
-          tlc=$(ls specs/*Tests.tla 2>/dev/null | xargs -n1 basename | sed 's/\.tla$//' | jq -R . | jq -sc .)
-          proofs=$(ls specs/*_proofs.tla 2>/dev/null | xargs -n1 basename | sed 's/\.tla$//' | jq -R . | jq -sc .)
-          echo "tlc_tests=$tlc"
-          echo "proofs=$proofs"
-          echo "tlc_tests=$tlc"   >> "$GITHUB_OUTPUT"
-          echo "proofs=$proofs"   >> "$GITHUB_OUTPUT"
+          specs=$(basename -s .tla specs/*.tla | grep -v '_TTrace_' | jq -R . | jq -sc .)
+          echo "specs=$specs"
+          echo "specs=$specs" >> "$GITHUB_OUTPUT"
 
-  tlc:
-    name: TLC ${{ matrix.spec }}
-    needs: discover
-    if: needs.discover.outputs.tlc_tests != '[]'
+  pairing:
+    name: Interface / proof pairing
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python environment
+        run: make python-env
+
+      - name: Check interface / proof file pairing
+        run: .venv/bin/python -m scripts.check_proof_pairing specs
+
+  verify:
+    name: ${{ matrix.spec }}
+    needs: discover
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        spec: ${{ fromJSON(needs.discover.outputs.tlc_tests) }}
+        spec: ${{ fromJSON(needs.discover.outputs.specs) }}
     steps:
       - uses: actions/checkout@v5
+
+      - id: plan
+        name: Classify ${{ matrix.spec }}
+        run: |
+          set -euo pipefail
+          spec='${{ matrix.spec }}'
+          {
+            [[ "$spec" =~ ^(Graph|Task|Object|Session)Processing[0-9]+$ ]] \
+                                          && echo "coverage=true"  || echo "coverage=false"
+            [[ -f "specs/${spec}.cfg" ]]  && echo "tlc=true"       || echo "tlc=false"
+            [[ "$spec" == *Theorems ]]    && echo "interface=true" || echo "interface=false"
+            [[ "$spec" == *_proofs ]]     && echo "proofs=true"    || echo "proofs=false"
+          } | tee -a "$GITHUB_OUTPUT"
 
       - name: Setup JDK
         uses: actions/setup-java@v5
@@ -48,40 +77,41 @@ jobs:
       - name: Install TLA+ tools
         run: ./scripts/install-tools.sh
 
+      - name: Set up Python environment
+        if: steps.plan.outputs.coverage == 'true' || steps.plan.outputs.interface == 'true'
+        run: make python-env
+
+      - name: Parse (SANY)
+        working-directory: specs
+        run: |
+          java "-DTLA-Library=../.tlatools/CommunityModules/modules:../.tlatools/tlapm/lib/tlapm/stdlib" \
+            -cp ../.tlatools/tla2tools.jar \
+            tla2sany.SANY -error-codes ${{ matrix.spec }}.tla
+
+      - name: Check property coverage
+        if: steps.plan.outputs.coverage == 'true'
+        run: .venv/bin/python -m scripts.check_property_coverage specs/${{ matrix.spec }}.tla
+
       - name: Build Java overrides
+        if: steps.plan.outputs.tlc == 'true'
         run: make build-java
 
-      - name: Check ${{ matrix.spec }}
+      - name: Model-check (TLC)
+        if: steps.plan.outputs.tlc == 'true'
         working-directory: specs
         run: |
           java -XX:+UseParallelGC \
             -cp ../.tlatools/tla2tools.jar:../.tlatools/CommunityModules-deps.jar:. \
             tlc2.TLC -config ${{ matrix.spec }}.cfg ${{ matrix.spec }}
 
-  tlapm:
-    name: TLAPS ${{ matrix.spec }}
-    needs: discover
-    if: needs.discover.outputs.proofs != '[]'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        spec: ${{ fromJSON(needs.discover.outputs.proofs) }}
-    steps:
-      - uses: actions/checkout@v5
+      - name: Check interface consistency
+        if: steps.plan.outputs.interface == 'true'
+        run: .venv/bin/python -m scripts.check_thm_interface specs/${{ matrix.spec }}.tla
 
-      - name: Setup JDK
-        uses: actions/setup-java@v5
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Install TLA+ tools
-        run: ./scripts/install-tools.sh
-
-      - name: Check ${{ matrix.spec }}
+      - name: Check proofs (tlapm --strict)
+        if: steps.plan.outputs.proofs == 'true'
         working-directory: specs
         run: |
-          ../.tlatools/tlapm/bin/tlapm \
+          ../.tlatools/tlapm/bin/tlapm --strict \
             -I ../.tlatools/CommunityModules/modules \
             ${{ matrix.spec }}.tla
