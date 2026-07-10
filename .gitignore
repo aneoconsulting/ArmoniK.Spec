@@ -23,6 +23,10 @@
 *.dvi
 *.tex
 
+# Python environment for the scripts/ checks (populated by `make python-env`)
+.venv/
+__pycache__/
+
 # TLAPS cache folder
 # See https://github.com/tlaplus/tlapm/issues/16
 __tlacache__
