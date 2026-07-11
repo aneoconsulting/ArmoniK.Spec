@@ -75,9 +75,9 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Cache TLA+ tools
+      - name: Restore TLA+ tools cache
         id: cache-tools
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: .tlatools
           key: tlatools-${{ runner.os }}-${{ hashFiles('scripts/install-tools.sh') }}
@@ -85,6 +85,15 @@ jobs:
       - name: Install TLA+ tools
         if: steps.cache-tools.outputs.cache-hit != 'true'
         run: ./scripts/install-tools.sh
+
+      # Save only after a successful install -- a failed download must never
+      # poison the cache with a partial .tlatools.
+      - name: Save TLA+ tools cache
+        if: steps.cache-tools.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .tlatools
+          key: tlatools-${{ runner.os }}-${{ hashFiles('scripts/install-tools.sh') }}
 
       - name: Set up Python environment
         if: steps.plan.outputs.coverage == 'true' || steps.plan.outputs.interface == 'true' || steps.plan.outputs.tlc == 'true'
