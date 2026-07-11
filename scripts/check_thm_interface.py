@@ -43,10 +43,11 @@ def check_consistency(interface: Path) -> list[str]:
                 f"    interface: {decl.statement}\n"
                 f"    proof:     {prf.statement}"
             )
-        # The proof file must reproduce the interface's comment as the shared part
-        # of its own; where the interface documents nothing, the proof file may
-        # carry section banners or proof-only annotations freely.
-        if decl.comment and decl.comment != prf.comment:
+        # The shared comment must be identical on both sides -- in particular a
+        # theorem documented in only one of the two files is an error. Proof-only
+        # notes go below a `----` separator line inside the comment; a comment
+        # with no shared part at all starts with the separator line.
+        if decl.comment != prf.comment:
             errors.append(
                 f"{name}: shared comment differs\n"
                 f"    interface: {decl.comment!r}\n"
