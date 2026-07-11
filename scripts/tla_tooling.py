@@ -76,14 +76,15 @@ def _shared_comment(body: str) -> str:
 
 
 def _statement_text(src: bytes, node) -> str:
-    """Source text of a node with any block_comment spans removed.
+    """Source text of a node with any comment spans removed.
 
     In an interface (no proof after a theorem), tree-sitter attaches the following
-    theorem's comment to this statement node, so comments must be stripped."""
+    theorem's comment to this statement node, so comments must be stripped; `\\*`
+    line comments inside a statement are likewise not part of the assertion."""
     comments: list[tuple[int, int]] = []
 
     def walk(n):
-        if n.type == "block_comment":
+        if n.type in ("block_comment", "comment"):
             comments.append((n.start_byte, n.end_byte))
             return
         for c in n.children:
@@ -125,7 +126,9 @@ def _comments(src: bytes, module) -> list[tuple[int, int, str]]:
 def theorems(path: Path) -> dict[str, Theorem]:
     """Module-level THEOREM/LEMMA declarations, keyed by name, in source order.
 
-    Each theorem is paired with the comment directly above it (whitespace-only gap)."""
+    Each theorem is paired with the comment directly above it -- no blank line in
+    between. A comment followed by a blank line is section prose, not the
+    documentation of the declaration below it."""
     src, module = parse(path)
     comments = _comments(src, module)
     result: dict[str, Theorem] = {}
@@ -143,7 +146,8 @@ def theorems(path: Path) -> dict[str, Theorem]:
             continue
         comment = ""
         for start, end, text in comments:
-            if end <= child.start_byte and src[end : child.start_byte].strip() == b"":
+            gap = src[end : child.start_byte]
+            if end <= child.start_byte and gap.strip() == b"" and gap.count(b"\n") <= 1:
                 comment = text  # closest preceding comment wins
         result[name] = Theorem(name, statement or "", comment)
     return result
@@ -157,9 +161,13 @@ def _is_properties_banner(body: str) -> bool:
 def properties(path: Path) -> list[str]:
     """Property operator names declared in a spec's properties section.
 
-    A property is an operator definition (upper-case initial) that appears after the
-    "SAFETY AND LIVENESS PROPERTIES" banner. Lower-case refinement mappings (e.g.
-    taskStateBar) and named INSTANCE definitions are excluded."""
+    A property is a parameterless operator definition (upper-case initial) that
+    appears after the "SAFETY AND LIVENESS PROPERTIES" banner and is not used in
+    the definition of another operator of the section. Parameterized operators
+    cannot be asserted by a `Spec => X` theorem, and referenced operators (helper
+    predicates, conjuncts of a composite invariant) are covered through the
+    properties built from them. Lower-case refinement mappings (e.g.
+    taskStateBar) and named INSTANCE definitions are likewise excluded."""
     src, module = parse(path)
     start = None
     for child in module.children:
@@ -168,16 +176,34 @@ def properties(path: Path) -> list[str]:
     if start is None:
         raise ValueError(f"{path}: no '{_PROPERTIES_BANNER}' section found")
 
-    names: list[str] = []
+    def references(node) -> set[str]:
+        refs: set[str] = set()
+        stack = [node]
+        while stack:
+            n = stack.pop()
+            if n.type == "identifier_ref":
+                refs.add(_text(src, n))
+            stack.extend(n.children)
+        return refs
+
+    candidates: list[str] = []
+    referenced: set[str] = set()
     for child in module.children:
         if child.start_byte < start or child.type != "operator_definition":
             continue
-        ident = next((c for c in child.children if c.type == "identifier"), None)
-        if ident is not None:
-            name = _text(src, ident)
-            if name[:1].isupper():
-                names.append(name)
-    return names
+        name = parameterized = None
+        for i in range(child.child_count):
+            field = child.field_name_for_child(i)
+            if field == "name":
+                name = _text(src, child.child(i))
+            elif field == "parameter":
+                parameterized = True
+        if name is None:
+            continue
+        referenced |= references(child) - {name}
+        if name[:1].isupper() and not parameterized:
+            candidates.append(name)
+    return [name for name in candidates if name not in referenced]
 
 
 def short_name(module_name: str) -> str:
