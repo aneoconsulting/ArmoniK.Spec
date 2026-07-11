@@ -74,7 +74,15 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Cache TLA+ tools
+        id: cache-tools
+        uses: actions/cache@v4
+        with:
+          path: .tlatools
+          key: tlatools-${{ runner.os }}-${{ hashFiles('scripts/install-tools.sh') }}
+
       - name: Install TLA+ tools
+        if: steps.cache-tools.outputs.cache-hit != 'true'
         run: ./scripts/install-tools.sh
 
       - name: Set up Python environment
@@ -101,6 +109,7 @@ jobs:
         working-directory: specs
         run: |
           java -XX:+UseParallelGC \
+            "-DTLA-Library=../.tlatools/CommunityModules/modules:../.tlatools/tlapm/lib/tlapm/stdlib" \
             -cp ../.tlatools/tla2tools.jar:../.tlatools/CommunityModules-deps.jar:. \
             tlc2.TLC -config ${{ matrix.spec }}.cfg ${{ matrix.spec }}
 
