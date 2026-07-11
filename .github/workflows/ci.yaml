@@ -5,6 +5,7 @@ name: CI
 #   1. SANY parsing                  every module
 #   2. Property coverage             real specifications ((Graph|Task|Object|Session)ProcessingN)
 #   3. TLC model checking            modules with a companion .cfg file
+#      + state-space statistics vs the `\* state-space:` reference in the .cfg
 #   4. Interface consistency         theorem interfaces (*Theorems)
 #   5. tlapm --strict proof checking proof files (*_proofs)
 # The `pairing` job additionally enforces repo-wide that theorem interfaces
@@ -86,7 +87,7 @@ jobs:
         run: ./scripts/install-tools.sh
 
       - name: Set up Python environment
-        if: steps.plan.outputs.coverage == 'true' || steps.plan.outputs.interface == 'true'
+        if: steps.plan.outputs.coverage == 'true' || steps.plan.outputs.interface == 'true' || steps.plan.outputs.tlc == 'true'
         run: make python-env
 
       - name: Parse (SANY)
@@ -108,10 +109,18 @@ jobs:
         if: steps.plan.outputs.tlc == 'true'
         working-directory: specs
         run: |
+          set -o pipefail
           java -XX:+UseParallelGC \
             "-DTLA-Library=../.tlatools/CommunityModules/modules:../.tlatools/tlapm/lib/tlapm/stdlib" \
             -cp ../.tlatools/tla2tools.jar:../.tlatools/CommunityModules-deps.jar:. \
-            tlc2.TLC -config ${{ matrix.spec }}.cfg ${{ matrix.spec }}
+            tlc2.TLC -config ${{ matrix.spec }}.cfg ${{ matrix.spec }} \
+          | tee ${{ matrix.spec }}.tlc.out
+
+      - name: Check state-space statistics
+        if: steps.plan.outputs.tlc == 'true'
+        run: |
+          .venv/bin/python -m scripts.check_state_space \
+            specs/${{ matrix.spec }}.cfg specs/${{ matrix.spec }}.tlc.out
 
       - name: Check interface consistency
         if: steps.plan.outputs.interface == 'true'
