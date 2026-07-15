@@ -236,9 +236,11 @@ THEOREM DG_AreConnectedLiftToUUG ==
     PROVE  AreConnectedIn(UnderlyingUndirectedGraph(G), a, b)
 
 (******************************************************************************)
-(* The underlying undirected view of any directed graph is itself an         *)
-(* undirected graph: by construction it pairs every edge of G with its       *)
-(* reverse, so its edge relation is symmetric.                                *)
+(* The underlying undirected view of any directed graph is itself an          *)
+(* undirected graph: well-formedness follows from DG_GraphUnionIsDirected     *)
+(* applied to G and Transpose(G), and symmetry holds because every edge of G  *)
+(* contributes its reverse to UUG via Transpose, while the transpose of that  *)
+(* edge contributes the original edge back.                                   *)
 (******************************************************************************)
 THEOREM DG_UnderlyingUndirectedGraphIsUndirected ==
     ASSUME NEW G, IsDirectedGraph(G)
@@ -375,6 +377,10 @@ THEOREM DG_AreConnectedInMCEquiv ==
            NEW m \in G.node, NEW n \in G.node
     PROVE  AreConnectedIn(G, m, n) <=> MCAreConnectedIn(G, m, n)
 
+(******************************************************************************)
+(* Equivalence between HasDirectedCycle and its MC variant: on a finite       *)
+(* graph, HasDirectedCycle(G) holds iff MCHasDirectedCycle(G) does.           *)
+(******************************************************************************)
 THEOREM DG_HasDirectedCycleMCEquiv ==
     ASSUME NEW G, IsDirectedGraph(G), IsFiniteSet(G.node)
     PROVE  HasDirectedCycle(G) <=> MCHasDirectedCycle(G)
