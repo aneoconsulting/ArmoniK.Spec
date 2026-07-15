@@ -395,8 +395,8 @@ THEOREM TP4_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
                         /\ u \in UnknownTask
                         /\ ~ \E v \in Task : nextAttemptOf[v] = u)
                   => ENABLED <<A>>_vars
-                <5>. SUFFICES ASSUME NEW u \in Task, t \in UnretriedTask, u \in UnknownTask,
-                                     ~ \E v \in Task : nextAttemptOf[v] = u
+                <5>. SUFFICES ASSUME NEW u0 \in Task, t \in UnretriedTask, u0 \in UnknownTask,
+                                     ~ \E v \in Task : nextAttemptOf[v] = u0
                               PROVE \E taskStatep, nextAttemptOfp :
                                 /\ \E u \in Task :
                                     /\ {t} # {}
