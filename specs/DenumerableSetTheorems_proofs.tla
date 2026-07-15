@@ -7,7 +7,8 @@
 EXTENDS DenumerableSets, FiniteSetTheorems, FiniteSetsExtTheorems, TLAPS
 
 (******************************************************************************)
-(* A denumerable set is non-empty.                                            *)
+(* A denumerable set is non-empty: any bijection from Nat onto S maps 0 to    *)
+(* an element of S.                                                           *)
 (******************************************************************************)
 THEOREM DS_NonEmpty ==
     ASSUME NEW S, IsDenumerableSet(S)
@@ -56,7 +57,7 @@ THEOREM DS_RemoveElement ==
 
 (******************************************************************************)
 (* The difference between a denumerable set and a finite set is denumerable.  *)
-(* The proof is by induction on T, using DS_RemoveElement at each step.       *)
+(* Proved by finite induction on T, using DS_RemoveElement at each step.      *)
 (******************************************************************************)
 THEOREM DS_FiniteDifference ==
     ASSUME NEW S, IsDenumerableSet(S),
@@ -78,9 +79,8 @@ THEOREM DS_FiniteDifference ==
     BY <1>3 DEF P
 
 (******************************************************************************)
-(* A denumerable set is not finite: assuming the contrary, the bijection      *)
-(* witnessing denumerability would make Nat finite, contradicting the         *)
-(* existence of an unbounded element above any maximum.                       *)
+(* A denumerable set is not finite: an injection from Nat into S would force  *)
+(* Nat to be finite, contradicting the existence of an unbounded maximum.     *)
 (******************************************************************************)
 THEOREM DS_NotFiniteSet ==
     ASSUME NEW S, IsDenumerableSet(S)
