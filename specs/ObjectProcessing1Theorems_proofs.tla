@@ -57,7 +57,7 @@ LEMMA LemTargetsAreKnown ==
 BY DEF ObjectSafetyInv, TypeOk, OP1State, TargetValidity, UnknownObject,
 RegisteredObject, FinalizedObject
 
-THEOREM OP1_EventualTargetFinalizationCorrect == Spec => EventualTargetFinalization
+THEOREM OP1_EventualTargetFinalization == Spec => EventualTargetFinalization
 <1>. SUFFICES ASSUME NEW o \in Object
               PROVE Spec => (<>[](o \in objectTargets) => <>(o \in FinalizedObject))
     BY DEF EventualTargetFinalization            
