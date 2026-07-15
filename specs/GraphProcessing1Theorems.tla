@@ -143,7 +143,7 @@ LEMMA LemRootProgress ==
     ASSUME NEW o \in Object, NEW r \in Object \union Task, NEW n \in Nat
     PROVE LET S == AncestorSubGraph(deps, o, IsOpenNode).node
               C == Cardinality(S)
-              IsMRoot(o, r) == \E p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r
+              IsMRoot(o0, r0) == \E p \in MaximalOpenPath(deps, o0, IsOpenNode) : p[1] = r0
           IN /\ []GraphSafetyInv /\ [][Next]_vars /\ []Fairness
              /\ [](o \in objectTargets /\ o \in RegisteredObject)
              /\ [][S' \subseteq S]_S

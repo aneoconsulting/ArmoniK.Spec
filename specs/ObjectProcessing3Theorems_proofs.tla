@@ -245,8 +245,8 @@ THEOREM OP3_RefineObjectProcessing2 == Spec => RefineObjectProcessing2
 <1>. USE DEF OP2!OBJECT_REGISTERED, OP2!OBJECT_COMPLETED, OP2!OBJECT_ABORTED
 <1>1. []ObjectSafetyInv /\ WF_vars(o \in objectTargets /\ CompleteObjects({o}))
       => WF_OP2!vars(o \in objectTargets /\ OP2!CompleteObjects({o}))
-    <2>. DEFINE AbsA(o) == o \in objectTargets /\ OP2!CompleteObjects({o})
-                A(o)    == o \in objectTargets /\ CompleteObjects({o})
+    <2>. DEFINE AbsA(ob) == ob \in objectTargets /\ OP2!CompleteObjects({ob})
+                A(ob)    == ob \in objectTargets /\ CompleteObjects({ob})
                 P       == ~ o \in objectDeleted
     <2>0. ENABLED <<AbsA(o)>>_OP2!vars
             => o \in objectTargets /\ o \in OP2!RegisteredObject
@@ -278,8 +278,8 @@ THEOREM OP3_RefineObjectProcessing2 == Spec => RefineObjectProcessing2
         BY <2>1, <2>2, <2>3, PTL
 <1>2. []ObjectSafetyInv /\ WF_vars(o \in objectTargets /\ AbortObjects({o}))
         => WF_OP2!vars(o \in objectTargets /\ OP2!AbortObjects({o}))
-    <2>. DEFINE AbsA(o) == o \in objectTargets /\ OP2!AbortObjects({o})
-                A(o)    == o \in objectTargets /\ AbortObjects({o})
+    <2>. DEFINE AbsA(ob) == ob \in objectTargets /\ OP2!AbortObjects({ob})
+                A(ob)    == ob \in objectTargets /\ AbortObjects({ob})
                 P       == ~ o \in objectDeleted
     <2>0. ENABLED <<AbsA(o)>>_OP2!vars
             => o \in objectTargets /\ o \in OP2!RegisteredObject

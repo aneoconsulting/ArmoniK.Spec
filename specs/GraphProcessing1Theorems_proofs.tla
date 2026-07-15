@@ -1388,16 +1388,16 @@ LEMMA LemRefineTaskProcessing1Fairness ==
                         OBVIOUS
                     <6>0. (\A o \in S: [](A(S) => <>[]C(S, o))) => [](\A o \in S: A(S) => <>[]C(S, o))
                         OBVIOUS
-                    <6>. SUFFICES (\A o \in S: A(S) => <>[]C(S, o)) => A(S) => <>[]B(S)
+                    <6>. SUFFICES (\A o \in S: A(S) => <>[]C(S, o)) => (A(S) => <>[]B(S))
                         BY <6>0, PTL
                     <6>. SUFFICES ASSUME IsFiniteSet(S)
-                                  PROVE (\A o \in S: A(S) => <>[]C(S, o)) => A(S) => <>[]B(S)
+                                  PROVE (\A o \in S: A(S) => <>[]C(S, o)) => (A(S) => <>[]B(S))
                         OBVIOUS
                     <6>. HIDE DEF Q
                     <6>. DEFINE K(o) == A(S) => <>[]C(S, o)
                                 L(T) == \A o \in T : K(o)
                                 R(T) == S = Succ /\ \A o \in T : Q(o)
-                                I(T) == L(T) => A(S) => <>[]R(T)
+                                I(T) == L(T) => (A(S) => <>[]R(T))
                     <6>1. I({})
                         <7>. SUFFICES A(S) => <>[]R({})
                             OBVIOUS
@@ -1435,9 +1435,9 @@ LEMMA LemRefineTaskProcessing1Fairness ==
                             <9>. HIDE DEF K
                             <9>. QED
                                 OBVIOUS
-                        <8>2. L(T \cup {x}) /\ I(T) => A(S) => <>[]R(T)
+                        <8>2. L(T \cup {x}) /\ I(T) => (A(S) => <>[]R(T))
                             OBVIOUS
-                        <8>3. (A(S) => <>[]R(T)) /\ K(x) => A(S) => (<>[](R(T) /\ Q(x)))
+                        <8>3. (A(S) => <>[]R(T)) /\ K(x) => (A(S) => (<>[](R(T) /\ Q(x))))
                             BY PTL
                         <8>5. <>[](R(T) /\ Q(x)) => <>[]R(T \cup {x})
                             BY <6>2
@@ -1492,7 +1492,7 @@ LEMMA LemRefineTaskProcessing1Fairness ==
                         BY <6>1, ENABLEDaxioms
                     <6>3. GraphSafetyInv /\ A(S) /\ o \notin FinalizedObject
                           => ENABLED FinalizeObjects({o})
-                        <7>1. \E t \in Predecessor(deps, o): t \in ProcessedTask
+                        <7>1. \E tp \in Predecessor(deps, o): tp \in ProcessedTask
                             BY DEF GraphSafetyInv, DependencyGraphCompliant, IsDDGraph,
                             IsDag, IsDirectedGraph, Predecessor, Successor
                         <7>2. o \in RegisteredObject
@@ -1849,7 +1849,7 @@ LEMMA LemRootProgress ==
     ASSUME NEW o \in Object, NEW r \in Object \union Task, NEW n \in Nat
     PROVE LET S == AncestorSubGraph(deps, o, IsOpenNode).node
               C == Cardinality(S)
-              IsMRoot(o, r) == \E p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r
+              IsMRoot(o0, r0) == \E p \in MaximalOpenPath(deps, o0, IsOpenNode) : p[1] = r0
           IN /\ []GraphSafetyInv /\ [][Next]_vars /\ []Fairness
              /\ [](o \in objectTargets /\ o \in RegisteredObject)
              /\ [][S' \subseteq S]_S
@@ -1858,7 +1858,7 @@ LEMMA LemRootProgress ==
      TP1!TASK_PROCESSED, TP1!TASK_FINALIZED
 <1>. DEFINE S == AncestorSubGraph(deps, o, IsOpenNode).node
             C == Cardinality(S)
-            IsMRoot(o, r) == \E p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r
+            IsMRoot(o0, r0) == \E p \in MaximalOpenPath(deps, o0, IsOpenNode) : p[1] = r0
             J == C <= n + 1 /\ (C = n + 1 => r \in S)
 <1>1. o \in objectTargets /\ IsMRoot(o, r) => IsTaskUpstreamOnOpenPathToTarget(r, o)
     BY DEF IsTaskUpstreamOnOpenPathToTarget, MaximalOpenPath, OpenPath
@@ -2256,7 +2256,7 @@ LEMMA LemCardinalityDescent ==
              => C = n + 1 ~> C < n + 1
 <1>. DEFINE S == AncestorSubGraph(deps, o, IsOpenNode).node
             C == Cardinality(S)
-            IsMRoot(o, r) == \E p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r
+            IsMRoot(o0, r0) == \E p \in MaximalOpenPath(deps, o0, IsOpenNode) : p[1] = r0
             F == /\ []GraphSafetyInv
                  /\ [][Next]_vars 
                  /\ []Fairness
@@ -2291,7 +2291,7 @@ LEMMA LemCardinalityDescent ==
 <1>2. \A r \in Task \union Object : F => C = n + 1 /\ IsMRoot(o, r) ~> C < n + 1
     BY LemRootProgress
 <1>3. (\A r \in Task \union Object :  (F => C = n + 1 /\ IsMRoot(o, r) ~> C < n + 1))
-      => F => C = n + 1 /\ (\E r \in Task \union Object : IsMRoot(o, r)) ~> C < n + 1
+      => (F => C = n + 1 /\ (\E r \in Task \union Object : IsMRoot(o, r)) ~> C < n + 1)
     <2>1. (\A r \in Task \union Object : (F => C = n + 1 /\ IsMRoot(o, r) ~> C < n + 1))
           => (F => \A r \in Task \union Object : (C = n + 1 /\ IsMRoot(o, r) ~> C < n + 1))
         OBVIOUS
@@ -2308,7 +2308,7 @@ LEMMA LemCardinalityDescent ==
                 => [](\A r \in Task \union Object : C = n + 1 /\ IsMRoot(o, r) => <>(C < n + 1))
             OBVIOUS
         <3>3. (\A r \in Task \union Object : C = n + 1 /\ IsMRoot(o, r) => <>(C < n + 1))
-                => C = n + 1 /\ (\E r \in Task \union Object : IsMRoot(o, r)) => <>(C < n + 1)
+                => (C = n + 1 /\ (\E r \in Task \union Object : IsMRoot(o, r)) => <>(C < n + 1))
             OBVIOUS
         <3>. QED
             BY <3>1, <3>2, <3>3, PTL
@@ -2371,15 +2371,7 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
         BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11, <2>12
         DEF Next, OP1!Next
 <1>3. []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ OpenUpstreamEventuallyClosed => OP1!Fairness
-    <2>. USE GP1Assumptions 
-    <2>. DEFINE AG(o) == AncestorSubGraph(deps, o, IsOpenNode)
-    <2>. SUFFICES ASSUME NEW o \in Object
-                  PROVE /\ []GraphSafetyInv
-                        /\ [][Next]_vars
-                        /\ Fairness
-                        /\ []([](o \in objectTargets) => <>[][(AG(o).node)' \subseteq AG(o).node]_(AG(o).node))
-                        => WF_OP1!vars(o \in objectTargets /\ OP1!FinalizeObjects({o}))
-        BY Isa DEF OP1!Fairness, OpenUpstreamEventuallyClosed
+    <2>. USE GP1Assumptions
     <2>0. Fairness <=> []Fairness
         <3>1. (\A o \in Object : WF_vars(FinalizeObjects({o})))
                <=> [](\A o \in Object : WF_vars(FinalizeObjects({o})))
@@ -2412,6 +2404,14 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
                 BY <4>1, <4>2, Isa
         <3>. QED
             BY <3>1, <3>2, PTL DEF Fairness
+    <2>. DEFINE AG(o) == AncestorSubGraph(deps, o, IsOpenNode)
+    <2>. SUFFICES ASSUME NEW o \in Object
+                  PROVE /\ []GraphSafetyInv
+                        /\ [][Next]_vars
+                        /\ Fairness
+                        /\ []([](o \in objectTargets) => <>[][(AG(o).node)' \subseteq AG(o).node]_(AG(o).node))
+                        => WF_OP1!vars(o \in objectTargets /\ OP1!FinalizeObjects({o}))
+        BY Isa DEF OP1!Fairness, OpenUpstreamEventuallyClosed
     <2>. DEFINE S == AG(o).node
                 C == Cardinality(S)
     <2>. SUFFICES /\ []GraphSafetyInv
@@ -2421,7 +2421,7 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
                   /\ [][S' \subseteq S]_S
                   => FALSE
         <3>1. []([](o \in objectTargets) => <>[][S' \subseteq S]_S)
-              => [](o \in objectTargets) => <>[][S' \subseteq S]_S
+              => ([](o \in objectTargets) => <>[][S' \subseteq S]_S)
             BY PTL
         <3>2. ENABLED <<o \in objectTargets /\ OP1!FinalizeObjects({o})>>_OP1!vars
               => o \in objectTargets /\ o \in RegisteredObject
@@ -2454,14 +2454,14 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
             BY <3>3, <3>6, FS_EmptySet, FS_CardinalityType
     <2>1. GraphSafetyInv /\ o \in RegisteredObject => \E n \in Nat : C <= n
         BY <2>0
-    <2>. DEFINE R(k) == <>(C <= k)   S(k) == F => ~R(k)
-    <2>2. \A n \in Nat : S(n)
-        <3>1. S(0)
+    <2>. DEFINE R(k) == <>(C <= k)   Ind(k) == F => ~R(k)
+    <2>2. \A n \in Nat : Ind(n)
+        <3>1. Ind(0)
             <4>. GraphSafetyInv /\ o \in RegisteredObject => ~(C <= 0)
                 BY <2>0
             <4>. QED
                 BY PTL
-        <3>2. \A n \in Nat : S(n) => S(n+1)
+        <3>2. \A n \in Nat : Ind(n) => Ind(n+1)
             <4> TAKE n \in Nat
             <4>2. C \in Nat => /\ C <= n+1 => (C <= n \/ C = n+1)
                                /\ C < n+1 => C <= n
@@ -2470,7 +2470,7 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
                 BY LemCardinalityDescent
             <4>. QED
                 BY <2>0, <4>2, <4>3, PTL
-      <3>. HIDE DEF S
+      <3>. HIDE DEF Ind
       <3>. QED
         BY <3>1, <3>2, NatInduction, Isa
     <2>3. ASSUME NEW n \in Nat  PROVE F => ~(C <= n)
