@@ -1213,14 +1213,14 @@ LEMMA LemTaskAttemptsOutTU ==
     <2>. QED
         BY <2>1, <1>6
 <1>11. \/ /\ NextAttempts(t) \cap T = {}
-       /\ NextAttempts(t)' = NextAttempts(t)
-    \/ \E s0 \in NextAttempts(t) \cap T :
-          /\ NextAttempts(t)' = NextAttempts(t) \cup {f[s0]}
-          /\ f[s0] \notin TaskAttempts(t)
-          /\ IsFiniteSet(TaskAttempts(t))
-          /\ IsFiniteSet(PreviousAttempts(s0))
-          /\ Cardinality(TaskAttempts(t))
-             = Cardinality(PreviousAttempts(s0))
+          /\ NextAttempts(t)' = NextAttempts(t)
+       \/ \E s0 \in NextAttempts(t) \cap T :
+             /\ NextAttempts(t)' = NextAttempts(t) \cup {f[s0]}
+             /\ f[s0] \notin TaskAttempts(t)
+             /\ IsFiniteSet(TaskAttempts(t))
+             /\ IsFiniteSet(PreviousAttempts(s0))
+             /\ Cardinality(TaskAttempts(t))
+                = Cardinality(PreviousAttempts(s0))
     <2>2. \A y \in Task :
                     y \in NextAttempts(t)'
                     <=> y \in NextAttempts(t)
@@ -2205,7 +2205,7 @@ THEOREM TP2_AttemptsEventualStability == Spec => AttemptsEventualStability
                 BY PTL
         <3>2. IsFiniteSet(T) /\ Cardinality(T) <= MaxRetries /\ [](A = T)
               => \E S \in SUBSET Task : IsFiniteSet(S) /\ Cardinality(S) <= MaxRetries /\ [](A = S)
-            <4>. DEFINE Q(T) == IsFiniteSet(T) /\ Cardinality(T) <= MaxRetries /\ [](A = T)
+            <4>. DEFINE Q(Tb) == IsFiniteSet(Tb) /\ Cardinality(Tb) <= MaxRetries /\ [](A = Tb)
             <4>. HIDE DEF Q
             <4>. Q(T) => \E S \in SUBSET Task : Q(S)
                 OBVIOUS
@@ -2368,8 +2368,8 @@ THEOREM TP2_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
         <3>. SUFFICES []TaskSafetyInv /\ SF_vars(ProcessTasks({t}))
                     => SF_TP1!vars(TP1!ProcessTasks({t}))
             BY Isa DEF Fairness
-        <3>. DEFINE AbsA(t) == TP1!ProcessTasks({t})
-                    A(t)    == ProcessTasks({t})
+        <3>. DEFINE AbsA(tb) == TP1!ProcessTasks({tb})
+                    A(tb)    == ProcessTasks({tb})
         <3>1. TaskSafetyInv /\ ENABLED <<AbsA(t)>>_TP1!vars => ENABLED <<A(t)>>_vars
             <4>. SUFFICES ASSUME TaskSafetyInv
                         PROVE ENABLED <<AbsA(t)>>_TP1!vars => ENABLED <<A(t)>>_vars

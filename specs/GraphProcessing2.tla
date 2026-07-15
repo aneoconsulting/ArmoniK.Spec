@@ -1,6 +1,6 @@
 --------------------------- MODULE GraphProcessing2 ----------------------------
 
-EXTENDS DenumerableSets, FiniteSets, Graphs, Naturals, Sequences, Utils, TLC
+EXTENDS DenumerableSets, FiniteSets, Graphs, Naturals, Sequences, TLC
 
 CONSTANTS
     Object,   \* Set of object identifiers
