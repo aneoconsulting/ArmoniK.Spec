@@ -18,8 +18,10 @@ THEOREM DG_DirectedGraphOfMember ==
 BY DEF DirectedGraphOf, IsDirectedGraph
 
 (******************************************************************************)
-(* Structural properties of directed subgraphs: well-formedness, acyclicity,  *)
-(* and bipartite-partition preservation are all inherited from G.             *)
+(* Structural properties of directed subgraphs: every directed subgraph H of  *)
+(* G is itself a well-formed directed graph, inherits acyclicity from G, and  *)
+(* inherits any bipartite partitioning of G (a subgraph cannot introduce an   *)
+(* edge that crosses a partition).                                            *)
 (******************************************************************************)
 THEOREM DG_DirectedSubgraphProperties ==
     ASSUME NEW G, NEW H \in DirectedSubgraph(G)
@@ -81,7 +83,9 @@ THEOREM DG_TransposeProperties ==
     BY <1>1, <1>3 DEF Transpose, IsDirectedGraph
 
 (******************************************************************************)
-(* Neighborhood properties.                                                   *)
+(* Neighborhood properties: immediate successors and predecessors of a node   *)
+(* always belong to G.node, and they are dual in any well-formed graph        *)
+(* (m is a successor of n iff n is a predecessor of m).                       *)
 (******************************************************************************)
 THEOREM DG_NeighborhoodProperties ==
     ASSUME NEW G, NEW m, NEW n
@@ -101,7 +105,12 @@ THEOREM DG_SourceSinkProperties ==
 BY DEF Source, Sink
 
 (******************************************************************************)
-(* Bridge lemmas relating SimplePath to Path / Seq / IsInjective.             *)
+(* Bridge lemmas relating SimplePath to its building blocks. They localise    *)
+(* all SimplePath structural reasoning so downstream proofs cite them instead *)
+(* of unfolding the definition.                                               *)
+(*                                                                            *)
+(* DG_SimplePathIsSeq: a simple path is a (non-empty) path; gives the         *)
+(* sequence facts without any finiteness assumption.                          *)
 (******************************************************************************)
 THEOREM DG_SimplePathIsSeq ==
     ASSUME NEW G, NEW p \in SimplePath(G)
@@ -123,6 +132,11 @@ THEOREM DG_SimplePathIsSeq ==
 <1>. QED
     BY <1>1, <1>2, <1>3
 
+(******************************************************************************)
+(* DG_SimplePathBound: on a finite graph an injective path visits each node   *)
+(* at most once, so its length is at most Cardinality(G.node). This is the    *)
+(* only place finiteness is genuinely tied to SimplePath.                     *)
+(******************************************************************************)
 THEOREM DG_SimplePathBound ==
     ASSUME NEW G, IsFiniteSet(G.node), NEW p \in SimplePath(G)
     PROVE  Len(p) <= Cardinality(G.node)
@@ -144,6 +158,12 @@ THEOREM DG_SimplePathBound ==
 <1>. QED
     BY <1>4, <1>5
 
+(******************************************************************************)
+(* DG_SimplePathMCEquiv: SimplePath and its model-checking variant coincide   *)
+(* on finite graphs. They share the same predicate; only the domain (Seq vs  *)
+(* the Cardinality-bounded SeqOf) differs, and DG_SimplePathBound shows the   *)
+(* bound is never binding for a simple path.                                  *)
+(******************************************************************************)
 THEOREM DG_SimplePathMCEquiv ==
     ASSUME NEW G, IsFiniteSet(G.node)
     PROVE  SimplePath(G) = MCSimplePath(G)
@@ -189,10 +209,9 @@ THEOREM DG_SimplePathMCEquiv ==
     BY <1>1, <1>2
 
 (******************************************************************************)
-(* Membership of the trivial path <<n>> in Path(G) and SimplePath(G).         *)
-(*                                                                            *)
-(* The Path direction unfolds from the definition (vacuous edge condition).  *)
-(* The SimplePath direction adds IsInjective(<<n>>), which is immediate.      *)
+(* The trivial single-node sequence <<n>> is a (simple) path of G iff n is a *)
+(* node of G. The edge constraint is vacuous (1..(Len(<<n>>)-1) = {}) so the *)
+(* only requirement on n is membership in G.node.                            *)
 (******************************************************************************)
 THEOREM DG_TrivialPath ==
     ASSUME NEW G, NEW n
@@ -220,8 +239,9 @@ THEOREM DG_TrivialPath ==
     BY <1>2, <1>4
 
 (******************************************************************************)
-(* Reflexivity of connectivity. The singleton sequence <<n>> is a simple path *)
-(* of G for every node n (no finiteness needed in the new SimplePath).        *)
+(* Reflexivity of connectivity: the single-node sequence <<n>> witnesses      *)
+(* AreConnectedIn(G, n, n) for every node n of G (no finiteness needed).      *)
+(* Stated as its own theorem because it is reused inside other proofs.        *)
 (******************************************************************************)
 THEOREM DG_AreConnectedReflexive ==
     ASSUME NEW G, NEW n \in G.node
@@ -234,7 +254,9 @@ THEOREM DG_AreConnectedReflexive ==
     BY <1>1, <1>2 DEF AreConnectedIn
 
 (******************************************************************************)
-(* A single edge connects its endpoints.                                      *)
+(* A single edge connects its endpoints: the length-2 sequence <<a, b>> (or  *)
+(* <<a>> when a = b) is a simple path, so <<a, b>> \in G.edge implies         *)
+(* AreConnectedIn(G, a, b).                                                   *)
 (******************************************************************************)
 THEOREM DG_EdgeConnects ==
     ASSUME NEW G, IsDirectedGraph(G),
@@ -274,7 +296,9 @@ THEOREM DG_EdgeConnects ==
     BY <1>2, <1>3
 
 (******************************************************************************)
-(* Ancestor / Descendant properties.                                          *)
+(* Ancestor / Descendant properties: both sets are subsets of G.node, they    *)
+(* are dual to each other, and they are reflexive (n is its own ancestor and  *)
+(* descendant) -- no finiteness needed.                                       *)
 (******************************************************************************)
 THEOREM DG_AncestorDescendantProperties ==
     ASSUME NEW G, NEW m \in G.node, NEW n \in G.node
@@ -286,7 +310,9 @@ THEOREM DG_AncestorDescendantProperties ==
 BY DG_AreConnectedReflexive DEF Ancestor, Descendant
 
 (******************************************************************************)
-(* Properties of the empty graph.                                             *)
+(* Properties of the empty graph: it is a well-formed directed graph, a DAG, *)
+(* bipartite over any disjoint pair (U, V), has no sources and no sinks, and *)
+(* belongs to DirectedGraphOf(S) for every S.                                 *)
 (******************************************************************************)
 THEOREM DG_EmptyGraphProperties ==
     /\ IsDirectedGraph(EmptyGraph)
@@ -330,7 +356,8 @@ THEOREM DG_EmptyGraphProperties ==
     BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7
 
 (******************************************************************************)
-(* DAG properties: being a directed graph and having no self-loop.            *)
+(* Properties of DAGs: a DAG is in particular a well-formed directed graph,   *)
+(* and contains no self-loop.                                                 *)
 (******************************************************************************)
 THEOREM DG_DagProperties ==
     ASSUME NEW G, IsDag(G)
@@ -353,11 +380,11 @@ THEOREM DG_DagProperties ==
     BY <1>1, <1>2
 
 (******************************************************************************)
-(* The underlying undirected view of any directed graph is itself an         *)
-(* undirected graph: well-formedness comes from DG_GraphUnionIsDirected      *)
-(* applied to G and Transpose(G); symmetry holds because every edge of G    *)
-(* contributes its reverse to UUG via Transpose, and the transpose-of-an-   *)
-(* edge contributes the original edge back.                                  *)
+(* The underlying undirected view of any directed graph is itself an          *)
+(* undirected graph: well-formedness follows from DG_GraphUnionIsDirected     *)
+(* applied to G and Transpose(G), and symmetry holds because every edge of G  *)
+(* contributes its reverse to UUG via Transpose, while the transpose of that  *)
+(* edge contributes the original edge back.                                   *)
 (******************************************************************************)
 THEOREM DG_UnderlyingUndirectedGraphIsUndirected ==
     ASSUME NEW G, IsDirectedGraph(G)
@@ -384,10 +411,13 @@ THEOREM DG_UnderlyingUndirectedGraphIsUndirected ==
 
 (******************************************************************************)
 (* Reversal of a path in an undirected graph: the point-wise reversal        *)
-(* q[i] = p[Len(p) - i + 1] is again a path. Endpoints are swapped, the     *)
-(* consecutive-edge relation lifts through the symmetry of G.edge, and       *)
-(* injectivity is preserved. Consumed by DG_UUGReachabilitySymmetric (and    *)
-(* any reachability argument in an undirected view).                         *)
+(*   q[i] = p[Len(p) - i + 1]                                                 *)
+(* is again a path of the same length, with the endpoints swapped. The      *)
+(* consecutive-edge relation lifts through G.edge's symmetry, and             *)
+(* injectivity is preserved, so reverse(SimplePath) ⊆ SimplePath.            *)
+(*----------------------------------------------------------------------------*)
+(* Consumed by DG_UUGReachabilitySymmetric (and any reachability argument in  *)
+(* an undirected view).                                                       *)
 (******************************************************************************)
 LEMMA DG_PathReverse ==
     ASSUME NEW G, IsUndirectedGraph(G),
@@ -444,10 +474,10 @@ LEMMA DG_PathReverse ==
     BY <1>5, <1>6, <1>7, <1>9, <1>10
 
 (******************************************************************************)
-(* Symmetry of reachability in UnderlyingUndirectedGraph(G): if a is reached *)
-(* from b in UUG then b is also reached from a. UUG is undirected (by        *)
-(* DG_UnderlyingUndirectedGraphIsUndirected), so DG_PathReverse applies      *)
-(* directly to the witness simple path from a to b.                          *)
+(* Reachability in the underlying undirected view is symmetric: the reverse  *)
+(* of a simple path is a simple path, because UUG's edge relation is          *)
+(* symmetric. Combined with DG_AreConnectedLiftToUUG and transitivity, this  *)
+(* gives weak connectivity from "every node reaches a common hub".           *)
 (******************************************************************************)
 THEOREM DG_UUGReachabilitySymmetric ==
     ASSUME NEW G, IsDirectedGraph(G),
@@ -517,15 +547,15 @@ THEOREM DG_ConnectionProperties ==
     BY <1>1, <1>4
 
 (******************************************************************************)
-(* Every path in a finite-node graph can be shortened to a simple path with  *)
-(* the same endpoints. Used by DG_AncestorClosedUnderPredecessor and the     *)
-(* MC-cycle equivalence proofs.                                              *)
-(*                                                                            *)
-(* Proof: well-founded induction on Len(q). For a non-injective path, splice *)
-(*   r == SubSeq(q, 1, i) \o SubSeq(q, j+1, k)                                *)
-(* (with q[i] = q[j], i < j) drops the loop between the two occurrences,     *)
-(* yielding a strictly shorter path with the same endpoints; the inductive  *)
-(* hypothesis then gives a simple path with the same endpoints as r.        *)
+(* Every path can be shortened to a simple path with the same endpoints. The *)
+(* witness is built by well-founded induction on Len(p): if p is already     *)
+(* simple it is its own witness, otherwise a repeated node lets us splice    *)
+(* out the loop between its two occurrences, yielding a strictly shorter    *)
+(* path with the same endpoints.                                              *)
+(*----------------------------------------------------------------------------*)
+(* Used by DG_AncestorClosedUnderPredecessor and the MC-cycle equivalence     *)
+(* proofs. The splice is r == SubSeq(q, 1, i) \o SubSeq(q, j+1, k) for q[i] = *)
+(* q[j], i < j.                                                               *)
 (******************************************************************************)
 LEMMA DG_PathHasSimplePath ==
     ASSUME NEW G, IsDirectedGraph(G),
@@ -729,14 +759,15 @@ LEMMA DG_PathHasSimplePath ==
     BY <1>2, <1>3 DEF Q
 
 (******************************************************************************)
-(* Path concatenation: two paths sharing the endpoint p[Len(p)] = q[1] join  *)
-(* into a single path of length Len(p) + Len(q) - 1 (the shared node is      *)
-(* counted once). The fresh edges between p's last segment, the shared       *)
-(* node, and q's first segment all come from either p's or q's own edge      *)
-(* relation; for the bridging position i = Len(p) the edge p[Len(p)]->q[2]   *)
-(* reduces via p[Len(p)] = q[1] to q[1]->q[2], an edge of q. Consumed by     *)
-(* DG_AncestorClosedUnderPredecessor, DG_AreConnectedTransitive,             *)
-(* DG_DagReachesSink and the MC-cycle equivalence proof.                     *)
+(* Path concatenation primitive: two paths p, q sharing the endpoint         *)
+(* p[Len(p)] = q[1] glue into a single path                                   *)
+(*   r == p \o SubSeq(q, 2, Len(q))                                           *)
+(* of length Len(p) + Len(q) - 1 (the shared node counted once). All edges  *)
+(* of r come from edges of p or q; the bridging edge from p[Len(p)] to       *)
+(* q[2] reduces via p[Len(p)] = q[1] to the q-edge q[1] -> q[2].             *)
+(*----------------------------------------------------------------------------*)
+(* Consumed by DG_AncestorClosedUnderPredecessor, DG_AreConnectedTransitive,  *)
+(* DG_DagReachesSink and the MC-cycle equivalence proof.                      *)
 (******************************************************************************)
 LEMMA DG_PathConcat ==
     ASSUME NEW G, NEW p \in Path(G), NEW q \in Path(G),
@@ -902,9 +933,10 @@ LEMMA DG_PathConcat ==
     BY <1>6, <1>7, <1>8, <1>9, <1>10, <1>11 DEF Path
 
 (******************************************************************************)
-(* Predecessor closure of the ancestor set. Prepending the edge x -> m turns *)
-(* a simple path from m to n into a (possibly non-simple) path from x to n;  *)
-(* DG_PathHasSimplePath shortens it back to a simple path from x to n.          *)
+(* The ancestor set is closed under taking predecessors: if m reaches n and  *)
+(* x has an edge to m in G, then x also reaches n. Prepending x to a simple *)
+(* path from m to n yields a path, which is then shortened back to a simple *)
+(* path via DG_PathHasSimplePath (needs only IsDirectedGraph, no finiteness). *)
 (******************************************************************************)
 THEOREM DG_AncestorClosedUnderPredecessor ==
     ASSUME NEW G, IsDirectedGraph(G),
@@ -947,7 +979,9 @@ THEOREM DG_AncestorClosedUnderPredecessor ==
     BY <1>1, <1>7 DEF AreConnectedIn, Ancestor
 
 (******************************************************************************)
-(* Every node on a simple path is an ancestor of the path endpoint.           *)
+(* Every node visited by a simple path is an ancestor of the path's endpoint. *)
+(* Proven by downward induction along the path using                          *)
+(* DG_AncestorClosedUnderPredecessor (with reflexivity as the base case).     *)
 (******************************************************************************)
 THEOREM DG_AncestorOnPath ==
     ASSUME NEW G, IsDirectedGraph(G),
@@ -997,11 +1031,9 @@ THEOREM DG_AncestorOnPath ==
     BY <1>7, <1>8, <1>9 DEF R
 
 (******************************************************************************)
-(* Simple-path restriction to a subgraph. Same sequence, same edges, same    *)
-(* same sequence, same injectivity; only the edge-graph changes. With the     *)
-(* Path-based definition this needs no finiteness: an injective sequence over *)
-(* G.node whose elements and consecutive edges live in H is a simple path of  *)
-(* H directly.                                                                 *)
+(* Simple-path restriction to a subgraph: if every node and every edge of a  *)
+(* simple path of G also lives in H, then the same sequence is a simple path *)
+(* of H. Used to lift paths between graphs that share nodes/edges.            *)
 (******************************************************************************)
 THEOREM DG_SimplePathLift ==
     ASSUME NEW G, NEW H,
@@ -1025,7 +1057,9 @@ THEOREM DG_SimplePathLift ==
     BY <1>1, <1>4 DEF SimplePath
 
 (******************************************************************************)
-(* Reachability lifts from G to UnderlyingUndirectedGraph(G).                  *)
+(* Reachability lifts from G to its underlying undirected view: every simple *)
+(* path of G is a simple path of UnderlyingUndirectedGraph(G), so directed   *)
+(* connectivity implies undirected connectivity.                              *)
 (******************************************************************************)
 THEOREM DG_AreConnectedLiftToUUG ==
     ASSUME NEW G, IsDirectedGraph(G),
@@ -1044,8 +1078,9 @@ THEOREM DG_AreConnectedLiftToUUG ==
     BY <1>2, <1>3 DEF AreConnectedIn
 
 (******************************************************************************)
-(* Transitivity of reachability: concatenate the two witness simple paths    *)
-(* via DG_PathConcat and shorten the result with DG_PathHasSimplePath.           *)
+(* Transitivity of reachability in a directed graph: combining simple paths   *)
+(* a -> b and b -> c via path concatenation followed by DG_PathHasSimplePath  *)
+(* gives a simple path a -> c (no finiteness needed).                          *)
 (******************************************************************************)
 THEOREM DG_AreConnectedTransitive ==
     ASSUME NEW G, IsDirectedGraph(G),
@@ -1074,7 +1109,14 @@ THEOREM DG_AreConnectedTransitive ==
     BY <1>6 DEF AreConnectedIn
 
 (******************************************************************************)
-(* Hub criterion for weak connectivity.                                       *)
+(* Hub criterion for weak connectivity: if some node r of a finite directed  *)
+(* graph reaches, or is reached by, every other node along a directed path,  *)
+(* then G is weakly connected. Any two nodes connect through r in the         *)
+(* underlying undirected view (lift each leg to UUG, reverse by symmetry,    *)
+(* splice by transitivity). This is the (true) reverse direction of the      *)
+(* hub characterization; the forward direction is false -- a weakly          *)
+(* connected graph need not have such a directed hub (e.g. a -> b <- c -> d  *)
+(* <- ... has no node reaching or reached by all).                           *)
 (******************************************************************************)
 THEOREM DG_WeaklyConnectedViaHub ==
     ASSUME NEW G, IsDirectedGraph(G),
@@ -1114,15 +1156,12 @@ THEOREM DG_WeaklyConnectedViaHub ==
     BY <1>5, <1>6, <1>2, DG_AreConnectedTransitive
 
 (******************************************************************************)
-(* From any node of a finite DAG, a maximal simple path exists whose         *)
-(* endpoint is a sink. The proof picks a longest simple path p starting at  *)
-(* m (existence by finiteness and DG_SimplePathBound) and shows p[Len(p)]   *)
-(* must be a sink: if it had a successor s, then either                      *)
-(*   - s occurs in p at some position j, and SubSeq(p, j, Len(p)) glued     *)
-(*     with <<d, s>> via DG_PathConcat is a directed cycle (impossible in   *)
-(*     a DAG); or                                                             *)
-(*   - s is new, and the same gluing yields a strictly longer simple path,  *)
-(*     contradicting maximality.                                              *)
+(* In a finite DAG, every node is the start of a maximal simple path whose   *)
+(* endpoint is a sink. The witness is a longest simple path starting at m   *)
+(* (a maximum exists because lengths are bounded by Cardinality(G.node)); a *)
+(* successor of the endpoint would either extend the path (contradicting    *)
+(* maximality) or close a directed cycle (contradicting acyclicity), so the *)
+(* endpoint must be a sink. DG_DagReachesSink follows as a corollary.        *)
 (******************************************************************************)
 LEMMA DG_DagMaxSimplePath ==
     ASSUME NEW G, IsDag(G), IsFiniteSet(G.node), NEW m \in G.node
@@ -1294,8 +1333,11 @@ LEMMA DG_DagMaxSimplePath ==
     BY <1>7, <1>8, <1>9
 
 (******************************************************************************)
-(* In a finite DAG every node reaches a sink: the endpoint of the maximal    *)
-(* simple path given by DG_DagMaxSimplePath.                                  *)
+(* In a finite DAG every node reaches a sink. Take a maximal-length simple   *)
+(* path starting at the node (the length is bounded by Cardinality(G.node),  *)
+(* so a maximum exists); its last node must be a sink, otherwise a successor *)
+(* either extends the path (contradicting maximality) or closes a directed   *)
+(* cycle (contradicting acyclicity).                                          *)
 (******************************************************************************)
 THEOREM DG_DagReachesSink ==
     ASSUME NEW G, IsDag(G), IsFiniteSet(G.node), NEW m \in G.node
@@ -1306,7 +1348,8 @@ THEOREM DG_DagReachesSink ==
     BY <1>1 DEF AreConnectedIn
 
 (******************************************************************************)
-(* A DAG has no back edge.                                                    *)
+(* A DAG has no "back edge": if a reaches b, there is no edge from b to a    *)
+(* (it would close the directed cycle a -> ... -> b -> a).                   *)
 (******************************************************************************)
 THEOREM DG_DagNoBackEdge ==
     ASSUME NEW G, IsDag(G), NEW a, NEW b,
@@ -1387,9 +1430,14 @@ THEOREM DG_DagNoBackEdge ==
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
-(* MC-equivalence proofs. The kernel is `DG_ConnectionsInCorrect`, which is   *)
-(* admitted (Warshall correctness needs an induction over G.node and a       *)
-(* walk-to-simple-path argument).                                             *)
+(* Equivalence between base operators and their MC-variants.                  *)
+(*                                                                            *)
+(* The core fact is the correctness of `ConnectionsIn` (Warshall's algorithm  *)
+(* computes the reflexive-transitive closure of the edge relation), which is  *)
+(* admitted as a foundational lemma. The other MC-equivalences follow from it.*)
+(*----------------------------------------------------------------------------*)
+(* Warshall correctness needs an induction over G.node and a                  *)
+(* walk-to-simple-path argument.                                              *)
 (******************************************************************************)
 LEMMA DG_ConnectionsInCorrect ==
     ASSUME NEW G, IsDirectedGraph(G), IsFiniteSet(G.node),
@@ -2075,7 +2123,8 @@ THEOREM DG_AreConnectedInMCEquiv ==
 BY DG_ConnectionsInCorrect DEF MCAreConnectedIn
 
 (******************************************************************************)
-(* Equivalence between HasDirectedCycle and its MC variant.                   *)
+(* Equivalence between HasDirectedCycle and its MC variant: on a finite       *)
+(* graph, HasDirectedCycle(G) holds iff MCHasDirectedCycle(G) does.           *)
 (******************************************************************************)
 THEOREM DG_HasDirectedCycleMCEquiv ==
     ASSUME NEW G, IsDirectedGraph(G), IsFiniteSet(G.node)

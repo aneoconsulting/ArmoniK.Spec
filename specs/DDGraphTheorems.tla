@@ -53,8 +53,10 @@ THEOREM DDG_DDGraphProperties ==
                           => IsDDGraph(G, TT, OO)
 
 (******************************************************************************)
-(* The empty graph is a DD graph over any disjoint partition. Together with   *)
-(* DDG_DDGraphOfMember this pins down the "trivial" member of DDGraphOf.     *)
+(* The empty graph is a DD graph over any disjoint partition: it is a DAG,   *)
+(* vacuously bipartite over (T, O), and has neither sources nor sinks.       *)
+(* Together with DDG_DDGraphOfMember this pins down the "trivial" member of  *)
+(* DDGraphOf.                                                                *)
 (******************************************************************************)
 THEOREM DDG_EmptyGraphIsDDGraph ==
     ASSUME NEW T, NEW O, T \cap O = {}
@@ -81,9 +83,9 @@ LEMMA DDG_BipartiteNeighborhood ==
 (******************************************************************************)
 (* A simple path of G whose every node satisfies Op lifts to a simple path  *)
 (* of the Op-induced subgraph H: H retains exactly the Op-satisfying nodes  *)
-(* and the edges of G between them. The lift follows from DG_SimplePathLift *)
-(* once we observe that every node and every consecutive edge of the path is *)
-(* in H.                                                                       *)
+(* and the edges of G between them. The lift follows directly from         *)
+(* DG_SimplePathLift once we observe that every node of the path is in     *)
+(* H.node and every consecutive edge is in H.edge.                          *)
 (******************************************************************************)
 LEMMA DDG_PathLiftToOpInduced ==
     ASSUME NEW G, IsDirectedGraph(G), NEW Op(_),
@@ -154,7 +156,7 @@ THEOREM DDG_AncestorSubGraphProperties ==
 (******************************************************************************)
 (* Maximality of AncestorSubGraph: every Op-satisfying predecessor of a node *)
 (* in A is already in A. Equivalently, the only predecessors A omits are     *)
-    (* nodes that fail Op -- A is closed under "Op-passing" upstream traversal.  *)
+(* nodes that fail Op -- A is closed under "Op-passing" upstream traversal.  *)
 (******************************************************************************)
 THEOREM DDG_AncestorSubGraphIsMaximal ==
     ASSUME NEW G, IsDirectedGraph(G),
