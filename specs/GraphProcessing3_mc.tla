@@ -9,7 +9,7 @@
 (* DiGraphs. PermanentStopping is replaced by an MC-evaluable reformulation.   *)
 (*******************************************************************************)
 
-EXTENDS GraphProcessing3
+EXTENDS GraphProcessing3, TLC
 
 MCDirectedGraphOf(N) == DDGraphOf(N \cap Task, N \cap Object)
 
