@@ -3118,23 +3118,6 @@ LEMMA LemUpstreamBridge ==
 <1>. QED
     BY <1>1, <1>2
 
-(* GP2-side enabledness of the upstream-guarded assignment, as a state          *)
-(* condition. Clean lemma level so ENABLEDaxioms sees no temporal context.      *)
-LEMMA LemAssignUpstreamEnabled ==
-    ASSUME NEW t \in Task
-    PROVE  ENABLED <<AssignUpstream(t)>>_vars
-           <=> (\E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)) /\ t \in StagedTask
-<1>1. AssignUpstream(t) => taskState' /= taskState
-    BY DEF AssignUpstream, AssignTasks, StagedTask
-<1>2. <<AssignUpstream(t)>>_vars <=> AssignUpstream(t)
-    BY <1>1 DEF vars
-<1>3. (ENABLED <<AssignUpstream(t)>>_vars) <=> (ENABLED AssignUpstream(t))
-    BY <1>2, ENABLEDaxioms
-<1>4. ENABLED AssignUpstream(t)
-      <=> (\E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)) /\ t \in StagedTask
-    BY ExpandENABLED, Zenon DEF AssignUpstream, AssignTasks, StagedTask
-<1>. QED
-    BY <1>3, <1>4
 
 (* WF(GP1!AssignTasks) -- upstream-guarded. GP2's fairness on the same action    *)
 (* is now WF (weakened from SF); WF=>WF refinement needs only the ENABLED-lift   *)
@@ -3147,6 +3130,19 @@ LEMMA LemGP1FairAssignTasks ==
                             /\ GP1!AssignTasks({t}))
 <1>. DEFINE AbsA == /\ \E o \in Object : GP1!IsTaskUpstreamOnOpenPathToTarget(t, o)
                     /\ GP1!AssignTasks({t})
+<1>en. ENABLED <<AssignUpstream(t)>>_vars
+           <=> (\E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)) /\ t \in StagedTask
+    <2>1. AssignUpstream(t) => taskState' /= taskState
+        BY DEF AssignUpstream, AssignTasks, StagedTask
+    <2>2. <<AssignUpstream(t)>>_vars <=> AssignUpstream(t)
+        BY <2>1 DEF vars
+    <2>3. (ENABLED <<AssignUpstream(t)>>_vars) <=> (ENABLED AssignUpstream(t))
+        BY <2>2, ENABLEDaxioms
+    <2>4. ENABLED AssignUpstream(t)
+          <=> (\E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)) /\ t \in StagedTask
+        BY ExpandENABLED, Zenon DEF AssignUpstream, AssignTasks, StagedTask
+    <2>. QED
+        BY <2>3, <2>4
 \* --- (1) enabledness lift ---
 <1>1. TypeOk /\ GSI_Nodes /\ ENABLED <<AbsA>>_(GP1!vars)
       => ENABLED <<AssignUpstream(t)>>_vars
@@ -3178,7 +3174,7 @@ LEMMA LemGP1FairAssignTasks ==
             BY <3>2, <3>3
     <2>2. (\E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)) /\ t \in StagedTask
           => ENABLED <<AssignUpstream(t)>>_vars
-        BY LemAssignUpstreamEnabled
+        BY <1>en
     <2>. QED
         BY <2>1, <2>2
 \* --- (2) step refinement ---
@@ -3492,139 +3488,6 @@ LEMMA LemGP1FailedTaskEventualRetry ==
 (* (LemFairTP2RegisterTasks).                                                *)
 (*****************************************************************************)
 
-LEMMA LemRetryCloneRegistrable ==
-    ASSUME NEW t \in Task,
-           TypeOk, DependencyGraphCompliant, DepsNodeFinite, GSI_Nodes, GSI_ObjPreds,
-           UnknownAttemptImpliesFailed, TP2!TaskAttemptsIntegrity,
-           nextAttemptOf[t] \in UnknownTask
-    PROVE  ENABLED <<RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t]))>>_vars
-<1>. DEFINE u     == nextAttemptOf[t]
-            G     == RetrySubGraph(deps, t, u)
-            preds == Predecessor(deps, t)
-            succs == Successor(deps, t)
-<1>1. u \in Task /\ taskState[u] = TASK_UNKNOWN /\ u \notin deps.node /\ u /= NULL
-    BY GP2Assumptions DEF GSI_Nodes, UnknownTask
-<1>2. t \in FailedTask /\ t \in deps.node /\ t /= u
-    <2>1. t \in FailedTask
-        BY DEF UnknownAttemptImpliesFailed
-    <2>. QED
-        BY <1>1, <2>1 DEF FailedTask, GSI_Nodes, UnknownTask
-<1>3. deps.edge \subseteq deps.node \X deps.node
-    BY DEF DirectedGraphOf, IsDirectedGraph, TypeOk
-<1>4. preds \subseteq Object \intersect deps.node /\ succs \subseteq Object \intersect deps.node
-    BY <1>3, GP2Assumptions
-    DEF DependencyGraphCompliant, IsBipartiteWithPartitions, IsDDGraph, Predecessor,
-        Successor
-<1>5. /\ G.node = {u} \union preds \union succs
-      /\ G.edge = (preds \X {u}) \union ({u} \X succs)
-      /\ u \in G.node
-      /\ G.node \intersect Task = {u}
-    BY <1>4, <1>1, GP2Assumptions DEF RetrySubGraph
-<1>6. Predecessor(G, u) = preds /\ Successor(G, u) = succs
-    BY <1>4, <1>5, <1>1, GP2Assumptions DEF Predecessor, Successor
-<1>7. IsFiniteSet(G.node)
-    <2>1. IsFiniteSet(preds) /\ IsFiniteSet(succs)
-        BY <1>4, FS_Subset DEF DepsNodeFinite
-    <2>. QED
-        BY <1>5, <2>1, FS_Singleton, FS_Union
-<1>8. succs \intersect AbortedObject = {}
-    <2>. SUFFICES ASSUME NEW o \in succs, o \in AbortedObject PROVE FALSE
-        OBVIOUS
-    <2>1. t \in Predecessor(deps, o)
-        BY <1>2 DEF Predecessor, Successor
-    <2>2. o \notin Source(deps) /\ o \in Object
-        BY <1>4, <2>1 DEF Source
-    <2>3. Predecessor(deps, o) \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
-        BY <2>2 DEF GSI_ObjPreds
-    <2>. QED
-        BY <1>2, <2>1, <2>3
-        DEF AbortedTask, CompletedTask, DiscardedTask, FailedTask, RetriedTask
-<1>9. succs \intersect Source(deps) = {}
-    BY <1>2 DEF Predecessor, Source, Successor
-<1>10. IsDDGraph(GraphUnion(deps, G), Task, Object)
-    <2>1. IsDDGraph(deps, Task \ {u}, Object)
-        BY <1>3, <1>1, GP2Assumptions
-        DEF DependencyGraphCompliant, IsBipartiteWithPartitions, IsDDGraph
-    <2>2. t \in (Task \ {u}) \intersect deps.node
-        BY <1>2
-    <2>3. u \notin (Task \ {u}) \union Object
-        BY <1>1, GP2Assumptions
-    <2>4. IsDDGraph(GraphUnion(deps, G), (Task \ {u}) \union {u}, Object)
-        BY <2>1, <2>2, <2>3, DDG_RetrySubGraphProperties, Zenon
-    <2>5. (Task \ {u}) \union {u} = Task
-        BY <1>1
-    <2>. QED
-        BY <2>4, <2>5
-<1>11. \A s \in Task :
-           nextAttemptOf[s] /= NULL /\ nextAttemptOf[s] \in G.node =>
-               /\ Predecessor(G, nextAttemptOf[s]) = Predecessor(deps, s)
-               /\ Successor(G, nextAttemptOf[s]) = Successor(deps, s)
-    <2>. SUFFICES ASSUME NEW s \in Task, nextAttemptOf[s] /= NULL,
-                         nextAttemptOf[s] \in G.node
-                  PROVE  /\ Predecessor(G, nextAttemptOf[s]) = Predecessor(deps, s)
-                         /\ Successor(G, nextAttemptOf[s]) = Successor(deps, s)
-        OBVIOUS
-    <2>1. nextAttemptOf[s] = u
-        BY <1>5 DEF TypeOk
-    <2>2. s = t
-        BY <1>1, <2>1, Zenon DEF TP2!TaskAttemptsIntegrity
-    <2>. QED
-        BY <1>6, <2>1, <2>2
-<1>. SUFFICES \E depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp :
-                /\ G /= EmptyGraph
-                /\ IsFiniteSet(G.node)
-                /\ G.node \cap Task \subseteq UnknownTask
-                /\ \A x \in G.node \cap Task :
-                    /\ Successor(G, x) \intersect AbortedObject = {}
-                    /\ Successor(G, x) \intersect Source(deps) \intersect (CompletedObject \union AbortedObject) = {}
-                /\ IsDDGraph(GraphUnion(deps, G), Task, Object)
-                /\ \A s \in Task :
-                    nextAttemptOf[s] /= NULL /\ nextAttemptOf[s] \in G.node =>
-                        /\ Predecessor(G, nextAttemptOf[s]) = Predecessor(deps, s)
-                        /\ Successor(G, nextAttemptOf[s]) = Successor(deps, s)
-                /\ depsp = GraphUnion(deps, G)
-                /\ objectStatep =
-                    [o \in Object |->
-                        IF o \in G.node \intersect UnknownObject
-                            THEN OBJECT_REGISTERED
-                            ELSE objectState[o]]
-                /\ taskStatep =
-                    [x \in Task |->
-                        IF x \in G.node
-                            THEN TASK_REGISTERED
-                            ELSE taskState[x]]
-                /\ objectTargetsp = objectTargets
-                /\ nextAttemptOfp = nextAttemptOf
-                /\ ~ (/\ depsp = deps
-                      /\ objectStatep = objectState
-                      /\ objectTargetsp = objectTargets
-                      /\ taskStatep = taskState
-                      /\ nextAttemptOfp = nextAttemptOf)
-    BY ExpandENABLED, SMT DEF RegisterGraph, vars
-<1>. DEFINE depsp        == GraphUnion(deps, G)
-            objectStatep == [o \in Object |->
-                                IF o \in G.node \intersect UnknownObject
-                                    THEN OBJECT_REGISTERED ELSE objectState[o]]
-            taskStatep   == [x \in Task |->
-                                IF x \in G.node THEN TASK_REGISTERED ELSE taskState[x]]
-<1>. WITNESS depsp, objectStatep, objectTargets, taskStatep, nextAttemptOf
-<1>12. taskStatep /= taskState
-    <2>1. taskStatep[u] = TASK_REGISTERED
-        BY <1>5, <1>1
-    <2>2. taskState[u] = TASK_UNKNOWN
-        BY <1>1
-    <2>. QED
-        BY <2>1, <2>2 DEF TypeOk
-<1>13. G /= EmptyGraph
-    BY <1>5 DEF EmptyGraph
-<1>14. G.node \cap Task \subseteq UnknownTask
-    BY <1>5
-<1>15. \A x \in G.node \cap Task :
-        /\ Successor(G, x) \intersect AbortedObject = {}
-        /\ Successor(G, x) \intersect Source(deps) \intersect (CompletedObject \union AbortedObject) = {}
-    BY <1>8, <1>5, <1>6, <1>9, Zenon
-<1>. QED
-    BY <1>11, <1>10, <1>7, <1>12, <1>13, <1>14, <1>15, Zenon
 
 (* WF on registering the retry subgraph drives a still-unknown clone out of  *)
 (* UnknownTask: the registration is continuously enabled while the clone is  *)
@@ -3644,7 +3507,138 @@ LEMMA LemCloneRegistration ==
       /\ UnknownAttemptImpliesFailed /\ TP2!TaskAttemptsIntegrity
       /\ nextAttemptOf[t] \in UnknownTask
       => ENABLED <<RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t]))>>_vars
-    BY LemRetryCloneRegistrable
+    <2>. SUFFICES ASSUME TypeOk, DependencyGraphCompliant, DepsNodeFinite, GSI_Nodes, GSI_ObjPreds,
+                         UnknownAttemptImpliesFailed, TP2!TaskAttemptsIntegrity,
+                         nextAttemptOf[t] \in UnknownTask
+                  PROVE  ENABLED <<RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t]))>>_vars
+        OBVIOUS
+    <2>. DEFINE u     == nextAttemptOf[t]
+                G     == RetrySubGraph(deps, t, u)
+                preds == Predecessor(deps, t)
+                succs == Successor(deps, t)
+    <2>1. u \in Task /\ taskState[u] = TASK_UNKNOWN /\ u \notin deps.node /\ u /= NULL
+        BY GP2Assumptions DEF GSI_Nodes, UnknownTask
+    <2>2. t \in FailedTask /\ t \in deps.node /\ t /= u
+        <3>1. t \in FailedTask
+            BY DEF UnknownAttemptImpliesFailed
+        <3>. QED
+            BY <2>1, <3>1 DEF FailedTask, GSI_Nodes, UnknownTask
+    <2>3. deps.edge \subseteq deps.node \X deps.node
+        BY DEF DirectedGraphOf, IsDirectedGraph, TypeOk
+    <2>4. preds \subseteq Object \intersect deps.node /\ succs \subseteq Object \intersect deps.node
+        BY <2>3, GP2Assumptions
+        DEF DependencyGraphCompliant, IsBipartiteWithPartitions, IsDDGraph, Predecessor,
+            Successor
+    <2>5. /\ G.node = {u} \union preds \union succs
+          /\ G.edge = (preds \X {u}) \union ({u} \X succs)
+          /\ u \in G.node
+          /\ G.node \intersect Task = {u}
+        BY <2>4, <2>1, GP2Assumptions DEF RetrySubGraph
+    <2>6. Predecessor(G, u) = preds /\ Successor(G, u) = succs
+        BY <2>4, <2>5, <2>1, GP2Assumptions DEF Predecessor, Successor
+    <2>7. IsFiniteSet(G.node)
+        <3>1. IsFiniteSet(preds) /\ IsFiniteSet(succs)
+            BY <2>4, FS_Subset DEF DepsNodeFinite
+        <3>. QED
+            BY <2>5, <3>1, FS_Singleton, FS_Union
+    <2>8. succs \intersect AbortedObject = {}
+        <3>. SUFFICES ASSUME NEW rco \in succs, rco \in AbortedObject PROVE FALSE
+            OBVIOUS
+        <3>1. t \in Predecessor(deps, rco)
+            BY <2>2 DEF Predecessor, Successor
+        <3>2. rco \notin Source(deps) /\ rco \in Object
+            BY <2>4, <3>1 DEF Source
+        <3>3. Predecessor(deps, rco) \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
+            BY <3>2 DEF GSI_ObjPreds
+        <3>. QED
+            BY <2>2, <3>1, <3>3
+            DEF AbortedTask, CompletedTask, DiscardedTask, FailedTask, RetriedTask
+    <2>9. succs \intersect Source(deps) = {}
+        BY <2>2 DEF Predecessor, Source, Successor
+    <2>10. IsDDGraph(GraphUnion(deps, G), Task, Object)
+        <3>1. IsDDGraph(deps, Task \ {u}, Object)
+            BY <2>3, <2>1, GP2Assumptions
+            DEF DependencyGraphCompliant, IsBipartiteWithPartitions, IsDDGraph
+        <3>2. t \in (Task \ {u}) \intersect deps.node
+            BY <2>2
+        <3>3. u \notin (Task \ {u}) \union Object
+            BY <2>1, GP2Assumptions
+        <3>4. IsDDGraph(GraphUnion(deps, G), (Task \ {u}) \union {u}, Object)
+            BY <3>1, <3>2, <3>3, DDG_RetrySubGraphProperties, Zenon
+        <3>5. (Task \ {u}) \union {u} = Task
+            BY <2>1
+        <3>. QED
+            BY <3>4, <3>5
+    <2>11. \A s \in Task :
+               nextAttemptOf[s] /= NULL /\ nextAttemptOf[s] \in G.node =>
+                   /\ Predecessor(G, nextAttemptOf[s]) = Predecessor(deps, s)
+                   /\ Successor(G, nextAttemptOf[s]) = Successor(deps, s)
+        <3>. SUFFICES ASSUME NEW s \in Task, nextAttemptOf[s] /= NULL,
+                             nextAttemptOf[s] \in G.node
+                      PROVE  /\ Predecessor(G, nextAttemptOf[s]) = Predecessor(deps, s)
+                             /\ Successor(G, nextAttemptOf[s]) = Successor(deps, s)
+            OBVIOUS
+        <3>1. nextAttemptOf[s] = u
+            BY <2>5 DEF TypeOk
+        <3>2. s = t
+            BY <2>1, <3>1, Zenon DEF TP2!TaskAttemptsIntegrity
+        <3>. QED
+            BY <2>6, <3>1, <3>2
+    <2>. SUFFICES \E depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp :
+                    /\ G /= EmptyGraph
+                    /\ IsFiniteSet(G.node)
+                    /\ G.node \cap Task \subseteq UnknownTask
+                    /\ \A x \in G.node \cap Task :
+                        /\ Successor(G, x) \intersect AbortedObject = {}
+                        /\ Successor(G, x) \intersect Source(deps) \intersect (CompletedObject \union AbortedObject) = {}
+                    /\ IsDDGraph(GraphUnion(deps, G), Task, Object)
+                    /\ \A s \in Task :
+                        nextAttemptOf[s] /= NULL /\ nextAttemptOf[s] \in G.node =>
+                            /\ Predecessor(G, nextAttemptOf[s]) = Predecessor(deps, s)
+                            /\ Successor(G, nextAttemptOf[s]) = Successor(deps, s)
+                    /\ depsp = GraphUnion(deps, G)
+                    /\ objectStatep =
+                        [rco \in Object |->
+                            IF rco \in G.node \intersect UnknownObject
+                                THEN OBJECT_REGISTERED
+                                ELSE objectState[rco]]
+                    /\ taskStatep =
+                        [x \in Task |->
+                            IF x \in G.node
+                                THEN TASK_REGISTERED
+                                ELSE taskState[x]]
+                    /\ objectTargetsp = objectTargets
+                    /\ nextAttemptOfp = nextAttemptOf
+                    /\ ~ (/\ depsp = deps
+                          /\ objectStatep = objectState
+                          /\ objectTargetsp = objectTargets
+                          /\ taskStatep = taskState
+                          /\ nextAttemptOfp = nextAttemptOf)
+        BY ExpandENABLED, SMT DEF RegisterGraph, vars
+    <2>. DEFINE depsp        == GraphUnion(deps, G)
+                objectStatep == [rco \in Object |->
+                                    IF rco \in G.node \intersect UnknownObject
+                                        THEN OBJECT_REGISTERED ELSE objectState[rco]]
+                taskStatep   == [x \in Task |->
+                                    IF x \in G.node THEN TASK_REGISTERED ELSE taskState[x]]
+    <2>. WITNESS depsp, objectStatep, objectTargets, taskStatep, nextAttemptOf
+    <2>12. taskStatep /= taskState
+        <3>1. taskStatep[u] = TASK_REGISTERED
+            BY <2>5, <2>1
+        <3>2. taskState[u] = TASK_UNKNOWN
+            BY <2>1
+        <3>. QED
+            BY <3>1, <3>2 DEF TypeOk
+    <2>13. G /= EmptyGraph
+        BY <2>5 DEF EmptyGraph
+    <2>14. G.node \cap Task \subseteq UnknownTask
+        BY <2>5
+    <2>15. \A x \in G.node \cap Task :
+            /\ Successor(G, x) \intersect AbortedObject = {}
+            /\ Successor(G, x) \intersect Source(deps) \intersect (CompletedObject \union AbortedObject) = {}
+        BY <2>8, <2>5, <2>6, <2>9, Zenon
+    <2>. QED
+        BY <2>11, <2>10, <2>7, <2>12, <2>13, <2>14, <2>15, Zenon
 <1>3. /\ nextAttemptOf[t] \in UnknownTask
       /\ <<RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t]))>>_vars
       => (nextAttemptOf[t] \notin UnknownTask)'
@@ -3756,6 +3750,143 @@ LEMMA LemNoUnknownCloneUnderQuiescence ==
             A  == RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t]))
             Pb == t \in Predecessor(deps, o) /\ nextAttemptOf[t] \in UnknownTask
             X  == nextAttemptOf[t] \notin UnknownTask
+\* --- (3) enabledness while bad ---
+<1>3. /\ TypeOk /\ DependencyGraphCompliant /\ DepsNodeFinite /\ GSI_Nodes /\ GSI_ObjPreds
+      /\ UnknownAttemptImpliesFailed /\ TP2!TaskAttemptsIntegrity /\ Pb
+      => ENABLED <<A>>_vars
+    <2>. SUFFICES ASSUME TypeOk, DependencyGraphCompliant, DepsNodeFinite, GSI_Nodes, GSI_ObjPreds,
+                         UnknownAttemptImpliesFailed, TP2!TaskAttemptsIntegrity,
+                         nextAttemptOf[t] \in UnknownTask
+                  PROVE  ENABLED <<RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t]))>>_vars
+        OBVIOUS
+    <2>. DEFINE u     == nextAttemptOf[t]
+                G     == RetrySubGraph(deps, t, u)
+                preds == Predecessor(deps, t)
+                succs == Successor(deps, t)
+    <2>1. u \in Task /\ taskState[u] = TASK_UNKNOWN /\ u \notin deps.node /\ u /= NULL
+        BY GP2Assumptions DEF GSI_Nodes, UnknownTask
+    <2>2. t \in FailedTask /\ t \in deps.node /\ t /= u
+        <3>1. t \in FailedTask
+            BY DEF UnknownAttemptImpliesFailed
+        <3>. QED
+            BY <2>1, <3>1 DEF FailedTask, GSI_Nodes, UnknownTask
+    <2>3. deps.edge \subseteq deps.node \X deps.node
+        BY DEF DirectedGraphOf, IsDirectedGraph, TypeOk
+    <2>4. preds \subseteq Object \intersect deps.node /\ succs \subseteq Object \intersect deps.node
+        BY <2>3, GP2Assumptions
+        DEF DependencyGraphCompliant, IsBipartiteWithPartitions, IsDDGraph, Predecessor,
+            Successor
+    <2>5. /\ G.node = {u} \union preds \union succs
+          /\ G.edge = (preds \X {u}) \union ({u} \X succs)
+          /\ u \in G.node
+          /\ G.node \intersect Task = {u}
+        BY <2>4, <2>1, GP2Assumptions DEF RetrySubGraph
+    <2>6. Predecessor(G, u) = preds /\ Successor(G, u) = succs
+        BY <2>4, <2>5, <2>1, GP2Assumptions DEF Predecessor, Successor
+    <2>7. IsFiniteSet(G.node)
+        <3>1. IsFiniteSet(preds) /\ IsFiniteSet(succs)
+            BY <2>4, FS_Subset DEF DepsNodeFinite
+        <3>. QED
+            BY <2>5, <3>1, FS_Singleton, FS_Union
+    <2>8. succs \intersect AbortedObject = {}
+        <3>. SUFFICES ASSUME NEW rco \in succs, rco \in AbortedObject PROVE FALSE
+            OBVIOUS
+        <3>1. t \in Predecessor(deps, rco)
+            BY <2>2 DEF Predecessor, Successor
+        <3>2. rco \notin Source(deps) /\ rco \in Object
+            BY <2>4, <3>1 DEF Source
+        <3>3. Predecessor(deps, rco) \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
+            BY <3>2 DEF GSI_ObjPreds
+        <3>. QED
+            BY <2>2, <3>1, <3>3
+            DEF AbortedTask, CompletedTask, DiscardedTask, FailedTask, RetriedTask
+    <2>9. succs \intersect Source(deps) = {}
+        BY <2>2 DEF Predecessor, Source, Successor
+    <2>10. IsDDGraph(GraphUnion(deps, G), Task, Object)
+        <3>1. IsDDGraph(deps, Task \ {u}, Object)
+            BY <2>3, <2>1, GP2Assumptions
+            DEF DependencyGraphCompliant, IsBipartiteWithPartitions, IsDDGraph
+        <3>2. t \in (Task \ {u}) \intersect deps.node
+            BY <2>2
+        <3>3. u \notin (Task \ {u}) \union Object
+            BY <2>1, GP2Assumptions
+        <3>4. IsDDGraph(GraphUnion(deps, G), (Task \ {u}) \union {u}, Object)
+            BY <3>1, <3>2, <3>3, DDG_RetrySubGraphProperties, Zenon
+        <3>5. (Task \ {u}) \union {u} = Task
+            BY <2>1
+        <3>. QED
+            BY <3>4, <3>5
+    <2>11. \A s \in Task :
+               nextAttemptOf[s] /= NULL /\ nextAttemptOf[s] \in G.node =>
+                   /\ Predecessor(G, nextAttemptOf[s]) = Predecessor(deps, s)
+                   /\ Successor(G, nextAttemptOf[s]) = Successor(deps, s)
+        <3>. SUFFICES ASSUME NEW s \in Task, nextAttemptOf[s] /= NULL,
+                             nextAttemptOf[s] \in G.node
+                      PROVE  /\ Predecessor(G, nextAttemptOf[s]) = Predecessor(deps, s)
+                             /\ Successor(G, nextAttemptOf[s]) = Successor(deps, s)
+            OBVIOUS
+        <3>1. nextAttemptOf[s] = u
+            BY <2>5 DEF TypeOk
+        <3>2. s = t
+            BY <2>1, <3>1, Zenon DEF TP2!TaskAttemptsIntegrity
+        <3>. QED
+            BY <2>6, <3>1, <3>2
+    <2>. SUFFICES \E depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp :
+                    /\ G /= EmptyGraph
+                    /\ IsFiniteSet(G.node)
+                    /\ G.node \cap Task \subseteq UnknownTask
+                    /\ \A x \in G.node \cap Task :
+                        /\ Successor(G, x) \intersect AbortedObject = {}
+                        /\ Successor(G, x) \intersect Source(deps) \intersect (CompletedObject \union AbortedObject) = {}
+                    /\ IsDDGraph(GraphUnion(deps, G), Task, Object)
+                    /\ \A s \in Task :
+                        nextAttemptOf[s] /= NULL /\ nextAttemptOf[s] \in G.node =>
+                            /\ Predecessor(G, nextAttemptOf[s]) = Predecessor(deps, s)
+                            /\ Successor(G, nextAttemptOf[s]) = Successor(deps, s)
+                    /\ depsp = GraphUnion(deps, G)
+                    /\ objectStatep =
+                        [rco \in Object |->
+                            IF rco \in G.node \intersect UnknownObject
+                                THEN OBJECT_REGISTERED
+                                ELSE objectState[rco]]
+                    /\ taskStatep =
+                        [x \in Task |->
+                            IF x \in G.node
+                                THEN TASK_REGISTERED
+                                ELSE taskState[x]]
+                    /\ objectTargetsp = objectTargets
+                    /\ nextAttemptOfp = nextAttemptOf
+                    /\ ~ (/\ depsp = deps
+                          /\ objectStatep = objectState
+                          /\ objectTargetsp = objectTargets
+                          /\ taskStatep = taskState
+                          /\ nextAttemptOfp = nextAttemptOf)
+        BY ExpandENABLED, SMT DEF RegisterGraph, vars
+    <2>. DEFINE depsp        == GraphUnion(deps, G)
+                objectStatep == [rco \in Object |->
+                                    IF rco \in G.node \intersect UnknownObject
+                                        THEN OBJECT_REGISTERED ELSE objectState[rco]]
+                taskStatep   == [x \in Task |->
+                                    IF x \in G.node THEN TASK_REGISTERED ELSE taskState[x]]
+    <2>. WITNESS depsp, objectStatep, objectTargets, taskStatep, nextAttemptOf
+    <2>12. taskStatep /= taskState
+        <3>1. taskStatep[u] = TASK_REGISTERED
+            BY <2>5, <2>1
+        <3>2. taskState[u] = TASK_UNKNOWN
+            BY <2>1
+        <3>. QED
+            BY <3>1, <3>2 DEF TypeOk
+    <2>13. G /= EmptyGraph
+        BY <2>5 DEF EmptyGraph
+    <2>14. G.node \cap Task \subseteq UnknownTask
+        BY <2>5
+    <2>15. \A x \in G.node \cap Task :
+            /\ Successor(G, x) \intersect AbortedObject = {}
+            /\ Successor(G, x) \intersect Source(deps) \intersect (CompletedObject \union AbortedObject) = {}
+        BY <2>8, <2>5, <2>6, <2>9, Zenon
+    <2>. QED
+        BY <2>11, <2>10, <2>7, <2>12, <2>13, <2>14, <2>15, Zenon
+\* --- (4) a fired A registers the clone ---
 <1>. SUFFICES ASSUME []TypeOk, []DependencyGraphCompliant, []DepsNodeFinite,
                      []GSI_Nodes, []GSI_ObjPreds,
                      []UnknownAttemptImpliesFailed, []TP2!TaskAttemptsIntegrity,
@@ -3855,12 +3986,6 @@ LEMMA LemNoUnknownCloneUnderQuiescence ==
             BY <2>7, <2>1, <3>1 DEF TypeOk, vars
     <2>. QED
         BY <2>8, <2>9, <2>10, Zenon
-\* --- (3) enabledness while bad ---
-<1>3. /\ TypeOk /\ DependencyGraphCompliant /\ DepsNodeFinite /\ GSI_Nodes /\ GSI_ObjPreds
-      /\ UnknownAttemptImpliesFailed /\ TP2!TaskAttemptsIntegrity /\ Pb
-      => ENABLED <<A>>_vars
-    BY LemRetryCloneRegistrable, Zenon
-\* --- (4) a fired A registers the clone ---
 <1>4. Pb /\ <<A>>_vars => X'
     <2>. SUFFICES ASSUME Pb, A PROVE X'
         OBVIOUS
@@ -4087,62 +4212,6 @@ LEMMA LemStrongProducerUnderQuiescence ==
     <2>. QED
         BY <1>6, <2>1, PTL
 
-(* RetryTasks({t}) is enabled purely from the live-producer invariant: for   *)
-(* each registered output, the invariant's witness is strong or pending --   *)
-(* both outside {COMPLETED, ABORTED, RETRIED} -- and never equals a failed   *)
-(* task whose clone is registered (such a task is neither strong nor         *)
-(* pending). This is what lets weak fairness retire failed producers.        *)
-LEMMA LemRetryEnabledFromLiveProducer ==
-    ASSUME NEW t \in Task
-    PROVE  /\ TypeOk /\ DependencyGraphCompliant /\ RegisteredObjectHasLiveProducer
-           /\ t \in FailedTask /\ ~ (t \in UnretriedTask)
-           /\ ~ (nextAttemptOf[t] \in UnknownTask)
-           => ENABLED <<RetryTasks({t})>>_vars
-<1>. SUFFICES ASSUME TypeOk, DependencyGraphCompliant, RegisteredObjectHasLiveProducer,
-                     t \in FailedTask, ~ (t \in UnretriedTask),
-                     ~ (nextAttemptOf[t] \in UnknownTask)
-              PROVE  ENABLED <<RetryTasks({t})>>_vars
-    OBVIOUS
-<1>1. ENABLED <<RetryTasks({t})>>_vars
-       <=> /\ t \in FailedTask /\ ~ t \in UnretriedTask
-           /\ \A x \in {t} : nextAttemptOf[x] \notin UnknownTask
-           /\ \A o2 \in UNION {Successor(deps, x) : x \in {t}} :
-                  o2 \in RegisteredObject
-                      => \E u \in (Predecessor(deps, o2) \ {t}) :
-                             u \notin UNION {CompletedTask, AbortedTask, RetriedTask}
-    BY ExpandENABLED DEF RetryTasks, vars, FailedTask, UnretriedTask
-<1>2. \A o2 \in UNION {Successor(deps, x) : x \in {t}} :
-           o2 \in RegisteredObject
-               => \E u \in (Predecessor(deps, o2) \ {t}) :
-                      u \notin UNION {CompletedTask, AbortedTask, RetriedTask}
-    <2>. SUFFICES ASSUME NEW o2 \in UNION {Successor(deps, x) : x \in {t}},
-                         o2 \in RegisteredObject
-                  PROVE  \E u \in (Predecessor(deps, o2) \ {t}) :
-                             u \notin UNION {CompletedTask, AbortedTask, RetriedTask}
-        OBVIOUS
-    <2>1. deps.edge \subseteq deps.node \X deps.node
-        BY DEF DirectedGraphOf, IsDirectedGraph, TypeOk
-    <2>2. <<t, o2>> \in deps.edge
-        BY Zenon DEF Successor
-    <2>3. t \in Predecessor(deps, o2)
-        BY <2>1, <2>2, SMT DEF Predecessor
-    <2>4. o2 \in Object
-        BY LemTaskOutputsObjects, Zenon
-    <2>5. PICK y \in Predecessor(deps, o2) :
-              \/ y \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}
-              \/ /\ y \in FailedTask
-                 /\ nextAttemptOf[y] = NULL \/ nextAttemptOf[y] \in UnknownTask
-        BY <2>3, <2>4, Zenon DEF RegisteredObjectHasLiveProducer
-    <2>6. nextAttemptOf[t] /= NULL
-        BY DEF UnretriedTask
-    <2>7. y /= t
-        BY <2>5, <2>6, Zenon
-    <2>8. y \notin UNION {CompletedTask, AbortedTask, RetriedTask}
-        BY <2>5 DEF AbortedTask, CompletedTask, FailedTask, RetriedTask
-    <2>. QED
-        BY <2>5, <2>7, <2>8, Zenon
-<1>. QED
-    BY <1>1, <1>2, Zenon
 
 (* Under quiescence a failed producer of o cannot stay FAILED: its clone is  *)
 (* registered (the two corollaries above), so RetryTasks({t}) is enabled     *)
@@ -4164,6 +4233,56 @@ LEMMA LemFailedProducerEventuallyRetired ==
               => <>[](~ (t \in Predecessor(deps, o) /\ t \in FailedTask))
 <1>. DEFINE S  == AncestorSubGraph(deps, o, IsOpenNode).node
             Pb == t \in Predecessor(deps, o) /\ t \in FailedTask
+\* --- (2) enabledness while bad ---
+<1>3. /\ TypeOk /\ DependencyGraphCompliant /\ RegisteredObjectHasLiveProducer
+      /\ Pb /\ ~ (t \in UnretriedTask) /\ ~ (nextAttemptOf[t] \in UnknownTask)
+      => ENABLED <<RetryTasks({t})>>_vars
+    <2>. SUFFICES ASSUME TypeOk, DependencyGraphCompliant, RegisteredObjectHasLiveProducer,
+                         t \in FailedTask, ~ (t \in UnretriedTask),
+                         ~ (nextAttemptOf[t] \in UnknownTask)
+                  PROVE  ENABLED <<RetryTasks({t})>>_vars
+        OBVIOUS
+    <2>1. ENABLED <<RetryTasks({t})>>_vars
+           <=> /\ t \in FailedTask /\ ~ t \in UnretriedTask
+               /\ \A x \in {t} : nextAttemptOf[x] \notin UnknownTask
+               /\ \A o2 \in UNION {Successor(deps, x) : x \in {t}} :
+                      o2 \in RegisteredObject
+                          => \E u \in (Predecessor(deps, o2) \ {t}) :
+                                 u \notin UNION {CompletedTask, AbortedTask, RetriedTask}
+        BY ExpandENABLED DEF RetryTasks, vars, FailedTask, UnretriedTask
+    <2>2. \A o2 \in UNION {Successor(deps, x) : x \in {t}} :
+               o2 \in RegisteredObject
+                   => \E u \in (Predecessor(deps, o2) \ {t}) :
+                          u \notin UNION {CompletedTask, AbortedTask, RetriedTask}
+        <3>. SUFFICES ASSUME NEW o2 \in UNION {Successor(deps, x) : x \in {t}},
+                             o2 \in RegisteredObject
+                      PROVE  \E u \in (Predecessor(deps, o2) \ {t}) :
+                                 u \notin UNION {CompletedTask, AbortedTask, RetriedTask}
+            OBVIOUS
+        <3>1. deps.edge \subseteq deps.node \X deps.node
+            BY DEF DirectedGraphOf, IsDirectedGraph, TypeOk
+        <3>2. <<t, o2>> \in deps.edge
+            BY Zenon DEF Successor
+        <3>3. t \in Predecessor(deps, o2)
+            BY <3>1, <3>2, SMT DEF Predecessor
+        <3>4. o2 \in Object
+            BY LemTaskOutputsObjects, Zenon
+        <3>5. PICK y \in Predecessor(deps, o2) :
+                  \/ y \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}
+                  \/ /\ y \in FailedTask
+                     /\ nextAttemptOf[y] = NULL \/ nextAttemptOf[y] \in UnknownTask
+            BY <3>3, <3>4, Zenon DEF RegisteredObjectHasLiveProducer
+        <3>6. nextAttemptOf[t] /= NULL
+            BY DEF UnretriedTask
+        <3>7. y /= t
+            BY <3>5, <3>6, Zenon
+        <3>8. y \notin UNION {CompletedTask, AbortedTask, RetriedTask}
+            BY <3>5 DEF AbortedTask, CompletedTask, FailedTask, RetriedTask
+        <3>. QED
+            BY <3>5, <3>7, <3>8, Zenon
+    <2>. QED
+        BY <2>1, <2>2, Zenon
+\* --- (3) persistence: a bad state stays bad or the task is retired ---
 <1>. SUFFICES ASSUME []TypeOk, []DependencyGraphCompliant, []DepsNodeFinite,
                      []GSI_Nodes, []GSI_ObjPreds,
                      []UnknownAttemptImpliesFailed, []TP2!TaskAttemptsIntegrity,
@@ -4181,12 +4300,6 @@ LEMMA LemFailedProducerEventuallyRetired ==
     BY LemNoUnknownCloneUnderQuiescence, Isa
 <1>2. [](~ (t \in Predecessor(deps, o) /\ t \in UnretriedTask))
     BY LemNoUnretriedProducerUnderQuiescence, Isa
-\* --- (2) enabledness while bad ---
-<1>3. /\ TypeOk /\ DependencyGraphCompliant /\ RegisteredObjectHasLiveProducer
-      /\ Pb /\ ~ (t \in UnretriedTask) /\ ~ (nextAttemptOf[t] \in UnknownTask)
-      => ENABLED <<RetryTasks({t})>>_vars
-    BY LemRetryEnabledFromLiveProducer, Zenon
-\* --- (3) persistence: a bad state stays bad or the task is retired ---
 <1>4. TypeOk /\ Pb /\ [Next]_vars => Pb' \/ (t \in RetriedTask)'
     <2>. SUFFICES ASSUME TypeOk, Pb, [Next]_vars, ~ ((t \in RetriedTask)')
                   PROVE  Pb'
@@ -4383,20 +4496,6 @@ LEMMA LemPredsFrozenUnderQuiescence ==
 <1>. QED
     BY <1>1, PTL
 
-(* State-level cores for the object-side drains, kept in clean contexts:     *)
-(* fairness hypotheses in the ambient sequent crash the SMT translator.      *)
-LEMMA LemCompleteObjectsEnabled ==
-    ASSUME NEW o \in Object, NEW t \in Task
-    PROVE  /\ TypeOk /\ t \in Predecessor(deps, o) /\ t \in SucceededTask
-           /\ o \in RegisteredObject
-           => ENABLED <<CompleteObjects({o})>>_vars
-<1>. SUFFICES ASSUME TypeOk, t \in Predecessor(deps, o), t \in SucceededTask,
-                     o \in RegisteredObject
-              PROVE  ENABLED <<CompleteObjects({o})>>_vars
-    OBVIOUS
-<1>. QED
-    BY ExpandENABLED DEF CompleteObjects, Predecessor, RegisteredObject,
-        SucceededTask, vars
 
 LEMMA LemProducedObjectStates ==
     ASSUME NEW o \in Object, NEW t \in Task
@@ -4431,15 +4530,21 @@ LEMMA LemSucceededProducerCompletesObject ==
            /\ WF_vars(CompleteObjects({o}))
            /\ [](t \in Predecessor(deps, o) /\ t \in SucceededTask)
            => <>[](~ (o \in RegisteredObject))
+<1>1. /\ TypeOk /\ t \in Predecessor(deps, o) /\ t \in SucceededTask
+      /\ o \in RegisteredObject
+      => ENABLED <<CompleteObjects({o})>>_vars
+    <2>. SUFFICES ASSUME TypeOk, t \in Predecessor(deps, o), t \in SucceededTask,
+                         o \in RegisteredObject
+                  PROVE  ENABLED <<CompleteObjects({o})>>_vars
+        OBVIOUS
+    <2>. QED
+        BY ExpandENABLED DEF CompleteObjects, Predecessor, RegisteredObject,
+            SucceededTask, vars
 <1>. SUFFICES ASSUME []TypeOk, []GSI_Nodes, [][Next]_vars,
                      WF_vars(CompleteObjects({o})),
                      [](t \in Predecessor(deps, o) /\ t \in SucceededTask)
               PROVE  <>[](~ (o \in RegisteredObject))
     OBVIOUS
-<1>1. /\ TypeOk /\ t \in Predecessor(deps, o) /\ t \in SucceededTask
-      /\ o \in RegisteredObject
-      => ENABLED <<CompleteObjects({o})>>_vars
-    BY LemCompleteObjectsEnabled, Zenon
 <1>2. <<CompleteObjects({o})>>_vars => (o \in CompletedObject)'
     BY DEF CompletedObject, CompleteObjects, RegisteredObject, vars
 <1>3. TypeOk /\ o \in CompletedObject /\ [Next]_vars => (o \in CompletedObject)'
@@ -4503,27 +4608,6 @@ LEMMA LemObjectFinalStable ==
            => (o \in CompletedObject \/ o \in AbortedObject)'
 BY LemObjMono DEF AbortedObject, CompletedObject
 
-(* AbortObjects({o}) is enabled once o is registered with a discarded        *)
-(* producer and every other producer finalized.                              *)
-LEMMA LemAbortObjectsEnabled ==
-    ASSUME NEW o \in Object, NEW t \in Task
-    PROVE  /\ TypeOk /\ t \in Predecessor(deps, o) /\ t \in DiscardedTask
-           /\ (\A w \in Predecessor(deps, o) \ {t} :
-                   w \in UNION {CompletedTask, AbortedTask, RetriedTask})
-           /\ o \in RegisteredObject
-           => ENABLED <<AbortObjects({o})>>_vars
-<1>. SUFFICES ASSUME TypeOk, t \in Predecessor(deps, o), t \in DiscardedTask,
-                     \A w \in Predecessor(deps, o) \ {t} :
-                         w \in UNION {CompletedTask, AbortedTask, RetriedTask},
-                     o \in RegisteredObject
-              PROVE  ENABLED <<AbortObjects({o})>>_vars
-    OBVIOUS
-<1>1. Predecessor(deps, o) \ {t}
-          \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
-    BY Zenon
-<1>. QED
-    BY <1>1, ExpandENABLED DEF AbortedObject, AbortObjects, DiscardedTask,
-        Predecessor, RegisteredObject, vars
 
 (* If a registered o retains no strong producer other than t and (post-      *)
 (* drain) no producer is FAILED, every producer other than t is finalized.   *)
@@ -4617,6 +4701,21 @@ LEMMA LemDiscardedProducerRetainsWitness ==
                                        FailedTask}
             Car == \A w \in Predecessor(deps, o) \ {t} :
                        w \in UNION {CompletedTask, AbortedTask, RetriedTask}
+<1>4. /\ TypeOk /\ t \in Predecessor(deps, o) /\ t \in DiscardedTask
+       /\ Car /\ o \in RegisteredObject
+       => ENABLED <<AbortObjects({o})>>_vars
+    <2>. SUFFICES ASSUME TypeOk, t \in Predecessor(deps, o), t \in DiscardedTask,
+                         \A w \in Predecessor(deps, o) \ {t} :
+                             w \in UNION {CompletedTask, AbortedTask, RetriedTask},
+                         o \in RegisteredObject
+                  PROVE  ENABLED <<AbortObjects({o})>>_vars
+        OBVIOUS
+    <2>1. Predecessor(deps, o) \ {t}
+              \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
+        BY Zenon
+    <2>. QED
+        BY <2>1, ExpandENABLED DEF AbortedObject, AbortObjects, DiscardedTask,
+            Predecessor, RegisteredObject, vars
 <1>. SUFFICES ASSUME []TypeOk, []DependencyGraphCompliant, []GSI_Nodes,
                      [][Next]_vars,
                      WF_vars(AbortObjects({o})),
@@ -4643,10 +4742,6 @@ LEMMA LemDiscardedProducerRetainsWitness ==
        /\ Car
        => (Car)'
     BY LemCarSetStable, Zenon
-<1>4. /\ TypeOk /\ t \in Predecessor(deps, o) /\ t \in DiscardedTask
-       /\ Car /\ o \in RegisteredObject
-       => ENABLED <<AbortObjects({o})>>_vars
-    BY LemAbortObjectsEnabled, Zenon
 <1>5. [](/\ TypeOk /\ t \in Predecessor(deps, o) /\ t \in DiscardedTask
           /\ Car /\ o \in RegisteredObject
           => ENABLED <<AbortObjects({o})>>_vars)
@@ -5594,38 +5689,8 @@ LEMMA LemSPRDischarge ==
 <1>. QED
     BY <1>8, <1>9, <1>13, PTL
 
-(* Task-finalization enabledness from StrongProducerRetention: SPR is        *)
-(* exactly the witness guard of CompleteTasks / AbortTasks.                  *)
-LEMMA LemCompleteTasksEnabled ==
-    ASSUME NEW t \in Task
-    PROVE  t \in SucceededTask /\ StrongProducerRetention(t)
-           => ENABLED <<CompleteTasks({t})>>_vars
-<1>1. ENABLED <<CompleteTasks({t})>>_vars
-      <=> t \in SucceededTask /\ StrongProducerRetention(t)
-    BY ExpandENABLED DEF CompleteTasks, vars, SucceededTask, StrongProducerRetention
-<1>. QED
-    BY <1>1, Zenon
 
-LEMMA LemAbortTasksEnabled ==
-    ASSUME NEW t \in Task
-    PROVE  t \in DiscardedTask /\ StrongProducerRetention(t)
-           => ENABLED <<AbortTasks({t})>>_vars
-<1>1. ENABLED <<AbortTasks({t})>>_vars
-      <=> t \in DiscardedTask /\ StrongProducerRetention(t)
-    BY ExpandENABLED DEF AbortTasks, vars, DiscardedTask, StrongProducerRetention
-<1>. QED
-    BY <1>1, Zenon
 
-(* CompleteObjects on a registered source object.                            *)
-LEMMA LemCompleteObjectsEnabledSource ==
-    ASSUME NEW o \in Object
-    PROVE  o \in RegisteredObject /\ o \in Source(deps)
-           => ENABLED <<CompleteObjects({o})>>_vars
-<1>. SUFFICES ASSUME o \in RegisteredObject, o \in Source(deps)
-              PROVE  ENABLED <<CompleteObjects({o})>>_vars
-    OBVIOUS
-<1>. QED
-    BY ExpandENABLED DEF CompleteObjects, RegisteredObject, vars
 
 (* Base and merge for conjoining per-producer S/D-drain boxes.               *)
 LEMMA LemSDBase ==
@@ -5695,6 +5760,20 @@ LEMMA LemTaskSDDrain ==
         BY DEF AbortedTask, CompletedTask, DiscardedTask, SucceededTask
     <2>. QED
         BY <2>1, PTL
+<1>7. [](t \in SucceededTask /\ StrongProducerRetention(t)
+          => ENABLED <<CompleteTasks({t})>>_vars)
+    <2>1. ENABLED <<CompleteTasks({t})>>_vars
+          <=> t \in SucceededTask /\ StrongProducerRetention(t)
+        BY ExpandENABLED DEF CompleteTasks, vars, SucceededTask, StrongProducerRetention
+    <2>. QED
+        BY <2>1, PTL
+<1>8. [](t \in DiscardedTask /\ StrongProducerRetention(t)
+          => ENABLED <<AbortTasks({t})>>_vars)
+    <2>1. ENABLED <<AbortTasks({t})>>_vars
+          <=> t \in DiscardedTask /\ StrongProducerRetention(t)
+        BY ExpandENABLED DEF AbortTasks, vars, DiscardedTask, StrongProducerRetention
+    <2>. QED
+        BY <2>1, PTL
 <1>. SUFFICES ASSUME []TypeOk, []DependencyGraphCompliant, []DepsNodeFinite,
                      []GSI_Nodes, []GSI_ObjPreds,
                      []UnknownAttemptImpliesFailed, []TP2!TaskAttemptsIntegrity,
@@ -5713,12 +5792,6 @@ LEMMA LemTaskSDDrain ==
 <1>6. <>[]((t \in SucceededTask \/ t \in DiscardedTask)
                  => StrongProducerRetention(t))
     BY LemSPRDischarge, Isa
-<1>7. [](t \in SucceededTask /\ StrongProducerRetention(t)
-          => ENABLED <<CompleteTasks({t})>>_vars)
-    BY LemCompleteTasksEnabled, PTL
-<1>8. [](t \in DiscardedTask /\ StrongProducerRetention(t)
-          => ENABLED <<AbortTasks({t})>>_vars)
-    BY LemAbortTasksEnabled, PTL
 <1>9. \/ <>[](t \in SucceededTask)
         \/ <>[](t \in DiscardedTask)
         \/ <>[](~ (t \in SucceededTask) /\ ~ (t \in DiscardedTask))
@@ -5825,45 +5898,6 @@ LEMMA LemSourceForced ==
 <1>. QED
     BY <1>1, PTL
 
-(* Bar-ENABLED inversion for GP1!FinalizeObjects({o}).                       *)
-LEMMA LemFinalizeObjectsBarEnabled ==
-    ASSUME NEW o \in Object
-    PROVE  TypeOk /\ ENABLED <<GP1!FinalizeObjects({o})>>_(GP1!vars)
-           => /\ o \in RegisteredObject
-              /\ \/ o \in Source(deps)
-                 \/ \E p \in Predecessor(deps, o) :
-                        p \in SucceededTask \/ p \in DiscardedTask \/ p \in FailedTask
-<1>. SUFFICES ASSUME TypeOk, ENABLED <<GP1!FinalizeObjects({o})>>_(GP1!vars)
-              PROVE  /\ o \in RegisteredObject
-                     /\ \/ o \in Source(deps)
-                        \/ \E p \in Predecessor(deps, o) :
-                               p \in SucceededTask \/ p \in DiscardedTask \/ p \in FailedTask
-    OBVIOUS
-<1>1. /\ {o} \subseteq GP1!RegisteredObject
-      /\ \/ {o} \subseteq GP1!Source(deps)
-         \/ \A o2 \in {o} :
-                \E p \in GP1!Predecessor(deps, o2) : p \in GP1!ProcessedTask
-    <2>. SUFFICES ASSUME NEW depsp, NEW objectStatep, NEW objectTargetsp,
-                         NEW taskStatep, NEW nextAttemptOfp,
-                         {o} \subseteq GP1!RegisteredObject,
-                         \/ {o} \subseteq GP1!Source(deps)
-                         \/ \A o2 \in {o} :
-                                \E p \in GP1!Predecessor(deps, o2) : p \in GP1!ProcessedTask
-                  PROVE  /\ {o} \subseteq GP1!RegisteredObject
-                         /\ \/ {o} \subseteq GP1!Source(deps)
-                            \/ \A o2 \in {o} :
-                                   \E p \in GP1!Predecessor(deps, o2) : p \in GP1!ProcessedTask
-        BY ExpandENABLED DEF GP1!FinalizeObjects, GP1!vars, taskStateBar, objectStateBar
-    <2>. QED
-        OBVIOUS
-<1>2. o \in RegisteredObject
-    BY <1>1, GP1BarStates
-<1>3. \/ o \in Source(deps)
-      \/ \E p \in Predecessor(deps, o) :
-             p \in SucceededTask \/ p \in DiscardedTask \/ p \in FailedTask
-    BY <1>1, GP1BarStates, GP1GraphBridges DEF GP1!ProcessedTask
-<1>. QED
-    BY <1>2, <1>3
 
 (* A concrete CompleteObjects({o}) step is a bar-FinalizeObjects({o}) step.  *)
 LEMMA LemCompleteObjectsBarFire ==
@@ -5902,387 +5936,17 @@ LEMMA LemCompleteObjectsBarFire ==
 <1>. QED
     BY <1>3, <1>4
 
-(* THE E3 CONJUNCT (C2): WF of the abstract object finalization. While the   *)
-(* abstract action stays enabled, o stays registered and quiescence sets in; *)
-(* every producer is eventually permanently retired out of S/D (the SPR-fed  *)
-(* drain) and out of F (the clone engine), so the abstract guard collapses   *)
-(* to the source branch and WF(CompleteObjects({o})) produces a concrete     *)
-(* completion step, which is a bar-FinalizeObjects step.                     *)
-LEMMA LemGP1FinalizeObjectsFire ==
-    ASSUME NEW o \in Object
-    PROVE  /\ []TypeOk /\ []DependencyGraphCompliant /\ []DepsNodeFinite
-           /\ []GSI_Nodes /\ []GSI_ObjPreds
-           /\ []UnknownAttemptImpliesFailed /\ []TP2!TaskAttemptsIntegrity
-           /\ []TP2!TaskSafetyInv /\ []RegisteredObjectHasLiveProducer
-           /\ [][Next]_vars
-           /\ (\A ob \in Object : WF_vars(CompleteObjects({ob})))
-           /\ (\A ob \in Object : WF_vars(AbortObjects({ob})))
-           /\ (\A s \in Task : WF_vars(RetryTasks({s})))
-           /\ (\A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
-           /\ (\A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
-           /\ (\A s \in Task : WF_vars(CompleteTasks({s})))
-           /\ (\A s \in Task : WF_vars(AbortTasks({s})))
-           /\ OpenUpstreamEventuallyClosed
-           /\ []ENABLED <<GP1!FinalizeObjects({o})>>_(GP1!vars)
-           => <><<GP1!FinalizeObjects({o})>>_(GP1!vars)
-<1>01. (\A ob \in Object : WF_vars(CompleteObjects({ob})))
-       <=> [](\A ob \in Object : WF_vars(CompleteObjects({ob})))
-    <2>1. [](\A ob \in Object : WF_vars(CompleteObjects({ob})))
-          <=> \A ob \in Object : [](WF_vars(CompleteObjects({ob})))
-        OBVIOUS
-    <2>2. ASSUME NEW ob \in Object
-          PROVE [](WF_vars(CompleteObjects({ob}))) <=> WF_vars(CompleteObjects({ob}))
-        BY PTL
-    <2>. QED
-        BY <2>1, <2>2, Isa
-<1>02. (\A s \in Task : WF_vars(RetryTasks({s})))
-       <=> [](\A s \in Task : WF_vars(RetryTasks({s})))
-    <2>1. [](\A s \in Task : WF_vars(RetryTasks({s})))
-          <=> \A s \in Task : [](WF_vars(RetryTasks({s})))
-        OBVIOUS
-    <2>2. ASSUME NEW s \in Task
-          PROVE [](WF_vars(RetryTasks({s}))) <=> WF_vars(RetryTasks({s}))
-        BY PTL
-    <2>. QED
-        BY <2>1, <2>2, Isa
-<1>03. (\A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
-       <=> [](\A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
-    <2>1. [](\A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
-          <=> \A s \in Task : [](WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
-        OBVIOUS
-    <2>2. ASSUME NEW s \in Task
-          PROVE [](WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
-                <=> WF_vars(\E u \in Task : SetTaskRetries({s}, {u}))
-        BY PTL
-    <2>. QED
-        BY <2>1, <2>2, Isa
-<1>04. (\A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
-       <=> [](\A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
-    <2>1. [](\A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
-          <=> \A s \in Task : [](WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
-        OBVIOUS
-    <2>2. ASSUME NEW s \in Task
-          PROVE [](WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
-                <=> WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s])))
-        BY PTL
-    <2>. QED
-        BY <2>1, <2>2, Isa
-<1>05. (\A s \in Task : WF_vars(CompleteTasks({s})))
-       <=> [](\A s \in Task : WF_vars(CompleteTasks({s})))
-    <2>1. [](\A s \in Task : WF_vars(CompleteTasks({s})))
-          <=> \A s \in Task : [](WF_vars(CompleteTasks({s})))
-        OBVIOUS
-    <2>2. ASSUME NEW s \in Task
-          PROVE [](WF_vars(CompleteTasks({s}))) <=> WF_vars(CompleteTasks({s}))
-        BY PTL
-    <2>. QED
-        BY <2>1, <2>2, Isa
-<1>06. (\A s \in Task : WF_vars(AbortTasks({s})))
-       <=> [](\A s \in Task : WF_vars(AbortTasks({s})))
-    <2>1. [](\A s \in Task : WF_vars(AbortTasks({s})))
-          <=> \A s \in Task : [](WF_vars(AbortTasks({s})))
-        OBVIOUS
-    <2>2. ASSUME NEW s \in Task
-          PROVE [](WF_vars(AbortTasks({s}))) <=> WF_vars(AbortTasks({s}))
-        BY PTL
-    <2>. QED
-        BY <2>1, <2>2, Isa
-<1>. SUFFICES ASSUME []TypeOk, []DependencyGraphCompliant, []DepsNodeFinite,
-                     []GSI_Nodes, []GSI_ObjPreds,
-                     []UnknownAttemptImpliesFailed, []TP2!TaskAttemptsIntegrity,
-                     []TP2!TaskSafetyInv, []RegisteredObjectHasLiveProducer,
-                     [][Next]_vars,
-                     \A ob \in Object : WF_vars(CompleteObjects({ob})),
-                     \A ob \in Object : WF_vars(AbortObjects({ob})),
-                     \A s \in Task : WF_vars(RetryTasks({s})),
-                     \A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u})),
-                     \A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))),
-                     \A s \in Task : WF_vars(CompleteTasks({s})),
-                     \A s \in Task : WF_vars(AbortTasks({s})),
-                     OpenUpstreamEventuallyClosed,
-                     []ENABLED <<GP1!FinalizeObjects({o})>>_(GP1!vars)
-              PROVE  <><<GP1!FinalizeObjects({o})>>_(GP1!vars)
-    OBVIOUS
-<1>b1. [](\A ob \in Object : WF_vars(CompleteObjects({ob})))
-    BY <1>01, Isa
-<1>b2. [](\A s \in Task : WF_vars(RetryTasks({s})))
-    BY <1>02, Isa
-<1>b3. [](\A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
-    BY <1>03, Isa
-<1>b4. [](\A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
-    BY <1>04, Isa
-<1>b5. [](\A s \in Task : WF_vars(CompleteTasks({s})))
-    BY <1>05, Isa
-<1>b6. [](\A s \in Task : WF_vars(AbortTasks({s})))
-    BY <1>06, Isa
-<1>inv. [](/\ TypeOk /\ ENABLED <<GP1!FinalizeObjects({o})>>_(GP1!vars)
-           => /\ o \in RegisteredObject
-              /\ \/ o \in Source(deps)
-                 \/ \E p \in Predecessor(deps, o) :
-                        p \in SucceededTask \/ p \in DiscardedTask \/ p \in FailedTask)
-    BY LemFinalizeObjectsBarEnabled, PTL
-<1>reg. [](o \in RegisteredObject)
-    BY <1>inv, PTL
-<1>sdf. [](\/ o \in Source(deps)
-           \/ \E p \in Predecessor(deps, o) :
-                  p \in SucceededTask \/ p \in DiscardedTask \/ p \in FailedTask)
-    BY <1>inv, PTL
-<1>ou. <>[][(AncestorSubGraph(deps, o, IsOpenNode).node)'
-            \subseteq AncestorSubGraph(deps, o, IsOpenNode).node]_vars
-    BY Isa DEF OpenUpstreamEventuallyClosed
-<1>nf. <>[](\A w \in Task : ~ (w \in Predecessor(deps, o) /\ w \in FailedTask))
-    <2>n7. [](/\ []TypeOk /\ []DependencyGraphCompliant /\ []DepsNodeFinite
-              /\ []GSI_Nodes /\ []GSI_ObjPreds
-              /\ []UnknownAttemptImpliesFailed /\ []TP2!TaskAttemptsIntegrity
-              /\ []TP2!TaskSafetyInv /\ []RegisteredObjectHasLiveProducer
-              /\ [][Next]_vars
-              /\ (\A s \in Task : WF_vars(RetryTasks({s})))
-              /\ (\A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
-              /\ (\A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
-              /\ [](o \in RegisteredObject)
-              /\ [][(AncestorSubGraph(deps, o, IsOpenNode).node)'
-                    \subseteq AncestorSubGraph(deps, o, IsOpenNode).node]_vars
-              => <>[](\A w \in Task : ~ (w \in Predecessor(deps, o) /\ w \in FailedTask)))
-        BY LemNoFailedProducersUnderQuiescence, PTL
-    <2>. QED
-        BY <2>n7, <1>b2, <1>b3, <1>b4, <1>reg, <1>ou, PTL
-<1>pf. <>[][Predecessor(deps, o)' = Predecessor(deps, o)]_vars
-    <2>n3. [](/\ []TypeOk /\ []DependencyGraphCompliant /\ []GSI_Nodes
-              /\ [][Next]_vars
-              /\ [](o \in RegisteredObject)
-              /\ [][(AncestorSubGraph(deps, o, IsOpenNode).node)'
-                    \subseteq AncestorSubGraph(deps, o, IsOpenNode).node]_vars
-              => [][Predecessor(deps, o)' = Predecessor(deps, o)]_vars)
-        BY LemPredsFrozenUnderQuiescence, PTL
-    <2>. QED
-        BY <2>n3, <1>reg, <1>ou, PTL
-<1>pc. <>[][FALSE]_(Predecessor(deps, o))
-    BY <1>pf, LemPredsBoxUncond, PTL
-<1>pin. \E P \in SUBSET Task : IsFiniteSet(P) /\ <>[](Predecessor(deps, o) = P)
-    <2>n1. [](TypeOk /\ DependencyGraphCompliant => Predecessor(deps, o) \subseteq Task)
-        BY LemPredsInTask, PTL
-    <2>n2. [](TypeOk /\ DepsNodeFinite => IsFiniteSet(Predecessor(deps, o)))
-        BY LemPredsFinite, PTL
-    <2>np. [](/\ Predecessor(deps, o) \subseteq Task
-              /\ IsFiniteSet(Predecessor(deps, o))
-              /\ [][FALSE]_(Predecessor(deps, o))
-              => \E P \in SUBSET Task : IsFiniteSet(P) /\ [](Predecessor(deps, o) = P))
-        BY LemPredsPin, PTL
-    <2>ev. <>(\E P \in SUBSET Task : IsFiniteSet(P) /\ [](Predecessor(deps, o) = P))
-        BY <1>pc, <2>n1, <2>n2, <2>np, PTL
-    <2>. QED
-        BY <2>ev, LemPredsPinShift, Zenon
-<1>pk. PICK P \in SUBSET Task : IsFiniteSet(P) /\ <>[](Predecessor(deps, o) = P)
-    BY <1>pin, Zenon
-<1>pe. ASSUME NEW t \in Task
-       PROVE  <>[](~ (t \in SucceededTask) /\ ~ (t \in DiscardedTask))
-    <2>wc. WF_vars(CompleteTasks({t}))
-        <3>0. [](\A s \in Task : WF_vars(CompleteTasks({s})))
-              <=> \A s \in Task : [](WF_vars(CompleteTasks({s})))
-            OBVIOUS
-        <3>1. \A s \in Task : [](WF_vars(CompleteTasks({s})))
-            BY <3>0, <1>b5
-        <3>. DEFINE BCT(x) == [](WF_vars(CompleteTasks({x})))
-        <3>. HIDE DEF BCT
-        <3>2. BCT(t)
-            <4>1. \A s \in Task : BCT(s)
-                BY <3>1 DEF BCT
-            <4>. QED
-                BY <4>1, Zenon
-        <3>3. [](WF_vars(CompleteTasks({t})))
-            BY <3>2 DEF BCT
-        <3>. QED
-            BY <3>3, PTL
-    <2>wa. WF_vars(AbortTasks({t}))
-        <3>0. [](\A s \in Task : WF_vars(AbortTasks({s})))
-              <=> \A s \in Task : [](WF_vars(AbortTasks({s})))
-            OBVIOUS
-        <3>1. \A s \in Task : [](WF_vars(AbortTasks({s})))
-            BY <3>0, <1>b6
-        <3>. DEFINE BAT(x) == [](WF_vars(AbortTasks({x})))
-        <3>. HIDE DEF BAT
-        <3>2. BAT(t)
-            <4>1. \A s \in Task : BAT(s)
-                BY <3>1 DEF BAT
-            <4>. QED
-                BY <4>1, Zenon
-        <3>3. [](WF_vars(AbortTasks({t})))
-            BY <3>2 DEF BAT
-        <3>. QED
-            BY <3>3, PTL
-    <2>. QED
-        BY <2>wc, <2>wa, LemTaskSDDrain, Isa
-<1>. DEFINE Sd(p) == ~ (p \in SucceededTask) /\ ~ (p \in DiscardedTask)
-            K3(p)  == <>[](Sd(p))
-            L3(T3) == \A p \in T3 : K3(p)
-            I3(T3) == L3(T3) => <>[](\A p \in T3 : Sd(p))
-<1>L. \A p \in P : K3(p)
-    <2>. HIDE DEF K3
-    <2>1. ASSUME NEW t \in P
-          PROVE  K3(t)
-        <3>1. t \in Task
-            BY <1>pk
-        <3>. QED
-            BY <1>pe, <3>1 DEF K3
-    <2>. QED
-        BY <2>1, Isa
-<1>base. I3({})
-    BY LemSDBase, PTL
-<1>istep. ASSUME NEW T \in SUBSET P, IsFiniteSet(T), I3(T), NEW x \in P \ T
-          PROVE  I3(T \union {x})
-    <2>k. L3(T \union {x}) => K3(x)
-        <3>. HIDE DEF K3
-        <3>. QED
-            OBVIOUS
-    <2>l. L3(T \union {x}) => L3(T)
-        <3>. HIDE DEF K3
-        <3>. QED
-            OBVIOUS
-    <2>g. K3(x) /\ <>[](\A p \in T : Sd(p)) => <>[](\A p \in T \union {x} : Sd(p))
-        BY LemSDMerge, Isa
-    <2>. QED
-        BY <1>istep, <2>k, <2>l, <2>g, PTL
-<1>. HIDE DEF I3
-<1>ind. I3(P)
-    BY <1>base, <1>istep, <1>pk, FS_Induction, IsaM("blast")
-<1>all. <>[](\A p \in P : Sd(p))
-    BY <1>ind, <1>L, Zenon DEF I3
-<1>src. <>[](o \in Source(deps))
-    <2>sf. [](/\ (\A p \in P : ~ (p \in SucceededTask) /\ ~ (p \in DiscardedTask))
-              /\ (\A w \in Task : ~ (w \in Predecessor(deps, o) /\ w \in FailedTask))
-              /\ Predecessor(deps, o) = P
-              /\ (\/ o \in Source(deps)
-                  \/ \E p \in Predecessor(deps, o) :
-                         p \in SucceededTask \/ p \in DiscardedTask \/ p \in FailedTask)
-              => o \in Source(deps))
-        BY <1>pk, LemSourceForced, Zenon
-    <2>. QED
-        BY <1>all, <1>nf, <1>pk, <1>sdf, <2>sf, PTL
-<1>en. <>[](ENABLED <<CompleteObjects({o})>>_vars)
-    <2>ne. [](o \in RegisteredObject /\ o \in Source(deps)
-              => ENABLED <<CompleteObjects({o})>>_vars)
-        BY LemCompleteObjectsEnabledSource, PTL
-    <2>. QED
-        BY <1>reg, <1>src, <2>ne, PTL
-<1>wfo. WF_vars(CompleteObjects({o}))
-    <2>0. [](\A ob \in Object : WF_vars(CompleteObjects({ob})))
-          <=> \A ob \in Object : [](WF_vars(CompleteObjects({ob})))
-        OBVIOUS
-    <2>1. \A ob \in Object : [](WF_vars(CompleteObjects({ob})))
-        BY <2>0, <1>b1
-    <2>. DEFINE BCO(x) == [](WF_vars(CompleteObjects({x})))
-    <2>. HIDE DEF BCO
-    <2>2. BCO(o)
-        <3>1. \A ob \in Object : BCO(ob)
-            BY <2>1 DEF BCO
-        <3>. QED
-            BY <3>1, Zenon
-    <2>3. [](WF_vars(CompleteObjects({o})))
-        BY <2>2 DEF BCO
-    <2>. QED
-        BY <2>3, PTL
-<1>fire. <><<CompleteObjects({o})>>_vars
-    BY <1>en, <1>wfo, PTL
-<1>. QED
-    <2>. QED
-        BY <1>fire, LemCompleteObjectsBarFire, PTL
 
-(* THE E3 CONJUNCT, WF form: necessitating the fire lemma (module facts are  *)
-(* boxed) turns []ENABLED |- <>fire into weak fairness, once every           *)
-(* hypothesis is available boxed.                                            *)
-LEMMA LemGP1FairFinalizeObjects ==
-    /\ []TypeOk /\ []DependencyGraphCompliant /\ []DepsNodeFinite
-    /\ []GSI_Nodes /\ []GSI_ObjPreds
-    /\ []UnknownAttemptImpliesFailed /\ []TP2!TaskAttemptsIntegrity
-    /\ []TP2!TaskSafetyInv /\ []RegisteredObjectHasLiveProducer
-    /\ [][Next]_vars
-    /\ (\A ob \in Object : WF_vars(CompleteObjects({ob})))
-    /\ (\A ob \in Object : WF_vars(AbortObjects({ob})))
-    /\ (\A s \in Task : WF_vars(RetryTasks({s})))
-    /\ (\A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
-    /\ (\A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
-    /\ (\A s \in Task : WF_vars(CompleteTasks({s})))
-    /\ (\A s \in Task : WF_vars(AbortTasks({s})))
-    /\ OpenUpstreamEventuallyClosed
-    => \A o \in Object : WF_(GP1!vars)(GP1!FinalizeObjects({o}))
-<1>1. (\A ob \in Object : WF_vars(CompleteObjects({ob})))
-       <=> [](\A ob \in Object : WF_vars(CompleteObjects({ob})))
-    <2>1. [](\A ob \in Object : WF_vars(CompleteObjects({ob})))
-          <=> \A ob \in Object : [](WF_vars(CompleteObjects({ob})))
-        OBVIOUS
-    <2>2. ASSUME NEW ob \in Object
-          PROVE [](WF_vars(CompleteObjects({ob}))) <=> WF_vars(CompleteObjects({ob}))
-        BY PTL
-    <2>. QED
-        BY <2>1, <2>2, Isa
-<1>2. (\A ob \in Object : WF_vars(AbortObjects({ob})))
-       <=> [](\A ob \in Object : WF_vars(AbortObjects({ob})))
-    <2>1. [](\A ob \in Object : WF_vars(AbortObjects({ob})))
-          <=> \A ob \in Object : [](WF_vars(AbortObjects({ob})))
-        OBVIOUS
-    <2>2. ASSUME NEW ob \in Object
-          PROVE [](WF_vars(AbortObjects({ob}))) <=> WF_vars(AbortObjects({ob}))
-        BY PTL
-    <2>. QED
-        BY <2>1, <2>2, Isa
-<1>3. (\A s \in Task : WF_vars(RetryTasks({s})))
-       <=> [](\A s \in Task : WF_vars(RetryTasks({s})))
-    <2>1. [](\A s \in Task : WF_vars(RetryTasks({s})))
-          <=> \A s \in Task : [](WF_vars(RetryTasks({s})))
-        OBVIOUS
-    <2>2. ASSUME NEW s \in Task
-          PROVE [](WF_vars(RetryTasks({s}))) <=> WF_vars(RetryTasks({s}))
-        BY PTL
-    <2>. QED
-        BY <2>1, <2>2, Isa
-<1>4. (\A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
-       <=> [](\A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
-    <2>1. [](\A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
-          <=> \A s \in Task : [](WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
-        OBVIOUS
-    <2>2. ASSUME NEW s \in Task
-          PROVE [](WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
-                <=> WF_vars(\E u \in Task : SetTaskRetries({s}, {u}))
-        BY PTL
-    <2>. QED
-        BY <2>1, <2>2, Isa
-<1>5. (\A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
-       <=> [](\A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
-    <2>1. [](\A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
-          <=> \A s \in Task : [](WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
-        OBVIOUS
-    <2>2. ASSUME NEW s \in Task
-          PROVE [](WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
-                <=> WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s])))
-        BY PTL
-    <2>. QED
-        BY <2>1, <2>2, Isa
-<1>6. (\A s \in Task : WF_vars(CompleteTasks({s})))
-       <=> [](\A s \in Task : WF_vars(CompleteTasks({s})))
-    <2>1. [](\A s \in Task : WF_vars(CompleteTasks({s})))
-          <=> \A s \in Task : [](WF_vars(CompleteTasks({s})))
-        OBVIOUS
-    <2>2. ASSUME NEW s \in Task
-          PROVE [](WF_vars(CompleteTasks({s}))) <=> WF_vars(CompleteTasks({s}))
-        BY PTL
-    <2>. QED
-        BY <2>1, <2>2, Isa
-<1>7. (\A s \in Task : WF_vars(AbortTasks({s})))
-       <=> [](\A s \in Task : WF_vars(AbortTasks({s})))
-    <2>1. [](\A s \in Task : WF_vars(AbortTasks({s})))
-          <=> \A s \in Task : [](WF_vars(AbortTasks({s})))
-        OBVIOUS
-    <2>2. ASSUME NEW s \in Task
-          PROVE [](WF_vars(AbortTasks({s}))) <=> WF_vars(AbortTasks({s}))
-        BY PTL
-    <2>. QED
-        BY <2>1, <2>2, Isa
-<1>8. OpenUpstreamEventuallyClosed
+(* OpenUpstreamEventuallyClosed is []-stable: it is a conjunction over      *)
+(* objects of <>[]-shaped formulas, each its own []-fixpoint.                *)
+LEMMA LemOUECBox ==
+    OpenUpstreamEventuallyClosed <=> []OpenUpstreamEventuallyClosed
+<1>1. OpenUpstreamEventuallyClosed
        <=> \A o \in Object :
                <>[][(AncestorSubGraph(deps, o, IsOpenNode).node)'
                     \subseteq AncestorSubGraph(deps, o, IsOpenNode).node]_vars
     BY Isa DEF OpenUpstreamEventuallyClosed
-<1>9. (\A o \in Object :
+<1>2. (\A o \in Object :
             <>[][(AncestorSubGraph(deps, o, IsOpenNode).node)'
                  \subseteq AncestorSubGraph(deps, o, IsOpenNode).node]_vars)
        <=> [](\A o \in Object :
@@ -6303,6 +5967,385 @@ LEMMA LemGP1FairFinalizeObjects ==
         BY PTL
     <2>. QED
         BY <2>1, <2>2, Isa
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+(* Per-object WF form of the E3 conjunct: []ENABLED |- <>fire is proved     *)
+(* against boxed hypotheses (module facts are boxed; the flexible           *)
+(* \A-fairness and OUEC hypotheses get explicit boxing equivalences), then   *)
+(* folded into weak fairness of the bar-FinalizeObjects action.             *)
+LEMMA LemGP1FinalizeObjectsFireWF ==
+    ASSUME NEW o \in Object
+    PROVE  /\ []TypeOk /\ []DependencyGraphCompliant /\ []DepsNodeFinite
+           /\ []GSI_Nodes /\ []GSI_ObjPreds
+           /\ []UnknownAttemptImpliesFailed /\ []TP2!TaskAttemptsIntegrity
+           /\ []TP2!TaskSafetyInv /\ []RegisteredObjectHasLiveProducer
+           /\ [][Next]_vars
+           /\ (\A ob \in Object : WF_vars(CompleteObjects({ob})))
+           /\ (\A ob \in Object : WF_vars(AbortObjects({ob})))
+           /\ (\A s \in Task : WF_vars(RetryTasks({s})))
+           /\ (\A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
+           /\ (\A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
+           /\ (\A s \in Task : WF_vars(CompleteTasks({s})))
+           /\ (\A s \in Task : WF_vars(AbortTasks({s})))
+           /\ OpenUpstreamEventuallyClosed
+           => WF_(GP1!vars)(GP1!FinalizeObjects({o}))
+<1>01. (\A ob \in Object : WF_vars(CompleteObjects({ob})))
+       <=> [](\A ob \in Object : WF_vars(CompleteObjects({ob})))
+    <2>1. [](\A ob \in Object : WF_vars(CompleteObjects({ob})))
+          <=> \A ob \in Object : [](WF_vars(CompleteObjects({ob})))
+        OBVIOUS
+    <2>2. ASSUME NEW ob \in Object
+          PROVE [](WF_vars(CompleteObjects({ob}))) <=> WF_vars(CompleteObjects({ob}))
+        BY PTL
+    <2>. QED
+        BY <2>1, <2>2, Isa
+<1>02. (\A ob \in Object : WF_vars(AbortObjects({ob})))
+       <=> [](\A ob \in Object : WF_vars(AbortObjects({ob})))
+    <2>1. [](\A ob \in Object : WF_vars(AbortObjects({ob})))
+          <=> \A ob \in Object : [](WF_vars(AbortObjects({ob})))
+        OBVIOUS
+    <2>2. ASSUME NEW ob \in Object
+          PROVE [](WF_vars(AbortObjects({ob}))) <=> WF_vars(AbortObjects({ob}))
+        BY PTL
+    <2>. QED
+        BY <2>1, <2>2, Isa
+<1>03. (\A s \in Task : WF_vars(RetryTasks({s})))
+       <=> [](\A s \in Task : WF_vars(RetryTasks({s})))
+    <2>1. [](\A s \in Task : WF_vars(RetryTasks({s})))
+          <=> \A s \in Task : [](WF_vars(RetryTasks({s})))
+        OBVIOUS
+    <2>2. ASSUME NEW s \in Task
+          PROVE [](WF_vars(RetryTasks({s}))) <=> WF_vars(RetryTasks({s}))
+        BY PTL
+    <2>. QED
+        BY <2>1, <2>2, Isa
+<1>04. (\A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
+       <=> [](\A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
+    <2>1. [](\A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
+          <=> \A s \in Task : [](WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
+        OBVIOUS
+    <2>2. ASSUME NEW s \in Task
+          PROVE [](WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
+                <=> WF_vars(\E u \in Task : SetTaskRetries({s}, {u}))
+        BY PTL
+    <2>. QED
+        BY <2>1, <2>2, Isa
+<1>05. (\A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
+       <=> [](\A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
+    <2>1. [](\A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
+          <=> \A s \in Task : [](WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
+        OBVIOUS
+    <2>2. ASSUME NEW s \in Task
+          PROVE [](WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
+                <=> WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s])))
+        BY PTL
+    <2>. QED
+        BY <2>1, <2>2, Isa
+<1>06. (\A s \in Task : WF_vars(CompleteTasks({s})))
+       <=> [](\A s \in Task : WF_vars(CompleteTasks({s})))
+    <2>1. [](\A s \in Task : WF_vars(CompleteTasks({s})))
+          <=> \A s \in Task : [](WF_vars(CompleteTasks({s})))
+        OBVIOUS
+    <2>2. ASSUME NEW s \in Task
+          PROVE [](WF_vars(CompleteTasks({s}))) <=> WF_vars(CompleteTasks({s}))
+        BY PTL
+    <2>. QED
+        BY <2>1, <2>2, Isa
+<1>07. (\A s \in Task : WF_vars(AbortTasks({s})))
+       <=> [](\A s \in Task : WF_vars(AbortTasks({s})))
+    <2>1. [](\A s \in Task : WF_vars(AbortTasks({s})))
+          <=> \A s \in Task : [](WF_vars(AbortTasks({s})))
+        OBVIOUS
+    <2>2. ASSUME NEW s \in Task
+          PROVE [](WF_vars(AbortTasks({s}))) <=> WF_vars(AbortTasks({s}))
+        BY PTL
+    <2>. QED
+        BY <2>1, <2>2, Isa
+<1>fire.
+           /\ []TypeOk /\ []DependencyGraphCompliant /\ []DepsNodeFinite
+           /\ []GSI_Nodes /\ []GSI_ObjPreds
+           /\ []UnknownAttemptImpliesFailed /\ []TP2!TaskAttemptsIntegrity
+           /\ []TP2!TaskSafetyInv /\ []RegisteredObjectHasLiveProducer
+           /\ [][Next]_vars
+           /\ (\A ob \in Object : WF_vars(CompleteObjects({ob})))
+           /\ (\A ob \in Object : WF_vars(AbortObjects({ob})))
+           /\ (\A s \in Task : WF_vars(RetryTasks({s})))
+           /\ (\A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
+           /\ (\A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
+           /\ (\A s \in Task : WF_vars(CompleteTasks({s})))
+           /\ (\A s \in Task : WF_vars(AbortTasks({s})))
+           /\ OpenUpstreamEventuallyClosed
+           /\ []ENABLED <<GP1!FinalizeObjects({o})>>_(GP1!vars)
+           => <><<GP1!FinalizeObjects({o})>>_(GP1!vars)
+    <2>inv. [](/\ TypeOk /\ ENABLED <<GP1!FinalizeObjects({o})>>_(GP1!vars)
+               => /\ o \in RegisteredObject
+                  /\ \/ o \in Source(deps)
+                     \/ \E p \in Predecessor(deps, o) :
+                            p \in SucceededTask \/ p \in DiscardedTask \/ p \in FailedTask)
+        <3>1. /\ TypeOk /\ ENABLED <<GP1!FinalizeObjects({o})>>_(GP1!vars)
+              => /\ o \in RegisteredObject
+                 /\ \/ o \in Source(deps)
+                    \/ \E p \in Predecessor(deps, o) :
+                           p \in SucceededTask \/ p \in DiscardedTask \/ p \in FailedTask
+        <4>. SUFFICES ASSUME TypeOk, ENABLED <<GP1!FinalizeObjects({o})>>_(GP1!vars)
+                      PROVE  /\ o \in RegisteredObject
+                             /\ \/ o \in Source(deps)
+                                \/ \E p \in Predecessor(deps, o) :
+                                       p \in SucceededTask \/ p \in DiscardedTask \/ p \in FailedTask
+            OBVIOUS
+        <4>1. /\ {o} \subseteq GP1!RegisteredObject
+              /\ \/ {o} \subseteq GP1!Source(deps)
+                 \/ \A o2 \in {o} :
+                        \E p \in GP1!Predecessor(deps, o2) : p \in GP1!ProcessedTask
+            <5>. SUFFICES ASSUME NEW depsp, NEW objectStatep, NEW objectTargetsp,
+                                 NEW taskStatep, NEW nextAttemptOfp,
+                                 {o} \subseteq GP1!RegisteredObject,
+                                 \/ {o} \subseteq GP1!Source(deps)
+                                 \/ \A o2 \in {o} :
+                                        \E p \in GP1!Predecessor(deps, o2) : p \in GP1!ProcessedTask
+                          PROVE  /\ {o} \subseteq GP1!RegisteredObject
+                                 /\ \/ {o} \subseteq GP1!Source(deps)
+                                    \/ \A o2 \in {o} :
+                                           \E p \in GP1!Predecessor(deps, o2) : p \in GP1!ProcessedTask
+                BY ExpandENABLED DEF GP1!FinalizeObjects, GP1!vars, taskStateBar, objectStateBar
+            <5>. QED
+                OBVIOUS
+        <4>2. o \in RegisteredObject
+            BY <4>1, GP1BarStates
+        <4>3. \/ o \in Source(deps)
+              \/ \E p \in Predecessor(deps, o) :
+                     p \in SucceededTask \/ p \in DiscardedTask \/ p \in FailedTask
+            BY <4>1, GP1BarStates, GP1GraphBridges DEF GP1!ProcessedTask
+        <4>. QED
+            BY <4>2, <4>3
+        <3>. QED
+            BY <3>1, PTL
+    <2>enS. [](o \in RegisteredObject /\ o \in Source(deps)
+               => ENABLED <<CompleteObjects({o})>>_vars)
+        <3>1. o \in RegisteredObject /\ o \in Source(deps)
+              => ENABLED <<CompleteObjects({o})>>_vars
+        <4>. SUFFICES ASSUME o \in RegisteredObject, o \in Source(deps)
+                      PROVE  ENABLED <<CompleteObjects({o})>>_vars
+            OBVIOUS
+        <4>. QED
+            BY ExpandENABLED DEF CompleteObjects, RegisteredObject, vars
+        <3>. QED
+            BY <3>1, PTL
+    <2>. SUFFICES ASSUME []TypeOk, []DependencyGraphCompliant, []DepsNodeFinite,
+                         []GSI_Nodes, []GSI_ObjPreds,
+                         []UnknownAttemptImpliesFailed, []TP2!TaskAttemptsIntegrity,
+                         []TP2!TaskSafetyInv, []RegisteredObjectHasLiveProducer,
+                         [][Next]_vars,
+                         \A ob \in Object : WF_vars(CompleteObjects({ob})),
+                         \A ob \in Object : WF_vars(AbortObjects({ob})),
+                         \A s \in Task : WF_vars(RetryTasks({s})),
+                         \A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u})),
+                         \A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))),
+                         \A s \in Task : WF_vars(CompleteTasks({s})),
+                         \A s \in Task : WF_vars(AbortTasks({s})),
+                         OpenUpstreamEventuallyClosed,
+                         []ENABLED <<GP1!FinalizeObjects({o})>>_(GP1!vars)
+                  PROVE  <><<GP1!FinalizeObjects({o})>>_(GP1!vars)
+        OBVIOUS
+    <2>b1. [](\A ob \in Object : WF_vars(CompleteObjects({ob})))
+        BY <1>01, Isa
+    <2>b2. [](\A s \in Task : WF_vars(RetryTasks({s})))
+        BY <1>03, Isa
+    <2>b3. [](\A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
+        BY <1>04, Isa
+    <2>b4. [](\A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
+        BY <1>05, Isa
+    <2>b5. [](\A s \in Task : WF_vars(CompleteTasks({s})))
+        BY <1>06, Isa
+    <2>b6. [](\A s \in Task : WF_vars(AbortTasks({s})))
+        BY <1>07, Isa
+    <2>reg. [](o \in RegisteredObject)
+        BY <2>inv, PTL
+    <2>sdf. [](\/ o \in Source(deps)
+               \/ \E p \in Predecessor(deps, o) :
+                      p \in SucceededTask \/ p \in DiscardedTask \/ p \in FailedTask)
+        BY <2>inv, PTL
+    <2>ou. <>[][(AncestorSubGraph(deps, o, IsOpenNode).node)'
+                \subseteq AncestorSubGraph(deps, o, IsOpenNode).node]_vars
+        BY Isa DEF OpenUpstreamEventuallyClosed
+    <2>nf. <>[](\A w \in Task : ~ (w \in Predecessor(deps, o) /\ w \in FailedTask))
+        <3>n7. [](/\ []TypeOk /\ []DependencyGraphCompliant /\ []DepsNodeFinite
+                  /\ []GSI_Nodes /\ []GSI_ObjPreds
+                  /\ []UnknownAttemptImpliesFailed /\ []TP2!TaskAttemptsIntegrity
+                  /\ []TP2!TaskSafetyInv /\ []RegisteredObjectHasLiveProducer
+                  /\ [][Next]_vars
+                  /\ (\A s \in Task : WF_vars(RetryTasks({s})))
+                  /\ (\A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
+                  /\ (\A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
+                  /\ [](o \in RegisteredObject)
+                  /\ [][(AncestorSubGraph(deps, o, IsOpenNode).node)'
+                        \subseteq AncestorSubGraph(deps, o, IsOpenNode).node]_vars
+                  => <>[](\A w \in Task : ~ (w \in Predecessor(deps, o) /\ w \in FailedTask)))
+            BY LemNoFailedProducersUnderQuiescence, PTL
+        <3>. QED
+            BY <3>n7, <2>b2, <2>b3, <2>b4, <2>reg, <2>ou, PTL
+    <2>pf. <>[][Predecessor(deps, o)' = Predecessor(deps, o)]_vars
+        <3>n3. [](/\ []TypeOk /\ []DependencyGraphCompliant /\ []GSI_Nodes
+                  /\ [][Next]_vars
+                  /\ [](o \in RegisteredObject)
+                  /\ [][(AncestorSubGraph(deps, o, IsOpenNode).node)'
+                        \subseteq AncestorSubGraph(deps, o, IsOpenNode).node]_vars
+                  => [][Predecessor(deps, o)' = Predecessor(deps, o)]_vars)
+            BY LemPredsFrozenUnderQuiescence, PTL
+        <3>. QED
+            BY <3>n3, <2>reg, <2>ou, PTL
+    <2>pc. <>[][FALSE]_(Predecessor(deps, o))
+        BY <2>pf, LemPredsBoxUncond, PTL
+    <2>pin. \E P \in SUBSET Task : IsFiniteSet(P) /\ <>[](Predecessor(deps, o) = P)
+        <3>n1. [](TypeOk /\ DependencyGraphCompliant => Predecessor(deps, o) \subseteq Task)
+            BY LemPredsInTask, PTL
+        <3>n2. [](TypeOk /\ DepsNodeFinite => IsFiniteSet(Predecessor(deps, o)))
+            BY LemPredsFinite, PTL
+        <3>np. [](/\ Predecessor(deps, o) \subseteq Task
+                  /\ IsFiniteSet(Predecessor(deps, o))
+                  /\ [][FALSE]_(Predecessor(deps, o))
+                  => \E P \in SUBSET Task : IsFiniteSet(P) /\ [](Predecessor(deps, o) = P))
+            BY LemPredsPin, PTL
+        <3>ev. <>(\E P \in SUBSET Task : IsFiniteSet(P) /\ [](Predecessor(deps, o) = P))
+            BY <2>pc, <3>n1, <3>n2, <3>np, PTL
+        <3>. QED
+            BY <3>ev, LemPredsPinShift, Zenon
+    <2>pk. PICK P \in SUBSET Task : IsFiniteSet(P) /\ <>[](Predecessor(deps, o) = P)
+        BY <2>pin, Zenon
+    <2>pe. ASSUME NEW t \in Task
+           PROVE  <>[](~ (t \in SucceededTask) /\ ~ (t \in DiscardedTask))
+        <3>wc. WF_vars(CompleteTasks({t}))
+            <4>0. [](\A s \in Task : WF_vars(CompleteTasks({s})))
+                  <=> \A s \in Task : [](WF_vars(CompleteTasks({s})))
+                OBVIOUS
+            <4>1. \A s \in Task : [](WF_vars(CompleteTasks({s})))
+                BY <4>0, <2>b5
+            <4>. DEFINE BCT(x) == [](WF_vars(CompleteTasks({x})))
+            <4>. HIDE DEF BCT
+            <4>2. BCT(t)
+                <5>1. \A s \in Task : BCT(s)
+                    BY <4>1 DEF BCT
+                <5>. QED
+                    BY <5>1, Zenon
+            <4>3. [](WF_vars(CompleteTasks({t})))
+                BY <4>2 DEF BCT
+            <4>. QED
+                BY <4>3, PTL
+        <3>wa. WF_vars(AbortTasks({t}))
+            <4>0. [](\A s \in Task : WF_vars(AbortTasks({s})))
+                  <=> \A s \in Task : [](WF_vars(AbortTasks({s})))
+                OBVIOUS
+            <4>1. \A s \in Task : [](WF_vars(AbortTasks({s})))
+                BY <4>0, <2>b6
+            <4>. DEFINE BAT(x) == [](WF_vars(AbortTasks({x})))
+            <4>. HIDE DEF BAT
+            <4>2. BAT(t)
+                <5>1. \A s \in Task : BAT(s)
+                    BY <4>1 DEF BAT
+                <5>. QED
+                    BY <5>1, Zenon
+            <4>3. [](WF_vars(AbortTasks({t})))
+                BY <4>2 DEF BAT
+            <4>. QED
+                BY <4>3, PTL
+        <3>. QED
+            BY <3>wc, <3>wa, LemTaskSDDrain, Isa
+    <2>. DEFINE Sd(p) == ~ (p \in SucceededTask) /\ ~ (p \in DiscardedTask)
+                K3(p)  == <>[](Sd(p))
+                L3(T3) == \A p \in T3 : K3(p)
+                I3(T3) == L3(T3) => <>[](\A p \in T3 : Sd(p))
+    <2>L. \A p \in P : K3(p)
+        <3>. HIDE DEF K3
+        <3>1. ASSUME NEW t \in P
+              PROVE  K3(t)
+            <4>1. t \in Task
+                BY <2>pk
+            <4>. QED
+                BY <2>pe, <4>1 DEF K3
+        <3>. QED
+            BY <3>1, Isa
+    <2>base. I3({})
+        BY LemSDBase, PTL
+    <2>istep. ASSUME NEW T \in SUBSET P, IsFiniteSet(T), I3(T), NEW x \in P \ T
+              PROVE  I3(T \union {x})
+        <3>k. L3(T \union {x}) => K3(x)
+            <4>. HIDE DEF K3
+            <4>. QED
+                OBVIOUS
+        <3>l. L3(T \union {x}) => L3(T)
+            <4>. HIDE DEF K3
+            <4>. QED
+                OBVIOUS
+        <3>g. K3(x) /\ <>[](\A p \in T : Sd(p)) => <>[](\A p \in T \union {x} : Sd(p))
+            BY LemSDMerge, Isa
+        <3>. QED
+            BY <2>istep, <3>k, <3>l, <3>g, PTL
+    <2>. HIDE DEF I3
+    <2>ind. I3(P)
+        BY <2>base, <2>istep, <2>pk, FS_Induction, IsaM("blast")
+    <2>all. <>[](\A p \in P : Sd(p))
+        BY <2>ind, <2>L, Zenon DEF I3
+    <2>src. <>[](o \in Source(deps))
+        <3>sf. [](/\ (\A p \in P : ~ (p \in SucceededTask) /\ ~ (p \in DiscardedTask))
+                  /\ (\A w \in Task : ~ (w \in Predecessor(deps, o) /\ w \in FailedTask))
+                  /\ Predecessor(deps, o) = P
+                  /\ (\/ o \in Source(deps)
+                      \/ \E p \in Predecessor(deps, o) :
+                             p \in SucceededTask \/ p \in DiscardedTask \/ p \in FailedTask)
+                  => o \in Source(deps))
+            BY <2>pk, LemSourceForced, Zenon
+        <3>. QED
+            BY <2>all, <2>nf, <2>pk, <2>sdf, <3>sf, PTL
+    <2>en. <>[](ENABLED <<CompleteObjects({o})>>_vars)
+        <3>ne. [](o \in RegisteredObject /\ o \in Source(deps)
+                  => ENABLED <<CompleteObjects({o})>>_vars)
+            BY <2>enS
+        <3>. QED
+            BY <2>reg, <2>src, <3>ne, PTL
+    <2>wfo. WF_vars(CompleteObjects({o}))
+        <3>0. [](\A ob \in Object : WF_vars(CompleteObjects({ob})))
+              <=> \A ob \in Object : [](WF_vars(CompleteObjects({ob})))
+            OBVIOUS
+        <3>1. \A ob \in Object : [](WF_vars(CompleteObjects({ob})))
+            BY <3>0, <2>b1
+        <3>. DEFINE BCO(x) == [](WF_vars(CompleteObjects({x})))
+        <3>. HIDE DEF BCO
+        <3>2. BCO(o)
+            <4>1. \A ob \in Object : BCO(ob)
+                BY <3>1 DEF BCO
+            <4>. QED
+                BY <4>1, Zenon
+        <3>3. [](WF_vars(CompleteObjects({o})))
+            BY <3>2 DEF BCO
+        <3>. QED
+            BY <3>3, PTL
+    <2>fire. <><<CompleteObjects({o})>>_vars
+        BY <2>en, <2>wfo, PTL
+    <2>. QED
+        <3>. QED
+            BY <2>fire, LemCompleteObjectsBarFire, PTL
+<1>. QED
+    BY <1>fire, <1>01, <1>02, <1>03, <1>04, <1>05, <1>06, <1>07, LemOUECBox, PTL
+
+(* THE E3 CONJUNCT, WF form: necessitating the fire lemma (module facts are  *)
+(* boxed) turns []ENABLED |- <>fire into weak fairness, once every           *)
+(* hypothesis is available boxed.                                            *)
+LEMMA LemGP1FairFinalizeObjects ==
+    /\ []TypeOk /\ []DependencyGraphCompliant /\ []DepsNodeFinite
+    /\ []GSI_Nodes /\ []GSI_ObjPreds
+    /\ []UnknownAttemptImpliesFailed /\ []TP2!TaskAttemptsIntegrity
+    /\ []TP2!TaskSafetyInv /\ []RegisteredObjectHasLiveProducer
+    /\ [][Next]_vars
+    /\ (\A ob \in Object : WF_vars(CompleteObjects({ob})))
+    /\ (\A ob \in Object : WF_vars(AbortObjects({ob})))
+    /\ (\A s \in Task : WF_vars(RetryTasks({s})))
+    /\ (\A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
+    /\ (\A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
+    /\ (\A s \in Task : WF_vars(CompleteTasks({s})))
+    /\ (\A s \in Task : WF_vars(AbortTasks({s})))
+    /\ OpenUpstreamEventuallyClosed
+    => \A o \in Object : WF_(GP1!vars)(GP1!FinalizeObjects({o}))
 <1>. SUFFICES ASSUME []TypeOk, []DependencyGraphCompliant, []DepsNodeFinite,
                      []GSI_Nodes, []GSI_ObjPreds,
                      []UnknownAttemptImpliesFailed, []TP2!TaskAttemptsIntegrity,
@@ -6318,44 +6361,9 @@ LEMMA LemGP1FairFinalizeObjects ==
                      OpenUpstreamEventuallyClosed
               PROVE  \A o \in Object : WF_(GP1!vars)(GP1!FinalizeObjects({o}))
     OBVIOUS
-<1>10. [](\A ob \in Object : WF_vars(CompleteObjects({ob})))
-    BY <1>1, Isa
-<1>11. [](\A ob \in Object : WF_vars(AbortObjects({ob})))
-    BY <1>2, Isa
-<1>12. [](\A s \in Task : WF_vars(RetryTasks({s})))
-    BY <1>3, Isa
-<1>13. [](\A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
-    BY <1>4, Isa
-<1>14. [](\A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
-    BY <1>5, Isa
-<1>15. [](\A s \in Task : WF_vars(CompleteTasks({s})))
-    BY <1>6, Isa
-<1>16. [](\A s \in Task : WF_vars(AbortTasks({s})))
-    BY <1>7, Isa
-<1>17. [](\A o \in Object :
-               <>[][(AncestorSubGraph(deps, o, IsOpenNode).node)'
-                    \subseteq AncestorSubGraph(deps, o, IsOpenNode).node]_vars)
-    BY <1>8, <1>9, Isa
 <1>18. ASSUME NEW o \in Object
        PROVE  WF_(GP1!vars)(GP1!FinalizeObjects({o}))
-    <2>1. [](/\ []TypeOk /\ []DependencyGraphCompliant /\ []DepsNodeFinite
-             /\ []GSI_Nodes /\ []GSI_ObjPreds
-             /\ []UnknownAttemptImpliesFailed /\ []TP2!TaskAttemptsIntegrity
-             /\ []TP2!TaskSafetyInv /\ []RegisteredObjectHasLiveProducer
-             /\ [][Next]_vars
-             /\ (\A ob \in Object : WF_vars(CompleteObjects({ob})))
-             /\ (\A ob \in Object : WF_vars(AbortObjects({ob})))
-             /\ (\A s \in Task : WF_vars(RetryTasks({s})))
-             /\ (\A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u})))
-             /\ (\A s \in Task : WF_vars(RegisterGraph(RetrySubGraph(deps, s, nextAttemptOf[s]))))
-             /\ (\A s \in Task : WF_vars(CompleteTasks({s})))
-             /\ (\A s \in Task : WF_vars(AbortTasks({s})))
-             /\ OpenUpstreamEventuallyClosed
-             /\ []ENABLED <<GP1!FinalizeObjects({o})>>_(GP1!vars)
-             => <><<GP1!FinalizeObjects({o})>>_(GP1!vars))
-        BY LemGP1FinalizeObjectsFire, PTL
-    <2>. QED
-        BY <2>1, <1>10, <1>11, <1>12, <1>13, <1>14, <1>15, <1>16, <1>17, <1>8, PTL
+    BY LemGP1FinalizeObjectsFireWF, PTL
 <1>. QED
     <2>1. ASSUME NEW o \in Object
           PROVE  WF_(GP1!vars)(GP1!FinalizeObjects({o}))
@@ -6389,7 +6397,138 @@ LEMMA LemFairTP2RegisterTasks ==
       /\ UnknownAttemptImpliesFailed /\ TP2!TaskAttemptsIntegrity
       /\ ENABLED <<AbsA>>_(TP2!vars)
       => ENABLED <<RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t]))>>_vars
-    BY <1>1, LemRetryCloneRegistrable
+    <2>. SUFFICES ASSUME TypeOk, DependencyGraphCompliant, DepsNodeFinite, GSI_Nodes,
+                          GSI_ObjPreds, UnknownAttemptImpliesFailed, TP2!TaskAttemptsIntegrity,
+                          nextAttemptOf[t] \in UnknownTask
+                   PROVE  ENABLED <<RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t]))>>_vars
+        BY <1>1
+    <2>. DEFINE u     == nextAttemptOf[t]
+                G     == RetrySubGraph(deps, t, u)
+                preds == Predecessor(deps, t)
+                succs == Successor(deps, t)
+    <2>1. u \in Task /\ taskState[u] = TASK_UNKNOWN /\ u \notin deps.node /\ u /= NULL
+        BY GP2Assumptions DEF GSI_Nodes, UnknownTask
+    <2>2. t \in FailedTask /\ t \in deps.node /\ t /= u
+        <3>1. t \in FailedTask
+            BY DEF UnknownAttemptImpliesFailed
+        <3>. QED
+            BY <2>1, <3>1 DEF FailedTask, GSI_Nodes, UnknownTask
+    <2>3. deps.edge \subseteq deps.node \X deps.node
+        BY DEF DirectedGraphOf, IsDirectedGraph, TypeOk
+    <2>4. preds \subseteq Object \intersect deps.node /\ succs \subseteq Object \intersect deps.node
+        BY <2>3, GP2Assumptions
+        DEF DependencyGraphCompliant, IsBipartiteWithPartitions, IsDDGraph, Predecessor,
+            Successor
+    <2>5. /\ G.node = {u} \union preds \union succs
+          /\ G.edge = (preds \X {u}) \union ({u} \X succs)
+          /\ u \in G.node
+          /\ G.node \intersect Task = {u}
+        BY <2>4, <2>1, GP2Assumptions DEF RetrySubGraph
+    <2>6. Predecessor(G, u) = preds /\ Successor(G, u) = succs
+        BY <2>4, <2>5, <2>1, GP2Assumptions DEF Predecessor, Successor
+    <2>7. IsFiniteSet(G.node)
+        <3>1. IsFiniteSet(preds) /\ IsFiniteSet(succs)
+            BY <2>4, FS_Subset DEF DepsNodeFinite
+        <3>. QED
+            BY <2>5, <3>1, FS_Singleton, FS_Union
+    <2>8. succs \intersect AbortedObject = {}
+        <3>. SUFFICES ASSUME NEW rco \in succs, rco \in AbortedObject PROVE FALSE
+            OBVIOUS
+        <3>1. t \in Predecessor(deps, rco)
+            BY <2>2 DEF Predecessor, Successor
+        <3>2. rco \notin Source(deps) /\ rco \in Object
+            BY <2>4, <3>1 DEF Source
+        <3>3. Predecessor(deps, rco) \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
+            BY <3>2 DEF GSI_ObjPreds
+        <3>. QED
+            BY <2>2, <3>1, <3>3
+            DEF AbortedTask, CompletedTask, DiscardedTask, FailedTask, RetriedTask
+    <2>9. succs \intersect Source(deps) = {}
+        BY <2>2 DEF Predecessor, Source, Successor
+    <2>10. IsDDGraph(GraphUnion(deps, G), Task, Object)
+        <3>1. IsDDGraph(deps, Task \ {u}, Object)
+            BY <2>3, <2>1, GP2Assumptions
+            DEF DependencyGraphCompliant, IsBipartiteWithPartitions, IsDDGraph
+        <3>2. t \in (Task \ {u}) \intersect deps.node
+            BY <2>2
+        <3>3. u \notin (Task \ {u}) \union Object
+            BY <2>1, GP2Assumptions
+        <3>4. IsDDGraph(GraphUnion(deps, G), (Task \ {u}) \union {u}, Object)
+            BY <3>1, <3>2, <3>3, DDG_RetrySubGraphProperties, Zenon
+        <3>5. (Task \ {u}) \union {u} = Task
+            BY <2>1
+        <3>. QED
+            BY <3>4, <3>5
+    <2>11. \A s \in Task :
+               nextAttemptOf[s] /= NULL /\ nextAttemptOf[s] \in G.node =>
+                   /\ Predecessor(G, nextAttemptOf[s]) = Predecessor(deps, s)
+                   /\ Successor(G, nextAttemptOf[s]) = Successor(deps, s)
+        <3>. SUFFICES ASSUME NEW s \in Task, nextAttemptOf[s] /= NULL,
+                             nextAttemptOf[s] \in G.node
+                      PROVE  /\ Predecessor(G, nextAttemptOf[s]) = Predecessor(deps, s)
+                             /\ Successor(G, nextAttemptOf[s]) = Successor(deps, s)
+            OBVIOUS
+        <3>1. nextAttemptOf[s] = u
+            BY <2>5 DEF TypeOk
+        <3>2. s = t
+            BY <2>1, <3>1, Zenon DEF TP2!TaskAttemptsIntegrity
+        <3>. QED
+            BY <2>6, <3>1, <3>2
+    <2>. SUFFICES \E depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp :
+                    /\ G /= EmptyGraph
+                    /\ IsFiniteSet(G.node)
+                    /\ G.node \cap Task \subseteq UnknownTask
+                    /\ \A x \in G.node \cap Task :
+                        /\ Successor(G, x) \intersect AbortedObject = {}
+                        /\ Successor(G, x) \intersect Source(deps) \intersect (CompletedObject \union AbortedObject) = {}
+                    /\ IsDDGraph(GraphUnion(deps, G), Task, Object)
+                    /\ \A s \in Task :
+                        nextAttemptOf[s] /= NULL /\ nextAttemptOf[s] \in G.node =>
+                            /\ Predecessor(G, nextAttemptOf[s]) = Predecessor(deps, s)
+                            /\ Successor(G, nextAttemptOf[s]) = Successor(deps, s)
+                    /\ depsp = GraphUnion(deps, G)
+                    /\ objectStatep =
+                        [rco \in Object |->
+                            IF rco \in G.node \intersect UnknownObject
+                                THEN OBJECT_REGISTERED
+                                ELSE objectState[rco]]
+                    /\ taskStatep =
+                        [x \in Task |->
+                            IF x \in G.node
+                                THEN TASK_REGISTERED
+                                ELSE taskState[x]]
+                    /\ objectTargetsp = objectTargets
+                    /\ nextAttemptOfp = nextAttemptOf
+                    /\ ~ (/\ depsp = deps
+                          /\ objectStatep = objectState
+                          /\ objectTargetsp = objectTargets
+                          /\ taskStatep = taskState
+                          /\ nextAttemptOfp = nextAttemptOf)
+        BY ExpandENABLED, SMT DEF RegisterGraph, vars
+    <2>. DEFINE depsp        == GraphUnion(deps, G)
+                objectStatep == [rco \in Object |->
+                                    IF rco \in G.node \intersect UnknownObject
+                                        THEN OBJECT_REGISTERED ELSE objectState[rco]]
+                taskStatep   == [x \in Task |->
+                                    IF x \in G.node THEN TASK_REGISTERED ELSE taskState[x]]
+    <2>. WITNESS depsp, objectStatep, objectTargets, taskStatep, nextAttemptOf
+    <2>12. taskStatep /= taskState
+        <3>1. taskStatep[u] = TASK_REGISTERED
+            BY <2>5, <2>1
+        <3>2. taskState[u] = TASK_UNKNOWN
+            BY <2>1
+        <3>. QED
+            BY <3>1, <3>2 DEF TypeOk
+    <2>13. G /= EmptyGraph
+        BY <2>5 DEF EmptyGraph
+    <2>14. G.node \cap Task \subseteq UnknownTask
+        BY <2>5
+    <2>15. \A x \in G.node \cap Task :
+            /\ Successor(G, x) \intersect AbortedObject = {}
+            /\ Successor(G, x) \intersect Source(deps) \intersect (CompletedObject \union AbortedObject) = {}
+        BY <2>8, <2>5, <2>6, <2>9, Zenon
+    <2>. QED
+        BY <2>11, <2>10, <2>7, <2>12, <2>13, <2>14, <2>15, Zenon
 <1>3. /\ TypeOk /\ DependencyGraphCompliant
       /\ nextAttemptOf[t] \in UnknownTask
       /\ <<RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t]))>>_vars
@@ -7118,44 +7257,8 @@ LEMMA LemFairTP2StageTasks ==
 (* (necessitation), and the leads-to is supplied by the caller from GP1!Spec.   *)
 (*****************************************************************************)
 
-LEMMA LemEnTP2CompleteSucc ==
-    ASSUME NEW t \in Task
-    PROVE  [](ENABLED <<TP2!CompleteTasks({t})>>_(TP2!vars) => t \in SucceededTask)
-<1>1. ENABLED <<TP2!CompleteTasks({t})>>_(TP2!vars) => t \in SucceededTask
-    <2>. SUFFICES ASSUME NEW taskStatep, NEW nextAttemptOfp,
-                         {t} \subseteq TP2!SucceededTask
-                  PROVE  t \in SucceededTask
-        BY ExpandENABLED DEF TP2!CompleteTasks, TP2!vars
-    <2>. QED
-        BY DEF TP2!SucceededTask, SucceededTask, TP2!TASK_SUCCEEDED
-<1>. QED
-    BY <1>1, PTL
 
-LEMMA LemEnTP2AbortDisc ==
-    ASSUME NEW t \in Task
-    PROVE  [](ENABLED <<TP2!AbortTasks({t})>>_(TP2!vars) => t \in DiscardedTask)
-<1>1. ENABLED <<TP2!AbortTasks({t})>>_(TP2!vars) => t \in DiscardedTask
-    <2>. SUFFICES ASSUME NEW taskStatep, NEW nextAttemptOfp,
-                         {t} \subseteq TP2!DiscardedTask
-                  PROVE  t \in DiscardedTask
-        BY ExpandENABLED DEF TP2!AbortTasks, TP2!vars
-    <2>. QED
-        BY DEF TP2!DiscardedTask, DiscardedTask, TP2!TASK_DISCARDED
-<1>. QED
-    BY <1>1, PTL
 
-LEMMA LemEnTP2RetryFail ==
-    ASSUME NEW t \in Task
-    PROVE  [](ENABLED <<TP2!RetryTasks({t})>>_(TP2!vars) => t \in FailedTask)
-<1>1. ENABLED <<TP2!RetryTasks({t})>>_(TP2!vars) => t \in FailedTask
-    <2>. SUFFICES ASSUME NEW taskStatep, NEW nextAttemptOfp,
-                         {t} \subseteq TP2!FailedTask
-                  PROVE  t \in FailedTask
-        BY ExpandENABLED DEF TP2!RetryTasks, TP2!vars
-    <2>. QED
-        BY DEF TP2!FailedTask, FailedTask, TP2!TASK_FAILED
-<1>. QED
-    BY <1>1, PTL
 
 (* Bar bridges (under TypeOk): each of SUCCEEDED / DISCARDED / FAILED is inside  *)
 (* GP1!ProcessedTask, and GP1!FinalizedTask (= COMPLETED u ABORTED u RETRIED) is  *)
@@ -7223,43 +7326,55 @@ LEMMA LemLeavesFromEngine ==
 (* DISCARDED / FAILED; that state is in GP1!ProcessedTask (LemBarProcFin), the    *)
 (* leads-to drives it to GP1!FinalizedTask, which is disjoint from it -- FALSE.   *)
 LEMMA LemWFTP2CompleteTasks ==
-    ASSUME NEW t \in Task,
-           [](t \in SucceededTask => <>(~ (t \in SucceededTask)))
-    PROVE  WF_(TP2!vars)(TP2!CompleteTasks({t}))
-<1>1. [](t \in SucceededTask => <>(~ (t \in SucceededTask)))
-    OBVIOUS
+    ASSUME NEW t \in Task
+    PROVE  [](t \in SucceededTask => <>(~ (t \in SucceededTask)))
+           => WF_(TP2!vars)(TP2!CompleteTasks({t}))
 <1>2. [](ENABLED <<TP2!CompleteTasks({t})>>_(TP2!vars) => t \in SucceededTask)
-    BY LemEnTP2CompleteSucc
-<1>3. []<>(~ (t \in SucceededTask))
-    BY <1>1, PTL
+    <2>1. ENABLED <<TP2!CompleteTasks({t})>>_(TP2!vars) => t \in SucceededTask
+        <3>. SUFFICES ASSUME NEW taskStatep, NEW nextAttemptOfp,
+                             {t} \subseteq TP2!SucceededTask
+                      PROVE  t \in SucceededTask
+            BY ExpandENABLED DEF TP2!CompleteTasks, TP2!vars
+        <3>. QED
+            BY DEF TP2!SucceededTask, SucceededTask, TP2!TASK_SUCCEEDED
+    <2>. QED
+        BY <2>1, PTL
 <1>. QED
-    BY <1>3, <1>2, PTL
+    BY <1>2, PTL
 
 LEMMA LemWFTP2AbortTasks ==
-    ASSUME NEW t \in Task,
-           [](t \in DiscardedTask => <>(~ (t \in DiscardedTask)))
-    PROVE  WF_(TP2!vars)(TP2!AbortTasks({t}))
-<1>1. [](t \in DiscardedTask => <>(~ (t \in DiscardedTask)))
-    OBVIOUS
+    ASSUME NEW t \in Task
+    PROVE  [](t \in DiscardedTask => <>(~ (t \in DiscardedTask)))
+           => WF_(TP2!vars)(TP2!AbortTasks({t}))
 <1>2. [](ENABLED <<TP2!AbortTasks({t})>>_(TP2!vars) => t \in DiscardedTask)
-    BY LemEnTP2AbortDisc
-<1>3. []<>(~ (t \in DiscardedTask))
-    BY <1>1, PTL
+    <2>1. ENABLED <<TP2!AbortTasks({t})>>_(TP2!vars) => t \in DiscardedTask
+        <3>. SUFFICES ASSUME NEW taskStatep, NEW nextAttemptOfp,
+                             {t} \subseteq TP2!DiscardedTask
+                      PROVE  t \in DiscardedTask
+            BY ExpandENABLED DEF TP2!AbortTasks, TP2!vars
+        <3>. QED
+            BY DEF TP2!DiscardedTask, DiscardedTask, TP2!TASK_DISCARDED
+    <2>. QED
+        BY <2>1, PTL
 <1>. QED
-    BY <1>3, <1>2, PTL
+    BY <1>2, PTL
 
 LEMMA LemWFTP2RetryTasks ==
-    ASSUME NEW t \in Task,
-           [](t \in FailedTask => <>(~ (t \in FailedTask)))
-    PROVE  WF_(TP2!vars)(TP2!RetryTasks({t}))
-<1>1. [](t \in FailedTask => <>(~ (t \in FailedTask)))
-    OBVIOUS
+    ASSUME NEW t \in Task
+    PROVE  [](t \in FailedTask => <>(~ (t \in FailedTask)))
+           => WF_(TP2!vars)(TP2!RetryTasks({t}))
 <1>2. [](ENABLED <<TP2!RetryTasks({t})>>_(TP2!vars) => t \in FailedTask)
-    BY LemEnTP2RetryFail
-<1>3. []<>(~ (t \in FailedTask))
-    BY <1>1, PTL
+    <2>1. ENABLED <<TP2!RetryTasks({t})>>_(TP2!vars) => t \in FailedTask
+        <3>. SUFFICES ASSUME NEW taskStatep, NEW nextAttemptOfp,
+                             {t} \subseteq TP2!FailedTask
+                      PROVE  t \in FailedTask
+            BY ExpandENABLED DEF TP2!RetryTasks, TP2!vars
+        <3>. QED
+            BY DEF TP2!FailedTask, FailedTask, TP2!TASK_FAILED
+    <2>. QED
+        BY <2>1, PTL
 <1>. QED
-    BY <1>3, <1>2, PTL
+    BY <1>2, PTL
 
 (* The FinalizeTasks conjunct additionally assumes, per task, the eventually-   *)
 (* stable strengthened producer retention (see LemGP1FairFinalizeTasks); it is   *)
@@ -7722,11 +7837,11 @@ THEOREM GP2_RefineTaskProcessing2 == Spec => RefineTaskProcessing2
            /\ [](t \in FailedTask => <>(~ (t \in FailedTask)))
         BY <2>1, <2>19, LemLeavesFromEngine, Isa
     <2>21. WF_(TP2!vars)(TP2!CompleteTasks({t}))
-        BY <2>20, LemWFTP2CompleteTasks
+        BY <2>20, LemWFTP2CompleteTasks, PTL
     <2>22. WF_(TP2!vars)(TP2!AbortTasks({t}))
-        BY <2>20, LemWFTP2AbortTasks
+        BY <2>20, LemWFTP2AbortTasks, PTL
     <2>23. WF_(TP2!vars)(TP2!RetryTasks({t}))
-        BY <2>20, LemWFTP2RetryTasks
+        BY <2>20, LemWFTP2RetryTasks, PTL
     \* --- RegisterTasks: (a)+(b) mapping (retry subgraph registration) ---
     <2>24. WF_(TP2!vars)(TP2!RegisterTasks({nextAttemptOf[t]}))
         <3>1. WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
