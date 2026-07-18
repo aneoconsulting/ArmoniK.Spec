@@ -1,4 +1,4 @@
------------------------- MODULE TaskProcessing1_proofs -------------------------
+-------------------- MODULE TaskProcessing1Theorems_proofs ---------------------
 EXTENDS TaskProcessing1, TLAPS
 
 USE DEF TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED, TASK_PROCESSED,

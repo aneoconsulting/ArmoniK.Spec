@@ -27,11 +27,19 @@ THEOREM DDG_DDGraphOfMember ==
 BY DEF DDGraphOf, IsDDGraph, IsBipartiteWithPartitions
 
 (******************************************************************************)
-(* Core structural properties of a DD graph. The directed-graph,             *)
-(* DAG-and-source/sink facts unfold from the definitions; subgraph and       *)
-(* partition-enlargement preservation follow from monotonicity of IsDDGraph; *)
-(* the task-has-neighbors fact requires the bipartite structure plus the     *)
-(* sources/sinks-are-objects constraint.                                     *)
+(* Core structural properties of a DD graph G over (T, O):                    *)
+(*   - G is a well-formed directed graph and in particular a DAG;             *)
+(*   - sources and sinks of G are all objects;                                *)
+(*   - every task that occurs in G has at least one predecessor and at least *)
+(*     one successor (sources and sinks are objects, so tasks are interior); *)
+(*   - DD-graph status is preserved when extending the partitions: if T is   *)
+(*     enlarged into TT and O into OO disjointly, G remains a DD graph over  *)
+(*     (TT, OO).                                                              *)
+(* ------------------------------------------------------------------------- *)
+(* The directed-graph, DAG-and-source/sink facts unfold from the             *)
+(* definitions; subgraph and partition-enlargement preservation follow from  *)
+(* monotonicity of IsDDGraph; the task-has-neighbors fact requires the       *)
+(* bipartite structure plus the sources/sinks-are-objects constraint.        *)
 (******************************************************************************)
 THEOREM DDG_DDGraphProperties ==
     ASSUME NEW T, NEW O, T \cap O = {},
@@ -94,8 +102,10 @@ THEOREM DDG_DDGraphProperties ==
     BY <1>1, <1>2, <1>4, <1>5
 
 (******************************************************************************)
-(* The empty graph is trivially a DD graph: it is a DAG, vacuously bipartite *)
-(* over any disjoint partition, and has neither sources nor sinks.            *)
+(* The empty graph is a DD graph over any disjoint partition: it is a DAG,   *)
+(* vacuously bipartite over (T, O), and has neither sources nor sinks.       *)
+(* Together with DDG_DDGraphOfMember this pins down the "trivial" member of  *)
+(* DDGraphOf.                                                                *)
 (******************************************************************************)
 THEOREM DDG_EmptyGraphIsDDGraph ==
     ASSUME NEW T, NEW O, T \cap O = {}
@@ -109,10 +119,12 @@ BY DG_EmptyGraphProperties DEF IsDDGraph
 
 (******************************************************************************)
 (* Bipartite-neighborhood law for a DD graph: every neighbor of a node lies  *)
-(* in the opposite partition. A task's neighbors are objects, and an         *)
-(* object's neighbors are tasks. Direct consequence of bipartiteness (T, O)  *)
-(* combined with the central node's partition membership. Consumed by       *)
-(* DDG_RetrySubGraphProperties (via the task case).                          *)
+(* in the opposite partition. A task's predecessors and successors are       *)
+(* objects, and an object's predecessors and successors are tasks. Direct    *)
+(* consequence of bipartiteness (T, O) combined with the partition           *)
+(* membership of the central node.                                            *)
+(* ------------------------------------------------------------------------- *)
+(* Consumed by DDG_RetrySubGraphProperties (via the task case).              *)
 (******************************************************************************)
 LEMMA DDG_BipartiteNeighborhood ==
     ASSUME NEW T, NEW O, T \cap O = {},
@@ -218,6 +230,12 @@ LEMMA DDG_PathLiftToOpInduced ==
 (* OpenPath, AncestorSubGraph, RetrySubGraph and Derivation theorems.        *)
 (******************************************************************************)
 
+(******************************************************************************)
+(* OpenPath is empty iff the target itself fails the predicate Op: every     *)
+(* open path ends at n, so if Op(n) holds the singleton path <<n>> already   *)
+(* belongs to OpenPath; conversely no open path can end at a node that does  *)
+(* not satisfy Op.                                                            *)
+(******************************************************************************)
 THEOREM DDG_OpenPathEmpty ==
     ASSUME NEW G, NEW n \in G.node, NEW Op(_)
     PROVE  OpenPath(G, n, Op) = {} <=> ~Op(n)
@@ -245,6 +263,13 @@ THEOREM DDG_OpenPathEmpty ==
 <1>. QED
     BY <1>1, <1>2
 
+(******************************************************************************)
+(* Every open path ending at n lives inside AncestorSubGraph(G, n, Op): it    *)
+(* lifts into the subgraph and stays an open path there (its endpoint is      *)
+(* still n and all its nodes still satisfy Op). The "input" counterpart to   *)
+(* the closure property of DDG_AncestorSubGraphProperties; a corollary of the *)
+(* lift machinery, needing only that G is a directed graph.                   *)
+(******************************************************************************)
 THEOREM DDG_OpenPathInAncestorSubGraph ==
     ASSUME NEW G, IsDirectedGraph(G), NEW n, NEW Op(_),
            NEW p \in OpenPath(G, n, Op)
@@ -291,6 +316,16 @@ THEOREM DDG_OpenPathInAncestorSubGraph ==
 <1>. QED
     BY <1>7, <1>1 DEF OpenPath
 
+(******************************************************************************)
+(* Bundled structural properties of AncestorSubGraph(G, n, Op), requiring    *)
+(* n \in O, finiteness, and Op-monotonicity (open tasks have open inputs):    *)
+(*   - it is itself a DD graph over (T, O) and a directed subgraph of G;     *)
+(*   - it is weakly connected (every pair of nodes connects through n in    *)
+(*     the underlying undirected view);                                       *)
+(*   - every retained node satisfies Op;                                     *)
+(*   - every retained node has a directed simple path to n that stays inside *)
+(*     the subgraph -- the "closure under suffixes" property.                *)
+(******************************************************************************)
 THEOREM DDG_AncestorSubGraphProperties ==
     ASSUME NEW T, NEW O, NEW G, IsDDGraph(G, T, O),
            NEW n \in O, NEW Op(_)
@@ -454,6 +489,11 @@ THEOREM DDG_AncestorSubGraphProperties ==
 <1>. QED
     BY <1>7, <1>5, <1>8, <1>4, <1>6
 
+(******************************************************************************)
+(* Maximality of AncestorSubGraph: every Op-satisfying predecessor of a node *)
+(* in A is already in A. Equivalently, the only predecessors A omits are     *)
+(* nodes that fail Op -- A is closed under "Op-passing" upstream traversal.  *)
+(******************************************************************************)
 THEOREM DDG_AncestorSubGraphIsMaximal ==
     ASSUME NEW G, IsDirectedGraph(G),
            NEW n, NEW Op(_)
@@ -510,6 +550,13 @@ THEOREM DDG_AncestorSubGraphIsMaximal ==
 <1>. QED
     BY <1>17, <1>3
 
+(******************************************************************************)
+(* Triviality characterization: AncestorSubGraph is empty iff the target n   *)
+(* itself fails Op, and n belongs to A iff Op(n) holds. The two facts are   *)
+(* duals of the same condition Op(n). Needs only n \in G.node: reflexivity   *)
+(* of Ancestor in the induced subgraph holds for any node, no finiteness or  *)
+(* DD-graph structure required.                                              *)
+(******************************************************************************)
 THEOREM DDG_AncestorSubGraphEmpty ==
     ASSUME NEW G, NEW n \in G.node, NEW Op(_)
     PROVE  LET A == AncestorSubGraph(G, n, Op) IN
@@ -569,11 +616,16 @@ THEOREM DDG_AncestorSubGraphEmpty ==
     BY <1>5, <1>6
 
 (******************************************************************************)
-(* OpenSubGraphEquals: the OpenPath-start node set equals the Ancestor node   *)
-(* set in the Op-induced subgraph, so the path-based and closure-based views  *)
-(* coincide. The forward inclusion is exactly DDG_OpenPathInAncestorSubGraph; *)
-(* the converse lifts an Op-induced simple path back to G as an open path.    *)
-(* Needs only IsDirectedGraph(G).                                            *)
+(* OpenSubGraph and AncestorSubGraph define the same object: the set of      *)
+(* start nodes of open paths ending at n coincides with the set of n's      *)
+(* ancestors in the Op-induced subgraph, and both pin down the same edges.   *)
+(* This lets later proofs switch between the path-based and closure-based   *)
+(* views at will. Needs only that G is a directed graph -- the equality is   *)
+(* about simple paths and reachability, so neither finiteness nor the DD     *)
+(* graph structure plays any role.                                          *)
+(* ------------------------------------------------------------------------- *)
+(* The forward inclusion is exactly DDG_OpenPathInAncestorSubGraph; the      *)
+(* converse lifts an Op-induced simple path back to G as an open path.       *)
 (******************************************************************************)
 THEOREM DDG_OpenSubGraphEqualsAncestorSubGraph ==
     ASSUME NEW G, IsDirectedGraph(G), NEW n, NEW Op(_)
@@ -1177,6 +1229,12 @@ THEOREM DDG_MaximalOpenPathSuffixEquiv ==
 <1>. QED
     BY <1>2, <1>3
 
+(******************************************************************************)
+(* Attaching the retry of t under a fresh node u preserves acyclicity: any   *)
+(* directed cycle of GraphUnion(G, RetrySubGraph(G, t, u)) maps to a cycle of *)
+(* G by substituting u with t (u inherits exactly t's neighborhood), which   *)
+(* contradicts IsDag(G).                                                      *)
+(******************************************************************************)
 THEOREM DDG_RetryUnionIsDag ==
     ASSUME NEW G, IsDag(G), NEW t \in G.node, NEW u, u \notin G.node
     PROVE  IsDag(GraphUnion(G, RetrySubGraph(G, t, u)))
@@ -1271,9 +1329,19 @@ THEOREM DDG_RetryUnionIsDag ==
 <1>. QED
     BY <1>4, <1>5 DEF IsDag
 
+(******************************************************************************)
+(* Retry attachment is safe and well-typed:                                   *)
+(*   - the retry subgraph R is a DD graph in which u takes the role of a    *)
+(*     task and inherits t's object neighborhood;                            *)
+(*   - R is weakly connected (u is a hub: predecessors reach u, u reaches    *)
+(*     successors);                                                          *)
+(*   - GraphUnion(G, R) is a DD graph over (T \cup {u}, O): u joins the task *)
+(*     partition without breaking bipartiteness or acyclicity (the fresh-    *)
+(*     ness of u rules out any new cycle through it).                        *)
+(******************************************************************************)
 THEOREM DDG_RetrySubGraphProperties ==
     ASSUME NEW T, NEW O, NEW G, IsDDGraph(G, T, O),
-           NEW Op(_), NEW t \in T \cap G.node, NEW u, u \notin (T \cup O)
+           NEW t \in T \cap G.node, NEW u, u \notin (T \cup O)
     PROVE  LET R == RetrySubGraph(G, t, u) IN
            /\ IsDDGraph(R, {u}, O)
            /\ IsWeaklyConnected(R)
@@ -1468,6 +1536,11 @@ THEOREM DDG_RetrySubGraphProperties ==
 <1>. QED
     BY <1>9, <1>10, <1>11
 
+(******************************************************************************)
+(* Lightweight structural facts about AncestorSubGraph that need only         *)
+(* well-formedness of G (no finiteness, n \in O, or Op-monotonicity): it is a *)
+(* directed subgraph of G and all its nodes satisfy Op.                       *)
+(******************************************************************************)
 THEOREM DDG_AncestorSubGraphBasic ==
     ASSUME NEW G, IsDirectedGraph(G), NEW n, NEW Op(_)
     PROVE  LET A == AncestorSubGraph(G, n, Op) IN
@@ -1505,6 +1578,137 @@ THEOREM DDG_AncestorSubGraphBasic ==
 <1>. QED
     BY <1>1, <1>2
 
+(******************************************************************************)
+(* AncestorSubGraph is monotone in the induction predicate: strengthening     *)
+(* Op pointwise can only shrink the induced ancestor subgraph, node- and      *)
+(* edge-wise.                                                                 *)
+(******************************************************************************)
+THEOREM DDG_AncestorSubGraphMono ==
+    ASSUME NEW G, IsDirectedGraph(G), NEW n, NEW Op(_), NEW Op2(_),
+           \A m : Op2(m) => Op(m)
+    PROVE  /\ AncestorSubGraph(G, n, Op2).node \subseteq AncestorSubGraph(G, n, Op).node
+           /\ AncestorSubGraph(G, n, Op2).edge \subseteq AncestorSubGraph(G, n, Op).edge
+<1> DEFINE Ind2 == {m \in G.node : Op2(m)}
+<1> DEFINE Ind1 == {m \in G.node : Op(m)}
+<1> DEFINE H2 == [node |-> Ind2, edge |-> G.edge \cap (Ind2 \X Ind2)]
+<1> DEFINE H1 == [node |-> Ind1, edge |-> G.edge \cap (Ind1 \X Ind1)]
+<1>1. Ind2 \subseteq Ind1
+    OBVIOUS
+<1>2. AncestorSubGraph(G, n, Op2).node \subseteq AncestorSubGraph(G, n, Op).node
+    <2>1. CASE n \notin Ind2
+        BY <2>1 DEF AncestorSubGraph
+    <2>2. CASE n \in Ind2
+        <3>1. Ancestor(H2, n) \subseteq Ancestor(H1, n)
+            <4> SUFFICES ASSUME NEW x \in Ancestor(H2, n) PROVE x \in Ancestor(H1, n)
+                OBVIOUS
+            <4>1. PICK p \in SimplePath(H2) : p[1] = x /\ p[Len(p)] = n
+                BY DEF Ancestor, AreConnectedIn
+            <4>2. /\ p \in Seq(H2.node) /\ Len(p) \in Nat /\ Len(p) >= 1
+                  /\ DOMAIN p = 1..Len(p)
+                  /\ \A i \in 1..(Len(p) - 1) : <<p[i], p[i+1]>> \in H2.edge
+                BY <4>1, DG_SimplePathIsSeq
+            <4>3. \A i \in 1..Len(p) : p[i] \in H1.node
+                BY <4>2, <1>1, ElementOfSeq
+            <4>4. \A i \in 1..(Len(p) - 1) : <<p[i], p[i+1]>> \in H1.edge
+                BY <4>2, <1>1
+            <4>5. p \in SimplePath(H1)
+                BY <4>1, <4>3, <4>4, DG_SimplePathLift
+            <4>6. x \in H1.node
+                BY <4>2, <4>3, <4>1
+            <4>. QED
+                BY <4>5, <4>1, <4>6 DEF Ancestor, AreConnectedIn
+        <3>. QED
+            BY <2>2, <1>1, <3>1 DEF AncestorSubGraph
+    <2>. QED
+        BY <2>1, <2>2
+<1>3. AncestorSubGraph(G, n, Op2).edge \subseteq AncestorSubGraph(G, n, Op).edge
+    BY <1>2 DEF AncestorSubGraph
+<1>. QED
+    BY <1>2, <1>3
+
+(******************************************************************************)
+(* An Op-blocked sink has no derivations: ~Op(n) empties the induced ancestor *)
+(* subgraph, so no subgraph of it can have {n} as its sink set. Needs neither *)
+(* n \in G.node nor any structure on G.                                       *)
+(******************************************************************************)
+THEOREM DDG_DerivationBlockedSink ==
+    ASSUME NEW T, NEW G, NEW n, NEW Op(_), ~Op(n)
+    PROVE  Derivation(G, n, Op, T) = {}
+<1>1. AncestorSubGraph(G, n, Op).node = {}
+    BY DEF AncestorSubGraph
+<1>2. SUFFICES ASSUME NEW D \in Derivation(G, n, Op, T) PROVE FALSE
+    OBVIOUS
+<1>3. D.node \in SUBSET AncestorSubGraph(G, n, Op).node /\ Sink(D) = {n}
+    BY DEF Derivation, DirectedSubgraph
+<1>4. n \in D.node
+    BY <1>3 DEF Sink
+<1>. QED
+    BY <1>1, <1>3, <1>4
+
+(******************************************************************************)
+(* Derivations are antitone under simultaneous graph growth and ancestor-     *)
+(* subgraph shrinkage: a derivation of n in the larger graph G2 whose ambient *)
+(* induced ancestor subgraph lies inside that of (G, Op) is already a         *)
+(* derivation of n in G.                                                      *)
+(******************************************************************************)
+THEOREM DDG_DerivationAntitone ==
+    ASSUME NEW T, NEW G, NEW G2,
+           IsDirectedGraph(G), IsDirectedGraph(G2),
+           G.node \subseteq G2.node, G.edge \subseteq G2.edge,
+           NEW n, NEW Op(_), NEW Op2(_),
+           AncestorSubGraph(G2, n, Op2).node \subseteq AncestorSubGraph(G, n, Op).node,
+           AncestorSubGraph(G2, n, Op2).edge \subseteq AncestorSubGraph(G, n, Op).edge
+    PROVE  Derivation(G2, n, Op2, T) \subseteq Derivation(G, n, Op, T)
+<1> DEFINE V2 == AncestorSubGraph(G2, n, Op2)
+<1> DEFINE V1 == AncestorSubGraph(G, n, Op)
+<1> SUFFICES ASSUME NEW D \in Derivation(G2, n, Op2, T)
+             PROVE  D \in Derivation(G, n, Op, T)
+    OBVIOUS
+<1>1. /\ D \in DirectedSubgraph(V2)
+      /\ Sink(D) = {n}
+      /\ Source(D) \subseteq Source(G2)
+      /\ \A t \in D.node \cap T : Predecessor(G2, t) \subseteq D.node
+    BY DEF Derivation
+<1>2. D \in DirectedSubgraph(V1)
+    <2>1. /\ IsDirectedGraph(D)
+          /\ D.node \in SUBSET V2.node /\ D.edge \in SUBSET (V2.node \X V2.node)
+          /\ D.edge \subseteq V2.edge
+        BY <1>1 DEF DirectedSubgraph
+    <2>2. D = [node |-> D.node, edge |-> D.edge]
+        BY <2>1 DEF IsDirectedGraph
+    <2>. QED
+        BY <2>1, <2>2 DEF DirectedSubgraph
+<1>3. V1.node \subseteq G.node
+    BY DDG_AncestorSubGraphBasic DEF DirectedSubgraph
+<1>4. Source(D) \subseteq Source(G)
+    <2> SUFFICES ASSUME NEW x \in Source(D) PROVE x \in Source(G)
+        OBVIOUS
+    <2>1. x \in D.node /\ x \in Source(G2)
+        BY <1>1 DEF Source
+    <2>2. x \in G.node
+        <3>1. D.node \subseteq V1.node
+            BY <1>2 DEF DirectedSubgraph
+        <3>. QED
+            BY <2>1, <3>1, <1>3
+    <2>3. Predecessor(G2, x) = {}
+        BY <2>1 DEF Source
+    <2>4. Predecessor(G, x) = {}
+        BY <2>3 DEF Predecessor
+    <2>. QED
+        BY <2>2, <2>4 DEF Source
+<1>5. \A t \in D.node \cap T : Predecessor(G, t) \subseteq D.node
+    BY <1>1 DEF Predecessor
+<1>. QED
+    BY <1>1, <1>2, <1>4, <1>5 DEF Derivation
+
+(******************************************************************************)
+(* Bundled properties of any derivation D of n in G under Op, T:              *)
+(*   - D is itself a DD graph over (T, O) (it inherits structure from G);    *)
+(*   - D is weakly connected (all its nodes reach n through directed paths   *)
+(*     that stay inside D);                                                   *)
+(*   - every node of D satisfies Op (D \subseteq AncestorSubGraph);          *)
+(*   - every node of D carries a directed simple path to n inside D.         *)
+(******************************************************************************)
 THEOREM DDG_DerivationProperties ==
     ASSUME NEW T, NEW O, NEW G, IsDDGraph(G, T, O), IsFiniteSet(G.node),
            NEW n \in O, NEW Op(_), NEW D \in Derivation(G, n, Op, T)
@@ -1589,16 +1793,20 @@ THEOREM DDG_DerivationProperties ==
 <1>. QED
     BY <1>6, <1>8, <1>4, <1>7
 
-THEOREM DDG_NoDerivationMeansBlockedAncestor ==
+(******************************************************************************)
+(* An unblocked ancestry is itself a derivation: if every ancestor of n       *)
+(* satisfies Op, the ancestor-induced subgraph of n is a derivation of n.     *)
+(* This is the graph half of the "crash-free ancestry" sufficient condition   *)
+(* for DerivableObjectsEventualCompletion (GraphProcessing2): an object       *)
+(* whose ancestry never meets a crashed node is derivable in every state.     *)
+(******************************************************************************)
+THEOREM DDG_UnblockedAncestryIsDerivation ==
     ASSUME NEW T, NEW G, IsDag(G),
-           NEW n \in G.node, NEW Op(_)
-    PROVE  Derivation(G, n, Op, T) = {} => \E m \in Ancestor(G, n) : ~Op(m)
-(* Contrapositive: if every ancestor of n is Op, the ancestor-induced        *)
-(* subgraph A is a derivation, contradicting Derivation = {}.                 *)
-<1> SUFFICES ASSUME Derivation(G, n, Op, T) = {},
-                    \A m \in Ancestor(G, n) : Op(m)
-             PROVE  FALSE
-    OBVIOUS
+           NEW n \in G.node, NEW Op(_),
+           \A m \in Ancestor(G, n) : Op(m)
+    PROVE  [node |-> Ancestor(G, n),
+            edge |-> G.edge \cap (Ancestor(G, n) \X Ancestor(G, n))]
+               \in Derivation(G, n, Op, T)
 <1> DEFINE Anc == Ancestor(G, n)
 <1> DEFINE A == [node |-> Anc, edge |-> G.edge \cap (Anc \X Anc)]
 <1> DEFINE InducedNodes == {y \in G.node : Op(y)}
@@ -1641,7 +1849,7 @@ THEOREM DDG_NoDerivationMeansBlockedAncestor ==
         <3>. QED
             BY <3>1, <2>1, <1>1
     <2>3. p \in SimplePath(InducedGraph) /\ p[1] = x /\ p[Len(p)] = n
-        BY <2>1, <2>2, <1>1, DDG_PathLiftToOpInduced
+        BY <2>1, <2>2, <1>1, DDG_PathLiftToOpInduced, Isa
     <2>. QED
         BY <2>3 DEF AreConnectedIn, Ancestor
 (* A is a directed subgraph of V *)
@@ -1735,10 +1943,37 @@ THEOREM DDG_NoDerivationMeansBlockedAncestor ==
         OBVIOUS
     <2>. QED
         BY <1>1, <1>2
-(* A is a derivation, contradicting Derivation = {} *)
+(* A is a derivation *)
 <1>8. A \in Derivation(G, n, Op, T)
     BY <1>4, <1>5, <1>6, <1>7 DEF Derivation
 <1>. QED
     BY <1>8
+
+(******************************************************************************)
+(* Non-existence criterion: if no derivation of n exists, then some ancestor *)
+(* of n fails Op -- the contrapositive corollary of                          *)
+(* DDG_UnblockedAncestryIsDerivation. (Note: a "clean simple path" to n is   *)
+(* NOT sufficient for a derivation, because a task needs ALL of its inputs   *)
+(* Op, not just the one on the path -- hence the criterion quantifies over   *)
+(* all ancestors, not over a single path.)                                   *)
+(*---------------------------------------------------------------------------*)
+(* Contrapositive corollary: an empty derivation set forces a blocked        *)
+(* ancestor, since an unblocked ancestry would itself be a derivation.       *)
+(******************************************************************************)
+THEOREM DDG_NoDerivationMeansBlockedAncestor ==
+    ASSUME NEW T, NEW G, IsDag(G),
+           NEW n \in G.node, NEW Op(_)
+    PROVE  Derivation(G, n, Op, T) = {} => \E m \in Ancestor(G, n) : ~Op(m)
+<1> SUFFICES ASSUME Derivation(G, n, Op, T) = {},
+                    \A m \in Ancestor(G, n) : Op(m)
+             PROVE  FALSE
+    OBVIOUS
+<1>1. [node |-> Ancestor(G, n),
+       edge |-> G.edge \cap (Ancestor(G, n) \X Ancestor(G, n))]
+          \in Derivation(G, n, Op, T)
+    BY ONLY IsDag(G), n \in G.node, \A m \in Ancestor(G, n) : Op(m),
+        DDG_UnblockedAncestryIsDerivation, Isa
+<1>. QED
+    BY <1>1
 
 ================================================================================

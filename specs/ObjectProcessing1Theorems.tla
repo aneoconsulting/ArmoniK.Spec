@@ -23,7 +23,7 @@ LEMMA LemTargetsAreKnown ==
         ASSUME NEW o \in objectTargets, ObjectSafetyInv
         PROVE o \in RegisteredObject \/ o \in FinalizedObject
 
-THEOREM OP1_EventualTargetFinalizationCorrect == Spec => EventualTargetFinalization
+THEOREM OP1_EventualTargetFinalization == Spec => EventualTargetFinalization
 
 THEOREM OP1_EventualTargetResolution == Spec => EventualTargetResolution
 ================================================================================

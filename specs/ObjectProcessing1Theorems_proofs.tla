@@ -1,4 +1,4 @@
------------------------ MODULE ObjectProcessing1_proofs ------------------------
+------------------- MODULE ObjectProcessing1Theorems_proofs --------------------
 EXTENDS ObjectProcessing1, TLAPS
 
 USE DEF OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_FINALIZED
@@ -57,7 +57,7 @@ LEMMA LemTargetsAreKnown ==
 BY DEF ObjectSafetyInv, TypeOk, OP1State, TargetValidity, UnknownObject,
 RegisteredObject, FinalizedObject
 
-THEOREM OP1_EventualTargetFinalizationCorrect == Spec => EventualTargetFinalization
+THEOREM OP1_EventualTargetFinalization == Spec => EventualTargetFinalization
 <1>. SUFFICES ASSUME NEW o \in Object
               PROVE Spec => (<>[](o \in objectTargets) => <>(o \in FinalizedObject))
     BY DEF EventualTargetFinalization            

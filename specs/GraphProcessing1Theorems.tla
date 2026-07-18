@@ -95,6 +95,18 @@ LEMMA LemRefineTaskProcessing1Fairness ==
 THEOREM GP1_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
 
 (**
+ * LIVENESS (lifted from TaskProcessing1). Every processed task is eventually
+ * finalized. Obtained from TP1!EventualFinalization through the task-processing
+ * refinement (GP1_RefineTaskProcessing1). Reused -- under the Bar -- by
+ * GraphProcessing2 to discharge the WF of CompleteTasks / AbortTasks /
+ * RetryTasks, whose enabled-forever negation reduces to a task staying
+ * succeeded / discarded / failed forever (i.e. never finalized).
+ *)
+THEOREM GP1_TaskEventualFinalization ==
+    ASSUME NEW s \in Task
+    PROVE  Spec => (s \in ProcessedTask ~> s \in FinalizedTask)
+
+(**
  * Transition relation of taskState[t] under any system step: a task either
  * keeps its state or follows the registered -> staged/processed ->
  * assigned/processed -> finalized lifecycle.
@@ -143,7 +155,7 @@ LEMMA LemRootProgress ==
     ASSUME NEW o \in Object, NEW r \in Object \union Task, NEW n \in Nat
     PROVE LET S == AncestorSubGraph(deps, o, IsOpenNode).node
               C == Cardinality(S)
-              IsMRoot(o, r) == \E p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r
+              IsMRoot(o0, r0) == \E p \in MaximalOpenPath(deps, o0, IsOpenNode) : p[1] = r0
           IN /\ []GraphSafetyInv /\ [][Next]_vars /\ []Fairness
              /\ [](o \in objectTargets /\ o \in RegisteredObject)
              /\ [][S' \subseteq S]_S
@@ -157,6 +169,24 @@ LEMMA LemCardinalityDescent ==
              /\ [](o \in objectTargets /\ o \in RegisteredObject)
              /\ [][S' \subseteq S]_S
              => C = n + 1 ~> C < n + 1
+
+(* Fairness is a conjunction of WF/SF formulas, each of which is stable          *)
+(* ([]WF_v(A) <=> WF_v(A)); so the whole conjunction is its own []. Reused by GP2.*)
+LEMMA LemFairnessStable == Fairness <=> []Fairness
+
+(* A target cannot stay registered forever while its open-ancestor subgraph     *)
+(* never grows: the finite cardinality C = Cardinality(S) would have to descend  *)
+(* below every bound (LemCardinalityDescent), which is impossible. This is the   *)
+(* engine of the object-finalization fairness refinement; it is reused verbatim  *)
+(* (under the Bar) by GraphProcessing2 to discharge WF(OP2!CompleteObjects) /    *)
+(* WF(OP2!AbortObjects), whose enabled-forever negation reduces to exactly this. *)
+LEMMA LemTargetedRegisteredImpossible ==
+    ASSUME NEW o \in Object
+    PROVE LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+          IN /\ []GraphSafetyInv /\ [][Next]_vars /\ []Fairness
+             /\ [](o \in objectTargets /\ o \in RegisteredObject)
+             /\ [][S' \subseteq S]_S
+             => FALSE
 
 THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
 ================================================================================

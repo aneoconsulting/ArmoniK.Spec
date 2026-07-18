@@ -1,4 +1,4 @@
------------------------- MODULE TaskProcessing3_proofs -------------------------
+-------------------- MODULE TaskProcessing3Theorems_proofs ---------------------
 EXTENDS TaskProcessing3, FiniteSetTheorems, TLAPS
 
 USE DEF TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED,
@@ -260,8 +260,8 @@ THEOREM TP3_RefineTaskProcessing2 == Spec => RefineTaskProcessing2
     <2>3. ASSUME NEW T \in SUBSET Task, DiscardTasks(T)
           PROVE TP2!DiscardTasks(T)
         BY <2>3 DEF DiscardTasks, TP2!DiscardTasks, RegisteredTask,
-        StagedTask, PausedTask, TP2!RegisteredTask, TP2!StagedTask,
-        taskStateBar
+        StagedTask, PausedTask, StoppedTask, TP2!RegisteredTask,
+        TP2!StagedTask, taskStateBar
     <2>4. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task,
                SetTaskRetries(T, U)
           PROVE TP2!SetTaskRetries(T, U)
@@ -470,8 +470,8 @@ THEOREM TP3_RefineTaskProcessing2 == Spec => RefineTaskProcessing2
                         /\ u \in UnknownTask
                         /\ ~ \E v \in Task : nextAttemptOf[v] = u)
                   => ENABLED <<A>>_vars
-                <5>. SUFFICES ASSUME NEW u \in Task, t \in UnretriedTask, u \in UnknownTask,
-                                     ~ \E v \in Task : nextAttemptOf[v] = u
+                <5>. SUFFICES ASSUME NEW u0 \in Task, t \in UnretriedTask, u0 \in UnknownTask,
+                                     ~ \E v \in Task : nextAttemptOf[v] = u0
                               PROVE \E taskStatep, nextAttemptOfp :
                                 /\ \E u \in Task :
                                     /\ {t} # {}

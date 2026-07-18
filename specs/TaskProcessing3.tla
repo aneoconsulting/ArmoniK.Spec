@@ -103,7 +103,7 @@ StageTasks(T) ==
  *)
 DiscardTasks(T) ==
     /\ T /= {}
-    /\ T \subseteq UNION {RegisteredTask, StagedTask, PausedTask}
+    /\ T \subseteq UNION {RegisteredTask, StagedTask, PausedTask, StoppedTask}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
@@ -326,7 +326,6 @@ Fairness ==
         /\ WF_vars(RetryTasks({t}))
         /\ WF_vars(StopTasks({t}))
         /\ WF_vars(PauseTasks({t}))
-        /\ WF_vars(ResumeTasks({t}))
 
 (**
  * Full system specification.

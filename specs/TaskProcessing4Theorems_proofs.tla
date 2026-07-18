@@ -1,4 +1,4 @@
------------------------- MODULE TaskProcessing4_proofs -------------------------
+-------------------- MODULE TaskProcessing4Theorems_proofs ---------------------
 EXTENDS TaskProcessing4, TLAPS, FiniteSetTheorems
 
 USE DEF TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED,
@@ -276,8 +276,8 @@ THEOREM TP4_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
     <2>3. ASSUME NEW T \in SUBSET Task, DiscardTasks(T)
           PROVE TP3!DiscardTasks(T)
         BY <2>3 DEF DiscardTasks, TP3!DiscardTasks,
-        RegisteredTask, StagedTask, PausedTask,
-        TP3!RegisteredTask, TP3!StagedTask, TP3!PausedTask
+        RegisteredTask, StagedTask, PausedTask, StoppedTask,
+        TP3!RegisteredTask, TP3!StagedTask, TP3!PausedTask, TP3!StoppedTask
     <2>4. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U)
           PROVE TP3!SetTaskRetries(T, U)
         BY <2>4, Zenon DEF SetTaskRetries, TP3!SetTaskRetries,
@@ -377,7 +377,6 @@ THEOREM TP4_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
                         /\ [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!RetryTasks({t}))
                         /\ [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!StopTasks({t}))
                         /\ [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!PauseTasks({t}))
-                        /\ [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!ResumeTasks({t}))
         BY Isa DEF TP3!Fairness
     <2>. DEFINE P == taskDeleted \intersect {t} = {}
     <2>1. [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(\E u \in Task : TP3!SetTaskRetries({t}, {u}))
@@ -395,8 +394,8 @@ THEOREM TP4_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
                         /\ u \in UnknownTask
                         /\ ~ \E v \in Task : nextAttemptOf[v] = u)
                   => ENABLED <<A>>_vars
-                <5>. SUFFICES ASSUME NEW u \in Task, t \in UnretriedTask, u \in UnknownTask,
-                                     ~ \E v \in Task : nextAttemptOf[v] = u
+                <5>. SUFFICES ASSUME NEW u0 \in Task, t \in UnretriedTask, u0 \in UnknownTask,
+                                     ~ \E v \in Task : nextAttemptOf[v] = u0
                               PROVE \E taskStatep, nextAttemptOfp :
                                 /\ \E u \in Task :
                                     /\ {t} # {}
@@ -709,25 +708,8 @@ THEOREM TP4_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
             BY Isa DEF Fairness
         <3>. QED
             BY <3>1, <3>2, <3>3, <3>4, PTL
-    <2>10. [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!ResumeTasks({t}))
-        <3>0. ENABLED <<TP3!ResumeTasks({t})>>_TP3!vars => t \in pausingRequested
-            BY ExpandENABLED DEF TP3!ResumeTasks, TP3!vars
-        <3>1. P /\ ENABLED <<TP3!ResumeTasks({t})>>_TP3!vars
-              => ENABLED <<ResumeTasks({t})>>_vars
-            <4>1. P /\ t \in pausingRequested => ENABLED <<ResumeTasks({t})>>_vars
-                BY ExpandENABLED, Isa DEF ResumeTasks, vars
-            <4>. QED
-                BY <3>0, <4>1
-        <3>2. <<ResumeTasks({t})>>_vars => <<TP3!ResumeTasks({t})>>_TP3!vars
-            BY DEF ResumeTasks, vars, PausedTask, TP3!ResumeTasks, TP3!vars, TP3!PausedTask
-        <3>3. TaskSafetyInv /\ ENABLED <<TP3!ResumeTasks({t})>>_TP3!vars => P
-            BY <3>0 DEF TaskSafetyInv, DeletionValidity
-        <3>4. Fairness => WF_vars(ResumeTasks({t}))
-            BY Isa DEF Fairness
-        <3>. QED
-            BY <3>1, <3>2, <3>3, <3>4, PTL
     <2>. QED
-        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, Isa
+        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, Isa
 <1>. QED
     BY <1>1, <1>2, <1>3, TP4_TaskSafetyInv, PTL DEF RefineTaskProcessing3, Spec, TP3!Spec
 
