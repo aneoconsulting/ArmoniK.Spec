@@ -350,19 +350,12 @@ RetryTasks(T) ==
 
 (**
  * TASK CANCELLATION REQUESTING
- * The cancellation of a set 'T' of known tasks is requested. A request on a
- * still-REGISTERED task is accepted only once all of its input objects are
- * completed: acknowledgment happens in the STAGED (or PAUSED) state -- a
- * registered task stages first -- so the request must not outrun the task's
- * ability to ever stage. Without this guard a stop request on a registered
- * task parked behind a never-completing input would stay acknowledgeable but
- * unacknowledged forever, violating TaskProcessing3's WF(StopTasks) (the
- * task-level model can stop REGISTERED tasks directly).
+ * The cancellation of a set 'T' of known tasks is requested, in any task
+ * state. A request on a still-REGISTERED task stays pending -- it bars the
+ * task from assignment and is acknowledged if the task ever stages.
  *)
 RequestTasksStopping(T) ==
     /\ T /= {} /\ T \intersect UnknownTask = {}
-    /\ \A x \in T \intersect RegisteredTask :
-           Predecessor(deps, x) \subseteq CompletedObject
     /\ stoppingRequested' = stoppingRequested \union T
     /\ UNCHANGED << deps, objectState, objectTargets, taskState,
                     nextAttemptOf, pausingRequested >>

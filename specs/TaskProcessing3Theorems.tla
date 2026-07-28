@@ -26,6 +26,12 @@ LEMMA LemTaskSafetyInv == Init /\ [][Next]_vars => []TaskSafetyInv
 
 THEOREM TP3_TaskSafetyInv == Spec => []TaskSafetyInv
 
+(* A cancellation request permanently bars a non-assigned task from the      *)
+(* ASSIGNED state: stoppingRequested is monotone and AssignTasks excludes    *)
+(* requested tasks.                                                          *)
+THEOREM TP3_StoppingRequestPreventsAssignment ==
+    Spec => StoppingRequestPreventsAssignment
+
 THEOREM TP3_RequestedStoppingEventualAcknowledgment ==
     Spec => RequestedStoppingEventualAcknowledgment
 

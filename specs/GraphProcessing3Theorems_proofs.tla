@@ -620,43 +620,8 @@ LEMMA LemRefineTP3InitNext ==
            PROVE TP3!RequestTasksStopping(T)
         BY <2>15, TP3BarStates DEF RequestTasksStopping, TP3!RequestTasksStopping
     <2>16. ASSUME NEW T \in SUBSET Task, StopTasks(T)
-           PROVE (\E S \in SUBSET Task : TP3!StopTasks(S)) \/ UNCHANGED TP3!vars
-        <3>. DEFINE S == T \intersect (StagedTask \union PausedTask)
-        <3>1. CASE S /= {}
-            <4>1. S \subseteq stoppingRequested /\ S \intersect TP3!AssignedTask = {}
-                BY <2>16, TP3BarStates, Zenon
-                DEF StopTasks, StagedTask, PausedTask, AssignedTask
-            <4>2. taskState' = [t \in Task |-> IF t \in S /\ (\/ t \in TP3!RegisteredTask
-                                                              \/ t \in TP3!StagedTask
-                                                              \/ t \in TP3!PausedTask)
-                                    THEN TASK_STOPPED ELSE taskState[t]]
-                <5>. SUFFICES ASSUME NEW u \in Task
-                              PROVE taskState'[u] = IF u \in S /\ (\/ u \in TP3!RegisteredTask
-                                                                   \/ u \in TP3!StagedTask
-                                                                   \/ u \in TP3!PausedTask)
-                                        THEN TASK_STOPPED ELSE taskState[u]
-                    BY <2>16, Zenon DEF StopTasks, TypeOk
-                <5>1. CASE u \in T /\ (u \in StagedTask \/ u \in PausedTask)
-                    BY <2>16, <5>1, TP3BarStates
-                    DEF StopTasks, StagedTask, PausedTask, RegisteredTask
-                <5>2. CASE u \in T /\ u \notin StagedTask /\ u \notin PausedTask
-                    BY <2>16, <5>2, TP3BarStates
-                    DEF StopTasks, StagedTask, PausedTask
-                <5>3. CASE u \notin T
-                    BY <2>16, <5>3, TP3BarStates
-                    DEF StopTasks, StagedTask, PausedTask
-                <5>. QED BY <5>1, <5>2, <5>3
-            <4>3. TP3!StopTasks(S)
-                BY <2>16, <3>1, <4>1, <4>2 DEF StopTasks, TP3!StopTasks
-            <4>. QED BY <4>3, Zenon
-        <3>2. CASE S = {}
-            <4>1. taskState' = taskState
-                <5>. SUFFICES ASSUME NEW u \in Task
-                              PROVE taskState'[u] = taskState[u]
-                    BY <2>16, Zenon DEF StopTasks, TypeOk
-                <5>. QED BY <3>2, <2>16 DEF StopTasks, StagedTask, PausedTask
-            <4>. QED BY <4>1, <2>16 DEF StopTasks, TP3!vars
-        <3>. QED BY <3>1, <3>2, Zenon
+           PROVE TP3!StopTasks(T)
+        BY <2>16, TP3BarStates, Zenon DEF StopTasks, TP3!StopTasks
     <2>17. ASSUME NEW T \in SUBSET Task, RequestTasksPausing(T)
            PROVE TP3!RequestTasksPausing(T)
         BY <2>17, TP3BarStates DEF RequestTasksPausing, TP3!RequestTasksPausing
@@ -691,17 +656,6 @@ TaskStateIntegrity ==
     /\ PausedTask \subseteq pausingRequested
     /\ UnknownTask \intersect pausingRequested = {}
 
-(* The stop-request guard invariant: a stop request pending on a still-       *)
-(* REGISTERED task certifies completed inputs, so the task is bound to stage  *)
-(* (WF(StageTasks)) and the request is bound to be acknowledged there. The    *)
-(* guard of RequestTasksStopping establishes it; it is preserved because a    *)
-(* registered task's predecessor set is frozen (RegisterGraph attaches edges  *)
-(* only among its own -- unknown -- task nodes) and completed objects stay    *)
-(* completed.                                                                 *)
-StopIntegrity ==
-    \A t \in RegisteredTask \intersect stoppingRequested :
-        Predecessor(deps, t) \subseteq CompletedObject
-
 LEMMA LemTaskStateIntegrity == Init /\ [][Next]_vars => []TaskStateIntegrity
 <1>. USE DEF TaskStateIntegrity, UnknownTask, PausedTask, StoppedTask
 <1>1. Init => TaskStateIntegrity
@@ -716,116 +670,14 @@ LEMMA LemTaskStateIntegrity == Init /\ [][Next]_vars => []TaskStateIntegrity
 <1>. QED
     BY <1>1, <1>2, LemTypeOk, PTL
 
-LEMMA LemStopIntegrity == Init /\ [][Next]_vars => []StopIntegrity
-<1>1. Init => StopIntegrity
-    BY DEF Init, RegisteredTask, StopIntegrity
-<1>2. TypeOk /\ TaskStateIntegrity /\ StopIntegrity /\ [Next]_vars => StopIntegrity'
-    <2>. SUFFICES ASSUME TypeOk, TaskStateIntegrity, StopIntegrity, [Next]_vars,
-                         NEW t \in Task,
-                         (t \in RegisteredTask \intersect stoppingRequested)'
-                  PROVE (Predecessor(deps, t) \subseteq CompletedObject)'
-        BY Zenon DEF RegisteredTask, StopIntegrity
-    <2>1. ASSUME NEW G \in DirectedGraphOf(Task \union Object), RegisterGraph(G)
-          PROVE (Predecessor(deps, t) \subseteq CompletedObject)'
-        <3>1. t \in RegisteredTask /\ t \in stoppingRequested
-            <4>1. t \notin UnknownTask
-                <5>1. t \in stoppingRequested
-                    BY <2>1 DEF RegisterGraph
-                <5>. QED
-                    BY <5>1 DEF TaskStateIntegrity, UnknownTask
-            <4>2. t \notin G.node
-                BY <2>1, <4>1 DEF RegisterGraph, UnknownTask
-            <4>3. taskState'[t] = taskState[t]
-                BY <2>1, <4>2 DEF RegisterGraph, TypeOk
-            <4>. QED
-                BY <2>1, <4>3 DEF RegisteredTask, RegisterGraph
-        <3>2. Predecessor(deps, t) \subseteq CompletedObject
-            BY <3>1 DEF StopIntegrity
-        <3>3. Predecessor(deps', t) = Predecessor(deps, t)
-            <4>1. t \notin G.node
-                BY <2>1, <3>1 DEF RegisteredTask, RegisterGraph, UnknownTask
-            <4>2. G.edge \subseteq G.node \X G.node
-                BY <2>1 DEF DirectedGraphOf, IsDirectedGraph
-            <4>3. deps.edge \subseteq deps.node \X deps.node
-                BY DEF DirectedGraphOf, IsDirectedGraph, TypeOk
-            <4>4. deps' = GraphUnion(deps, G)
-                BY <2>1 DEF RegisterGraph
-            <4>. QED
-                BY <4>1, <4>2, <4>3, <4>4, Zenon DEF GraphUnion, Predecessor
-        <3>4. CompletedObject \subseteq CompletedObject'
-            BY <2>1 DEF CompletedObject, RegisterGraph, TypeOk, UnknownObject
-        <3>. QED
-            BY <3>2, <3>3, <3>4
-    <2>2. ASSUME NEW T \in SUBSET Task, RequestTasksStopping(T)
-          PROVE (Predecessor(deps, t) \subseteq CompletedObject)'
-        <3>1. t \in RegisteredTask
-            BY <2>2, Zenon DEF RegisteredTask, RequestTasksStopping
-        <3>2. CASE t \in T
-            <4>1. Predecessor(deps, t) \subseteq CompletedObject
-                BY <2>2, <3>1, <3>2, Zenon DEF RequestTasksStopping
-            <4>2. UNCHANGED << deps, objectState >>
-                BY <2>2 DEF RequestTasksStopping
-            <4>. QED
-                BY <4>1, <4>2, Zenon DEF CompletedObject, Predecessor
-        <3>3. CASE t \notin T
-            <4>1. t \in stoppingRequested
-                BY <2>2, <3>3 DEF RequestTasksStopping
-            <4>2. Predecessor(deps, t) \subseteq CompletedObject
-                BY <3>1, <4>1, Zenon DEF StopIntegrity
-            <4>3. UNCHANGED << deps, objectState >>
-                BY <2>2 DEF RequestTasksStopping
-            <4>. QED
-                BY <4>2, <4>3, Zenon DEF CompletedObject, Predecessor
-        <3>. QED
-            BY <3>2, <3>3
-    <2>3. ASSUME NEW O \in SUBSET Object, CompleteObjects(O)
-          PROVE (Predecessor(deps, t) \subseteq CompletedObject)'
-        <3>1. t \in RegisteredTask \intersect stoppingRequested
-            BY <2>3 DEF CompleteObjects, RegisteredTask
-        <3>. QED
-            BY <2>3, <3>1 DEF CompletedObject, CompleteObjects, StopIntegrity, TypeOk
-    <2>4. ASSUME NEW O \in SUBSET Object, AbortObjects(O)
-          PROVE (Predecessor(deps, t) \subseteq CompletedObject)'
-        <3>1. t \in RegisteredTask \intersect stoppingRequested
-            BY <2>4 DEF AbortObjects, RegisteredTask
-        <3>. QED
-            BY <2>4, <3>1
-            DEF AbortObjects, StopIntegrity, CompletedObject, RegisteredObject, TypeOk
-    <2>5. ASSUME \/ \E O \in SUBSET Object : TargetObjects(O) \/ UntargetObjects(O)
-                 \/ \E T \in SUBSET Task :
-                       \/ StageTasks(T) \/ DiscardTasks(T)
-                       \/ \E U \in SUBSET Task : SetTaskRetries(T, U)
-                       \/ AssignTasks(T) \/ ReleaseTasks(T) \/ ProcessTasks(T)
-                       \/ CompleteTasks(T) \/ AbortTasks(T) \/ RetryTasks(T)
-                       \/ StopTasks(T) \/ RequestTasksPausing(T)
-                       \/ PauseTasks(T) \/ ResumeTasks(T)
-                 \/ Terminating
-                 \/ UNCHANGED vars
-          PROVE (Predecessor(deps, t) \subseteq CompletedObject)'
-        <3>1. /\ UNCHANGED << deps, objectState >>
-              /\ stoppingRequested' = stoppingRequested
-              /\ (t \in RegisteredTask)' => t \in RegisteredTask
-            BY <2>5, Zenon DEF TargetObjects, UntargetObjects, StageTasks,
-            DiscardTasks, SetTaskRetries, AssignTasks, ReleaseTasks,
-            ProcessTasks, CompleteTasks, AbortTasks, RetryTasks, StopTasks,
-            RequestTasksPausing, PauseTasks, ResumeTasks, Terminating, vars,
-            RegisteredTask
-        <3>. QED
-            BY <3>1 DEF CompletedObject, Predecessor, RegisteredTask, StopIntegrity
-    <2>. QED
-        BY <2>1, <2>2, <2>3, <2>4, <2>5, Zenon DEF Next
-<1>. QED
-    BY <1>1, <1>2, LemTaskStateIntegrity, LemTypeOk, PTL
-
 (* The conjunction of the task-level safety invariants, packaged for the      *)
 (* fairness proofs.                                                           *)
 TaskSafetyInv ==
     /\ TypeOk
     /\ TaskStateIntegrity
-    /\ StopIntegrity
 
 LEMMA LemTaskSafetyInv == Init /\ [][Next]_vars => []TaskSafetyInv
-BY LemStopIntegrity, LemTaskStateIntegrity, LemTypeOk, PTL DEF TaskSafetyInv
+BY LemTaskStateIntegrity, LemTypeOk, PTL DEF TaskSafetyInv
 
 (* GraphStateIntegrity, lifted from GraphProcessing2: a parked (paused or     *)
 (* stopped) task is Bar-STAGED, and GP2's GSI_TaskPreds guarantees every      *)
@@ -2661,46 +2513,25 @@ LEMMA LemFairTP3PauseTasks ==
     <2>. QED
         BY <1>2, <2>3, PTL
 
-(* WF(TP3!StopTasks): TaskProcessing3 can stop a REGISTERED task directly;    *)
-(* GraphProcessing3 acknowledges only staged/paused stops. The gap is closed  *)
-(* by the stop-request guard: a pending request on a registered task          *)
-(* certifies completed inputs (StopIntegrity), so WF(StageTasks) stages the   *)
-(* task, after which WF(StopTasks) acknowledges -- and once the task leaves   *)
-(* REGISTERED/STAGED/PAUSED the abstract action is disabled anyway.           *)
+(* WF(TP3!StopTasks): with stop acknowledgment restricted to STAGED/PAUSED  *)
+(* tasks on both sides, the actions coincide under the identity mapping and  *)
+(* the fairness transfers directly, exactly like PauseTasks.                 *)
 LEMMA LemFairTP3StopTasks ==
     ASSUME NEW t \in Task
-    PROVE  /\ []TypeOk /\ []StopIntegrity /\ [][Next]_vars
-           /\ WF_vars(StopTasks({t}))
-           /\ WF_vars(StageTasks({t}))
+    PROVE  /\ []TypeOk /\ WF_vars(StopTasks({t}))
            => WF_(TP3!vars)(TP3!StopTasks({t}))
-<1>. SUFFICES /\ []TypeOk /\ []StopIntegrity /\ [][Next]_vars
-              /\ WF_vars(StopTasks({t}))
-              /\ WF_vars(StageTasks({t}))
-              /\ <>[]ENABLED <<TP3!StopTasks({t})>>_(TP3!vars)
-              /\ <>[][~ TP3!StopTasks({t})]_(TP3!vars)
-              => FALSE
-    BY PTL
-<1>1.  TypeOk => (ENABLED <<TP3!StopTasks({t})>>_(TP3!vars)
-                  <=> /\ t \in stoppingRequested
-                      /\ ~ (t \in AssignedTask)
-                      /\ \/ t \in RegisteredTask \/ t \in StagedTask \/ t \in PausedTask)
+<1>1. TypeOk /\ ENABLED <<TP3!StopTasks({t})>>_(TP3!vars) => ENABLED <<StopTasks({t})>>_vars
     <2>. SUFFICES ASSUME TypeOk
-                  PROVE ENABLED <<TP3!StopTasks({t})>>_(TP3!vars)
-                        <=> /\ t \in stoppingRequested
-                            /\ ~ (t \in AssignedTask)
-                            /\ \/ t \in RegisteredTask \/ t \in StagedTask \/ t \in PausedTask
+                  PROVE ENABLED <<TP3!StopTasks({t})>>_(TP3!vars) => ENABLED <<StopTasks({t})>>_vars
         OBVIOUS
     <2>1. ENABLED <<TP3!StopTasks({t})>>_(TP3!vars)
-          => /\ t \in stoppingRequested
-             /\ ~ (t \in AssignedTask)
-             /\ \/ t \in RegisteredTask \/ t \in StagedTask \/ t \in PausedTask
+          => t \in stoppingRequested /\ (t \in StagedTask \/ t \in PausedTask)
         <3>. SUFFICES ASSUME NEW taskStatep, NEW nextAttemptOfp,
                              NEW stoppingRequestedp, NEW pausingRequestedp,
                              {t} \subseteq stoppingRequested,
                              {t} \intersect TP3!AssignedTask = {},
                              taskStatep =
-                                 [s \in Task |-> IF s \in {t} /\ (\/ s \in TP3!RegisteredTask
-                                                                  \/ s \in TP3!StagedTask
+                                 [s \in Task |-> IF s \in {t} /\ (\/ s \in TP3!StagedTask
                                                                   \/ s \in TP3!PausedTask)
                                                      THEN TASK_STOPPED
                                                      ELSE taskState[s]],
@@ -2711,113 +2542,20 @@ LEMMA LemFairTP3StopTasks ==
                                 /\ nextAttemptOfp = nextAttemptOf
                                 /\ stoppingRequestedp = stoppingRequested
                                 /\ pausingRequestedp = pausingRequested)
-                      PROVE  /\ t \in stoppingRequested
-                             /\ ~ (t \in AssignedTask)
-                             /\ \/ t \in RegisteredTask \/ t \in StagedTask \/ t \in PausedTask
+                      PROVE  t \in stoppingRequested /\ (t \in StagedTask \/ t \in PausedTask)
             BY ExpandENABLED, Zenon DEF TP3!StopTasks, TP3!vars
-        <3>1. t \in stoppingRequested /\ ~ (t \in AssignedTask)
-            BY TP3BarStates, Zenon DEF AssignedTask, TP3!AssignedTask
-        <3>2. \/ t \in RegisteredTask \/ t \in StagedTask \/ t \in PausedTask
-            <4>. SUFFICES ASSUME ~ (\/ t \in RegisteredTask \/ t \in StagedTask \/ t \in PausedTask)
+        <3>1. t \in stoppingRequested
+            BY Zenon
+        <3>2. t \in StagedTask \/ t \in PausedTask
+            <4>. SUFFICES ASSUME ~ (t \in StagedTask \/ t \in PausedTask)
                           PROVE FALSE
-                BY Zenon
+                BY TP3BarStates, Zenon
             <4>1. taskStatep = taskState
                 <5>. SUFFICES ASSUME NEW s \in Task
                               PROVE taskStatep[s] = taskState[s]
                     BY Zenon DEF TypeOk
                 <5>. QED
                     BY TP3BarStates, Zenon
-            <4>. QED
-                BY <4>1, Zenon
-        <3>. QED
-            BY <3>1, <3>2
-    <2>2. /\ t \in stoppingRequested
-          /\ ~ (t \in AssignedTask)
-          /\ \/ t \in RegisteredTask \/ t \in StagedTask \/ t \in PausedTask
-          => ENABLED <<TP3!StopTasks({t})>>_(TP3!vars)
-        <3>. SUFFICES ASSUME t \in stoppingRequested,
-                             ~ (t \in AssignedTask),
-                             \/ t \in RegisteredTask \/ t \in StagedTask \/ t \in PausedTask
-                      PROVE  \E taskStatep, nextAttemptOfp,
-                                stoppingRequestedp, pausingRequestedp :
-                                /\ {t} # {}
-                                /\ {t} \subseteq stoppingRequested
-                                /\ {t} \intersect TP3!AssignedTask = {}
-                                /\ taskStatep =
-                                    [s \in Task |-> IF s \in {t} /\ (\/ s \in TP3!RegisteredTask
-                                                                     \/ s \in TP3!StagedTask
-                                                                     \/ s \in TP3!PausedTask)
-                                                        THEN TASK_STOPPED
-                                                        ELSE taskState[s]]
-                                /\ nextAttemptOfp = nextAttemptOf
-                                /\ stoppingRequestedp = stoppingRequested
-                                /\ pausingRequestedp = pausingRequested
-                                /\ ~ (/\ taskStatep = taskState
-                                      /\ nextAttemptOfp = nextAttemptOf
-                                      /\ stoppingRequestedp = stoppingRequested
-                                      /\ pausingRequestedp = pausingRequested)
-            BY ExpandENABLED, Zenon DEF TP3!StopTasks, TP3!vars
-        <3>. DEFINE TU == [s \in Task |-> IF s \in {t} /\ (\/ s \in TP3!RegisteredTask
-                                                           \/ s \in TP3!StagedTask
-                                                           \/ s \in TP3!PausedTask)
-                                              THEN TASK_STOPPED
-                                              ELSE taskState[s]]
-        <3>1. TU[t] = TASK_STOPPED /\ taskState[t] /= TASK_STOPPED
-            BY TP3BarStates, Zenon
-            DEF RegisteredTask, StagedTask, PausedTask,
-            TP3!RegisteredTask, TP3!StagedTask, TP3!PausedTask
-        <3>2. TU /= taskState
-            BY <3>1, Zenon
-        <3>3. WITNESS TU, nextAttemptOf, stoppingRequested, pausingRequested
-        <3>. QED
-            BY <3>2, TP3BarStates, Zenon DEF AssignedTask, TP3!AssignedTask
-    <2>. QED
-        BY <2>1, <2>2
-<1>2.  TypeOk => (ENABLED <<StopTasks({t})>>_vars
-                  <=> t \in stoppingRequested /\ (t \in StagedTask \/ t \in PausedTask))
-    <2>. SUFFICES ASSUME TypeOk
-                  PROVE ENABLED <<StopTasks({t})>>_vars
-                        <=> t \in stoppingRequested /\ (t \in StagedTask \/ t \in PausedTask)
-        OBVIOUS
-    <2>1. ENABLED <<StopTasks({t})>>_vars
-          => t \in stoppingRequested /\ (t \in StagedTask \/ t \in PausedTask)
-        <3>. SUFFICES ASSUME NEW depsp, NEW objectStatep, NEW objectTargetsp,
-                             NEW taskStatep, NEW nextAttemptOfp,
-                             NEW stoppingRequestedp, NEW pausingRequestedp,
-                             {t} \subseteq stoppingRequested,
-                             {t} \intersect AssignedTask = {},
-                             taskStatep =
-                                 [s \in Task |-> IF s \in {t} /\ (\/ s \in StagedTask
-                                                                  \/ s \in PausedTask)
-                                                     THEN TASK_STOPPED
-                                                     ELSE taskState[s]],
-                             nextAttemptOfp = nextAttemptOf,
-                             depsp = deps,
-                             objectStatep = objectState,
-                             objectTargetsp = objectTargets,
-                             stoppingRequestedp = stoppingRequested,
-                             pausingRequestedp = pausingRequested,
-                             ~ (/\ depsp = deps
-                                /\ objectStatep = objectState
-                                /\ objectTargetsp = objectTargets
-                                /\ taskStatep = taskState
-                                /\ nextAttemptOfp = nextAttemptOf
-                                /\ stoppingRequestedp = stoppingRequested
-                                /\ pausingRequestedp = pausingRequested)
-                      PROVE  t \in stoppingRequested /\ (t \in StagedTask \/ t \in PausedTask)
-            BY ExpandENABLED, Zenon DEF StopTasks, vars
-        <3>1. t \in stoppingRequested
-            BY Zenon
-        <3>2. t \in StagedTask \/ t \in PausedTask
-            <4>. SUFFICES ASSUME ~ (t \in StagedTask \/ t \in PausedTask)
-                          PROVE FALSE
-                BY Zenon
-            <4>1. taskStatep = taskState
-                <5>. SUFFICES ASSUME NEW s \in Task
-                              PROVE taskStatep[s] = taskState[s]
-                    BY Zenon DEF TypeOk
-                <5>. QED
-                    BY Zenon
             <4>. QED
                 BY <4>1, Zenon
         <3>. QED
@@ -2849,119 +2587,40 @@ LEMMA LemFairTP3StopTasks ==
                                       /\ nextAttemptOfp = nextAttemptOf
                                       /\ stoppingRequestedp = stoppingRequested
                                       /\ pausingRequestedp = pausingRequested)
-            BY ExpandENABLED, Zenon DEF AssignedTask, PausedTask, StagedTask, StopTasks, vars
+            BY ExpandENABLED, Zenon DEF StopTasks, vars
         <3>. DEFINE TU == [s \in Task |-> IF s \in {t} /\ (\/ s \in StagedTask
                                                            \/ s \in PausedTask)
                                               THEN TASK_STOPPED
                                               ELSE taskState[s]]
         <3>1. TU[t] = TASK_STOPPED /\ taskState[t] /= TASK_STOPPED
-            BY Zenon DEF PausedTask, StagedTask
+            BY Zenon DEF StagedTask, PausedTask
         <3>2. TU /= taskState
             BY <3>1, Zenon
-        <3>3. WITNESS deps, objectState, objectTargets, TU,
+        <3>3. {t} \intersect AssignedTask = {}
+            BY Zenon DEF AssignedTask, StagedTask, PausedTask
+        <3>4. WITNESS deps, objectState, objectTargets, TU,
                       nextAttemptOf, stoppingRequested, pausingRequested
         <3>. QED
-            BY <3>2, Zenon DEF AssignedTask, PausedTask, StagedTask
+            BY <3>2, <3>3, Zenon
     <2>. QED
-        BY <2>1, <2>2
-<1>3.  ENABLED <<StageTasks({t})>>_vars
-       <=> /\ t \in RegisteredTask
-           /\ UNION {Predecessor(deps, s) : s \in {t}} \subseteq CompletedObject
-    <2>1. StageTasks({t}) => taskState' /= taskState
-        BY DEF RegisteredTask, StageTasks
-    <2>2. <<StageTasks({t})>>_vars <=> StageTasks({t})
-        BY <2>1 DEF vars
-    <2>3. ENABLED <<StageTasks({t})>>_vars <=> ENABLED StageTasks({t})
-        BY <2>2, ENABLEDaxioms
-    <2>4. ENABLED StageTasks({t})
-          <=> /\ t \in RegisteredTask
-              /\ UNION {Predecessor(deps, s) : s \in {t}} \subseteq CompletedObject
-        BY ExpandENABLED, Zenon DEF StageTasks
-    <2>. QED
-        BY <2>3, <2>4
-<1>4.  (t \in StagedTask \/ t \in PausedTask) /\ <<StopTasks({t})>>_vars
-       => <<TP3!StopTasks({t})>>_(TP3!vars)
-    <2>. SUFFICES ASSUME t \in StagedTask \/ t \in PausedTask, StopTasks({t})
+        BY <2>1, <2>2, TP3BarStates, Zenon
+<1>2. <<StopTasks({t})>>_vars => <<TP3!StopTasks({t})>>_(TP3!vars)
+    <2>. SUFFICES ASSUME StopTasks({t}), vars' /= vars
                   PROVE  TP3!StopTasks({t}) /\ TP3!vars' /= TP3!vars
         BY DEF vars
-    <2>1. taskState' = [s \in Task |-> IF s \in {t} /\ (\/ s \in TP3!RegisteredTask
-                                                        \/ s \in TP3!StagedTask
-                                                        \/ s \in TP3!PausedTask)
-                            THEN TASK_STOPPED
-                            ELSE taskState[s]]
-        <3>. SUFFICES ASSUME NEW u \in Task
-                      PROVE (IF u \in {t} /\ (\/ u \in StagedTask
-                                              \/ u \in PausedTask)
-                                 THEN TASK_STOPPED
-                                 ELSE taskState[u])
-                            = (IF u \in {t} /\ (\/ u \in TP3!RegisteredTask
-                                                \/ u \in TP3!StagedTask
-                                                \/ u \in TP3!PausedTask)
-                                   THEN TASK_STOPPED
-                                   ELSE taskState[u])
-            BY Zenon DEF StopTasks
-        <3>. QED
-            BY TP3BarStates, Zenon
-            DEF RegisteredTask, StagedTask, PausedTask,
-            TP3!RegisteredTask, TP3!StagedTask, TP3!PausedTask
-    <2>2. TP3!StopTasks({t})
-        BY <2>1, TP3BarStates, Zenon DEF StopTasks, TP3!StopTasks
-    <2>3. taskState' /= taskState
-        BY Zenon DEF PausedTask, StagedTask, StopTasks
+    <2>1. TP3!StopTasks({t})
+        BY TP3BarStates, Zenon DEF StopTasks, TP3!StopTasks
+    <2>2. TP3!vars' /= TP3!vars
+        BY Zenon DEF StopTasks, TP3!vars, vars
     <2>. QED
-        BY <2>2, <2>3, Zenon DEF TP3!vars
-<1>5. <<StageTasks({t})>>_vars => (t \in StagedTask)'
-    BY Zenon DEF StagedTask, StageTasks, vars
-<1>6. t \in stoppingRequested /\ [Next]_vars => (t \in stoppingRequested)'
-    BY DEF Next, vars, RegisterGraph, TargetObjects, UntargetObjects,
-    CompleteObjects, AbortObjects, StageTasks, DiscardTasks, SetTaskRetries,
-    AssignTasks, ReleaseTasks, ProcessTasks, CompleteTasks, AbortTasks,
-    RetryTasks, RequestTasksStopping, StopTasks, RequestTasksPausing,
-    PauseTasks, ResumeTasks, Terminating, UnknownTask
-<1>7.   (t \in StagedTask \/ t \in PausedTask) /\ [Next]_vars
-        => ~ ((t \in RegisteredTask)')
-    BY DEF Next, vars, RegisterGraph, TargetObjects, UntargetObjects,
-    CompleteObjects, AbortObjects, StageTasks, DiscardTasks, SetTaskRetries,
-    AssignTasks, ReleaseTasks, ProcessTasks, CompleteTasks, AbortTasks,
-    RetryTasks, RequestTasksStopping, StopTasks, RequestTasksPausing,
-    PauseTasks, ResumeTasks, Terminating, UnknownTask, RegisteredTask,
-    StagedTask, PausedTask, AssignedTask, SucceededTask, FailedTask,
-    DiscardedTask, StoppedTask
-<1>8.   StopIntegrity
-        => (t \in RegisteredTask /\ t \in stoppingRequested
-            => UNION {Predecessor(deps, s) : s \in {t}} \subseteq CompletedObject)
-    BY Zenon DEF StopIntegrity
-<1>9.  /\ t \in StagedTask => ~ (t \in RegisteredTask) /\ ~ (t \in AssignedTask)
-       /\ t \in PausedTask => ~ (t \in RegisteredTask) /\ ~ (t \in AssignedTask)
-       /\ t \in RegisteredTask => ~ (t \in AssignedTask)
-    BY Zenon DEF AssignedTask, PausedTask, RegisteredTask, StagedTask
-\* --- the contradiction ladder ---
-<1>10. /\ []TypeOk /\ <>[]ENABLED <<TP3!StopTasks({t})>>_(TP3!vars)
-       => <>[](/\ t \in stoppingRequested
-               /\ ~ (t \in AssignedTask)
-               /\ \/ t \in RegisteredTask \/ t \in StagedTask \/ t \in PausedTask)
-    BY <1>1, PTL
-<1>11. /\ []TypeOk /\ [][Next]_vars
-       /\ WF_vars(StopTasks({t}))
-       /\ <>[][~ TP3!StopTasks({t})]_(TP3!vars)
-       /\ <>[](\/ t \in RegisteredTask \/ t \in StagedTask \/ t \in PausedTask)
-       /\ <>[](t \in stoppingRequested)
-       => <>[](~ (t \in StagedTask) /\ ~ (t \in PausedTask))
-    BY <1>2, <1>4, <1>7, <1>9, PTL
-<1>12. /\ []StopIntegrity /\ [][Next]_vars
-       /\ WF_vars(StageTasks({t}))
-       /\ <>[](t \in RegisteredTask)
-       /\ <>[](t \in stoppingRequested)
-       => FALSE
-    BY <1>3, <1>5, <1>8, <1>9, PTL
+        BY <2>1, <2>2
 <1>. QED
-    BY <1>6, <1>9, <1>10, <1>11, <1>12, PTL
+    <2>3. [](TypeOk /\ ENABLED <<TP3!StopTasks({t})>>_(TP3!vars)
+             => ENABLED <<StopTasks({t})>>_vars)
+        BY <1>1, PTL
+    <2>. QED
+        BY <1>2, <2>3, PTL
 
-(* WF(TP3!CompleteTasks): lifted from TaskProcessing2's fairness under the    *)
-(* Bar (GraphProcessing2 completes a succeeded task once its outputs retain   *)
-(* producers -- the GP1 finalization engine). A Bar step completing exactly t *)
-(* is, by the step relation, a concrete CompleteTasks({t}) step: COMPLETED is *)
-(* written by no other action and the singleton is forced by the Bar frame.   *)
 LEMMA LemFairTP3CompleteTasks ==
     ASSUME NEW t \in Task
     PROVE  /\ []TypeOk /\ [][Next]_vars
@@ -3865,8 +3524,6 @@ THEOREM GP3_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
     BY DEF RefineTaskProcessing3
 <1>1. []TypeOk
     BY LemTypeOk DEF Spec
-<1>2. []StopIntegrity
-    BY LemStopIntegrity DEF Spec
 <1>3. TP3!Init /\ [][TP3!Next]_(TP3!vars)
     BY LemRefineTP3InitNext DEF Spec
 <1>4. [][Next]_vars
@@ -3886,8 +3543,6 @@ THEOREM GP3_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
     BY <1>5, Isa DEF GP2!TP2!Fairness, GP2!TP2!Spec
 \* --- GraphProcessing3's own fairness conjuncts, extracted per action ---
 <1>11. \A s \in Task : WF_vars(\E u \in Task : SetTaskRetries({s}, {u}))
-    BY Isa DEF Fairness, Spec
-<1>12. \A s \in Task : WF_vars(StageTasks({s}))
     BY Isa DEF Fairness, Spec
 <1>13. \A s \in Task : SF_vars(ProcessTasks({s}))
     BY Isa DEF Fairness, Spec
@@ -4040,17 +3695,16 @@ THEOREM GP3_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
     <2>. DEFINE H(x) == WF_(TP3!vars)(TP3!StopTasks({x}))
     <2>1. ASSUME NEW s \in Task
           PROVE  H(s)
-        <3>. DEFINE W1(x) == WF_vars(StopTasks({x}))
-                    W2(x) == WF_vars(StageTasks({x}))
-        <3>. HIDE DEF W1, W2
-        <3>1. (\A x \in Task : W1(x)) /\ (\A x \in Task : W2(x))
-            BY <1>12, <1>14 DEF W1, W2
-        <3>2. W1(s) /\ W2(s)
+        <3>. DEFINE W(x) == WF_vars(StopTasks({x}))
+        <3>. HIDE DEF W
+        <3>1. \A x \in Task : W(x)
+            BY <1>14 DEF W
+        <3>2. W(s)
             BY <3>1, Zenon
-        <3>3. WF_vars(StopTasks({s})) /\ WF_vars(StageTasks({s}))
-            BY <3>2 DEF W1, W2
+        <3>3. WF_vars(StopTasks({s}))
+            BY <3>2 DEF W
         <3>. QED
-            BY <1>1, <1>2, <1>4, <3>3, LemFairTP3StopTasks DEF H
+            BY <1>1, <3>3, LemFairTP3StopTasks DEF H
     <2>2. \A x \in Task : H(x)
         <3>. HIDE DEF H
         <3>. QED

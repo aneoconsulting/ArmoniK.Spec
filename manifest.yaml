@@ -46,7 +46,7 @@ modules:
           workers: auto
         checks:
           success: true
-          total_states: 18842
+          total_states: 19282
           distinct_states: 1793
           state_depth: 14
 
@@ -60,8 +60,8 @@ modules:
           workers: auto
         checks:
           success: true
-          total_states: 25106
-          distinct_states: 2697
+          total_states: 26265
+          distinct_states: 2784
           state_depth: 15
 
   - path: specs/ObjectProcessing1.tla

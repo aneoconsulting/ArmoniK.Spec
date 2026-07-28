@@ -180,27 +180,13 @@ TaskStateIntegrity ==
     /\ PausedTask \subseteq pausingRequested
     /\ UnknownTask \intersect pausingRequested = {}
 
-(* The stop-request guard invariant: a stop request pending on a still-       *)
-(* REGISTERED task certifies completed inputs, so the task is bound to stage  *)
-(* (WF(StageTasks)) and the request is bound to be acknowledged there. The    *)
-(* guard of RequestTasksStopping establishes it; it is preserved because a    *)
-(* registered task's predecessor set is frozen (RegisterGraph attaches edges  *)
-(* only among its own -- unknown -- task nodes) and completed objects stay    *)
-(* completed.                                                                 *)
-StopIntegrity ==
-    \A t \in RegisteredTask \intersect stoppingRequested :
-        Predecessor(deps, t) \subseteq CompletedObject
-
 LEMMA LemTaskStateIntegrity == Init /\ [][Next]_vars => []TaskStateIntegrity
-
-LEMMA LemStopIntegrity == Init /\ [][Next]_vars => []StopIntegrity
 
 (* The conjunction of the task-level safety invariants, packaged for the      *)
 (* fairness proofs.                                                           *)
 TaskSafetyInv ==
     /\ TypeOk
     /\ TaskStateIntegrity
-    /\ StopIntegrity
 
 LEMMA LemTaskSafetyInv == Init /\ [][Next]_vars => []TaskSafetyInv
 
@@ -408,24 +394,14 @@ LEMMA LemFairTP3PauseTasks ==
     PROVE  /\ []TypeOk /\ WF_vars(PauseTasks({t}))
            => WF_(TP3!vars)(TP3!PauseTasks({t}))
 
-(* WF(TP3!StopTasks): TaskProcessing3 can stop a REGISTERED task directly;    *)
-(* GraphProcessing3 acknowledges only staged/paused stops. The gap is closed  *)
-(* by the stop-request guard: a pending request on a registered task          *)
-(* certifies completed inputs (StopIntegrity), so WF(StageTasks) stages the   *)
-(* task, after which WF(StopTasks) acknowledges -- and once the task leaves   *)
-(* REGISTERED/STAGED/PAUSED the abstract action is disabled anyway.           *)
+(* WF(TP3!StopTasks): with stop acknowledgment restricted to STAGED/PAUSED  *)
+(* tasks on both sides, the actions coincide under the identity mapping and  *)
+(* the fairness transfers directly, exactly like PauseTasks.                 *)
 LEMMA LemFairTP3StopTasks ==
     ASSUME NEW t \in Task
-    PROVE  /\ []TypeOk /\ []StopIntegrity /\ [][Next]_vars
-           /\ WF_vars(StopTasks({t}))
-           /\ WF_vars(StageTasks({t}))
+    PROVE  /\ []TypeOk /\ WF_vars(StopTasks({t}))
            => WF_(TP3!vars)(TP3!StopTasks({t}))
 
-(* WF(TP3!CompleteTasks): lifted from TaskProcessing2's fairness under the    *)
-(* Bar (GraphProcessing2 completes a succeeded task once its outputs retain   *)
-(* producers -- the GP1 finalization engine). A Bar step completing exactly t *)
-(* is, by the step relation, a concrete CompleteTasks({t}) step: COMPLETED is *)
-(* written by no other action and the singleton is forced by the Bar frame.   *)
 LEMMA LemFairTP3CompleteTasks ==
     ASSUME NEW t \in Task
     PROVE  /\ []TypeOk /\ [][Next]_vars

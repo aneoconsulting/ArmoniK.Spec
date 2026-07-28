@@ -566,15 +566,13 @@ THEOREM TP4_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
         <3>0. TaskSafetyInv /\ ENABLED <<TP3!StopTasks({t})>>_TP3!vars
               => /\ t \in stoppingRequested
                  /\ t \notin AssignedTask
-                 /\ \/ t \in RegisteredTask
-                    \/ t \in StagedTask
+                 /\ \/ t \in StagedTask
                     \/ t \in PausedTask
             <4>. SUFFICES ASSUME TaskSafetyInv,
                                  ENABLED <<TP3!StopTasks({t})>>_TP3!vars
                           PROVE  /\ t \in stoppingRequested
                                  /\ t \notin AssignedTask
-                                 /\ \/ t \in RegisteredTask
-                                    \/ t \in StagedTask
+                                 /\ \/ t \in StagedTask
                                     \/ t \in PausedTask
                 OBVIOUS
             <4>0. taskState = [r \in Task |-> taskState[r]]
@@ -585,8 +583,7 @@ THEOREM TP4_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
                     /\ TP3!StopTasks({t})!2
                     /\ TP3!StopTasks({t})!3
                     /\ taskStatep
-                       = [r \in Task |-> IF r \in {t} /\ (\/ r \in TP3!RegisteredTask
-                                                          \/ r \in TP3!StagedTask
+                       = [r \in Task |-> IF r \in {t} /\ (\/ r \in TP3!StagedTask
                                                           \/ r \in TP3!PausedTask)
                                               THEN TP3!TASK_STOPPED
                                               ELSE taskState[r]]
@@ -610,8 +607,7 @@ THEOREM TP4_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
                     BY <4>1
                 <5>. QED
                     BY <4>0, <4>3, <5>1
-            <4>5. \E r \in Task : r \in {t} /\ (\/ r \in TP3!RegisteredTask
-                                                \/ r \in TP3!StagedTask
+            <4>5. \E r \in Task : r \in {t} /\ (\/ r \in TP3!StagedTask
                                                 \/ r \in TP3!PausedTask)
                 BY <4>1, <4>4
             <4>. QED
@@ -622,8 +618,7 @@ THEOREM TP4_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
             <4>1. /\ P
                   /\ t \in stoppingRequested
                   /\ t \notin AssignedTask
-                  /\ \/ t \in RegisteredTask
-                     \/ t \in StagedTask
+                  /\ \/ t \in StagedTask
                      \/ t \in PausedTask
                   => ENABLED <<StopTasks({t})>>_vars
                 BY ExpandENABLED DEF StopTasks, vars,
