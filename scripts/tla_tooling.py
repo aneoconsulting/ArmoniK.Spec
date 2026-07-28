@@ -11,12 +11,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from tree_sitter import Language, Node, Parser
 
-_LANGUAGE = Language(tree_sitter_tlaplus.language())
+# Re-exported for the checks that read a module through this helper: the naming
+# convention itself lives in naming, which stays free of the tree-sitter dependency.
+from .naming import INTERFACE_SUFFIX, PROOF_SUFFIX  # noqa: F401
 
-# Naming convention: a spec <X>.tla declares its theorems in an interface
-# module <X>Theorems.tla, whose proofs live in <X>Theorems_proofs.tla.
-INTERFACE_SUFFIX = "Theorems"
-PROOF_SUFFIX = "_proofs"
+_LANGUAGE = Language(tree_sitter_tlaplus.language())
 
 # Banner marking the properties section at the end of a specification.
 _PROPERTIES_BANNER = "SAFETY AND LIVENESS PROPERTIES"
