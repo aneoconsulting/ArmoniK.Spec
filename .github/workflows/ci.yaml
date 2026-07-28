@@ -9,12 +9,20 @@ name: CI
 #   4. Interface consistency         theorem interfaces (*Theorems)
 #   5. tlapm --strict proof checking proof files (*_proofs)
 # The `pairing` job additionally enforces repo-wide that theorem interfaces
-# and proof files come in <X>Theorems.tla / <X>Theorems_proofs.tla pairs.
+# and proof files come in <X>Theorems.tla / <X>Theorems_proofs.tla pairs, and
+# the `commits` job that every commit the event introduces -- and, on a pull
+# request, its title -- follows the convention of .docs/conventions.md.
 
 on:
+  # `edited` too: a pull-request title is checked here, so a retitle must re-run.
   pull_request:
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
+
+# Every job only reads the repository.
+permissions:
+  contents: read
 
 jobs:
   discover:
@@ -29,9 +37,75 @@ jobs:
         name: List specs/*.tla modules
         run: |
           set -euo pipefail
-          specs=$(basename -s .tla specs/*.tla | grep -v '_TTrace_' | jq -R . | jq -sc .)
+          # A name that cannot be a TLA+ module never reaches a shell downstream.
+          specs=$(basename -s .tla specs/*.tla \
+            | grep -v '_TTrace_' | grep -xE '[A-Za-z][A-Za-z0-9_]*' | jq -R . | jq -sc .)
           echo "specs=$specs"
           echo "specs=$specs" >> "$GITHUB_OUTPUT"
+
+  commits:
+    name: Commit convention
+    runs-on: ubuntu-latest
+    steps:
+      # The whole history: the range to check spans commits the event pushed,
+      # which a shallow clone does not contain.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # Only the commits the event introduces -- the history predating the
+      # convention is never re-validated. A branch creation has no base, and a
+      # force-push leaves a base that is no longer in the repository: neither
+      # says which commits are new, so there is nothing to check.
+      - id: range
+        name: Resolve the range
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$BASE" == 0000000000000000000000000000000000000000 ]]; then
+            echo "branch creation: no range to check"
+            exit 0
+          fi
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "base $BASE is not in the repository (force-push?): no range to check"
+            exit 0
+          fi
+          # Anything else means the checkout did not bring what the event
+          # describes. Say so: a range that quietly checks nothing is worse than
+          # a red job.
+          if ! git cat-file -e "$HEAD^{commit}" 2>/dev/null; then
+            echo "::error::head $HEAD is not in the repository; the checkout is incomplete"
+            exit 1
+          fi
+          # From the merge base, so a stale base cannot drag foreign commits in.
+          if ! base=$(git merge-base "$BASE" "$HEAD"); then
+            echo "::error::no merge base between $BASE and $HEAD; refusing to check nothing"
+            exit 1
+          fi
+          echo "range=$base..$HEAD" >> "$GITHUB_OUTPUT"
+
+      - name: Check the commits
+        if: steps.range.outputs.range != ''
+        env:
+          RANGE: ${{ steps.range.outputs.range }}
+        run: python3 -m scripts.check_commit --range "$RANGE"
+
+      # Never masked by a failure above: a red title and a red commit are two
+      # separate things to fix, so this step checks the title alone. The title is
+      # untrusted input, hence passed through the environment, and as --title=...
+      # so that a leading dash is not read as an option. The range, when known,
+      # only widens the module vocabulary, so that the title may name a module the
+      # series removes.
+      - name: Check the pull-request title
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          RANGE: ${{ steps.range.outputs.range }}
+        run: |
+          set -euo pipefail
+          python3 -m scripts.check_commit ${RANGE:+--scopes-from "$RANGE"} --title="$TITLE"
 
   pairing:
     name: Interface / proof pairing
@@ -58,9 +132,11 @@ jobs:
 
       - id: plan
         name: Classify ${{ matrix.spec }}
+        env:
+          SPEC: ${{ matrix.spec }}
         run: |
           set -euo pipefail
-          spec='${{ matrix.spec }}'
+          spec="$SPEC"
           {
             [[ "$spec" =~ ^(Graph|Task|Object|Session)Processing[0-9]+$ ]] \
                                           && echo "coverage=true"  || echo "coverage=false"
@@ -101,14 +177,18 @@ jobs:
 
       - name: Parse (SANY)
         working-directory: specs
+        env:
+          SPEC: ${{ matrix.spec }}
         run: |
           java "-DTLA-Library=../.tlatools/CommunityModules/modules:../.tlatools/tlapm/lib/tlapm/stdlib" \
             -cp ../.tlatools/tla2tools.jar \
-            tla2sany.SANY -error-codes ${{ matrix.spec }}.tla
+            tla2sany.SANY -error-codes "$SPEC.tla"
 
       - name: Check property coverage
         if: steps.plan.outputs.coverage == 'true'
-        run: .venv/bin/python -m scripts.check_property_coverage specs/${{ matrix.spec }}.tla
+        env:
+          SPEC: ${{ matrix.spec }}
+        run: .venv/bin/python -m scripts.check_property_coverage "specs/$SPEC.tla"
 
       - name: Build Java overrides
         if: steps.plan.outputs.tlc == 'true'
@@ -117,28 +197,36 @@ jobs:
       - name: Model-check (TLC)
         if: steps.plan.outputs.tlc == 'true'
         working-directory: specs
+        env:
+          SPEC: ${{ matrix.spec }}
         run: |
           set -o pipefail
           java -XX:+UseParallelGC \
             "-DTLA-Library=../.tlatools/CommunityModules/modules:../.tlatools/tlapm/lib/tlapm/stdlib" \
             -cp ../.tlatools/tla2tools.jar:../.tlatools/CommunityModules-deps.jar:. \
-            tlc2.TLC -config ${{ matrix.spec }}.cfg ${{ matrix.spec }} \
-          | tee ${{ matrix.spec }}.tlc.out
+            tlc2.TLC -config "$SPEC.cfg" "$SPEC" \
+          | tee "$SPEC.tlc.out"
 
       - name: Check state-space statistics
         if: steps.plan.outputs.tlc == 'true'
+        env:
+          SPEC: ${{ matrix.spec }}
         run: |
           .venv/bin/python -m scripts.check_state_space \
-            specs/${{ matrix.spec }}.cfg specs/${{ matrix.spec }}.tlc.out
+            "specs/$SPEC.cfg" "specs/$SPEC.tlc.out"
 
       - name: Check interface consistency
         if: steps.plan.outputs.interface == 'true'
-        run: .venv/bin/python -m scripts.check_thm_interface specs/${{ matrix.spec }}.tla
+        env:
+          SPEC: ${{ matrix.spec }}
+        run: .venv/bin/python -m scripts.check_thm_interface "specs/$SPEC.tla"
 
       - name: Check proofs (tlapm --strict)
         if: steps.plan.outputs.proofs == 'true'
         working-directory: specs
+        env:
+          SPEC: ${{ matrix.spec }}
         run: |
           ../.tlatools/tlapm/bin/tlapm --strict \
             -I ../.tlatools/CommunityModules/modules \
-            ${{ matrix.spec }}.tla
+            "$SPEC.tla"
