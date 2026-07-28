@@ -27,23 +27,28 @@ TLAPM_OPTS := -I $(COMMUNITY_MODULES_SRC)
 JAVA_SRCS    := $(wildcard $(SPECS_DIR)/*.java)
 JAVA_CLASSES := $(JAVA_SRCS:.java=.class)
 
-.PHONY: help install update check python-env build-java clean clean-tools
+# Commits to check against the convention of .docs/conventions.md.
+RANGE ?= origin/main..HEAD
+
+.PHONY: help install update check check-commits python-env build-java clean clean-tools
 
 help:
 	@echo "targets:"
-	@echo "  install      Install the TLA+ toolchain into $(TOOLS_DIR)/ and the Python env into $(VENV)/"
-	@echo "  update       Refresh the toolchain (idempotent; respects pinned versions)"
-	@echo "  check        Verify the toolchain install is healthy (no downloads)"
-	@echo "  python-env   Create $(VENV)/ with the dependencies of the scripts/ checks"
-	@echo "  build-java   Compile $(SPECS_DIR)/*.java overrides next to the .tla files"
-	@echo "  clean        Remove TLC scratch state and compiled .class files"
-	@echo "  clean-tools  Remove $(TOOLS_DIR)/ and $(VENV)/ entirely"
+	@echo "  install        Install the TLA+ toolchain into $(TOOLS_DIR)/ and the Python env into $(VENV)/"
+	@echo "  update         Refresh the toolchain (idempotent; respects pinned versions)"
+	@echo "  check          Verify the toolchain install is healthy (no downloads)"
+	@echo "  check-commits  Check RANGE=$(RANGE) against the commit convention"
+	@echo "  python-env     Create $(VENV)/ with the dependencies of the scripts/ checks"
+	@echo "  build-java     Compile $(SPECS_DIR)/*.java overrides next to the .tla files"
+	@echo "  clean          Remove TLC scratch state and compiled .class files"
+	@echo "  clean-tools    Remove $(TOOLS_DIR)/ and $(VENV)/ entirely"
 	@echo
 	@echo "ad-hoc usage:"
 	@echo "  java \$$(JAVA_OPTS) -cp \$$(TLA_CP) tlc2.TLC -config $(SPECS_DIR)/<mod>.cfg <mod>"
 	@echo "  \$$(TLAPM) \$$(TLAPM_OPTS) $(SPECS_DIR)/<mod>Theorems_proofs.tla"
 	@echo "  \$$(PYTHON) -m scripts.check_property_coverage $(SPECS_DIR)/<mod>.tla"
 	@echo "  \$$(PYTHON) -m scripts.check_thm_interface $(SPECS_DIR)/<mod>Theorems.tla"
+	@echo "  make check-commits RANGE=<base>..<head>"
 
 install: python-env
 	./scripts/install-tools.sh
@@ -61,6 +66,10 @@ $(PY_STAMP): scripts/requirements.txt
 
 check:
 	./scripts/install-tools.sh --check
+
+# Standard library only, so it runs without `make install`.
+check-commits:
+	python3 -m scripts.check_commit --range $(RANGE)
 
 $(TOOLS_DIR)/tla2tools.jar $(TOOLS_DIR)/CommunityModules-deps.jar:
 	$(MAKE) install
