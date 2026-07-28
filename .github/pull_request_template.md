@@ -1,5 +1,10 @@
 <!--
-Title: use a Conventional Commit prefix -- feat: / fix: / refactor: / ci: / chore: / docs:
+Title: <type>[(<scope>)][!]: <verb> <what>, describing the outcome of the series,
+not listing its commits. With several kinds of change, take the type of highest
+precedence: spec > lib > proof > model > test > tooling > ci > docs > chore, and
+keep the scope only if every commit shares it. Commits and title are checked by
+the `Commit convention` job; the rules are in .docs/conventions.md.
+
 Fill the sections that apply and delete the others (a tooling PR needs no
 Verification table; a spec PR needs no "how to run it" note).
 -->
@@ -12,14 +17,18 @@ Verification table; a spec PR needs no "how to run it" note).
 
 ## Type
 
-What this PR is about -- check every kind of change it carries.
+What this PR is about -- check every kind of change it carries. Each kind is a
+separate commit; the box you check is the type of that commit.
 
-- [ ] Specification -- new or updated behaviour of a specification module
-- [ ] Theorems / proofs -- new or updated theorem statements, or the proofs that discharge them
-- [ ] Model -- new or updated finite instance to model-check a specification against
-- [ ] Library module -- new or updated general-purpose theory reused across specifications
-- [ ] Tooling -- new or updated automation to build, check and verify the project
-- [ ] Docs -- new or updated documentation of any aspect of the project
+- [ ] `spec` -- new or updated behaviour of a specification module
+- [ ] `lib` -- new or updated general-purpose theory reused across specifications, or its Java override
+- [ ] `proof` -- new or updated theorem statements, or the proofs that discharge them
+- [ ] `model` -- new or updated finite instance to model-check a specification against
+- [ ] `test` -- new or updated TLC assertions on the operators of a library module
+- [ ] `tooling` -- new or updated automation to build, check and verify the project
+- [ ] `ci` -- new or updated workflow
+- [ ] `docs` -- new or updated documentation of any aspect of the project
+- [ ] `chore` -- repository housekeeping
 
 ## Changes
 
@@ -47,10 +56,12 @@ What this PR is about -- check every kind of change it carries.
 
 <!-- One row per model run. CI only re-runs the minimal models, as a
      non-regression check against the `\* state-space: states=... distinct=...
-     depth=...` reference line of the model configuration: keep that line in sync
-     in the same commit, and say what made the state space change. Larger models,
-     run locally for deeper verification, are encouraged -- report them here as
-     well, they carry no reference line. -->
+     depth=...` reference line of the model configuration. That line travels with
+     the spec or lib commit that moved the state space -- it is the one thing a
+     spec commit may change in a .cfg -- and the commit body says what moved it.
+     Every other edit to a .cfg is a model commit. Larger models, run locally for
+     deeper verification, are encouraged -- report them here as well, they carry
+     no reference line. -->
 
 **Proof checking (TLAPS)**
 
@@ -69,7 +80,8 @@ What this PR is about -- check every kind of change it carries.
 
 ## Checklist
 
-- [ ] Conventional Commit title
+- [ ] One kind of change per commit
+- [ ] Commit and title conventions
 - [ ] Green CI
 - [ ] Property coverage
 - [ ] Interface / proof consistency
