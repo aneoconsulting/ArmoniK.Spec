@@ -62,11 +62,11 @@ lowercaseMapping == TRUE
 """
 
 
-def test_properties_only_candidates_suppress_other_candidates(tmp_path):
-    """Good is covered through Composite (a property references it); Mentioned is
-    not covered by the parameterized helper Uses, so it stays a property."""
+def test_properties_lists_every_parameterless_uppercase_operator(tmp_path):
+    """Every parameterless upper-case operator after the banner is a property --
+    references between them (Composite mentions Good) suppress nothing."""
     path = _module(tmp_path, "P", PROPERTIES_BODY)
-    assert tla.properties(path) == ["Composite", "Mentioned"]
+    assert tla.properties(path) == ["Good", "Composite", "Mentioned"]
 
 
 def test_properties_requires_the_banner(tmp_path):
