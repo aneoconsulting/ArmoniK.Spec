@@ -4,7 +4,7 @@ import pytest
 
 pytest.importorskip("tree_sitter_tlaplus")
 
-from scripts import tla_tooling as tla  # noqa: E402
+from scripts import tla_tooling as tla
 
 
 def _module(tmp_path, name, body):

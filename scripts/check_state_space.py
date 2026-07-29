@@ -15,13 +15,12 @@ the .cfg is printed, computed from the actual TLC output.
 import argparse
 import re
 import sys
-
 from pathlib import Path
 
 REFERENCE = re.compile(r"\\\* state-space: states=(\d+) distinct=(\d+) depth=(\d+)")
 # Only the final summary line starts with the count; Progress(..) lines repeat
 # the same text mid-line with thousands separators.
-GENERATED = re.compile(r"^([\d,]+) states generated, ([\d,]+) distinct states found", re.M)
+GENERATED = re.compile(r"^([\d,]+) states generated, ([\d,]+) distinct states found", re.MULTILINE)
 DEPTH = re.compile(r"depth of the complete state graph search is (\d+)")
 
 
@@ -44,8 +43,8 @@ def check_state_space(cfg: Path, log: Path) -> list[str]:
 
     match = REFERENCE.search(cfg.read_text())
     if match is None:
-        return [f"no reference state-space line; if the current state space is\n"
-                f"    correct, add this line to {cfg.name}:\n    {line}"]
+        return [(f"no reference state-space line; if the current state space is\n"
+                 f"    correct, add this line to {cfg.name}:\n    {line}")]
     reference = tuple(map(int, match.groups()))
     if reference != actual:
         return ["state space changed:\n"
