@@ -1,9 +1,14 @@
-"""check-pairing: theorem interfaces and proof files come in pairs.
+"""check-pairing: theorem interfaces, proof files and configurations come in sets.
 
 Checks the naming convention file-wise over every module of a directory:
 each interface <X>Theorems.tla must have a proof file <X>Theorems_proofs.tla
 and vice versa, with no orphan on either side. A *_proofs.tla module whose
 base name does not end in Theorems is a violation of the convention itself.
+A model instance <X>_mc.tla or test module <X>Tests.tla is only ever exercised
+by TLC through its same-stem .cfg, so that file must exist too -- without it,
+CI silently skips the module. (A plain specification's .cfg is optional -- some
+specs are model-checked through their _mc instance instead -- so its absence
+cannot be flagged here.)
 
 The declaration-level consistency of each pair is enforced separately by
 check_thm_interface.
@@ -14,12 +19,13 @@ import sys
 
 from pathlib import Path
 
-from .naming import INTERFACE_SUFFIX, PROOF_SUFFIX
+from .naming import INTERFACE_SUFFIX, MC_SUFFIX, PROOF_SUFFIX, TESTS_SUFFIX
 
 
 def check_pairing(specs_dir: Path) -> list[str]:
-    """Return every interface/proof pairing violation among `specs_dir`'s modules."""
+    """Return every interface/proof/config pairing violation among `specs_dir`'s modules."""
     stems = {path.stem for path in specs_dir.glob("*.tla")}
+    cfgs = {path.stem for path in specs_dir.glob("*.cfg")}
     errors: list[str] = []
     for stem in sorted(stems):
         if stem.endswith(PROOF_SUFFIX):
@@ -36,6 +42,8 @@ def check_pairing(specs_dir: Path) -> list[str]:
                 errors.append(
                     f"{stem}.tla: orphan interface ({stem}{PROOF_SUFFIX}.tla does not exist)"
                 )
+        if (stem.endswith(MC_SUFFIX) or stem.endswith(TESTS_SUFFIX)) and stem not in cfgs:
+            errors.append(f"{stem}.tla: missing {stem}.cfg (TLC has nothing to run)")
     return errors
 
 
