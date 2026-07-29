@@ -11,12 +11,17 @@ the *kind* of change it carries -- which is the commit type, see
 scope.
 
 Standard library only, so that the commit-convention check runs without the
-tree-sitter dependencies of tla_tooling.
+tree-sitter dependencies of tla_tooling. For the same reason CI classifies a
+module through `python3 -m scripts.naming <module>`, which prints the checks
+the module is entitled to as `key=value` lines, rather than restating this
+vocabulary in shell.
 """
 
 from __future__ import annotations
 
+import argparse
 import re
+import sys
 
 from pathlib import Path
 
@@ -106,3 +111,29 @@ def scopes_of(paths) -> set[str]:
 def scopes(specs_dir: Path) -> set[str]:
     """Every scope the modules of `specs_dir` define, as the working tree has them."""
     return scopes_of(specs_dir.glob("*.tla"))
+
+
+def main() -> int:
+    """Print the checks a module is entitled to, as CI reads them."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("module", help="module name, e.g. TaskProcessing1 or DDGraphsTests")
+    parser.add_argument(
+        "--specs", type=Path, default=Path(SPECS_DIR), help="directory containing the .tla modules"
+    )
+    args = parser.parse_args()
+    if not (args.specs / f"{args.module}.tla").is_file():
+        parser.error(f"{args.specs}/{args.module}.tla: no such module")
+
+    flags = {
+        "coverage": SPEC_MODULE.match(args.module) is not None,
+        "tlc": (args.specs / f"{args.module}.cfg").is_file(),
+        "interface": args.module.endswith(INTERFACE_SUFFIX),
+        "proofs": args.module.endswith(PROOF_SUFFIX),
+    }
+    for key, value in flags.items():
+        print(f"{key}={'true' if value else 'false'}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
