@@ -17,6 +17,9 @@ from .naming import INTERFACE_SUFFIX, PROOF_SUFFIX  # noqa: F401
 
 _LANGUAGE = Language(tree_sitter_tlaplus.language())
 
+_COMMENT_TYPES = ("block_comment", "comment")
+_PROOF_TYPES = ("terminal_proof", "non_terminal_proof")
+
 # Banner marking the properties section at the end of a specification.
 _PROPERTIES_BANNER = "SAFETY AND LIVENESS PROPERTIES"
 # A line of 3+ dashes separates the shared comment (above) from proof notes (below).
@@ -36,6 +39,18 @@ def _text(src: bytes, node) -> str:
     return src[node.start_byte : node.end_byte].decode("utf8")
 
 
+def _walk(node, prune=lambda n: False):
+    """Pre-order traversal of `node` and its descendants, in source order.
+
+    A node satisfying `prune` is yielded but not descended into."""
+    stack = [node]
+    while stack:
+        n = stack.pop()
+        yield n
+        if not prune(n):
+            stack.extend(reversed(n.children))
+
+
 def parse(path: Path) -> tuple[bytes, Node]:
     """Return (source bytes, module node) for a .tla file.
 
@@ -45,7 +60,8 @@ def parse(path: Path) -> tuple[bytes, Node]:
     src = Path(path).read_bytes()
     root = Parser(_LANGUAGE).parse(src).root_node
     if root.has_error:
-        raise ValueError(f"{path}: parse error")
+        bad = next((n for n in _walk(root) if n.is_error or n.is_missing), root)
+        raise ValueError(f"{path}: parse error at line {bad.start_point[0] + 1}")
     for child in root.children:
         if child.type == "module":
             return src, child
@@ -54,16 +70,7 @@ def parse(path: Path) -> tuple[bytes, Node]:
 
 def _comment_body(src: bytes, node) -> str:
     """Concatenate the text of every block_comment_text under a block_comment node."""
-    parts: list[str] = []
-
-    def walk(n):
-        if n.type == "block_comment_text":
-            parts.append(_text(src, n))
-        for c in n.children:
-            walk(c)
-
-    walk(node)
-    return "\n".join(parts)
+    return "\n".join(_text(src, n) for n in _walk(node) if n.type == "block_comment_text")
 
 
 def _shared_comment(body: str) -> str:
@@ -86,16 +93,11 @@ def _statement_text(src: bytes, node) -> str:
     In an interface (no proof after a theorem), tree-sitter attaches the following
     theorem's comment to this statement node, so comments must be stripped; `\\*`
     line comments inside a statement are likewise not part of the assertion."""
-    comments: list[tuple[int, int]] = []
-
-    def walk(n):
-        if n.type in ("block_comment", "comment"):
-            comments.append((n.start_byte, n.end_byte))
-            return
-        for c in n.children:
-            walk(c)
-
-    walk(node)
+    comments = [
+        (n.start_byte, n.end_byte)
+        for n in _walk(node, prune=lambda n: n.type in _COMMENT_TYPES)
+        if n.type in _COMMENT_TYPES
+    ]
     pieces, cursor = [], node.start_byte
     for start, end in sorted(comments):
         pieces.append(src[cursor:start])
@@ -114,18 +116,11 @@ def _comments(src: bytes, module) -> list[tuple[int, int, str]]:
     Comments inside proofs are excluded; comments the grammar attaches to a preceding
     statement (interface files have no proof to terminate it) are still captured, so
     pairing is done by position rather than by tree structure."""
-    found: list[tuple[int, int, str]] = []
-
-    def walk(node, in_proof: bool):
-        if node.type == "block_comment":
-            if not in_proof:
-                found.append((node.start_byte, node.end_byte, _shared_comment(_comment_body(src, node))))
-            return
-        for child in node.children:
-            walk(child, in_proof or node.type in ("terminal_proof", "non_terminal_proof"))
-
-    walk(module, False)
-    return sorted(found)
+    return sorted(
+        (n.start_byte, n.end_byte, _shared_comment(_comment_body(src, n)))
+        for n in _walk(module, prune=lambda n: n.type == "block_comment" or n.type in _PROOF_TYPES)
+        if n.type == "block_comment"
+    )
 
 
 def theorems(path: Path) -> dict[str, Theorem]:
@@ -140,26 +135,23 @@ def theorems(path: Path) -> dict[str, Theorem]:
     for child in module.children:
         if child.type != "theorem":
             continue
-        name = statement = None
-        for i in range(child.child_count):
-            field = child.field_name_for_child(i)
-            if field == "name":
-                name = _text(src, child.child(i))
-            elif field == "statement":
-                statement = _statement_text(src, child.child(i))
-        if name is None:
+        name_node = child.child_by_field_name("name")
+        if name_node is None:
             # The convention requires names: an unnamed declaration would be
             # invisible to the consistency and coverage checks built on this.
             raise ValueError(
                 f"{path}:{child.start_point[0] + 1}: unnamed THEOREM/LEMMA; "
                 "every declaration must be named"
             )
+        name = _text(src, name_node)
+        statement_node = child.child_by_field_name("statement")
+        statement = "" if statement_node is None else _statement_text(src, statement_node)
         comment = ""
         for start, end, text in comments:
             gap = src[end : child.start_byte]
             if end <= child.start_byte and gap.strip() == b"" and gap.count(b"\n") <= 1:
                 comment = text  # closest preceding comment wins
-        result[name] = Theorem(name, statement or "", comment)
+        result[name] = Theorem(name, statement, comment)
     return result
 
 
@@ -188,30 +180,18 @@ def properties(path: Path) -> list[str]:
         raise ValueError(f"{path}: no '{_PROPERTIES_BANNER}' section found")
 
     def references(node) -> set[str]:
-        refs: set[str] = set()
-        stack = [node]
-        while stack:
-            n = stack.pop()
-            if n.type == "identifier_ref":
-                refs.add(_text(src, n))
-            stack.extend(n.children)
-        return refs
+        return {_text(src, n) for n in _walk(node) if n.type == "identifier_ref"}
 
     candidates: list[str] = []
     referenced: set[str] = set()
     for child in module.children:
         if child.start_byte < start or child.type != "operator_definition":
             continue
-        name = parameterized = None
-        for i in range(child.child_count):
-            field = child.field_name_for_child(i)
-            if field == "name":
-                name = _text(src, child.child(i))
-            elif field == "parameter":
-                parameterized = True
-        if name is None:
+        name_node = child.child_by_field_name("name")
+        if name_node is None:
             continue
-        if name[:1].isupper() and not parameterized:
+        name = _text(src, name_node)
+        if name[:1].isupper() and not child.children_by_field_name("parameter"):
             referenced |= references(child) - {name}
             candidates.append(name)
     return [name for name in candidates if name not in referenced]
