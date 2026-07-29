@@ -121,8 +121,10 @@ and `weaken` say which way a theorem statement or an assumption moved; prefer th
 says nothing. `check` belongs to models: it says a property is now covered by an instance.
 
 For `tooling`, `ci`, `docs` and `chore` the list is a recommendation, and any lowercase imperative
-does: `ci: cache the TLA+ toolchain`, `docs: clarify the refinement rationale`. Inflected forms are
-refused everywhere — `adds`, `added` and `adding` all point back to `add`.
+does: `ci: cache the TLA+ toolchain`, `docs: clarify the refinement rationale`. Inflected forms of
+the listed verbs are refused everywhere — `adds`, `added` and `adding` all point back to `add`; a
+word the list does not know is only checked for these types insofar as it must look like a
+lowercase imperative.
 
 ### Examples
 
