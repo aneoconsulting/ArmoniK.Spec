@@ -1,17 +1,19 @@
 name: CI
 
 # One `verify` job runs per specs/*.tla module; which checks it performs is
-# decided by the module's kind (see the "Classify" step):
+# decided by the module's kind, as scripts/naming.py defines it (the "Classify"
+# step asks that module, so the vocabulary is stated exactly once):
 #   1. SANY parsing                  every module
-#   2. Property coverage             real specifications ((Graph|Task|Object|Session)ProcessingN)
+#   2. Property coverage             real specifications
 #   3. TLC model checking            modules with a companion .cfg file
 #      + state-space statistics vs the `\* state-space:` reference in the .cfg
 #   4. Interface consistency         theorem interfaces (*Theorems)
 #   5. tlapm --strict proof checking proof files (*_proofs)
 # The `pairing` job additionally enforces repo-wide that theorem interfaces
-# and proof files come in <X>Theorems.tla / <X>Theorems_proofs.tla pairs, and
-# the `commits` job that every commit the event introduces -- and, on a pull
-# request, its title -- follows the convention of .docs/conventions.md.
+# and proof files come in <X>Theorems.tla / <X>Theorems_proofs.tla pairs and
+# that every model or test module keeps its .cfg; and the `commits` job checks
+# that every commit the event introduces -- and, on a pull request, its title
+# -- follows the convention of .docs/conventions.md.
 
 on:
   # `edited` too: a pull-request title is checked here, so a retitle must re-run.
@@ -113,11 +115,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Set up Python environment
-        run: make python-env
-
-      - name: Check interface / proof file pairing
-        run: .venv/bin/python -m scripts.check_proof_pairing specs
+      # Standard library only, like the commits job: no venv to build.
+      - name: Check interface / proof / config pairing
+        run: python3 -m scripts.check_proof_pairing specs
 
   verify:
     name: ${{ matrix.spec }}
@@ -130,20 +130,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # scripts/naming.py is the single source of the vocabulary; restating it
+      # here in shell would fail open on drift (a skipped check, a green job).
       - id: plan
         name: Classify ${{ matrix.spec }}
         env:
           SPEC: ${{ matrix.spec }}
         run: |
           set -euo pipefail
-          spec="$SPEC"
-          {
-            [[ "$spec" =~ ^(Graph|Task|Object|Session)Processing[0-9]+$ ]] \
-                                          && echo "coverage=true"  || echo "coverage=false"
-            [[ -f "specs/${spec}.cfg" ]]  && echo "tlc=true"       || echo "tlc=false"
-            [[ "$spec" == *Theorems ]]    && echo "interface=true" || echo "interface=false"
-            [[ "$spec" == *_proofs ]]     && echo "proofs=true"    || echo "proofs=false"
-          } | tee -a "$GITHUB_OUTPUT"
+          python3 -m scripts.naming "$SPEC" | tee -a "$GITHUB_OUTPUT"
 
       - name: Setup JDK
         uses: actions/setup-java@v5
