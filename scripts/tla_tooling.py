@@ -37,9 +37,15 @@ def _text(src: bytes, node) -> str:
 
 
 def parse(path: Path) -> tuple[bytes, Node]:
-    """Return (source bytes, module node) for a .tla file."""
+    """Return (source bytes, module node) for a .tla file.
+
+    Raises ValueError when the file does not parse cleanly: tree-sitter is
+    error-tolerant, and a tree carrying ERROR nodes would silently lose the
+    declarations a check is supposed to see."""
     src = Path(path).read_bytes()
     root = Parser(_LANGUAGE).parse(src).root_node
+    if root.has_error:
+        raise ValueError(f"{path}: parse error")
     for child in root.children:
         if child.type == "module":
             return src, child
@@ -142,7 +148,12 @@ def theorems(path: Path) -> dict[str, Theorem]:
             elif field == "statement":
                 statement = _statement_text(src, child.child(i))
         if name is None:
-            continue
+            # The convention requires names: an unnamed declaration would be
+            # invisible to the consistency and coverage checks built on this.
+            raise ValueError(
+                f"{path}:{child.start_point[0] + 1}: unnamed THEOREM/LEMMA; "
+                "every declaration must be named"
+            )
         comment = ""
         for start, end, text in comments:
             gap = src[end : child.start_byte]
@@ -162,10 +173,11 @@ def properties(path: Path) -> list[str]:
 
     A property is a parameterless operator definition (upper-case initial) that
     appears after the "SAFETY AND LIVENESS PROPERTIES" banner and is not used in
-    the definition of another operator of the section. Parameterized operators
-    cannot be asserted by a `Spec => X` theorem, and referenced operators (helper
-    predicates, conjuncts of a composite invariant) are covered through the
-    properties built from them. Lower-case refinement mappings (e.g.
+    the definition of another property of the section. Parameterized operators
+    cannot be asserted by a `Spec => X` theorem, and operators referenced by a
+    property (helper predicates, conjuncts of a composite invariant) are covered
+    through the property built from them -- a mention by anything else covers
+    nothing, so only properties suppress. Lower-case refinement mappings (e.g.
     taskStateBar) and named INSTANCE definitions are likewise excluded."""
     src, module = parse(path)
     start = None
@@ -199,8 +211,8 @@ def properties(path: Path) -> list[str]:
                 parameterized = True
         if name is None:
             continue
-        referenced |= references(child) - {name}
         if name[:1].isupper() and not parameterized:
+            referenced |= references(child) - {name}
             candidates.append(name)
     return [name for name in candidates if name not in referenced]
 

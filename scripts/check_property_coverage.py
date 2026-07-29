@@ -27,10 +27,16 @@ def check_coverage(spec: Path) -> list[str]:
     if not interface.is_file():
         return [f"missing theorem interface {interface.name}"]
 
+    props = tla.properties(spec)
+    if not props:
+        # An empty list must not earn the strongest verdict the check can give:
+        # a specification without a single property is asserting nothing.
+        return ["the properties section defines no property operator; nothing to cover"]
+
     short = tla.short_name(spec.stem)
     theorems = tla.theorems(interface)
     errors: list[str] = []
-    for prop in tla.properties(spec):
+    for prop in props:
         name = f"{short}_{prop}"
         theorem = theorems.get(name)
         if theorem is None:
