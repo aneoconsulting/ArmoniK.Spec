@@ -14,7 +14,7 @@ import sys
 
 from pathlib import Path
 
-from .tla_tooling import INTERFACE_SUFFIX, PROOF_SUFFIX
+from .naming import INTERFACE_SUFFIX, PROOF_SUFFIX
 
 
 def check_pairing(specs_dir: Path) -> list[str]:
