@@ -43,6 +43,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("specs_dir", type=Path, help="directory containing the .tla modules")
     specs_dir = parser.parse_args().specs_dir
+    if not specs_dir.is_dir():
+        parser.error(f"{specs_dir}: no such directory")
 
     errors = [f"{specs_dir}/{error}" for error in check_pairing(specs_dir)]
     for error in errors:
