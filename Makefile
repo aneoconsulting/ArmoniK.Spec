@@ -35,6 +35,10 @@ TLAPM_OPTS := --strict -I $(CURDIR)/$(COMMUNITY_MODULES_SRC)
 JAVA_SRCS    := $(wildcard $(SPECS_DIR)/*.java)
 JAVA_CLASSES := $(JAVA_SRCS:.java=.class)
 
+# The strict type gate covers the checkers themselves; the tests are verified
+# by running them.
+MYPY_SRCS := $(filter-out $(wildcard scripts/test_*.py),$(wildcard scripts/*.py))
+
 # Commits to check against the convention of .docs/conventions.md.
 RANGE ?= origin/main..HEAD
 
@@ -49,7 +53,7 @@ help:
 	@echo "  update         Refresh the toolchain (idempotent; respects pinned versions)"
 	@echo "  check          Verify the toolchain install is healthy (no downloads)"
 	@echo "  check-commits  Check RANGE=$(RANGE) against the commit convention"
-	@echo "  test           Run the scripts/ test suite (installs pytest into $(VENV)/)"
+	@echo "  test           Lint (ruff), type-check (mypy --strict) and test the scripts/ checkers"
 	@echo "  python-env     Create $(VENV)/ with the dependencies of the scripts/ checks"
 	@echo "  build-java     Compile $(SPECS_DIR)/*.java overrides next to the .tla files"
 	@echo "  sany MODULE=<mod>    Parse $(SPECS_DIR)/<mod>.tla with SANY"
@@ -91,6 +95,8 @@ $(PY_DEV_STAMP): scripts/requirements-dev.txt $(PY_STAMP)
 	touch $@
 
 test: $(PY_DEV_STAMP)
+	$(VENV)/bin/ruff check scripts
+	$(PYTHON) -m mypy --strict $(MYPY_SRCS)
 	$(PYTHON) -m pytest scripts
 
 $(TOOLS_DIR)/tla2tools.jar $(TOOLS_DIR)/CommunityModules-deps.jar:
