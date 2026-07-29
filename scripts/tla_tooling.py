@@ -161,13 +161,11 @@ def properties(path: Path) -> list[str]:
     """Property operator names declared in a spec's properties section.
 
     A property is a parameterless operator definition (upper-case initial) that
-    appears after the "SAFETY AND LIVENESS PROPERTIES" banner and is not used in
-    the definition of another property of the section. Parameterized operators
-    cannot be asserted by a `Spec => X` theorem, and operators referenced by a
-    property (helper predicates, conjuncts of a composite invariant) are covered
-    through the property built from them -- a mention by anything else covers
-    nothing, so only properties suppress. Lower-case refinement mappings (e.g.
-    taskStateBar) and named INSTANCE definitions are likewise excluded."""
+    appears after the "SAFETY AND LIVENESS PROPERTIES" banner: each one needs a
+    covering theorem, so the section contains only properties and helper
+    predicates live above the banner. Parameterized operators cannot be asserted
+    by a `Spec => X` theorem; lower-case refinement mappings (e.g. taskStateBar)
+    and named INSTANCE definitions are likewise excluded."""
     src, module = parse(path)
     start = None
     for child in module.children:
@@ -176,11 +174,7 @@ def properties(path: Path) -> list[str]:
     if start is None:
         raise ValueError(f"{path}: no '{_PROPERTIES_BANNER}' section found")
 
-    def references(node: Node) -> set[str]:
-        return {_text(src, n) for n in _walk(node) if n.type == "identifier_ref"}
-
-    candidates: list[str] = []
-    referenced: set[str] = set()
+    names: list[str] = []
     for child in module.children:
         if child.start_byte < start or child.type != "operator_definition":
             continue
@@ -189,9 +183,8 @@ def properties(path: Path) -> list[str]:
             continue
         name = _text(src, name_node)
         if name[:1].isupper() and not child.children_by_field_name("parameter"):
-            referenced |= references(child) - {name}
-            candidates.append(name)
-    return [name for name in candidates if name not in referenced]
+            names.append(name)
+    return names
 
 
 def short_name(module_name: str) -> str:
