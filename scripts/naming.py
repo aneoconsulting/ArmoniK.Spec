@@ -90,7 +90,9 @@ def kind_of(path: str | Path) -> str | None:
         return "ci"
     if path.suffix == ".md" or parts[:1] == (".docs",):
         return "docs"
-    if parts[:1] == (".vscode",) or parts in {(".gitignore",), ("LICENSE",)}:
+    # manifest.yaml is a pre-convention leftover: owned here so it could be
+    # removed, and a chore if it ever reappears.
+    if parts[:1] == (".vscode",) or parts in {(".gitignore",), ("LICENSE",), ("manifest.yaml",)}:
         return "chore"
     return None
 
