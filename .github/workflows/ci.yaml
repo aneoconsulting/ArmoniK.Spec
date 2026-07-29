@@ -11,7 +11,8 @@ name: CI
 #   5. tlapm --strict proof checking proof files (*_proofs)
 # The `pairing` job additionally enforces repo-wide that theorem interfaces
 # and proof files come in <X>Theorems.tla / <X>Theorems_proofs.tla pairs and
-# that every model or test module keeps its .cfg; and the `commits` job checks
+# that every model or test module keeps its .cfg; the `tests` job runs the
+# test suite of the scripts/ checkers themselves; and the `commits` job checks
 # that every commit the event introduces -- and, on a pull request, its title
 # -- follows the convention of .docs/conventions.md.
 
@@ -118,6 +119,16 @@ jobs:
       # Standard library only, like the commits job: no venv to build.
       - name: Check interface / proof / config pairing
         run: python3 -m scripts.check_proof_pairing specs
+
+  tests:
+    name: Script tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # `make test` builds the venv (runtime + dev pins) on demand.
+      - name: Run the scripts test suite
+        run: make test
 
   verify:
     name: ${{ matrix.spec }}
