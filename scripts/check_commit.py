@@ -254,11 +254,11 @@ def _state_space_only(changes: list[str]) -> bool:
     )
 
 
-def check_atomicity(header: Header, paths: list[str], changes) -> list[str]:
+def check_atomicity(header: Header, paths: list[str], changes: dict[str, list[str]]) -> list[str]:
     """Return every path of `paths` that does not belong to `header`'s kind and scope.
 
-    `changes` maps a path to the content lines the commit adds or removes there; it
-    is what decides the state-space exception, and is only called for a `.cfg`.
+    `changes` maps each `.cfg` path to the content lines the commit adds or
+    removes there; it is what decides the state-space exception.
     """
     if not paths:
         return [f"the commit changes no file, so nothing supports its {header.type} type"]
@@ -280,7 +280,7 @@ def check_atomicity(header: Header, paths: list[str], changes) -> list[str]:
                 header.type in ("spec", "lib")
                 and kind == "model"
                 and path.endswith(".cfg")
-                and _state_space_only(changes(path))
+                and _state_space_only(changes.get(path, []))
             ):
                 continue
             if not (propagation and kind in MODULE_TYPES):
@@ -394,7 +394,8 @@ def check_range(rev_range: str, specs_dir: Path) -> int:
         errors = check_message(message, known)
         parsed = parse_header(subject)
         if parsed is not None and parsed.type in TYPES:
-            errors += check_atomicity(parsed, paths, lambda path: _changed_lines(sha, path))
+            changes = {path: _changed_lines(sha, path) for path in paths if path.endswith(".cfg")}
+            errors += check_atomicity(parsed, paths, changes)
 
         for error in errors:
             print(f"{short}: {error}", file=sys.stderr, flush=True)
