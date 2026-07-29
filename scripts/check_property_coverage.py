@@ -15,7 +15,6 @@ restates the interface verbatim is enforced by check_thm_interface.
 import argparse
 import re
 import sys
-
 from pathlib import Path
 
 from . import tla_tooling as tla

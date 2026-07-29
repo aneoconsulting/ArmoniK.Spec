@@ -12,7 +12,6 @@ repo-wide by check_proof_pairing.
 
 import argparse
 import sys
-
 from pathlib import Path
 
 from . import tla_tooling as tla

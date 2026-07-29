@@ -36,10 +36,10 @@ re-validated.
 from __future__ import annotations
 
 import argparse
+import io
 import re
 import subprocess
 import sys
-
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -430,8 +430,11 @@ def check_title(title: str, specs_dir: Path, scopes_from: str | None) -> int:
 
 def main() -> int:
     # A commit subject may hold anything; never fail on the encoding of a report.
+    # A replaced stream (a test harness, a pipe wrapper) may not support
+    # reconfigure, and then it is not ours to reconfigure.
     for stream in (sys.stdout, sys.stderr):
-        stream.reconfigure(errors="replace")
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(errors="replace")
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--range", help="commit range to check, e.g. origin/main..HEAD")

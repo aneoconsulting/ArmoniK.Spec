@@ -16,7 +16,6 @@ check_thm_interface.
 
 import argparse
 import sys
-
 from pathlib import Path
 
 from .naming import INTERFACE_SUFFIX, MC_SUFFIX, PROOF_SUFFIX, TESTS_SUFFIX
@@ -42,7 +41,7 @@ def check_pairing(specs_dir: Path) -> list[str]:
                 errors.append(
                     f"{stem}.tla: orphan interface ({stem}{PROOF_SUFFIX}.tla does not exist)"
                 )
-        if (stem.endswith(MC_SUFFIX) or stem.endswith(TESTS_SUFFIX)) and stem not in cfgs:
+        if stem.endswith((MC_SUFFIX, TESTS_SUFFIX)) and stem not in cfgs:
             errors.append(f"{stem}.tla: missing {stem}.cfg (TLC has nothing to run)")
     return errors
 

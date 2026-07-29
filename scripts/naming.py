@@ -22,7 +22,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-
+from collections.abc import Iterable
 from pathlib import Path
 
 # Naming convention: a spec <X>.tla declares its theorems in an interface
@@ -57,7 +57,7 @@ def _scope(stem: str) -> str:
 
 def _module_kind(stem: str) -> str:
     """Kind of the .tla module named `stem`."""
-    if stem.endswith(PROOF_SUFFIX) or stem.endswith(INTERFACE_SUFFIX):
+    if stem.endswith((PROOF_SUFFIX, INTERFACE_SUFFIX)):
         return "proof"
     if stem.endswith(MC_SUFFIX):
         return "model"
@@ -105,7 +105,7 @@ def scope_of(path: str | Path) -> str | None:
     return _scope(path.stem)
 
 
-def scopes_of(paths) -> set[str]:
+def scopes_of(paths: Iterable[str | Path]) -> set[str]:
     """Every scope the .tla modules among `paths` define."""
     return {_scope(Path(path).stem) for path in paths if str(path).endswith(".tla")}
 

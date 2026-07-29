@@ -5,10 +5,11 @@ pure analysis of a single module's source (no toolchain).
 """
 
 import re
-import tree_sitter_tlaplus
-
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
+
+import tree_sitter_tlaplus
 from tree_sitter import Language, Node, Parser
 
 _LANGUAGE = Language(tree_sitter_tlaplus.language())
@@ -31,11 +32,11 @@ class Theorem:
     comment: str  # shared descriptive comment, normalized ("" if none)
 
 
-def _text(src: bytes, node) -> str:
+def _text(src: bytes, node: Node) -> str:
     return src[node.start_byte : node.end_byte].decode("utf8")
 
 
-def _walk(node, prune=lambda n: False):
+def _walk(node: Node, prune: Callable[[Node], bool] = lambda n: False) -> Iterator[Node]:
     """Pre-order traversal of `node` and its descendants, in source order.
 
     A node satisfying `prune` is yielded but not descended into."""
@@ -64,7 +65,7 @@ def parse(path: Path) -> tuple[bytes, Node]:
     raise ValueError(f"{path}: no module found")
 
 
-def _comment_body(src: bytes, node) -> str:
+def _comment_body(src: bytes, node: Node) -> str:
     """Concatenate the text of every block_comment_text under a block_comment node."""
     return "\n".join(_text(src, n) for n in _walk(node) if n.type == "block_comment_text")
 
@@ -83,7 +84,7 @@ def _shared_comment(body: str) -> str:
     return text if re.search(r"[A-Za-z]", text) else ""
 
 
-def _statement_text(src: bytes, node) -> str:
+def _statement_text(src: bytes, node: Node) -> str:
     """Source text of a node with any comment spans removed.
 
     In an interface (no proof after a theorem), tree-sitter attaches the following
@@ -106,7 +107,7 @@ def _norm(text: str) -> str:
     return " ".join(text.split())
 
 
-def _comments(src: bytes, module) -> list[tuple[int, int, str]]:
+def _comments(src: bytes, module: Node) -> list[tuple[int, int, str]]:
     """(start, end, shared-text) of every block comment outside a proof, byte-ordered.
 
     Comments inside proofs are excluded; comments the grammar attaches to a preceding
@@ -175,7 +176,7 @@ def properties(path: Path) -> list[str]:
     if start is None:
         raise ValueError(f"{path}: no '{_PROPERTIES_BANNER}' section found")
 
-    def references(node) -> set[str]:
+    def references(node: Node) -> set[str]:
         return {_text(src, n) for n in _walk(node) if n.type == "identifier_ref"}
 
     candidates: list[str] = []
