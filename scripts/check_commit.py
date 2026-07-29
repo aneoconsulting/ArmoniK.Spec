@@ -332,9 +332,12 @@ def _paths(sha: str) -> list[str]:
     """The paths the commit `sha` changes.
 
     `--root` so that a parentless commit reports its files rather than nothing,
-    and `-z` so that a path holding a space or a non-ASCII byte stays in one piece.
+    `-z` so that a path holding a space or a non-ASCII byte stays in one piece,
+    and `--no-renames` so that a rename reports its source path too -- the kind
+    and scope checks judge both ends, and a renamed-away module must still
+    extend the scope vocabulary.
     """
-    listing = _git("log", "-1", "--root", "--format=", "--name-only", "-z", sha)
+    listing = _git("log", "-1", "--root", "--no-renames", "--format=", "--name-only", "-z", sha)
     return [path for path in listing.split("\0") if path]
 
 
@@ -344,7 +347,7 @@ def _is_merge(sha: str) -> bool:
 
 def _tree_scopes(sha: str, specs_dir: Path) -> set[str]:
     """The scopes the modules of `specs_dir` define at the commit `sha`."""
-    listing = _git("ls-tree", "-r", "-z", "--name-only", sha, "--", str(specs_dir))
+    listing = _git("ls-tree", "-r", "-z", "--name-only", "--end-of-options", sha, "--", str(specs_dir))
     return scopes_of(path for path in listing.split("\0") if path)
 
 
@@ -370,7 +373,8 @@ def _changed_lines(sha: str, path: str) -> list[str]:
 def check_range(rev_range: str, specs_dir: Path) -> int:
     """Check every commit of `rev_range`, reporting to stdout and stderr."""
     failed = 0
-    for sha in _commits(rev_range):
+    shas = _commits(rev_range)
+    for sha in shas:
         message = _git("show", "-s", "--format=%B", sha)
         lines = message.splitlines()
         subject = lines[0] if lines else ""
@@ -398,6 +402,9 @@ def check_range(rev_range: str, specs_dir: Path) -> int:
             failed += 1
         else:
             print(f"{short} {subject}: OK", flush=True)
+    if not failed:
+        # An empty range must not read like a checked one: say what was covered.
+        print(f"{rev_range}: {len(shas)} commit(s) checked", flush=True)
     return failed
 
 
