@@ -69,6 +69,14 @@ def test_free_type_accepts_any_imperative():
     assert check_message("docs: clarify the refinement rationale", EXAMPLE_SCOPES) == []
 
 
+def test_comment_lines_are_not_a_body():
+    """`git commit` strips #-lines from edited messages, so the checker must not
+    let them satisfy a body requirement -- a body of comments is no body."""
+    message = "proof(TaskProcessing2)!: rename TP2_Foo to TP2_Bar\n\n# not a body\n"
+    errors = check_message(message, EXAMPLE_SCOPES)
+    assert any("needs a body" in error for error in errors)
+
+
 @pytest.mark.parametrize(
     ("word", "stem"),
     [("adds", "add"), ("added", "add"), ("adding", "add"), ("removing", "remove"),

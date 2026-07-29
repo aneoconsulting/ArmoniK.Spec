@@ -144,7 +144,7 @@ def theorems(path: Path) -> dict[str, Theorem]:
         statement_node = child.child_by_field_name("statement")
         statement = "" if statement_node is None else _statement_text(src, statement_node)
         comment = ""
-        for start, end, text in comments:
+        for _, end, text in comments:
             gap = src[end : child.start_byte]
             if end <= child.start_byte and gap.strip() == b"" and gap.count(b"\n") <= 1:
                 comment = text  # closest preceding comment wins
