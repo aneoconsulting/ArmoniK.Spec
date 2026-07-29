@@ -11,10 +11,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from tree_sitter import Language, Node, Parser
 
-# Re-exported for the checks that read a module through this helper: the naming
-# convention itself lives in naming, which stays free of the tree-sitter dependency.
-from .naming import INTERFACE_SUFFIX, PROOF_SUFFIX  # noqa: F401
-
 _LANGUAGE = Language(tree_sitter_tlaplus.language())
 
 _COMMENT_TYPES = ("block_comment", "comment")

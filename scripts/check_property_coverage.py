@@ -19,11 +19,12 @@ import sys
 from pathlib import Path
 
 from . import tla_tooling as tla
+from .naming import INTERFACE_SUFFIX
 
 
 def check_coverage(spec: Path) -> list[str]:
     """Return every violation of property coverage in `spec`'s interface."""
-    interface = spec.with_name(f"{spec.stem}Theorems.tla")
+    interface = spec.with_name(f"{spec.stem}{INTERFACE_SUFFIX}.tla")
     if not interface.is_file():
         return [f"missing theorem interface {interface.name}"]
 

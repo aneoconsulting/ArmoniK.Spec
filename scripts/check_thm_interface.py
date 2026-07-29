@@ -16,11 +16,12 @@ import sys
 from pathlib import Path
 
 from . import tla_tooling as tla
+from .naming import INTERFACE_SUFFIX, PROOF_SUFFIX
 
 
 def check_consistency(interface: Path) -> list[str]:
     """Return every declaration-level mismatch between `interface` and its proof file."""
-    proof = interface.with_name(f"{interface.stem}{tla.PROOF_SUFFIX}.tla")
+    proof = interface.with_name(f"{interface.stem}{PROOF_SUFFIX}.tla")
     if not proof.is_file():
         return [f"missing proof file {proof.name}"]
 
@@ -61,7 +62,7 @@ def main() -> int:
     parser.add_argument(
         "interface",
         type=Path,
-        help=f"theorem interface module (*{tla.INTERFACE_SUFFIX}.tla)",
+        help=f"theorem interface module (*{INTERFACE_SUFFIX}.tla)",
     )
     interface = parser.parse_args().interface
 
