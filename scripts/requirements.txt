@@ -1,2 +1,2 @@
-tree-sitter==0.26.0
+tree-sitter
 tree-sitter-tlaplus==1.5.0
