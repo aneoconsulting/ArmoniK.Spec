@@ -294,8 +294,8 @@ Next ==
  * and tasks in the system:
  *   - Every object that becomes eligible for finalization is eventually finalized.
  *   - Every registered task whose input objects are finalized is eventually staged.
- *   - Every task that lies upstream on an open path toward some unfinalized
- *     target object is eventually assigned.
+ *   - Every task that lies persistently upstream on an open path toward a
+ *     given unfinalized target object is eventually assigned.
  *   - Every assigned task is eventually processed.
  *   - Every processed task whose outputs become eligible for finalization is
  *     eventually finalized.
@@ -305,16 +305,17 @@ Fairness ==
         WF_vars(FinalizeObjects({o}))
     /\ \A t \in Task :
         /\ WF_vars(StageTasks({t}))
-        /\ WF_vars(
-            /\ \E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)
-            /\ AssignTasks({t}))
         /\ SF_vars(ProcessTasks({t}))
         /\ WF_vars(FinalizeTasks({t}))
+    /\ \A t \in Task, o \in Object :
+        WF_vars(
+            /\ IsTaskUpstreamOnOpenPathToTarget(t, o)
+            /\ AssignTasks({t}))
 
 (**
  * LIVENESS CONSTRAINT
  * For every object that is currently a target, the open upstream eventually
- * becomes closed under additions, i.e. its node set never gains another node
+ * becomes closed under additions, i.e. it never gains another node or edge
  * (it may still shrink). Combined with the fairness conditions above,
  * this ensures every targeted object is eventually finalized, and thus
  * establishes the refinement of ObjectProcessing1.
@@ -322,7 +323,7 @@ Fairness ==
 OpenUpstreamEventuallyClosed ==
     LET G(o) == AncestorSubGraph(deps, o, IsOpenNode)
     IN \A o \in Object :
-        []([](o \in objectTargets) => <>[][(G(o).node)' \subseteq G(o).node]_(G(o).node))
+        []([](o \in objectTargets) => <>[][G(o)' \in DirectedSubgraph(G(o))]_(G(o)))
 
 (**
  * Full system specification.
@@ -358,7 +359,7 @@ GraphStateIntegrity ==
         t \in StagedTask \union AssignedTask
            => Predecessor(deps, t) \subseteq FinalizedObject
     /\ \A o \in Object :
-        ~ o \in Source(deps) =>
+        o \notin Source(deps) =>
             /\ o \in RegisteredObject => ~(Predecessor(deps, o) \subseteq FinalizedTask)
             /\ o \in FinalizedObject => Predecessor(deps, o) \intersect (ProcessedTask \union FinalizedTask) /= {}
 
