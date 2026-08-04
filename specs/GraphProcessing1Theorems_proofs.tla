@@ -1302,7 +1302,7 @@ LEMMA LemRefineTaskProcessing1Fairness ==
                            /\ WF_vars(FinalizeTasks({t}))
                            /\ \A o \in Object : WF_vars(FinalizeObjects({o}))
                            => WF_TP1!vars(TP1!FinalizeTasks({t}))
-        BY DEF Fairness, TP1!Fairness, Isa
+        BY Isa DEF Fairness, TP1!Fairness
     <2>1. SF_vars(ProcessTasks({t})) => SF_TP1!vars(TP1!ProcessTasks({t}))
         <3>. DEFINE AbsA == TP1!ProcessTasks({t})
                     A    == ProcessTasks({t})
@@ -2097,22 +2097,20 @@ LEMMA LemRootProgress ==
             <4>. QED
                 BY <4>1, <4>2 DEF StagedTask, AssignedTask, ProcessedTask
         <3>2. r \in StagedTask /\ IsTaskUpstreamOnOpenPathToTarget(r, o)
-              => ENABLED <<(\E o2 \in Object : IsTaskUpstreamOnOpenPathToTarget(r, o2))
+              => ENABLED <<IsTaskUpstreamOnOpenPathToTarget(r, o)
                            /\ AssignTasks({r})>>_vars
             <4>. SUFFICES ASSUME r \in StagedTask, IsTaskUpstreamOnOpenPathToTarget(r, o)
-                          PROVE  ENABLED <<(\E o2 \in Object : IsTaskUpstreamOnOpenPathToTarget(r, o2))
+                          PROVE  ENABLED <<IsTaskUpstreamOnOpenPathToTarget(r, o)
                                            /\ AssignTasks({r})>>_vars
                 OBVIOUS
-            <4>1. \E o2 \in Object : IsTaskUpstreamOnOpenPathToTarget(r, o2)
-                OBVIOUS
             <4>. QED
-                BY <4>1, ExpandENABLED
+                BY ExpandENABLED
                    DEF AssignTasks, vars, StagedTask, TASK_STAGED, TASK_ASSIGNED
-        <3>3. <<(\E o2 \in Object : IsTaskUpstreamOnOpenPathToTarget(r, o2))
+        <3>3. <<IsTaskUpstreamOnOpenPathToTarget(r, o)
                 /\ AssignTasks({r})>>_vars
               => (r \in AssignedTask)'
             BY DEF AssignTasks, vars, AssignedTask, StagedTask
-        <3>4. r \in StagedTask /\ Fairness => WF_vars((\E o2 \in Object : IsTaskUpstreamOnOpenPathToTarget(r, o2))
+        <3>4. r \in StagedTask /\ Fairness => WF_vars(IsTaskUpstreamOnOpenPathToTarget(r, o)
                                                         /\ AssignTasks({r}))
             BY Isa DEF Fairness, StagedTask
         <3>. QED
@@ -2396,9 +2394,6 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
                 BY <4>1, <4>2, Isa
         <3>. DEFINE TaskFairness(t) ==
                         /\ WF_vars(StageTasks({t}))
-                        /\ WF_vars(
-                            /\ \E o \in Object : IsTaskUpstreamOnOpenPathToTarget(t, o)
-                            /\ AssignTasks({t}))
                         /\ SF_vars(ProcessTasks({t}))
                         /\ WF_vars(FinalizeTasks({t}))
         <3>2. (\A t \in Task : TaskFairness(t))
@@ -2412,14 +2407,29 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
                 BY PTL
             <4>. QED
                 BY <4>1, <4>2, Isa
+        <3>. DEFINE PairFairness(t, o) ==
+                        WF_vars(
+                            /\ IsTaskUpstreamOnOpenPathToTarget(t, o)
+                            /\ AssignTasks({t}))
+        <3>3. (\A t \in Task, o \in Object : PairFairness(t, o))
+               <=> [](\A t \in Task, o \in Object : PairFairness(t, o))
+            <4>1. [](\A t \in Task, o \in Object : PairFairness(t, o))
+                  <=> \A t \in Task, o \in Object : []PairFairness(t, o)
+                OBVIOUS
+            <4>2. ASSUME NEW t \in Task, NEW o \in Object
+                  PROVE []PairFairness(t, o)
+                        <=> PairFairness(t, o)
+                BY PTL
+            <4>. QED
+                BY <4>1, <4>2, IsaMT("blast", 120)
         <3>. QED
-            BY <3>1, <3>2, PTL DEF Fairness
+            BY <3>1, <3>2, <3>3, PTL DEF Fairness
     <2>. DEFINE AG(o) == AncestorSubGraph(deps, o, IsOpenNode)
     <2>. SUFFICES ASSUME NEW o \in Object
                   PROVE /\ []GraphSafetyInv
                         /\ [][Next]_vars
                         /\ Fairness
-                        /\ []([](o \in objectTargets) => <>[][(AG(o).node)' \subseteq AG(o).node]_(AG(o).node))
+                        /\ []([](o \in objectTargets) => <>[][AG(o)' \in DirectedSubgraph(AG(o))]_(AG(o)))
                         => WF_OP1!vars(o \in objectTargets /\ OP1!FinalizeObjects({o}))
         BY Isa DEF OP1!Fairness, OpenUpstreamEventuallyClosed
     <2>. DEFINE S == AG(o).node
@@ -2430,9 +2440,11 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
                   /\ [](o \in objectTargets /\ o \in RegisteredObject)
                   /\ [][S' \subseteq S]_S
                   => FALSE
-        <3>1. []([](o \in objectTargets) => <>[][S' \subseteq S]_S)
+        <3>0. [AG(o)' \in DirectedSubgraph(AG(o))]_(AG(o)) => [S' \subseteq S]_S
+            BY Zenon DEF DirectedSubgraph
+        <3>1. []([](o \in objectTargets) => <>[][AG(o)' \in DirectedSubgraph(AG(o))]_(AG(o)))
               => ([](o \in objectTargets) => <>[][S' \subseteq S]_S)
-            BY PTL
+            BY <3>0, PTL
         <3>2. ENABLED <<o \in objectTargets /\ OP1!FinalizeObjects({o})>>_OP1!vars
               => o \in objectTargets /\ o \in RegisteredObject
             BY ExpandENABLED DEF OP1!FinalizeObjects, OP1!vars, RegisteredObject, OP1!RegisteredObject
