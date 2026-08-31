@@ -64,6 +64,7 @@ IsOpenNode(n) ==
  *)
 IsTaskUpstreamOnOpenPathToTarget(t, o) ==
     /\ o \in objectTargets
+    \* Next conjunct is likely implied by the one after
     /\ o \in RegisteredObject
     /\ \E p \in OpenPath(deps, o, IsOpenNode): p[1] = t
 
@@ -192,9 +193,8 @@ AbortObjects(O) ==
     /\ O /= {} /\ O \subseteq RegisteredObject
     /\ \/ O \subseteq Source(deps)
        \/ \A o \in O:
-            \E t \in Predecessor(deps, o):
-                /\ t \in DiscardedTask
-                /\ Predecessor(deps, o) \ {t} \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
+            /\ Predecessor(deps, o) \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
+            /\ \E t \in Predecessor(deps, o): t \in DiscardedTask
     /\ objectState' =
         [o \in Object |-> IF o \in O THEN OBJECT_ABORTED ELSE objectState[o]]
     /\ UNCHANGED << deps, objectTargets, taskState, nextAttemptOf,
@@ -230,6 +230,7 @@ SetTaskRetries(T, U) ==
 StageTasks(T) ==
     /\ T /= {} /\ T \subseteq RegisteredTask
     /\ UNION {Predecessor(deps, t): t \in T} \subseteq CompletedObject
+    \* /\ \A t \in T: Predecessor(deps, t) \subseteq CompletedObject
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets,
@@ -332,8 +333,9 @@ AbortTasks(T) ==
  *)
 RetryTasks(T) ==
     /\ T /= {} /\ T \subseteq FailedTask
-    /\ T \intersect UnretriedTask = {}
-    /\ \A t \in T: nextAttemptOf[t] \notin UnknownTask
+    \* /\ \A t \in T: nextAttemptOf[t] /= NULL
+    \* /\ T \intersect UnretriedTask = {}
+    /\ \A t \in T: nextAttemptOf[t] \notin UnknownTask \union {NULL}
     /\ \A o \in UNION {Successor(deps, t): t \in T} :
         o \in RegisteredObject
             => \E u \in (Predecessor(deps, o) \ T) : u \notin UNION {CompletedTask, AbortedTask, RetriedTask}
@@ -369,23 +371,18 @@ RequestTasksStopping(T) ==
 StopTasks(T) ==
     /\ T /= {}
     /\ T \subseteq stoppingRequested
-    /\ T \intersect AssignedTask = {}
+    /\ T \subseteq StagedTask \union PausedTask
     /\ taskState' =
-        [t \in Task |-> IF t \in T /\ (\/ t \in StagedTask
-                                       \/ t \in PausedTask)
-                            THEN TASK_STOPPED
-                            ELSE taskState[t]]
+        [t \in Task |-> IF t \in T THEN TASK_STOPPED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets,
                     stoppingRequested, pausingRequested >>
 
 (**
  * TASK PAUSING REQUESTING
- * The pausing of a set 'T' of known tasks is requested, provided their
- * cancellation has not already been requested.
+ * The pausing of a set 'T' of known tasks is requested.
  *)
 RequestTasksPausing(T) ==
     /\ T /= {} /\ T \intersect UnknownTask = {}
-    /\ T \intersect stoppingRequested = {}
     /\ pausingRequested' = pausingRequested \union T
     /\ UNCHANGED << deps, objectState, objectTargets, taskState,
                     nextAttemptOf, stoppingRequested >>
@@ -397,10 +394,10 @@ RequestTasksPausing(T) ==
  *)
 PauseTasks(T) ==
     /\ T /= {} /\ T \subseteq pausingRequested
+    \* Move assign transition to ReleaseTasks action
+    /\ T \subseteq StagedTask \union AssignedTask
     /\ taskState' =
-        [t \in Task |-> IF t \in T /\ (t \in StagedTask \/ t \in AssignedTask)
-                            THEN TASK_PAUSED
-                            ELSE taskState[t]]
+        [t \in Task |-> IF t \in T THEN TASK_PAUSED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets,
                     stoppingRequested, pausingRequested >>
 
@@ -511,7 +508,7 @@ Fairness ==
 OpenUpstreamEventuallyClosed ==
     LET G(o) == AncestorSubGraph(deps, o, IsOpenNode)
     IN \A o \in Object :
-        <>[][(G(o).node)' \subseteq G(o).node]_vars
+        <>[][G(o)' \in DirectedSubgraph(G(o))]_(G(o))
 
 (**
  * Full system specification.
@@ -565,5 +562,7 @@ taskStateBar ==
 
 GP2 == INSTANCE GraphProcessing2Theorems WITH taskState <- taskStateBar
 RefineGraphProcessing2 == GP2!Spec
+
+\* Add properties for global user interaction what is related to session in the implementation
 
 ================================================================================

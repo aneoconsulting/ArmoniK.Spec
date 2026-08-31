@@ -136,6 +136,7 @@ AbortObjects(O) ==
  *)
 PurgeObjects(O) ==
     /\ O /= {} /\ O \subseteq CompletedObject
+    /\ O \intersect objectTargets = {}
     /\ objectState' =
         [o \in Object |-> IF o \in O THEN OBJECT_PURGED ELSE objectState[o]]
     /\ UNCHANGED << objectTargets, objectDeleted >>
@@ -260,5 +261,10 @@ DeletionQuiescence ==
  * This specification refines the ObjectProcessing2 specification.
  *)
 RefineObjectProcessing2 == OP2!Spec
+
+Prop ==
+    \A o \in Object:
+        /\ o \in objectTargets => o \notin PurgedObject
+        /\ o \in objectTargets => o \notin objectDeleted
 
 ================================================================================
