@@ -100,7 +100,6 @@ TargetObjects(O) ==
  *)
 UntargetObjects(O) ==
     /\ O /= {} /\ O \subseteq objectTargets
-    /\ O \intersect objectDeleted = {}
     /\ objectTargets' = objectTargets \ O
     /\ UNCHANGED << objectState, objectDeleted >>
 
@@ -136,6 +135,7 @@ AbortObjects(O) ==
  *)
 PurgeObjects(O) ==
     /\ O /= {} /\ O \subseteq CompletedObject
+    /\ O \intersect objectTargets = {}
     /\ objectState' =
         [o \in Object |-> IF o \in O THEN OBJECT_PURGED ELSE objectState[o]]
     /\ UNCHANGED << objectTargets, objectDeleted >>
@@ -149,7 +149,7 @@ PurgeObjects(O) ==
 DeleteObjects(O) ==
     /\ O /= {}
     /\ O \subseteq UNION {RegisteredObject, AbortedObject, PurgedObject}
-    /\ O \intersect objectTargets \intersect RegisteredObject = {}
+    /\ O \intersect objectTargets = {}
     /\ objectDeleted' = objectDeleted \union O
     /\ UNCHANGED << objectState, objectTargets >>
 
@@ -159,7 +159,7 @@ DeleteObjects(O) ==
  * targeted objects have been completed or aborted.
  *)
 Terminating ==
-    /\ objectTargets \subseteq (CompletedObject \union AbortedObject \union PurgedObject)
+    /\ objectTargets \subseteq (CompletedObject \union AbortedObject)
     /\ UNCHANGED vars
 
 -------------------------------------------------------------------------------
@@ -218,11 +218,12 @@ DeletionValidity ==
 
 (**
  * SAFETY
- * A targeted registered object cannot be deleted.
+ * A targeted object cannot be deleted.
  *)
-RegisteredTargetsUndeleted ==
+TargetsUndeleted ==
     \A o \in Object:
-        o \in RegisteredObject /\ o \in objectTargets => ~ o \in objectDeleted
+        /\ o \in objectTargets => o \notin PurgedObject
+        /\ o \in objectTargets => o \notin objectDeleted
 
 (**
  * SAFETY
