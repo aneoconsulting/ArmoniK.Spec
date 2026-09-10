@@ -32,4 +32,9 @@ THEOREM OP1_EventualTargetFinalization == Spec => EventualTargetFinalization
 
 THEOREM OP1_EventualTargetResolution == Spec => EventualTargetResolution
 
+LEMMA LemEventualTermination ==
+    []ObjectSafetyInv /\ [][Next]_vars /\ Fairness => EventualTermination
+
+THEOREM OP1_EventualTermination == Spec => EventualTermination
+
 ================================================================================
