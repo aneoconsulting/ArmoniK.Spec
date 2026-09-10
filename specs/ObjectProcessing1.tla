@@ -105,6 +105,14 @@ Terminating ==
     /\ objectTargets \subseteq FinalizedObject
     /\ UNCHANGED vars
 
+(**
+ * USER QUIESCENCE
+ * A step in which the user drives no new work: no object is registered,
+ * targeted or untargeted.
+ *)
+NoUserAction ==
+    ~ \E O \in SUBSET Object : RegisterObjects(O) \/ TargetObjects(O) \/ UntargetObjects(O)
+
 -------------------------------------------------------------------------------
 
 (*****************************************************************************)
@@ -186,5 +194,23 @@ EventualTargetFinalization ==
 EventualTargetResolution ==
     \A o \in Object :
         o \in objectTargets ~> (o \in FinalizedObject \/ ~ o \in objectTargets)
+
+(**
+ * LIVENESS
+ * If the user eventually stops driving the system -- from some point on, no
+ * object is registered, targeted or untargeted anymore -- then the system
+ * eventually terminates: every targeted object is finalized and the state
+ * never changes again. This rests on FiniteKnownObjects: with infinitely many
+ * registered objects, a behavior could finalize a fresh object at every step
+ * without ever exhausting the targets.
+ *
+ * The conclusion is the conjunction of two suffix-stable formulas, which is
+ * equivalent to <>([](objectTargets \subseteq FinalizedObject) /\ [][FALSE]_vars).
+ * This shape is checkable directly by TLC.
+ *)
+EventualTermination ==
+    <>[][NoUserAction]_vars
+    => /\ <>[](objectTargets \subseteq FinalizedObject)
+       /\ <>[][FALSE]_vars
 
 ================================================================================
