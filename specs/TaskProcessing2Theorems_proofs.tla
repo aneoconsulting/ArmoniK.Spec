@@ -2318,7 +2318,8 @@ THEOREM TP2_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
         OBVIOUS
     <2>1. ASSUME NEW T \in SUBSET Task, RegisterTasks(T)
           PROVE TP1!RegisterTasks(T)
-        BY <2>1 DEF RegisterTasks, TP1!RegisterTasks, UnknownTask, TP1!UnknownTask
+        BY <2>1 DEF IsFiniteSet, RegisterTasks, TP1!IsFiniteSet, TP1!RegisterTasks,
+        TP1!UnknownTask, UnknownTask
     <2>2. ASSUME NEW T \in SUBSET Task, StageTasks(T)
           PROVE TP1!StageTasks(T)
         BY <2>2 DEF StageTasks, TP1!StageTasks, RegisteredTask, TP1!RegisteredTask
