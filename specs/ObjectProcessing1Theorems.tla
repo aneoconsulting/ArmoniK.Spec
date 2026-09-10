@@ -9,9 +9,14 @@ LEMMA LemTargetValidity == Init /\ [][Next]_vars => []TargetValidity
 
 THEOREM OP1_TargetValidity == Spec => []TargetValidity
 
+LEMMA LemFiniteKnownObjects == Init /\ [][Next]_vars => []FiniteKnownObjects
+
+THEOREM OP1_FiniteKnownObjects == Spec => []FiniteKnownObjects
+
 ObjectSafetyInv ==
     /\ TypeOk
     /\ TargetValidity
+    /\ FiniteKnownObjects
 
 LEMMA LemObjectSafetyInv == Init /\ [][Next]_vars => []ObjectSafetyInv
 
@@ -26,4 +31,5 @@ LEMMA LemTargetsAreKnown ==
 THEOREM OP1_EventualTargetFinalization == Spec => EventualTargetFinalization
 
 THEOREM OP1_EventualTargetResolution == Spec => EventualTargetResolution
+
 ================================================================================
