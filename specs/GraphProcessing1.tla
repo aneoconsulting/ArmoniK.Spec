@@ -235,15 +235,33 @@ FinalizeTasks(T) ==
     /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
+ * TERMINAL STATE PREDICATE
+ * The system is in a terminal state once all targeted objects have been
+ * finalized and no task remains in an intermediate processing state
+ * (assigned or processed).
+ *)
+terminated ==
+    /\ objectTargets \subseteq FinalizedObject
+    /\ AssignedTask = {}
+    /\ ProcessedTask = {}
+
+(**
  * TERMINAL STATE
  * Action representing the terminal state of the system, reached once all
  * targeted objects have been finalized.
  *)
 Terminating ==
-    /\ objectTargets \subseteq FinalizedObject
-    /\ AssignedTask = {}
-    /\ ProcessedTask = {}
+    /\ terminated
     /\ UNCHANGED vars
+
+(**
+ * USER QUIESCENCE
+ * A step in which the user drives no new work: no graph is registered and no
+ * object is targeted or untargeted.
+ *)
+NoUserAction ==
+    /\ ~ \E G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G)
+    /\ ~ \E O \in SUBSET Object : TargetObjects(O) \/ UntargetObjects(O)
 
 -------------------------------------------------------------------------------
 
@@ -396,8 +414,26 @@ RefineTaskProcessing1 ==
  * LIVENESS
  * This specification refines the ObjectProcessing specification.
  *)
-OP1 == INSTANCE ObjectProcessing1
+OP1 == INSTANCE ObjectProcessing1Theorems
 RefineObjectProcessing1 ==
     OP1!Spec
+
+(**
+ * LIVENESS
+ * If the user eventually stops driving the system -- no further graph is
+ * ever registered and no object is ever targeted or untargeted again -- then
+ * the system eventually terminates: it reaches a terminal state (all targeted
+ * objects finalized, no task assigned or processed) and its state never
+ * changes again.
+ *
+ * The conclusion is the conjunction of two suffix-stable formulas, which is
+ * equivalent to <>([]terminated /\ [][FALSE]_vars). This shape is checkable
+ * directly by TLC, which restricts temporal formulas containing actions to
+ * the forms <>[]A and []<>A.
+ *)
+EventualTermination ==
+    <>[][NoUserAction]_vars
+    => /\ <>[]terminated
+       /\ <>[][FALSE]_vars
 
 ================================================================================
