@@ -11,6 +11,11 @@ BY DEF IsDenumerableSet, ExistsBijection, Bijection, Injection, Surjection,
 IsInjective, TP1!IsDenumerableSet, TP1!ExistsBijection, TP1!Bijection,
 TP1!Injection, TP1!Surjection, TP1!IsInjective
 
+LEMMA SameObjectAssumptions == GP1Assumptions => OP1!OP1Assumptions
+BY DEF Bijection, ExistsBijection, Injection, IsDenumerableSet, IsInjective,
+OP1!Bijection, OP1!ExistsBijection, OP1!Injection, OP1!IsDenumerableSet,
+OP1!IsInjective, OP1!OP1Assumptions, OP1!Surjection, Surjection
+
 (*****************************************************************************)
 (* TYPE INVARIANT                                                            *)
 (*****************************************************************************)
@@ -2489,5 +2494,62 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
         BY <2>1, <2>4, PTL
 <1>. QED
     BY <1>1, <1>2, <1>3, GP1_GraphSafetyInv, PTL DEF Spec, OP1!Spec, RefineObjectProcessing1
+
+(*****************************************************************************)
+(* EVENTUAL TERMINATION                                                      *)
+(*****************************************************************************)
+
+THEOREM GP1_EventualTermination == Spec => EventualTermination
+<1>. USE DEF OP1!OBJECT_UNKNOWN, OP1!OBJECT_REGISTERED, OP1!OBJECT_FINALIZED,
+     TP1!TASK_UNKNOWN, TP1!TASK_REGISTERED, TP1!TASK_STAGED, TP1!TASK_ASSIGNED,
+     TP1!TASK_PROCESSED, TP1!TASK_FINALIZED
+(* The termination properties of the two refined specifications, restated with
+   the local names so that the temporal reasoning below sees the same atoms. *)
+<1>1. Spec => (<>[][OP1!NoUserAction]_(OP1!vars)
+               => /\ <>[](objectTargets \subseteq FinalizedObject)
+                  /\ <>[][FALSE]_(OP1!vars))
+    BY GP1_RefineObjectProcessing1, OP1!OP1_EventualTermination, SameObjectAssumptions
+    DEF FinalizedObject, OP1!EventualTermination, OP1!FinalizedObject, RefineObjectProcessing1
+<1>2. Spec => (<>[][TP1!NoUserAction]_(TP1!vars)
+               => /\ <>[](AssignedTask = {} /\ ProcessedTask = {})
+                  /\ <>[][FALSE]_(TP1!vars))
+    BY GP1_RefineTaskProcessing1, SameAssumptions, TP1!TP1_EventualTermination
+    DEF AssignedTask, ProcessedTask, RefineTaskProcessing1, TP1!AssignedTask,
+        TP1!EventualTermination, TP1!ProcessedTask
+(* A quiescent step is quiescent for both refined specifications and freezes the
+   graph: finalizing objects changes the state of registered objects, so it is
+   neither an object registration nor an (un)targeting, and a task action turns
+   no unknown task registered. *)
+<1>3. [Next]_vars /\ [NoUserAction]_vars
+      => /\ [OP1!NoUserAction]_(OP1!vars)
+         /\ [TP1!NoUserAction]_(TP1!vars)
+         /\ UNCHANGED deps
+    <2>1. ASSUME NEW O \in SUBSET Object, FinalizeObjects(O)
+          PROVE OP1!NoUserAction /\ UNCHANGED TP1!vars /\ UNCHANGED deps
+        <3>1. /\ UNCHANGED << deps, taskState >>
+              /\ \E o \in Object : /\ objectState[o] = OBJECT_REGISTERED
+                                   /\ objectState'[o] = OBJECT_FINALIZED
+            BY <2>1 DEF FinalizeObjects, RegisteredObject
+        <3>. QED
+            BY <3>1 DEF OP1!NoUserAction, OP1!RegisterObjects, OP1!TargetObjects,
+                OP1!UntargetObjects, TP1!vars
+    <2>2. ASSUME NEW T \in SUBSET Task,
+                 \/ StageTasks(T) \/ DiscardTasks(T)
+                 \/ AssignTasks(T) \/ ReleaseTasks(T)
+                 \/ ProcessTasks(T) \/ FinalizeTasks(T)
+          PROVE UNCHANGED OP1!vars /\ TP1!NoUserAction /\ UNCHANGED deps
+        <3>1. /\ UNCHANGED << deps, objectState, objectTargets >>
+              /\ \A t \in Task : taskState[t] = TASK_UNKNOWN => taskState'[t] = TASK_UNKNOWN
+            BY <2>2 DEF AssignTasks, AssignedTask, DiscardTasks, FinalizeTasks, ProcessTasks,
+                ProcessedTask, RegisteredTask, ReleaseTasks, StagedTask, StageTasks
+        <3>. QED
+            BY <3>1 DEF OP1!vars, TP1!NoUserAction, TP1!RegisterTasks, TP1!UnknownTask
+    <2>. QED
+        BY <2>1, <2>2 DEF Next, NoUserAction, OP1!vars, Terminating, TP1!vars, vars
+(* Frozen object, task and graph components make the whole state stutter. *)
+<1>4. [FALSE]_(OP1!vars) /\ [FALSE]_(TP1!vars) /\ UNCHANGED deps => [FALSE]_vars
+    BY DEF OP1!vars, TP1!vars, vars
+<1>. QED
+    BY <1>1, <1>2, <1>3, <1>4, PTL DEF EventualTermination, Spec, terminated
 
 ================================================================================
