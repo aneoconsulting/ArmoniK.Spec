@@ -1,5 +1,5 @@
 -------------------- MODULE TaskProcessing1Theorems_proofs ---------------------
-EXTENDS TaskProcessing1, TLAPS
+EXTENDS TaskProcessing1, FiniteSetTheorems, TLAPS
 
 USE DEF TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED, TASK_PROCESSED,
 TASK_FINALIZED
@@ -17,6 +17,33 @@ LEMMA LemType == Init /\ [][Next]_vars => []TypeOk
 
 THEOREM TP1_Type == Spec => []TypeOk
 BY LemType DEF Spec
+
+LEMMA LemFiniteKnownTasks == Init /\ [][Next]_vars => []FiniteKnownTasks
+<1>. USE DEF FiniteKnownTasks, UnknownTask
+<1>1. Init => FiniteKnownTasks
+    BY FS_EmptySet DEF Init
+(* A registration adds its finite set to the known tasks; no other step
+   changes them. *)
+<1>2. FiniteKnownTasks /\ [Next]_vars => FiniteKnownTasks'
+    <2>1. ASSUME NEW T \in SUBSET Task, RegisterTasks(T), FiniteKnownTasks
+          PROVE FiniteKnownTasks'
+        <3>1. (Task \ UnknownTask)' = (Task \ UnknownTask) \cup T
+            BY <2>1 DEF RegisterTasks
+        <3>. QED
+            BY <2>1, <3>1, FS_Union DEF RegisterTasks
+    <2>2. ASSUME NEW T \in SUBSET Task,
+                 \/ StageTasks(T) \/ DiscardTasks(T) \/ AssignTasks(T)
+                 \/ ReleaseTasks(T) \/ ProcessTasks(T) \/ FinalizeTasks(T)
+          PROVE (Task \ UnknownTask)' = Task \ UnknownTask
+        BY <2>2 DEF AssignTasks, AssignedTask, DiscardTasks, FinalizeTasks, ProcessTasks,
+        ProcessedTask, RegisteredTask, ReleaseTasks, StagedTask, StageTasks
+    <2>. QED
+        BY <2>1, <2>2 DEF Next, Terminating, vars
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+THEOREM TP1_FiniteKnownTasks == Spec => []FiniteKnownTasks
+BY LemFiniteKnownTasks DEF Spec
 
 THEOREM TP1_PermanentFinalization == Spec => PermanentFinalization
 <1>. SUFFICES ASSUME NEW t \in Task
