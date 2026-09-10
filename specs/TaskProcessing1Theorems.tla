@@ -31,4 +31,9 @@ THEOREM TP1_EventualFinalization == Spec => EventualFinalization
 
 THEOREM TP1_EventualQuiescence == Spec => EventualQuiescence
 
+LEMMA LemEventualTermination ==
+    []TypeOk /\ []FiniteKnownTasks /\ [][Next]_vars /\ Fairness => EventualTermination
+
+THEOREM TP1_EventualTermination == Spec => EventualTermination
+
 ================================================================================

@@ -173,4 +173,83 @@ THEOREM TP1_EventualQuiescence == Spec => EventualQuiescence
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, TP1_Type, PTL DEF Spec
 
+(**
+ * Tasks that are neither assigned nor processed: a task has settled once it
+ * stays in this set forever.
+ *)
+Settled == {t \in Task : ~ t \in AssignedTask /\ ~ t \in ProcessedTask}
+
+(**
+ * Finite-stabilization arguments: the known tasks settle together (Conj) and
+ * the registered set ranks the quiescent steps of a settled system (Desc).
+ *)
+Conj == INSTANCE FiniteStabilizationTheorems
+            WITH D <- Task, S <- Task \ UnknownTask, T <- Settled
+Desc == INSTANCE FiniteStabilizationTheorems
+            WITH D <- Task, S <- RegisteredTask, T <- vars
+
+LEMMA LemEventualTermination ==
+    []TypeOk /\ []FiniteKnownTasks /\ [][Next]_vars /\ Fairness => EventualTermination
+(* Parked(t): t eventually settles forever. Kept opaque, since temporal atoms
+   only coalesce under identical bound names and the library quantifies over x
+   where the spec quantifies over t. *)
+<1>. DEFINE Parked(t) == <>[](t \in Settled)
+<1>. HIDE DEF Parked
+(* (a) Every task parks: assigned infinitely often it would be processed, and a
+   processed task is finalized, permanently and exclusively. *)
+<1>1. []TypeOk /\ [][Next]_vars /\ Fairness => \A x \in Task : Parked(x)
+    <2>. SUFFICES ASSUME NEW t \in Task
+                  PROVE []TypeOk /\ [][Next]_vars /\ Fairness => Parked(t)
+        OBVIOUS
+    <2>1. []TypeOk /\ [][Next]_vars /\ Fairness
+          => ([]<>(t \in AssignedTask) => <>(t \in ProcessedTask))
+        BY LemEventualProcessing DEF EventualProcessing
+    <2>2. []TypeOk /\ [][Next]_vars /\ Fairness => (t \in ProcessedTask ~> t \in FinalizedTask)
+        BY LemEventualFinalization DEF EventualFinalization
+    <2>3. t \in FinalizedTask /\ [Next]_vars => (t \in FinalizedTask)'
+        BY DEF AssignTasks, AssignedTask, DiscardTasks, FinalizeTasks, FinalizedTask, Next,
+        ProcessTasks, ProcessedTask, RegisterTasks, RegisteredTask, ReleaseTasks, StageTasks,
+        StagedTask, Terminating, UnknownTask, vars
+    <2>4. /\ t \in FinalizedTask => t \in Settled
+          /\ t \in Settled <=> ~ t \in AssignedTask /\ ~ t \in ProcessedTask
+        BY DEF AssignedTask, FinalizedTask, ProcessedTask, Settled
+    <2>. QED
+        BY <2>1, <2>2, <2>3, <2>4, PTL DEF Parked
+(* (b) A quiescent step registers nothing: the set of known tasks is frozen. *)
+<1>2. [Next]_vars /\ [NoUserAction]_vars => UNCHANGED (Task \ UnknownTask)
+    BY DEF AssignTasks, AssignedTask, DiscardTasks, FinalizeTasks, Next, NoUserAction,
+    ProcessTasks, ProcessedTask, RegisterTasks, RegisteredTask, ReleaseTasks, StageTasks,
+    StagedTask, Terminating, UnknownTask, vars
+(* (c) Finitely many known tasks park together, emptying the assigned and
+   processed sets. *)
+<1>3. /\ <>[]IsFiniteSet(Task \ UnknownTask)
+      /\ <>[][FALSE]_(Task \ UnknownTask)
+      /\ \A x \in Task : Parked(x)
+      => <>[]((Task \ UnknownTask) \cap Task \subseteq Settled)
+    BY Conj!FST_Conjunction DEF Conj!IsFiniteSet, IsFiniteSet, Parked
+<1>4. (Task \ UnknownTask) \cap Task \subseteq Settled
+      => AssignedTask = {} /\ ProcessedTask = {}
+    BY DEF AssignedTask, ProcessedTask, Settled, UnknownTask
+(* (d) In a settled system, a quiescent step can only stage registered tasks: the
+   finite registered set ranks the remaining steps, which therefore stop. *)
+<1>5. /\ AssignedTask = {} /\ ProcessedTask = {}
+      /\ (AssignedTask = {} /\ ProcessedTask = {})'
+      /\ [Next]_vars /\ [NoUserAction]_vars
+      => RegisteredTask' \subseteq RegisteredTask /\ [RegisteredTask' # RegisteredTask]_vars
+    BY DEF AssignTasks, AssignedTask, DiscardTasks, FinalizeTasks, Next, NoUserAction,
+    ProcessTasks, ProcessedTask, RegisterTasks, RegisteredTask, ReleaseTasks, StageTasks,
+    StagedTask, Terminating, UnknownTask, vars
+<1>6. FiniteKnownTasks => IsFiniteSet(Task \ UnknownTask) /\ IsFiniteSet(RegisteredTask)
+    BY FS_Subset DEF FiniteKnownTasks, RegisteredTask, UnknownTask
+<1>7. /\ <>[]IsFiniteSet(RegisteredTask)
+      /\ <>[][RegisteredTask' \subseteq RegisteredTask]_RegisteredTask
+      /\ <>[][RegisteredTask' # RegisteredTask]_vars
+      => <>[][FALSE]_vars
+    BY Desc!FST_Descent DEF Desc!IsFiniteSet, IsFiniteSet
+<1>. QED
+    BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, PTL DEF EventualTermination
+
+THEOREM TP1_EventualTermination == Spec => EventualTermination
+BY LemEventualTermination, TP1_FiniteKnownTasks, TP1_Type, PTL DEF Spec
+
 ================================================================================
