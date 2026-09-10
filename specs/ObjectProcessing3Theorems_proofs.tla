@@ -117,8 +117,7 @@ LEMMA LemRefineObjectProcessing2InitNext == Init /\ [][Next]_vars
         BY <2>7 DEF DeleteObjects, OP2!vars
     <2>8. CASE Terminating
         BY <2>8 DEF Terminating, OP2!Terminating, vars, OP2!vars,
-        CompletedObject, AbortedObject, PurgedObject,
-        OP2!CompletedObject, OP2!AbortedObject
+        CompletedObject, AbortedObject, OP2!CompletedObject, OP2!AbortedObject
     <2>9. CASE UNCHANGED vars
         BY <2>9 DEF vars, OP2!vars
     <2>. QED
@@ -131,36 +130,35 @@ LEMMA LemTargetValidity == Init /\ [][Next]_vars => []OP2!OP1!TargetValidity
 BY OP3Assumptions, LemRefineObjectProcessing2InitNext, OP2!LemTargetValidity,
 SameAssumptions
 
-LEMMA LemRegisteredTargetsUndeleted == Init /\ [][Next]_vars => []RegisteredTargetsUndeleted
-<1>. USE DEF RegisteredTargetsUndeleted, RegisteredObject
-<1>1. Init => RegisteredTargetsUndeleted
+LEMMA LemTargetsUndeleted == Init /\ [][Next]_vars => []TargetsUndeleted
+<1>. USE DEF TargetsUndeleted, RegisteredObject, CompletedObject, AbortedObject,
+     PurgedObject
+<1>1. Init => TargetsUndeleted
     BY DEF Init
-<1>2. OP2!OP1!TargetValidity /\ RegisteredTargetsUndeleted /\ [Next]_vars => RegisteredTargetsUndeleted'
-    <2>. SUFFICES ASSUME OP2!OP1!TargetValidity, RegisteredTargetsUndeleted, [Next]_vars
-                  PROVE RegisteredTargetsUndeleted'
+<1>2. TargetsUndeleted /\ [Next]_vars => TargetsUndeleted'
+    <2>. SUFFICES ASSUME TargetsUndeleted, [Next]_vars
+                  PROVE TargetsUndeleted'
         OBVIOUS
     <2>1. ASSUME NEW O \in SUBSET Object, RegisterObjects(O)
-          PROVE RegisteredTargetsUndeleted'
-        BY <2>1 DEF RegisterObjects, UnknownObject, OP2!OP1!TargetValidity,
-        OP2!OP1!UnknownObject, OP2!OP1!OBJECT_UNKNOWN, OP2!objectStateBar,
-        objectStateBar, OP2!OBJECT_COMPLETED, OP2!OBJECT_ABORTED
+          PROVE TargetsUndeleted'
+        BY <2>1 DEF RegisterObjects
     <2>2. ASSUME NEW O \in SUBSET Object, TargetObjects(O)
-          PROVE RegisteredTargetsUndeleted'
+          PROVE TargetsUndeleted'
         BY <2>2 DEF TargetObjects
     <2>3. ASSUME NEW O \in SUBSET Object, UntargetObjects(O)
-          PROVE RegisteredTargetsUndeleted'
+          PROVE TargetsUndeleted'
         BY <2>3 DEF UntargetObjects
     <2>4. ASSUME NEW O \in SUBSET Object, CompleteObjects(O)
-          PROVE RegisteredTargetsUndeleted'
+          PROVE TargetsUndeleted'
         BY <2>4 DEF CompleteObjects
     <2>5. ASSUME NEW O \in SUBSET Object, AbortObjects(O)
-          PROVE RegisteredTargetsUndeleted'
+          PROVE TargetsUndeleted'
         BY <2>5 DEF AbortObjects
     <2>6. ASSUME NEW O \in SUBSET Object, PurgeObjects(O)
-          PROVE RegisteredTargetsUndeleted'
+          PROVE TargetsUndeleted'
         BY <2>6 DEF PurgeObjects
     <2>7. ASSUME NEW O \in SUBSET Object, DeleteObjects(O)
-          PROVE RegisteredTargetsUndeleted'
+          PROVE TargetsUndeleted'
         BY <2>7 DEF DeleteObjects
     <2>8. CASE Terminating
         BY <2>8 DEF Terminating, vars
@@ -169,21 +167,20 @@ LEMMA LemRegisteredTargetsUndeleted == Init /\ [][Next]_vars => []RegisteredTarg
     <2>. QED
         BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9 DEF Next
 <1>. QED
-    BY <1>1, <1>2, LemTargetValidity, PTL
+    BY <1>1, <1>2, PTL
 
-THEOREM OP3_RegisteredTargetsUndeleted == Spec => []RegisteredTargetsUndeleted
-BY LemRegisteredTargetsUndeleted DEF Spec
+THEOREM OP3_TargetsUndeleted == Spec => []TargetsUndeleted
+BY LemTargetsUndeleted DEF Spec
 
 ObjectSafetyInv ==
     /\ TypeOk
-    /\ OP2!OP1!TargetValidity
     /\ DeletionValidity
-    /\ RegisteredTargetsUndeleted
+    /\ TargetsUndeleted
     /\ DeletionNoData
 
 LEMMA LemObjectSafetyInv == Init /\ [][Next]_vars => []ObjectSafetyInv
-BY LemType, LemDeletionValidity, LemRegisteredTargetsUndeleted,
-LemTargetValidity, LemDeletionNoData, PTL DEF ObjectSafetyInv
+BY LemDeletionNoData, LemDeletionValidity, LemTargetsUndeleted, LemType, PTL
+DEF ObjectSafetyInv
 
 THEOREM OP3_ObjectSafetyInv == Spec => []ObjectSafetyInv
 BY LemObjectSafetyInv DEF Spec
@@ -223,7 +220,8 @@ THEOREM OP3_DeletionQuiescence == Spec => DeletionQuiescence
     BY DEF DeletionQuiescence
 <1>1. ObjectSafetyInv /\ o \in objectDeleted /\ [Next]_vars => /\ objectState'[o] = objectState[o]
                                                                /\ o \in objectTargets' <=> o \in objectTargets
-    BY DEF ObjectSafetyInv, DeletionValidity, DeletionNoData, CompletedObject,
+    BY DEF ObjectSafetyInv, DeletionValidity, DeletionNoData, TargetsUndeleted,
+    CompletedObject,
     Next, vars, RegisterObjects, TargetObjects, UntargetObjects, CompleteObjects,
     AbortObjects, PurgeObjects, DeleteObjects, Terminating
 <1>2. ObjectSafetyInv /\ o \in objectDeleted /\ [Next]_vars => (o \in objectDeleted)'
@@ -272,8 +270,7 @@ THEOREM OP3_RefineObjectProcessing2 == Spec => RefineObjectProcessing2
         BY DEF CompleteObjects, OP2!CompleteObjects, vars, OP2!vars,
         RegisteredObject, OP2!RegisteredObject, objectStateBar
     <2>3. ObjectSafetyInv /\ ENABLED <<AbsA(o)>>_OP2!vars => P
-        BY <2>0 DEF ObjectSafetyInv, RegisteredTargetsUndeleted, RegisteredObject,
-        OP2!RegisteredObject, objectStateBar
+        BY <2>0 DEF ObjectSafetyInv, TargetsUndeleted
     <2>. QED
         BY <2>1, <2>2, <2>3, PTL
 <1>2. []ObjectSafetyInv /\ WF_vars(o \in objectTargets /\ AbortObjects({o}))
@@ -306,8 +303,7 @@ THEOREM OP3_RefineObjectProcessing2 == Spec => RefineObjectProcessing2
         BY DEF AbortObjects, OP2!AbortObjects, vars, OP2!vars,
         RegisteredObject, OP2!RegisteredObject, objectStateBar
     <2>3. ObjectSafetyInv /\ ENABLED <<AbsA(o)>>_OP2!vars => P
-        BY <2>0 DEF ObjectSafetyInv, RegisteredTargetsUndeleted, RegisteredObject,
-        OP2!RegisteredObject, objectStateBar
+        BY <2>0 DEF ObjectSafetyInv, TargetsUndeleted
     <2>. QED
         BY <2>1, <2>2, <2>3, PTL
 <1>. QED

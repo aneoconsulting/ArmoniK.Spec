@@ -20,15 +20,14 @@ LEMMA LemRefineObjectProcessing2InitNext == Init /\ [][Next]_vars
 
 LEMMA LemTargetValidity == Init /\ [][Next]_vars => []OP2!OP1!TargetValidity
 
-LEMMA LemRegisteredTargetsUndeleted == Init /\ [][Next]_vars => []RegisteredTargetsUndeleted
+LEMMA LemTargetsUndeleted == Init /\ [][Next]_vars => []TargetsUndeleted
 
-THEOREM OP3_RegisteredTargetsUndeleted == Spec => []RegisteredTargetsUndeleted
+THEOREM OP3_TargetsUndeleted == Spec => []TargetsUndeleted
 
 ObjectSafetyInv ==
     /\ TypeOk
-    /\ OP2!OP1!TargetValidity
     /\ DeletionValidity
-    /\ RegisteredTargetsUndeleted
+    /\ TargetsUndeleted
     /\ DeletionNoData
 
 LEMMA LemObjectSafetyInv == Init /\ [][Next]_vars => []ObjectSafetyInv
