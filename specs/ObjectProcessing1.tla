@@ -8,7 +8,7 @@
 (* of the system.                                                            *)
 (*****************************************************************************)
 
-EXTENDS DenumerableSets
+EXTENDS DenumerableSets, FiniteSets
 
 CONSTANTS
     Object  \* Abstract set of all objects
@@ -56,11 +56,12 @@ Init ==
 
 (**
  * OBJECT REGISTRATION
- * A new set 'O' of objects is registered in the system, i.e., it is created
- * with the metadata provided and empty data.
+ * A new finite set 'O' of objects is registered in the system, i.e., it is
+ * created with the metadata provided and empty data.
  *)
 RegisterObjects(O) ==
     /\ O /= {} /\ O \subseteq UnknownObject
+    /\ IsFiniteSet(O)
     /\ objectState' =
         [o \in Object |-> IF o \in O THEN OBJECT_REGISTERED ELSE objectState[o]]
     /\ UNCHANGED objectTargets
@@ -152,6 +153,14 @@ Spec ==
  *)
 TargetValidity ==
     objectTargets \intersect UnknownObject = {}
+
+(**
+ * SAFETY
+ * Only finitely many objects are known to the system, since a registration
+ * adds finitely many objects at a time.
+ *)
+FiniteKnownObjects ==
+    IsFiniteSet(Object \ UnknownObject)
 
 (**
  * SAFETY
