@@ -3,6 +3,8 @@ EXTENDS GraphProcessing1
 
 LEMMA SameAssumptions == GP1Assumptions => TP1!TP1Assumptions
 
+LEMMA SameObjectAssumptions == GP1Assumptions => OP1!OP1Assumptions
+
 (*****************************************************************************)
 
 LEMMA LemType == Init /\ [][Next]_vars => []TypeOk
@@ -159,4 +161,9 @@ LEMMA LemCardinalityDescent ==
              => C = n + 1 ~> C < n + 1
 
 THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
+
+(*****************************************************************************)
+
+THEOREM GP1_EventualTermination == Spec => EventualTermination
+
 ================================================================================
