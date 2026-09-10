@@ -1,5 +1,5 @@
 ------------------- MODULE ObjectProcessing1Theorems_proofs --------------------
-EXTENDS ObjectProcessing1, TLAPS
+EXTENDS ObjectProcessing1, FiniteSetTheorems, TLAPS
 
 USE DEF OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_FINALIZED
 
@@ -29,12 +29,38 @@ LEMMA LemTargetValidity == Init /\ [][Next]_vars => []TargetValidity
 THEOREM OP1_TargetValidity == Spec => []TargetValidity
 BY LemTargetValidity DEF Spec
 
+LEMMA LemFiniteKnownObjects == Init /\ [][Next]_vars => []FiniteKnownObjects
+<1>. USE DEF FiniteKnownObjects, UnknownObject
+<1>1. Init => FiniteKnownObjects
+    BY FS_EmptySet DEF Init
+(* A registration adds its finite set to the known objects; no other step
+   changes them. *)
+<1>2. FiniteKnownObjects /\ [Next]_vars => FiniteKnownObjects'
+    <2>1. ASSUME NEW O \in SUBSET Object, RegisterObjects(O), FiniteKnownObjects
+          PROVE FiniteKnownObjects'
+        <3>1. (Object \ UnknownObject)' = (Object \ UnknownObject) \cup O
+            BY <2>1 DEF RegisterObjects
+        <3>. QED
+            BY <2>1, <3>1, FS_Union DEF RegisterObjects
+    <2>2. ASSUME NEW O \in SUBSET Object,
+                 TargetObjects(O) \/ UntargetObjects(O) \/ FinalizeObjects(O)
+          PROVE (Object \ UnknownObject)' = Object \ UnknownObject
+        BY <2>2 DEF FinalizeObjects, RegisteredObject, TargetObjects, UntargetObjects
+    <2>. QED
+        BY <2>1, <2>2 DEF Next, Terminating, vars
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+THEOREM OP1_FiniteKnownObjects == Spec => []FiniteKnownObjects
+BY LemFiniteKnownObjects DEF Spec
+
 ObjectSafetyInv ==
     /\ TypeOk
     /\ TargetValidity
+    /\ FiniteKnownObjects
 
 LEMMA LemObjectSafetyInv == Init /\ [][Next]_vars => []ObjectSafetyInv
-BY LemType, LemTargetValidity, PTL DEF ObjectSafetyInv
+BY LemFiniteKnownObjects, LemType, LemTargetValidity, PTL DEF ObjectSafetyInv
 
 THEOREM OP1_ObjectSafetyInv == Spec => []ObjectSafetyInv
 BY LemObjectSafetyInv DEF Spec
