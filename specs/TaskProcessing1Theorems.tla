@@ -5,6 +5,10 @@ LEMMA LemType == Init /\ [][Next]_vars => []TypeOk
 
 THEOREM TP1_Type == Spec => []TypeOk
 
+LEMMA LemFiniteKnownTasks == Init /\ [][Next]_vars => []FiniteKnownTasks
+
+THEOREM TP1_FiniteKnownTasks == Spec => []FiniteKnownTasks
+
 THEOREM TP1_PermanentFinalization == Spec => PermanentFinalization
 
 LEMMA AssignmentEnablesProcessing ==
