@@ -127,6 +127,13 @@ Terminating ==
     /\ ProcessedTask = {}
     /\ UNCHANGED vars
 
+(**
+ * USER QUIESCENCE
+ * A step in which the user drives no new work: no task is registered.
+ *)
+NoUserAction ==
+    ~ \E T \in SUBSET Task : RegisterTasks(T)
+
 -------------------------------------------------------------------------------
 
 (*****************************************************************************)
@@ -226,5 +233,22 @@ EventualQuiescence ==
             \/ [](t \in RegisteredTask)
             \/ [](t \in StagedTask)
             \/ [](t \in FinalizedTask)
+
+(**
+ * LIVENESS
+ * If the user eventually stops driving the system -- from some point on, no
+ * task is registered anymore -- then the system eventually terminates: no
+ * task remains assigned or processed and the state never changes again. This
+ * rests on FiniteKnownTasks: with infinitely many registered tasks, a
+ * behavior could process a fresh task at every step.
+ *
+ * The conclusion is the conjunction of two suffix-stable formulas, which is
+ * equivalent to <>([](AssignedTask = {} /\ ProcessedTask = {}) /\ [][FALSE]_vars).
+ * This shape is checkable directly by TLC.
+ *)
+EventualTermination ==
+    <>[][NoUserAction]_vars
+    => /\ <>[](AssignedTask = {} /\ ProcessedTask = {})
+       /\ <>[][FALSE]_vars
 
 ================================================================================
