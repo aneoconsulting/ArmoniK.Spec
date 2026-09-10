@@ -51,11 +51,12 @@ Init ==
 
 (**
  * TASK STAGING
- * A new set 'T' of tasks is registred i.e., known to the system but not yet
- * ready for processing.
+ * A new finite set 'T' of tasks is registered i.e., known to the system but
+ * not yet ready for processing.
  *)
 RegisterTasks(T) ==
     /\ T /= {} /\ T \subseteq UnknownTask
+    /\ IsFiniteSet(T)
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_REGISTERED ELSE taskState[t]]
 
@@ -173,6 +174,14 @@ Spec ==
 (*****************************************************************************)
 (* SAFETY AND LIVENESS PROPERTIES                                            *)
 (*****************************************************************************)
+
+(**
+ * SAFETY
+ * Only finitely many tasks are known to the system, since a registration adds
+ * finitely many tasks at a time.
+ *)
+FiniteKnownTasks ==
+    IsFiniteSet(Task \ UnknownTask)
 
 (**
  * SAFETY
