@@ -91,8 +91,8 @@ LEMMA LemRefineObjectProcessing2InitNext == Init /\ [][Next]_vars
     <2>. USE DEF objectStateBar
     <2>1. ASSUME NEW O \in SUBSET Object, RegisterObjects(O)
           PROVE OP2!RegisterObjects(O)
-        BY <2>1 DEF RegisterObjects, OP2!RegisterObjects, UnknownObject,
-        OP2!UnknownObject
+        BY <2>1 DEF IsFiniteSet, OP2!IsFiniteSet, OP2!RegisterObjects, OP2!UnknownObject,
+        RegisterObjects, UnknownObject
     <2>2. ASSUME NEW O \in SUBSET Object, TargetObjects(O)
           PROVE OP2!TargetObjects(O)
         BY <2>2 DEF TargetObjects, OP2!TargetObjects, RegisteredObject,
