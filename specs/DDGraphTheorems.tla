@@ -267,7 +267,7 @@ THEOREM DDG_RetryUnionIsDag ==
 (******************************************************************************)
 THEOREM DDG_RetrySubGraphProperties ==
     ASSUME NEW T, NEW O, NEW G, IsDDGraph(G, T, O),
-           NEW Op(_), NEW t \in T \cap G.node, NEW u, u \notin (T \cup O)
+           NEW t \in T \cap G.node, NEW u, u \notin (T \cup O)
     PROVE  LET R == RetrySubGraph(G, t, u) IN
            /\ IsDDGraph(R, {u}, O)
            /\ IsWeaklyConnected(R)
@@ -290,6 +290,41 @@ THEOREM DDG_AncestorSubGraphBasic ==
            /\ A.node \subseteq {y \in G.node : Op(y)}
 
 (******************************************************************************)
+(* AncestorSubGraph is monotone in the induction predicate: strengthening     *)
+(* Op pointwise can only shrink the induced ancestor subgraph, node- and      *)
+(* edge-wise.                                                                 *)
+(******************************************************************************)
+THEOREM DDG_AncestorSubGraphMono ==
+    ASSUME NEW G, IsDirectedGraph(G), NEW n, NEW Op(_), NEW Op2(_),
+           \A m : Op2(m) => Op(m)
+    PROVE  /\ AncestorSubGraph(G, n, Op2).node \subseteq AncestorSubGraph(G, n, Op).node
+           /\ AncestorSubGraph(G, n, Op2).edge \subseteq AncestorSubGraph(G, n, Op).edge
+
+(******************************************************************************)
+(* An Op-blocked sink has no derivations: ~Op(n) empties the induced ancestor *)
+(* subgraph, so no subgraph of it can have {n} as its sink set. Needs neither *)
+(* n \in G.node nor any structure on G.                                       *)
+(******************************************************************************)
+THEOREM DDG_DerivationBlockedSink ==
+    ASSUME NEW T, NEW G, NEW n, NEW Op(_), ~Op(n)
+    PROVE  Derivation(G, n, Op, T) = {}
+
+(******************************************************************************)
+(* Derivations are antitone under simultaneous graph growth and ancestor-     *)
+(* subgraph shrinkage: a derivation of n in the larger graph G2 whose ambient *)
+(* induced ancestor subgraph lies inside that of (G, Op) is already a         *)
+(* derivation of n in G.                                                      *)
+(******************************************************************************)
+THEOREM DDG_DerivationAntitone ==
+    ASSUME NEW T, NEW G, NEW G2,
+           IsDirectedGraph(G), IsDirectedGraph(G2),
+           G.node \subseteq G2.node, G.edge \subseteq G2.edge,
+           NEW n, NEW Op(_), NEW Op2(_),
+           AncestorSubGraph(G2, n, Op2).node \subseteq AncestorSubGraph(G, n, Op).node,
+           AncestorSubGraph(G2, n, Op2).edge \subseteq AncestorSubGraph(G, n, Op).edge
+    PROVE  Derivation(G2, n, Op2, T) \subseteq Derivation(G, n, Op, T)
+
+(******************************************************************************)
 (* Bundled properties of any derivation D of n in G under Op, T:              *)
 (*   - D is itself a DD graph over (T, O) (it inherits structure from G);    *)
 (*   - D is weakly connected (all its nodes reach n through directed paths   *)
@@ -306,12 +341,27 @@ THEOREM DDG_DerivationProperties ==
            /\ \A m \in D.node : AreConnectedIn(D, m, n)
 
 (******************************************************************************)
+(* An unblocked ancestry is itself a derivation: if every ancestor of n       *)
+(* satisfies Op, the ancestor-induced subgraph of n is a derivation of n.     *)
+(* This is the graph half of the "crash-free ancestry" sufficient condition   *)
+(* for DerivableObjectsEventualCompletion (GraphProcessing2): an object       *)
+(* whose ancestry never meets a crashed node is derivable in every state.     *)
+(******************************************************************************)
+THEOREM DDG_UnblockedAncestryIsDerivation ==
+    ASSUME NEW T, NEW G, IsDag(G),
+           NEW n \in G.node, NEW Op(_),
+           \A m \in Ancestor(G, n) : Op(m)
+    PROVE  [node |-> Ancestor(G, n),
+            edge |-> G.edge \cap (Ancestor(G, n) \X Ancestor(G, n))]
+               \in Derivation(G, n, Op, T)
+
+(******************************************************************************)
 (* Non-existence criterion: if no derivation of n exists, then some ancestor *)
-(* of n fails Op. Contrapositively, if every ancestor of n satisfies Op then *)
-(* the ancestor-induced subgraph of n is itself a derivation. (Note: a       *)
-(* "clean simple path" to n is NOT sufficient for a derivation, because a    *)
-(* task needs ALL of its inputs Op, not just the one on the path -- hence    *)
-(* the criterion quantifies over all ancestors, not over a single path.)     *)
+(* of n fails Op -- the contrapositive corollary of                          *)
+(* DDG_UnblockedAncestryIsDerivation. (Note: a "clean simple path" to n is   *)
+(* NOT sufficient for a derivation, because a task needs ALL of its inputs   *)
+(* Op, not just the one on the path -- hence the criterion quantifies over   *)
+(* all ancestors, not over a single path.)                                   *)
 (******************************************************************************)
 THEOREM DDG_NoDerivationMeansBlockedAncestor ==
     ASSUME NEW T, NEW G, IsDag(G),
