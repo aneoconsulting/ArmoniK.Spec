@@ -1,11 +1,18 @@
 -------------------------- MODULE GraphProcessing2_mc --------------------------
 
-EXTENDS GraphsExt, GraphProcessing2, TLC
+EXTENDS GraphProcessing2
 
---------------------------------------------------------------------------------
+MCDirectedGraphOf(N) == DDGraphOf(N \cap Task, N \cap Object)
 
-MCGraphs(Nodes) ==
-    ACGraphs(Nodes \intersect UnknownTask, Nodes \intersect Object)
+MCRefineGraphProcessing1 ==
+    /\ GP1!Init
+    /\ [][GP1!Next]_(GP1!vars)
+    /\ GP1!Fairness
+
+MCSpec ==
+    /\ Init
+    /\ [][Next]_vars
+    /\ Fairness
 
 --------------------------------------------------------------------------------
 
