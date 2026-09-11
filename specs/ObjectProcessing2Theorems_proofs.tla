@@ -63,18 +63,27 @@ LEMMA LemTargetValidity == Init /\ [][Next]_vars => []OP1!TargetValidity
 BY OP2Assumptions, SameAssumptions, LemRefineObjectProcessing1InitNext,
 OP1!LemTargetValidity
 
+(**
+ * STEP-LEVEL STABILITY OF FINALIZED OBJECTS: completed and aborted objects
+ * keep their state under every step. Stated for a single step so that
+ * refining specifications can lift it through their step simulation.
+ *)
+LEMMA LemFinalizedObjectStable ==
+    ASSUME NEW o \in Object, [Next]_vars
+    PROVE  /\ o \in CompletedObject => (o \in CompletedObject)'
+           /\ o \in AbortedObject => (o \in AbortedObject)'
+BY DEF AbortedObject, AbortObjects, CompletedObject, CompleteObjects, Next, RegisteredObject,
+    RegisterObjects, TargetObjects, Terminating, UnknownObject, UntargetObjects, vars
+
 THEOREM OP2_PermanentFinalization == Spec => PermanentFinalization
 <1>. SUFFICES ASSUME NEW o \in Object
               PROVE Spec => /\ [](o \in CompletedObject => [](o \in CompletedObject))
                             /\ [](o \in AbortedObject => [](o \in AbortedObject))
     BY DEF PermanentFinalization
-<1>. USE DEF Next, vars, RegisterObjects, TargetObjects, UntargetObjects,
-     CompleteObjects, AbortObjects, Terminating, UnknownObject,
-     RegisteredObject, CompletedObject, AbortedObject
 <1>1. o \in CompletedObject /\ [Next]_vars => (o \in CompletedObject)'
-    OBVIOUS
+    BY LemFinalizedObjectStable
 <1>2. o \in AbortedObject /\ [Next]_vars => (o \in AbortedObject)'
-    OBVIOUS
+    BY LemFinalizedObjectStable
 <1>. QED
     BY <1>1, <1>2, PTL DEF Spec
 
