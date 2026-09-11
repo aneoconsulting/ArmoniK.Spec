@@ -1750,8 +1750,14 @@ LEMMA LemFiniteNextAttempts == Init /\ [][Next]_vars => []FiniteNextAttempts
         OBVIOUS
     <2>1. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U)
           PROVE FiniteNextAttempts'
-        BY <2>1, TP2Assumptions, FS_Subset, FS_Union, FS_Image DEF SetTaskRetries,
-        UnknownTask, UnretriedTask, FailedTask, Bijection, Surjection, FiniteKnownTasks
+        <3>1. {v \in Task : nextAttemptOf[v] \in Task}'
+                \subseteq T \cup {v \in Task : nextAttemptOf[v] \in Task}
+            BY <2>1 DEF SetTaskRetries
+        <3>2. IsFiniteSet(T)
+            BY <2>1, FS_Subset DEF SetTaskRetries, UnretriedTask, FailedTask, UnknownTask,
+            FiniteKnownTasks
+        <3>. QED
+            BY <3>1, <3>2, FS_Subset, FS_Union
     <2>. SUFFICES ASSUME [\/ \E T \in SUBSET Task:
                                 \/ RegisterTasks(T)
                                 \/ StageTasks(T)
