@@ -13,7 +13,7 @@
 (* a companion DDGraphTheorems_proofs module and to be checked with tlapm.    *)
 (******************************************************************************)
 
-EXTENDS DDGraphs, DiGraphTheorems, FiniteSets
+EXTENDS DDGraphs, DiGraphTheorems, FiniteSets, WellFoundedInduction
 
 (******************************************************************************)
 (* Every member of DDGraphOf(T, O) is a DD graph over T and O, with nodes in *)
@@ -317,5 +317,206 @@ THEOREM DDG_NoDerivationMeansBlockedAncestor ==
     ASSUME NEW T, NEW G, IsDag(G),
            NEW n \in G.node, NEW Op(_)
     PROVE  Derivation(G, n, Op, T) = {} => \E m \in Ancestor(G, n) : ~Op(m)
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(* Counting DD graphs -- the recursive formula for Cardinality(DDGraphOf).    *)
+(*                                                                            *)
+(* The results below formalize counting-ddgraphs.md, Theorem 1 (the           *)
+(* streamlined system) and the Proposition of its Section 9, with the object  *)
+(* partition of that report playing the role of O and the task partition the  *)
+(* role of T. The three labeled families BipartiteDagOn, ObjectSinkDagOn and  *)
+(* DDGraphOn on the exact node set T \cup O are counted in turn, and          *)
+(* DDGraphOf is finally counted as the disjoint union of DDGraphOn over the   *)
+(* sub-partitions of (T, O). Every count depends only on the sizes of T and   *)
+(* O, and is given by the operators of DDGraphs.                              *)
+(******************************************************************************)
+
+(******************************************************************************)
+(* A member of BipartiteDagOn(T, O) is a DAG whose node set is exactly        *)
+(* T \cup O, whose edges cross the partition, and which is therefore          *)
+(* bipartite over (T, O) when T and O are disjoint.                           *)
+(******************************************************************************)
+LEMMA DDG_BipartiteDagOnMember ==
+    ASSUME NEW T, NEW O, T \cap O = {},
+           NEW g \in BipartiteDagOn(T, O)
+    PROVE  /\ IsDag(g)
+           /\ g.node = T \cup O
+           /\ g.edge \subseteq (T \X O) \cup (O \X T)
+           /\ IsBipartiteWithPartitions(g, T, O)
+
+(******************************************************************************)
+(* The three counted families over finite T and O are finite: the bipartite   *)
+(* DAGs are graphs with a fixed node set and an edge set drawn from the       *)
+(* finite power set of (T \X O) \cup (O \X T), and the two other families are *)
+(* sub-families of the first.                                                 *)
+(******************************************************************************)
+LEMMA DDG_BipartiteDagOnFinite ==
+    ASSUME NEW T, IsFiniteSet(T), NEW O, IsFiniteSet(O)
+    PROVE  /\ IsFiniteSet(BipartiteDagOn(T, O))
+           /\ IsFiniteSet(ObjectSinkDagOn(T, O))
+           /\ IsFiniteSet(DDGraphOn(T, O))
+
+(******************************************************************************)
+(* The sink-constrained family, in the form inclusion-exclusion needs: a      *)
+(* bipartite DAG on (T, O) has its sinks among the objects iff no task is a   *)
+(* sink, since sinks are nodes, hence tasks or objects.                       *)
+(******************************************************************************)
+LEMMA DDG_ObjectSinkDagOnNoTaskSink ==
+    ASSUME NEW T, NEW O, T \cap O = {}
+    PROVE  ObjectSinkDagOn(T, O) = {g \in BipartiteDagOn(T, O) : Sink(g) \cap T = {}}
+
+(******************************************************************************)
+(* The DD graphs on exactly T \cup O, in the form inclusion-exclusion needs:  *)
+(* within the sink-constrained family, a graph is a DD graph iff no task is   *)
+(* a source, since sources are nodes, hence tasks or objects.                 *)
+(******************************************************************************)
+LEMMA DDG_DDGraphOnNoTaskSource ==
+    ASSUME NEW T, NEW O, T \cap O = {}
+    PROVE  DDGraphOn(T, O) = {g \in ObjectSinkDagOn(T, O) : Source(g) \cap T = {}}
+
+(******************************************************************************)
+(* The only bipartite DAG on the empty partitions is the empty graph: a graph *)
+(* with node set {} has no edges, and the empty graph is a DAG.               *)
+(******************************************************************************)
+LEMMA DDG_BipartiteDagOnEmpty ==
+    BipartiteDagOn({}, {}) = {EmptyGraph}
+
+(******************************************************************************)
+(* A bipartite DAG on a non-empty node set has a sink: pick any node and      *)
+(* follow DG_DagReachesSink.                                                  *)
+(******************************************************************************)
+LEMMA DDG_BipartiteDagOnHasSink ==
+    ASSUME NEW T, IsFiniteSet(T), NEW O, IsFiniteSet(O), T \cup O # {},
+           NEW g \in BipartiteDagOn(T, O)
+    PROVE  Sink(g) # {}
+
+(******************************************************************************)
+(* Forced sinks factor out (counting-ddgraphs.md, Lemma 6 read on sinks): the *)
+(* bipartite DAGs on (T, O) in which the tasks KT and the objects KO are all  *)
+(* sinks are in bijection with the pairs of a bipartite DAG on the remaining  *)
+(* nodes (T \ KT, O \ KO) and of an arbitrary set of edges entering KT \cup   *)
+(* KO from the remaining nodes of the opposite partition. No edge leaves a    *)
+(* forced sink, and acyclicity does not depend on the edges entering sinks    *)
+(* (DG_SourceSinkRemovalDagEquiv), so the two components are independent;     *)
+(* there are |KT| (|O| - |KO|) + |KO| (|T| - |KT|) candidate entering edges.  *)
+(******************************************************************************)
+LEMMA DDG_ForcedSinksCardinality ==
+    ASSUME NEW T, IsFiniteSet(T), NEW O, IsFiniteSet(O), T \cap O = {},
+           NEW KT \in SUBSET T, NEW KO \in SUBSET O
+    PROVE  Cardinality({g \in BipartiteDagOn(T, O) : KT \cup KO \subseteq Sink(g)})
+           = Pow(2, Cardinality(KT) * (Cardinality(O) - Cardinality(KO))
+                    + Cardinality(KO) * (Cardinality(T) - Cardinality(KT)))
+             * Cardinality(BipartiteDagOn(T \ KT, O \ KO))
+
+(******************************************************************************)
+(* Forced sources factor out inside the sink-constrained family               *)
+(* (counting-ddgraphs.md, Section 5.3 read on sources): the bipartite DAGs on *)
+(* (T, O) whose sinks are objects and in which the tasks of K are all sources *)
+(* are in bijection with the pairs of such a DAG on (T \ K, O) and of a set   *)
+(* of edges leaving K towards O in which every task of K keeps at least one   *)
+(* successor -- the sink constraint still applies to K. Acyclicity does not   *)
+(* depend on the edges leaving sources (DG_SourceSinkRemovalDagEquiv), and    *)
+(* the left-total edge sets are counted by CNT_LeftTotalRelationsCardinality. *)
+(******************************************************************************)
+LEMMA DDG_ForcedSourcesCardinality ==
+    ASSUME NEW T, IsFiniteSet(T), NEW O, IsFiniteSet(O), T \cap O = {},
+           NEW K \in SUBSET T
+    PROVE  Cardinality({g \in ObjectSinkDagOn(T, O) : K \subseteq Source(g)})
+           = Pow(Pow(2, Cardinality(O)) - 1, Cardinality(K))
+             * Cardinality(ObjectSinkDagOn(T \ K, O))
+
+(******************************************************************************)
+(* The function behind BipartiteDagCount is well defined and integer-valued:  *)
+(* its body BipartiteDagCountDef only consults the function argument at       *)
+(* pairs with fewer nodes, which are smaller in the lexicographic order on    *)
+(* Nat \X Nat, so WFInductiveDef applies, and WFInductiveDefType gives the    *)
+(* type since every summand is an integer.                                    *)
+(******************************************************************************)
+LEMMA DDG_BipartiteDagCountFcnDef ==
+    /\ WFInductiveDefines(BipartiteDagCountFcn, Nat \X Nat, BipartiteDagCountDef)
+    /\ BipartiteDagCountFcn \in [Nat \X Nat -> Int]
+
+(******************************************************************************)
+(* The recursion equation of BipartiteDagCount -- the E-recursion of          *)
+(* counting-ddgraphs.md, Theorem 1, read with t tasks and o objects:          *)
+(* DDG_BipartiteDagCountFcnDef instantiated at the pair <<t, o>>.             *)
+(******************************************************************************)
+THEOREM DDG_BipartiteDagCountDef ==
+    ASSUME NEW t \in Nat, NEW o \in Nat
+    PROVE  BipartiteDagCount(t, o) =
+             IF t = 0 /\ o = 0
+             THEN 1
+             ELSE MapThenSumSet(
+                     LAMBDA q : AltSign(q[1] + q[2] + 1)
+                                * Binomial(t, q[1]) * Binomial(o, q[2])
+                                * Pow(2, q[1] * (o - q[2]) + q[2] * (t - q[1]))
+                                * BipartiteDagCount(t - q[1], o - q[2]),
+                     ((0..t) \X (0..o)) \ {<<0, 0>>})
+
+(******************************************************************************)
+(* The counting operators are integer-valued: BipartiteDagCount by            *)
+(* DDG_BipartiteDagCountFcnDef, and the three sums because every summand is   *)
+(* an integer (AltSign is an integer, Binomial a natural number, Pow an       *)
+(* integer).                                                                  *)
+(******************************************************************************)
+LEMMA DDG_CountsType ==
+    ASSUME NEW t \in Nat, NEW o \in Nat
+    PROVE  /\ BipartiteDagCount(t, o) \in Int
+           /\ ObjectSinkDagCount(t, o) \in Int
+           /\ DDGraphCount(t, o) \in Int
+           /\ DDGraphOfCount(t, o) \in Int
+
+(******************************************************************************)
+(* The number of bipartite DAGs on finite disjoint (T, O) is                  *)
+(* BipartiteDagCount(|T|, |O|) (counting-ddgraphs.md, Section 5.1). By strong *)
+(* induction on |T| + |O|. For a non-empty node set every member has a sink,  *)
+(* so inclusion-exclusion over the sets K of nodes forced to be sinks (with   *)
+(* the marked set Sink(g)) gives an alternating sum equal to 0; the term for  *)
+(* K = {} is the cardinality sought, every other term is                      *)
+(* DDG_ForcedSinksCardinality evaluated with the induction hypothesis, and    *)
+(* grouping the sets K by their numbers of tasks and objects yields the       *)
+(* recursion.                                                                 *)
+(******************************************************************************)
+THEOREM DDG_BipartiteDagOnCardinality ==
+    ASSUME NEW T, IsFiniteSet(T), NEW O, IsFiniteSet(O), T \cap O = {}
+    PROVE  Cardinality(BipartiteDagOn(T, O))
+           = BipartiteDagCount(Cardinality(T), Cardinality(O))
+
+(******************************************************************************)
+(* The number of bipartite DAGs on (T, O) whose sinks are all objects is      *)
+(* ObjectSinkDagCount(|T|, |O|) (counting-ddgraphs.md, Section 5.2 read on    *)
+(* sinks): inclusion-exclusion over the sets K of tasks forced to be sinks,   *)
+(* each term being DDG_ForcedSinksCardinality with KO = {} evaluated through  *)
+(* DDG_BipartiteDagOnCardinality, then grouping the sets K by cardinality.    *)
+(******************************************************************************)
+THEOREM DDG_ObjectSinkDagOnCardinality ==
+    ASSUME NEW T, IsFiniteSet(T), NEW O, IsFiniteSet(O), T \cap O = {}
+    PROVE  Cardinality(ObjectSinkDagOn(T, O))
+           = ObjectSinkDagCount(Cardinality(T), Cardinality(O))
+
+(******************************************************************************)
+(* The number of DD graphs with node set exactly T \cup O is                  *)
+(* DDGraphCount(|T|, |O|) (counting-ddgraphs.md, Section 5.3 read on          *)
+(* sources): within the family whose sinks are objects, inclusion-exclusion   *)
+(* over the sets K of tasks forced to be sources, each term being             *)
+(* DDG_ForcedSourcesCardinality evaluated through                             *)
+(* DDG_ObjectSinkDagOnCardinality, then grouping the sets K by cardinality.   *)
+(******************************************************************************)
+THEOREM DDG_DDGraphOnCardinality ==
+    ASSUME NEW T, IsFiniteSet(T), NEW O, IsFiniteSet(O), T \cap O = {}
+    PROVE  Cardinality(DDGraphOn(T, O)) = DDGraphCount(Cardinality(T), Cardinality(O))
+
+(******************************************************************************)
+(* The main counting result: DDGraphOf(T, O) has DDGraphOfCount(|T|, |O|)     *)
+(* members (counting-ddgraphs.md, Section 9.2). DDGraphOf is the union of the *)
+(* families DDGraphOn(t, o) over the sub-partitions (t, o), which are         *)
+(* pairwise disjoint since a member determines its sub-partition as (node     *)
+(* \cap T, node \cap O); each family is counted by DDG_DDGraphOnCardinality   *)
+(* and the sub-partitions are grouped by their numbers of tasks and objects.  *)
+(******************************************************************************)
+THEOREM DDG_DDGraphOfCardinality ==
+    ASSUME NEW T, IsFiniteSet(T), NEW O, IsFiniteSet(O), T \cap O = {}
+    PROVE  Cardinality(DDGraphOf(T, O)) = DDGraphOfCount(Cardinality(T), Cardinality(O))
 
 ================================================================================
