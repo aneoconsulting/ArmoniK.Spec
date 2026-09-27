@@ -3316,6 +3316,29 @@ LEMMA LemRefineTP2WFSetTaskRetries ==
         \* form -- UNCHANGED becomes individual scalar equalities, the action-level
         \* \E stays nested, and the inequality sits outside it -- then WITNESS the
         \* unchanged primed vars and the retry-clone, and discharge the residue.
+        \* The expansion is a step of its own: as the proof of the SUFFICES
+        \* below, the same SMT obligation times out with the upstream tlapm.
+        <3>1. (\E depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp :
+                          /\ \E u \in Task :
+                              /\ {t} # {}
+                              /\ {t} \subseteq UnretriedTask
+                              /\ {u} \subseteq UnknownTask
+                              /\ \A v \in {u} : ~ \E w \in Task : nextAttemptOf[w] = v
+                              /\ \E f \in Bijection({t}, {u}) :
+                                      nextAttemptOfp
+                                      = [t_1 \in Task |->
+                                          IF t_1 \in {t} THEN f[t_1] ELSE nextAttemptOf[t_1]]
+                              /\ taskStatep = taskState
+                              /\ depsp = deps
+                              /\ objectStatep = objectState
+                              /\ objectTargetsp = objectTargets
+                          /\ ~ (/\ depsp = deps
+                                /\ objectStatep = objectState
+                                /\ objectTargetsp = objectTargets
+                                /\ taskStatep = taskState
+                                /\ nextAttemptOfp = nextAttemptOf))
+              => ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
+            BY ExpandENABLED, SMTT(30) DEF SetTaskRetries, vars
         <3>. SUFFICES ASSUME TP2!TaskSafetyInv, t \in UnretriedTask
                       PROVE  \E depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp :
                                 /\ \E u \in Task :
@@ -3336,8 +3359,8 @@ LEMMA LemRefineTP2WFSetTaskRetries ==
                                       /\ objectTargetsp = objectTargets
                                       /\ taskStatep = taskState
                                       /\ nextAttemptOfp = nextAttemptOf)
-            BY ExpandENABLED, SMT DEF SetTaskRetries, vars
-        <3>1. PICK u \in Task : u \in UnknownTask /\ ~ \E v \in Task : nextAttemptOf[v] = u
+            BY <3>1
+        <3>2. PICK u \in Task : u \in UnknownTask /\ ~ \E v \in Task : nextAttemptOf[v] = u
             BY DEF TP2!TaskSafetyInv, TP2!ExistsFreeUnknownTask, TP2!UnknownTask, UnknownTask
         <3>. DEFINE g               == [x \in {t} |-> u]
                     depsp           == deps
@@ -3346,17 +3369,17 @@ LEMMA LemRefineTP2WFSetTaskRetries ==
                     taskStatep      == taskState
                     nextAttemptOfp  == [t_1 \in Task |->
                                           IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]]
-        <3>2. g \in Bijection({t}, {u})
+        <3>3. g \in Bijection({t}, {u})
             BY DEF Bijection, Injection, Surjection, IsInjective
-        <3>3. \E f \in Bijection({t}, {u}) :
+        <3>4. \E f \in Bijection({t}, {u}) :
                   nextAttemptOfp
                   = [t_1 \in Task |-> IF t_1 \in {t} THEN f[t_1] ELSE nextAttemptOf[t_1]]
-            BY <3>2
-        <3>4. nextAttemptOfp /= nextAttemptOf
+            BY <3>3
+        <3>5. nextAttemptOfp /= nextAttemptOf
             <4>1. nextAttemptOf[t] = NULL
                 BY DEF UnretriedTask, FailedTask
             <4>2. nextAttemptOfp[t] = u
-                BY <3>2
+                BY <3>3
             <4>3. u /= NULL
                 BY GP2Assumptions DEF UnknownTask
             <4>. QED
@@ -3364,7 +3387,7 @@ LEMMA LemRefineTP2WFSetTaskRetries ==
         \* the instantiated body at the defined witnesses, then a Zenon
         \* \E-introduction (the WITNESS-step form of this reduction leaves the
         \* \E-intro to SMT, which is brittle on the function constructors)
-        <3>5. \E u_1 \in Task :
+        <3>6. \E u_1 \in Task :
                   /\ {t} # {}
                   /\ {t} \subseteq UnretriedTask
                   /\ {u_1} \subseteq UnknownTask
@@ -3377,8 +3400,8 @@ LEMMA LemRefineTP2WFSetTaskRetries ==
                   /\ depsp = deps
                   /\ objectStatep = objectState
                   /\ objectTargetsp = objectTargets
-            BY <3>1, <3>3, Zenon
-        <3>6. /\ \E u_1 \in Task :
+            BY <3>2, <3>4, Zenon
+        <3>7. /\ \E u_1 \in Task :
                   /\ {t} # {}
                   /\ {t} \subseteq UnretriedTask
                   /\ {u_1} \subseteq UnknownTask
@@ -3396,11 +3419,11 @@ LEMMA LemRefineTP2WFSetTaskRetries ==
                     /\ objectTargetsp = objectTargets
                     /\ taskStatep = taskState
                     /\ nextAttemptOfp = nextAttemptOf)
-            BY ONLY <3>4, <3>5, Zenon
-        <3>7. WITNESS deps, objectState, objectTargets, taskState,
+            BY ONLY <3>5, <3>6, Zenon
+        <3>8. WITNESS deps, objectState, objectTargets, taskState,
                       [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]]
         <3>. QED
-            BY ONLY <3>6, Zenon
+            BY ONLY <3>7, Zenon
     <2>. QED
         BY <2>1, <2>2
 \* --- (2) step refinement: concrete step => abstract step ---
@@ -4992,10 +5015,10 @@ LEMMA LemSPRDischarge ==
         BY <2>1, LemOutputsPinned
     <2>3. ASSUME NEW o \in Q
           PROVE  <>[](RetainedOutput(o))
-        <3>1. o \in Object
+        <3>1. o \in Object /\ o \in Q
             BY <2>2
         <3>2. <>[](t \in Predecessor(deps, o))
-            BY <1>2, <1>5, <2>2, PTL
+            BY <1>2, <1>5, <2>2, <3>1, PTL
         <3>. QED
             BY <1>5, <1>8, <3>1, <3>2, LemOutputRetained
     <2>4. PICK P : P = {t} \X Q
@@ -5201,7 +5224,7 @@ LEMMA LemGP1FinalizeObjectsFires ==
             Preds == Predecessor(deps, o)
             Settle(x) == <>[](x \in Settled)
 (* Validities, proved in the clean context so that they may be necessitated. *)
-<1>1. ASSUME NEW P \in SUBSET Task, NEW t \in P
+<1>1. ASSUME NEW t \in Task
       PROVE  ~ (t \in SucceededTask) /\ ~ (t \in DiscardedTask) => t \in Settled
     BY DEF Settled
 <1>2. ASSUME NEW P \in SUBSET Task
@@ -5248,7 +5271,7 @@ LEMMA LemGP1FinalizeObjectsFires ==
     <2>2. <>[](~ (t \in SucceededTask) /\ ~ (t \in DiscardedTask))
         BY <1>3, <2>1, LemTaskSDDrain
     <2>3. [](~ (t \in SucceededTask) /\ ~ (t \in DiscardedTask) => t \in Settled)
-        BY <1>1, <1>7, PTL
+        BY <1>1, <2>1, PTL
     <2>. QED
         BY <2>2, <2>3, PTL DEF Settle
 <1>9. (\A x \in P : Settle(x)) => <>[](P \subseteq Settled)
@@ -6638,13 +6661,46 @@ LEMMA LemCommittedObjectsEventualAbortion ==
     <2>2. (o \in RegisteredObject)'
         <3>1. o \notin Source(deps)
             BY DEF Predecessor, Source
+        <3>2. ~ \E t \in Predecessor(deps, o) : t \in SucceededTask
+            BY DEF AbortedTask, CompletedTask, DiscardedTask, RetriedTask, SucceededTask
+        <3>3. CASE UNCHANGED vars
+            BY <3>3 DEF RegisteredObject, vars
+        <3>4. CASE \E G \in DirectedGraphOf(Task \union Object): RegisterGraph(G)
+            BY <3>4 DEF RegisteredObject, RegisterGraph, UnknownObject
+        <3>5. CASE \E O \in SUBSET Object:
+                       \/ TargetObjects(O)
+                       \/ UntargetObjects(O)
+                       \/ CompleteObjects(O)
+                       \/ AbortObjects(O)
+            <4>1. PICK O \in SUBSET Object : \/ TargetObjects(O)
+                                             \/ UntargetObjects(O)
+                                             \/ CompleteObjects(O)
+                                             \/ AbortObjects(O)
+                BY <3>5
+            <4>2. CASE TargetObjects(O) \/ UntargetObjects(O)
+                BY <4>2 DEF RegisteredObject, TargetObjects, UntargetObjects
+            <4>3. CASE CompleteObjects(O)
+                BY <3>1, <3>2, <4>3 DEF CompleteObjects, RegisteredObject
+            <4>4. CASE AbortObjects(O)
+                BY <4>4 DEF AbortedObject, AbortObjects, RegisteredObject
+            <4>. QED
+                BY <4>1, <4>2, <4>3, <4>4
+        <3>6. CASE \E T \in SUBSET Task:
+                       \/ StageTasks(T)
+                       \/ DiscardTasks(T)
+                       \/ \E U \in SUBSET Task: SetTaskRetries(T, U)
+                       \/ AssignTasks(T)
+                       \/ ReleaseTasks(T)
+                       \/ ProcessTasks(T)
+                       \/ CompleteTasks(T)
+                       \/ AbortTasks(T)
+                       \/ RetryTasks(T)
+            BY <3>6 DEF AbortTasks, AssignTasks, CompleteTasks, DiscardTasks, ProcessTasks,
+                RegisteredObject, ReleaseTasks, RetryTasks, SetTaskRetries, StageTasks
+        <3>7. CASE Terminating
+            BY <3>7 DEF RegisteredObject, Terminating, vars
         <3>. QED
-            BY <3>1 DEF AbortedObject, AbortedTask, AbortObjects, AbortTasks,
-                AssignTasks, CompletedTask, CompleteObjects, CompleteTasks,
-                DiscardedTask, DiscardTasks, Next, Predecessor, ProcessTasks,
-                RegisteredObject, RegisterGraph, ReleaseTasks, RetriedTask, RetryTasks,
-                SetTaskRetries, Source, StageTasks, SucceededTask, TargetObjects,
-                Terminating, UnknownObject, UntargetObjects, vars
+            BY <3>3, <3>4, <3>5, <3>6, <3>7 DEF Next
     <2>3. (Predecessor(deps, o) \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask})'
         <3>1. SUFFICES ASSUME NEW u \in (Predecessor(deps, o))'
                        PROVE  (u \in UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask})'
