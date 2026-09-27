@@ -206,4 +206,94 @@ ASSUME LET G == [node |-> {"t1", "t2", "o1", "o2", "o"},
                   edge |-> {<<"o1", "t1">>, <<"t1", "o">>}]
        IN  Derivation(G, "o", TestNotT2, {"t1", "t2"}) = {D1}
 
+
+(******************************************************************************)
+(* DDGraphOn, BipartiteDagOn, ObjectSinkDagOn                                 *)
+(******************************************************************************)
+
+\* The DD graphs on exactly one task and two objects are the two chains.
+ASSUME AssertEq(DDGraphOn({"t"}, {"o", "p"}), {
+        [node |-> {"t", "o", "p"}, edge |-> {<<"o", "t">>, <<"t", "p">>}],
+        [node |-> {"t", "o", "p"}, edge |-> {<<"p", "t">>, <<"t", "o">>}]
+    })
+
+\* Without tasks, the edgeless graph on the objects is the only DD graph.
+ASSUME AssertEq(DDGraphOn({}, {"o", "p"}), {[node |-> {"o", "p"}, edge |-> {}]})
+
+\* A task needs an object on each side: no DD graph with a single object.
+ASSUME AssertEq(DDGraphOn({"t"}, {"o"}), {})
+
+\* Reference values of counting-ddgraphs.md, table of Section 2.3 (N(3, 2)).
+ASSUME AssertEq(Cardinality(DDGraphOn({"t", "u"}, {"o", "p", "q"})), 96)
+
+\* DDGraphOf (Java override) is the union of DDGraphOn over the sub-partitions.
+ASSUME AssertEq(DDGraphOf({"t"}, {"o", "p"}),
+                UNION {DDGraphOn(to[1], to[2]) :
+                          to \in (SUBSET {"t"}) \X (SUBSET {"o", "p"})})
+
+\* One task and one object: three bipartite digraphs, all acyclic.
+ASSUME AssertEq(BipartiteDagOn({"t"}, {"o"}), {
+        [node |-> {"t", "o"}, edge |-> {}],
+        [node |-> {"t", "o"}, edge |-> {<<"t", "o">>}],
+        [node |-> {"t", "o"}, edge |-> {<<"o", "t">>}]
+    })
+
+\* Both orientations of a pair of edges are acyclic, a two-cycle is not.
+ASSUME AssertEq(Cardinality(BipartiteDagOn({"t"}, {"o", "p"})), 9)
+ASSUME AssertEq(BipartiteDagOn({}, {}), {EmptyGraph})
+
+\* Among the three graphs on {t, o}, only t -> o has no task sink.
+ASSUME AssertEq(ObjectSinkDagOn({"t"}, {"o"}), {[node |-> {"t", "o"}, edge |-> {<<"t", "o">>}]})
+
+(******************************************************************************)
+(* BipartiteDagCount, ObjectSinkDagCount, DDGraphCount, DDGraphOfCount        *)
+(*                                                                            *)
+(* Reference values are those of counting-ddgraphs.md, whose N(m, n) and      *)
+(* NHat(m, n) take the number m of objects first: DDGraphCount(t, o) is       *)
+(* N(o, t) and DDGraphOfCount(t, o) is NHat(o, t).                            *)
+(******************************************************************************)
+
+\* E: all bipartite DAGs (Section 5.1, worked checks).
+ASSUME AssertEq(BipartiteDagCount(0, 0), 1)
+ASSUME AssertEq(BipartiteDagCount(0, 3), 1)
+ASSUME AssertEq(BipartiteDagCount(3, 0), 1)
+ASSUME AssertEq(BipartiteDagCount(1, 1), 3)
+ASSUME AssertEq(BipartiteDagCount(1, 2), 9)
+
+\* D: bipartite DAGs whose sinks are objects (Section 5.2, worked check: D(1, 1) = 1).
+ASSUME AssertEq(ObjectSinkDagCount(1, 1), 1)
+ASSUME AssertEq(ObjectSinkDagCount(1, 2), 5)
+ASSUME AssertEq(ObjectSinkDagCount(0, 2), 1)
+
+\* N: DD graphs on the full node set (Section 2.3, table of N(m, n)).
+ASSUME AssertEq(DDGraphCount(0, 0), 1)
+ASSUME AssertEq(DDGraphCount(0, 3), 1)
+ASSUME AssertEq(DDGraphCount(2, 0), 0)
+ASSUME AssertEq(DDGraphCount(2, 1), 0)
+ASSUME AssertEq(DDGraphCount(1, 2), 2)
+ASSUME AssertEq(DDGraphCount(3, 2), 2)
+ASSUME AssertEq(DDGraphCount(1, 3), 12)
+ASSUME AssertEq(DDGraphCount(2, 3), 96)
+ASSUME AssertEq(DDGraphCount(3, 3), 588)
+ASSUME AssertEq(DDGraphCount(1, 4), 50)
+ASSUME AssertEq(DDGraphCount(2, 4), 1730)
+
+\* NHat: DD graphs over all sub-partitions (Section 9.3, table of NHat(m, n)).
+ASSUME AssertEq(DDGraphOfCount(0, 0), 1)
+ASSUME AssertEq(DDGraphOfCount(3, 0), 1)
+ASSUME AssertEq(DDGraphOfCount(0, 1), 2)
+ASSUME AssertEq(DDGraphOfCount(0, 3), 8)
+ASSUME AssertEq(DDGraphOfCount(1, 2), 6)
+ASSUME AssertEq(DDGraphOfCount(2, 2), 10)
+ASSUME AssertEq(DDGraphOfCount(1, 4), 126)
+ASSUME AssertEq(DDGraphOfCount(2, 3), 146)
+ASSUME AssertEq(DDGraphOfCount(3, 3), 962)
+
+\* The formulas agree with the enumeration (DDG_DDGraphOnCardinality and
+\* DDG_DDGraphOfCardinality on concrete instances).
+ASSUME AssertEq(Cardinality(BipartiteDagOn({"t"}, {"o", "p"})), BipartiteDagCount(1, 2))
+ASSUME AssertEq(Cardinality(DDGraphOn({"t", "u"}, {"o", "p", "q"})), DDGraphCount(2, 3))
+ASSUME AssertEq(Cardinality(DDGraphOf({"t", "u"}, {"o", "p", "q"})), DDGraphOfCount(2, 3))
+ASSUME AssertEq(Cardinality(DDGraphOf({"t", "u", "v"}, {"o", "p", "q"})), DDGraphOfCount(3, 3))
+
 ================================================================================

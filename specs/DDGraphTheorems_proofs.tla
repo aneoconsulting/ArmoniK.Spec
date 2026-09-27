@@ -9,8 +9,9 @@
 (* discharged in a follow-up pass.                                            *)
 (******************************************************************************)
 
-EXTENDS DDGraphs, DiGraphTheorems, FiniteSetTheorems, FiniteSetsExtTheorems,
-        FunctionTheorems, SequenceTheorems, SequencesExtTheorems, TLAPS
+EXTENDS DDGraphs, DiGraphTheorems, CountingTheorems, FiniteSetTheorems,
+        FiniteSetsExtTheorems, FoldsTheorems, FunctionTheorems, SequenceTheorems,
+        SequencesExtTheorems, NaturalsInduction, WellFoundedInduction, TLAPS
 
 (******************************************************************************)
 (* Every member of DDGraphOf(T, O) is a DD graph over T and O, with nodes in *)
@@ -24,7 +25,7 @@ THEOREM DDG_DDGraphOfMember ==
     PROVE  /\ IsDDGraph(G, T, O)
            /\ G.node \subseteq (T \cup O)
            /\ G.edge \subseteq ((T \X O) \cup (O \X T))
-BY DEF DDGraphOf, IsDDGraph, IsBipartiteWithPartitions
+BY DEF DDGraphOf, DDGraphOn, IsDDGraph, IsBipartiteWithPartitions
 
 (******************************************************************************)
 (* Core structural properties of a DD graph G over (T, O):                    *)
@@ -1829,5 +1830,967 @@ THEOREM DDG_NoDerivationMeansBlockedAncestor ==
     BY <1>4, <1>5, <1>6, <1>7 DEF Derivation
 <1>. QED
     BY <1>8
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(* Counting DD graphs -- the recursive formula for Cardinality(DDGraphOf).    *)
+(******************************************************************************)
+
+(******************************************************************************)
+(* A member of BipartiteDagOn(T, O) is a DAG whose node set is exactly        *)
+(* T \cup O, whose edges cross the partition, and which is therefore          *)
+(* bipartite over (T, O) when T and O are disjoint.                           *)
+(******************************************************************************)
+LEMMA DDG_BipartiteDagOnMember ==
+    ASSUME NEW T, NEW O, T \cap O = {},
+           NEW g \in BipartiteDagOn(T, O)
+    PROVE  /\ IsDag(g)
+           /\ g.node = T \cup O
+           /\ g.edge \subseteq (T \X O) \cup (O \X T)
+           /\ IsBipartiteWithPartitions(g, T, O)
+BY DEF BipartiteDagOn, IsBipartiteWithPartitions
+
+(******************************************************************************)
+(* The three counted families over finite T and O are finite: the bipartite   *)
+(* DAGs are graphs with a fixed node set and an edge set drawn from the       *)
+(* finite power set of (T \X O) \cup (O \X T), and the two other families are *)
+(* sub-families of the first.                                                 *)
+(******************************************************************************)
+LEMMA DDG_BipartiteDagOnFinite ==
+    ASSUME NEW T, IsFiniteSet(T), NEW O, IsFiniteSet(O)
+    PROVE  /\ IsFiniteSet(BipartiteDagOn(T, O))
+           /\ IsFiniteSet(ObjectSinkDagOn(T, O))
+           /\ IsFiniteSet(DDGraphOn(T, O))
+<1> DEFINE Bip == (T \X O) \cup (O \X T)
+<1> DEFINE Q(g) == IsDag(g)
+<1>1. IsFiniteSet(SUBSET Bip)
+    BY FS_Product, FS_Union, FS_SUBSET
+<1>2. IsFiniteSet({g \in [node: {T \cup O}, edge: SUBSET Bip] : Q(g)})
+    <2> HIDE DEF Q
+    <2>. QED
+        BY <1>1, DG_FixedNodeSetFamilyCardinality, Isa
+<1>. QED
+    BY <1>2, FS_Subset DEF BipartiteDagOn, ObjectSinkDagOn, DDGraphOn
+
+(******************************************************************************)
+(* The sink-constrained family, in the form inclusion-exclusion needs: a      *)
+(* bipartite DAG on (T, O) has its sinks among the objects iff no task is a   *)
+(* sink, since sinks are nodes, hence tasks or objects.                       *)
+(******************************************************************************)
+LEMMA DDG_ObjectSinkDagOnNoTaskSink ==
+    ASSUME NEW T, NEW O, T \cap O = {}
+    PROVE  ObjectSinkDagOn(T, O) = {g \in BipartiteDagOn(T, O) : Sink(g) \cap T = {}}
+<1>1. \A g \in BipartiteDagOn(T, O) : Sink(g) \subseteq T \cup O
+    BY DDG_BipartiteDagOnMember, DG_SourceSinkProperties
+<1>. QED
+    BY <1>1 DEF ObjectSinkDagOn
+
+(******************************************************************************)
+(* The DD graphs on exactly T \cup O, in the form inclusion-exclusion needs:  *)
+(* within the sink-constrained family, a graph is a DD graph iff no task is   *)
+(* a source, since sources are nodes, hence tasks or objects.                 *)
+(******************************************************************************)
+LEMMA DDG_DDGraphOnNoTaskSource ==
+    ASSUME NEW T, NEW O, T \cap O = {}
+    PROVE  DDGraphOn(T, O) = {g \in ObjectSinkDagOn(T, O) : Source(g) \cap T = {}}
+<1>1. \A g \in BipartiteDagOn(T, O) : Source(g) \subseteq T \cup O
+    BY DDG_BipartiteDagOnMember, DG_SourceSinkProperties
+<1>. QED
+    BY <1>1 DEF DDGraphOn, ObjectSinkDagOn, BipartiteDagOn
+
+(******************************************************************************)
+(* The only bipartite DAG on the empty partitions is the empty graph: a graph *)
+(* with node set {} has no edges, and the empty graph is a DAG.               *)
+(******************************************************************************)
+LEMMA DDG_BipartiteDagOnEmpty ==
+    BipartiteDagOn({}, {}) = {EmptyGraph}
+<1>1. \A g \in BipartiteDagOn({}, {}) : g = EmptyGraph
+    <2> SUFFICES ASSUME NEW g \in BipartiteDagOn({}, {}) PROVE g = EmptyGraph
+        OBVIOUS
+    <2>1. g = [node |-> g.node, edge |-> g.edge] /\ g.node = {} /\ g.edge \in SUBSET {}
+        BY DEF BipartiteDagOn
+    <2>. QED
+        BY <2>1 DEF EmptyGraph
+<1>2. EmptyGraph \in BipartiteDagOn({}, {})
+    BY DG_EmptyGraphProperties DEF BipartiteDagOn, EmptyGraph
+<1>. QED
+    BY <1>1, <1>2
+
+(******************************************************************************)
+(* A bipartite DAG on a non-empty node set has a sink: pick any node and      *)
+(* follow DG_DagReachesSink.                                                  *)
+(******************************************************************************)
+LEMMA DDG_BipartiteDagOnHasSink ==
+    ASSUME NEW T, IsFiniteSet(T), NEW O, IsFiniteSet(O), T \cup O # {},
+           NEW g \in BipartiteDagOn(T, O)
+    PROVE  Sink(g) # {}
+<1>1. IsDag(g) /\ g.node = T \cup O /\ IsFiniteSet(g.node)
+    BY FS_Union DEF BipartiteDagOn
+<1>. QED
+    BY <1>1, DG_DagReachesSink
+
+(******************************************************************************)
+(* Forced sinks factor out (counting-ddgraphs.md, Lemma 6 read on sinks): the *)
+(* bipartite DAGs on (T, O) in which the tasks KT and the objects KO are all  *)
+(* sinks are in bijection with the pairs of a bipartite DAG on the remaining  *)
+(* nodes (T \ KT, O \ KO) and of an arbitrary set of edges entering KT \cup   *)
+(* KO from the remaining nodes of the opposite partition. No edge leaves a    *)
+(* forced sink, and acyclicity does not depend on the edges entering sinks    *)
+(* (DG_SourceSinkRemovalDagEquiv), so the two components are independent;     *)
+(* there are |KT| (|O| - |KO|) + |KO| (|T| - |KT|) candidate entering edges.  *)
+(******************************************************************************)
+LEMMA DDG_ForcedSinksCardinality ==
+    ASSUME NEW T, IsFiniteSet(T), NEW O, IsFiniteSet(O), T \cap O = {},
+           NEW KT \in SUBSET T, NEW KO \in SUBSET O
+    PROVE  Cardinality({g \in BipartiteDagOn(T, O) : KT \cup KO \subseteq Sink(g)})
+           = Pow(2, Cardinality(KT) * (Cardinality(O) - Cardinality(KO))
+                    + Cardinality(KO) * (Cardinality(T) - Cardinality(KT)))
+             * Cardinality(BipartiteDagOn(T \ KT, O \ KO))
+<1> DEFINE V == T \cup O
+<1> DEFINE K == KT \cup KO
+<1> DEFINE TW == T \ KT
+<1> DEFINE OW == O \ KO
+<1> DEFINE W == TW \cup OW
+<1> DEFINE Bip == (T \X O) \cup (O \X T)
+<1> DEFINE A == (TW \X OW) \cup (OW \X TW)
+<1> DEFINE B == (TW \X KO) \cup (OW \X KT)
+<1> DEFINE Gr(e) == [node |-> V, edge |-> e]
+<1> DEFINE Hr(e) == [node |-> W, edge |-> e]
+<1> DEFINE P(g) == IsDag(g) /\ K \subseteq Sink(g)
+<1> DEFINE Q(g) == IsDag(g)
+<1> DEFINE Fam == {g \in BipartiteDagOn(T, O) : K \subseteq Sink(g)}
+<1> DEFINE EdgeFam == {e \in SUBSET Bip : P(Gr(e))}
+<1> DEFINE C == {e \in SUBSET A : Q(Hr(e))}
+<1> DEFINE R == SUBSET B
+<1> DEFINE Split == {e \in SUBSET (A \cup B) : e \cap A \in C /\ e \cap B \in R}
+(* Set-theoretic bookkeeping                                                  *)
+<1>1. /\ T \cap KT = KT /\ O \cap KO = KO /\ T = TW \cup KT /\ O = OW \cup KO
+      /\ W \cap K = {} /\ V \ K = W /\ Bip \subseteq V \X V
+      /\ A \cup B \subseteq Bip /\ A \cap B = {} /\ A \subseteq W \X W /\ B \cap (W \X W) = {}
+      /\ (TW \X KO) \cap (OW \X KT) = {}
+    OBVIOUS
+<1>2. /\ IsFiniteSet(TW) /\ IsFiniteSet(OW) /\ IsFiniteSet(KT) /\ IsFiniteSet(KO)
+      /\ IsFiniteSet(A) /\ IsFiniteSet(B) /\ IsFiniteSet(Bip)
+    BY FS_Difference, FS_Subset, FS_Product, FS_Union
+(* Forced sinks have no outgoing edge: the edge sets are the subsets of A \cup B *)
+<1>3. \A e \in SUBSET Bip : K \subseteq Sink(Gr(e)) <=> e \subseteq A \cup B
+    <2> SUFFICES ASSUME NEW e \in SUBSET Bip
+                 PROVE  K \subseteq Sink(Gr(e)) <=> e \subseteq A \cup B
+        OBVIOUS
+    <2>1. ASSUME K \subseteq Sink(Gr(e)), NEW p \in e PROVE p \in A \cup B
+        <3>1. p[1] \notin K
+            BY <1>1, <2>1 DEF Sink, Successor
+        <3>. QED
+            BY <1>1, <3>1
+    <2>2. ASSUME e \subseteq A \cup B PROVE K \subseteq Sink(Gr(e))
+        BY <1>1, <2>2 DEF Sink, Successor
+    <2>. QED
+        BY <2>1, <2>2
+(* Acyclicity only depends on the edges among the remaining nodes            *)
+<1>4. \A e \in SUBSET (A \cup B) : IsDag(Gr(e)) <=> IsDag(Hr(e \cap A))
+    <2> SUFFICES ASSUME NEW e \in SUBSET (A \cup B)
+                 PROVE  IsDag(Gr(e)) <=> IsDag(Hr(e \cap A))
+        OBVIOUS
+    <2>1. IsDirectedGraph(Gr(e)) /\ K \subseteq Source(Gr(e)) \cup Sink(Gr(e))
+        BY <1>1, <1>3 DEF IsDirectedGraph
+    <2>2. Hr(e \cap A) = [node |-> Gr(e).node \ K,
+                          edge |-> Gr(e).edge \cap ((Gr(e).node \ K) \X (Gr(e).node \ K))]
+        BY <1>1
+    <2>. QED
+        BY <2>1, <2>2, DG_SourceSinkRemovalDagEquiv
+(* The edge sets of the family split along A and B                            *)
+<1>5. EdgeFam = Split
+    <2>1. ASSUME NEW e \in EdgeFam PROVE e \in Split
+        BY <1>1, <1>3, <1>4
+    <2>2. ASSUME NEW e \in Split PROVE e \in EdgeFam
+        BY <1>1, <1>3, <1>4
+    <2>. QED
+        BY <2>1, <2>2
+(* Counting                                                                   *)
+<1>6. Cardinality(Fam) = Cardinality(EdgeFam)
+    <2>1. Fam = {g \in [node: {V}, edge: SUBSET Bip] : P(g)}
+        BY DEF BipartiteDagOn
+    <2>2. IsFiniteSet(SUBSET Bip)
+        BY <1>2, FS_SUBSET
+    <2> HIDE DEF P
+    <2>3. Cardinality({g \in [node: {V}, edge: SUBSET Bip] : P(g)})
+          = Cardinality({e \in SUBSET Bip : P([node |-> V, edge |-> e])})
+        BY <2>2, DG_FixedNodeSetFamilyCardinality, Isa
+    <2>. QED
+        BY <2>1, <2>3
+<1>7. Cardinality(Split) = Cardinality(C) * Cardinality(R)
+    <2>1. C \in SUBSET (SUBSET A) /\ R \in SUBSET (SUBSET B)
+        OBVIOUS
+    <2> HIDE DEF A, B, C, R
+    <2>. QED
+        BY <1>1, <1>2, <2>1, CNT_SplitSubsetsCardinality
+<1>8. Cardinality(C) = Cardinality(BipartiteDagOn(TW, OW))
+    <2>1. BipartiteDagOn(TW, OW) = {g \in [node: {W}, edge: SUBSET A] : Q(g)}
+        BY DEF BipartiteDagOn
+    <2>2. IsFiniteSet(SUBSET A)
+        BY <1>2, FS_SUBSET
+    <2> HIDE DEF Q
+    <2>3. Cardinality({g \in [node: {W}, edge: SUBSET A] : Q(g)})
+          = Cardinality({e \in SUBSET A : Q([node |-> W, edge |-> e])})
+        BY <2>2, DG_FixedNodeSetFamilyCardinality, Isa
+    <2>. QED
+        BY <2>1, <2>3
+<1>9. Cardinality(R) = Pow(2, Cardinality(KT) * (Cardinality(O) - Cardinality(KO))
+                              + Cardinality(KO) * (Cardinality(T) - Cardinality(KT)))
+    <2>1. Cardinality(TW) = Cardinality(T) - Cardinality(KT)
+          /\ Cardinality(OW) = Cardinality(O) - Cardinality(KO)
+        BY <1>1, FS_Difference
+    <2>2. Cardinality(B) = Cardinality(TW) * Cardinality(KO) + Cardinality(OW) * Cardinality(KT)
+        BY <1>1, <1>2, FS_Product, FS_Union, FS_EmptySet, FS_CardinalityType
+    <2>. QED
+        BY <1>2, <2>1, <2>2, FS_CardinalityType, CNT_PowersetCardinality
+<1>10. Cardinality(C) \in Nat /\ Cardinality(R) \in Nat
+    BY <1>2, FS_SUBSET, FS_Subset, FS_CardinalityType
+<1>. QED
+    BY <1>5, <1>6, <1>7, <1>8, <1>9, <1>10
+
+(******************************************************************************)
+(* Forced sources factor out inside the sink-constrained family               *)
+(* (counting-ddgraphs.md, Section 5.3 read on sources): the bipartite DAGs on *)
+(* (T, O) whose sinks are objects and in which the tasks of K are all sources *)
+(* are in bijection with the pairs of such a DAG on (T \ K, O) and of a set   *)
+(* of edges leaving K towards O in which every task of K keeps at least one   *)
+(* successor -- the sink constraint still applies to K. Acyclicity does not   *)
+(* depend on the edges leaving sources (DG_SourceSinkRemovalDagEquiv), and    *)
+(* the left-total edge sets are counted by CNT_LeftTotalRelationsCardinality. *)
+(******************************************************************************)
+LEMMA DDG_ForcedSourcesCardinality ==
+    ASSUME NEW T, IsFiniteSet(T), NEW O, IsFiniteSet(O), T \cap O = {},
+           NEW K \in SUBSET T
+    PROVE  Cardinality({g \in ObjectSinkDagOn(T, O) : K \subseteq Source(g)})
+           = Pow(Pow(2, Cardinality(O)) - 1, Cardinality(K))
+             * Cardinality(ObjectSinkDagOn(T \ K, O))
+<1> DEFINE V == T \cup O
+<1> DEFINE TW == T \ K
+<1> DEFINE W == TW \cup O
+<1> DEFINE Bip == (T \X O) \cup (O \X T)
+<1> DEFINE A == (TW \X O) \cup (O \X TW)
+<1> DEFINE B == K \X O
+<1> DEFINE Gr(e) == [node |-> V, edge |-> e]
+<1> DEFINE Hr(e) == [node |-> W, edge |-> e]
+<1> DEFINE P(g) == IsDag(g) /\ Sink(g) \subseteq O /\ K \subseteq Source(g)
+<1> DEFINE Q(g) == IsDag(g) /\ Sink(g) \subseteq O
+<1> DEFINE Fam == {g \in ObjectSinkDagOn(T, O) : K \subseteq Source(g)}
+<1> DEFINE EdgeFam == {e \in SUBSET Bip : P(Gr(e))}
+<1> DEFINE C == {e \in SUBSET A : Q(Hr(e))}
+<1> DEFINE R == {r \in SUBSET B : \A k \in K : \E a \in O : <<k, a>> \in r}
+<1> DEFINE Split == {e \in SUBSET (A \cup B) : e \cap A \in C /\ e \cap B \in R}
+(* Set-theoretic bookkeeping                                                  *)
+<1>1. /\ TW \cap K = {} /\ TW \cap O = {} /\ K \cap O = {} /\ T = TW \cup K
+      /\ W \cap K = {} /\ V \ K = W /\ Bip \subseteq V \X V
+      /\ A \cup B \subseteq Bip /\ A \cap B = {} /\ A \subseteq W \X W /\ B \cap (W \X W) = {}
+    OBVIOUS
+<1>2. IsFiniteSet(TW) /\ IsFiniteSet(K) /\ IsFiniteSet(A) /\ IsFiniteSet(B) /\ IsFiniteSet(Bip)
+    BY FS_Difference, FS_Subset, FS_Product, FS_Union
+(* Forced sources have no incoming edge: the edge sets are the subsets of A \cup B *)
+<1>3. \A e \in SUBSET Bip : K \subseteq Source(Gr(e)) <=> e \subseteq A \cup B
+    <2> SUFFICES ASSUME NEW e \in SUBSET Bip
+                 PROVE  K \subseteq Source(Gr(e)) <=> e \subseteq A \cup B
+        OBVIOUS
+    <2>1. ASSUME K \subseteq Source(Gr(e)), NEW p \in e PROVE p \in A \cup B
+        <3>1. p[2] \notin K
+            BY <1>1, <2>1 DEF Source, Predecessor
+        <3>. QED
+            BY <1>1, <3>1
+    <2>2. ASSUME e \subseteq A \cup B PROVE K \subseteq Source(Gr(e))
+        BY <1>1, <2>2 DEF Source, Predecessor
+    <2>. QED
+        BY <2>1, <2>2
+(* Acyclicity only depends on the edges among the remaining nodes            *)
+<1>4. \A e \in SUBSET (A \cup B) : IsDag(Gr(e)) <=> IsDag(Hr(e \cap A))
+    <2> SUFFICES ASSUME NEW e \in SUBSET (A \cup B)
+                 PROVE  IsDag(Gr(e)) <=> IsDag(Hr(e \cap A))
+        OBVIOUS
+    <2>1. IsDirectedGraph(Gr(e)) /\ K \subseteq Source(Gr(e)) \cup Sink(Gr(e))
+        BY <1>1, <1>3 DEF IsDirectedGraph
+    <2>2. Hr(e \cap A) = [node |-> Gr(e).node \ K,
+                          edge |-> Gr(e).edge \cap ((Gr(e).node \ K) \X (Gr(e).node \ K))]
+        BY <1>1
+    <2>. QED
+        BY <2>1, <2>2, DG_SourceSinkRemovalDagEquiv
+(* Sinks are objects iff every task has a successor: the remaining tasks     *)
+(* find theirs in A, the forced sources in B                                 *)
+<1>5. \A e \in SUBSET (A \cup B) :
+          Sink(Gr(e)) \subseteq O <=> (Sink(Hr(e \cap A)) \subseteq O /\ e \cap B \in R)
+    <2> SUFFICES ASSUME NEW e \in SUBSET (A \cup B)
+                 PROVE  Sink(Gr(e)) \subseteq O
+                        <=> (Sink(Hr(e \cap A)) \subseteq O /\ e \cap B \in R)
+        OBVIOUS
+    <2>1. Sink(Gr(e)) \subseteq O <=> \A x \in T : \E m \in V : <<x, m>> \in e
+        BY DEF Sink, Successor
+    <2>2. Sink(Hr(e \cap A)) \subseteq O <=> \A x \in TW : \E m \in W : <<x, m>> \in e \cap A
+        BY <1>1 DEF Sink, Successor
+    <2>3. \A x \in TW : (\E m \in V : <<x, m>> \in e) <=> (\E m \in W : <<x, m>> \in e \cap A)
+        BY <1>1
+    <2>4. \A x \in K : (\E m \in V : <<x, m>> \in e) <=> (\E a \in O : <<x, a>> \in e \cap B)
+        BY <1>1
+    <2>. QED
+        BY <1>1, <2>1, <2>2, <2>3, <2>4
+(* The edge sets of the family split along A and B                            *)
+<1>6. EdgeFam = Split
+    <2>1. ASSUME NEW e \in EdgeFam PROVE e \in Split
+        BY <1>1, <1>3, <1>4, <1>5
+    <2>2. ASSUME NEW e \in Split PROVE e \in EdgeFam
+        BY <1>1, <1>3, <1>4, <1>5
+    <2>. QED
+        BY <2>1, <2>2
+(* Counting                                                                   *)
+<1>7. Cardinality(Fam) = Cardinality(EdgeFam)
+    <2>1. Fam = {g \in [node: {V}, edge: SUBSET Bip] : P(g)}
+        BY DEF ObjectSinkDagOn, BipartiteDagOn
+    <2>2. IsFiniteSet(SUBSET Bip)
+        BY <1>2, FS_SUBSET
+    <2> HIDE DEF P
+    <2>3. Cardinality({g \in [node: {V}, edge: SUBSET Bip] : P(g)})
+          = Cardinality({e \in SUBSET Bip : P([node |-> V, edge |-> e])})
+        BY <2>2, DG_FixedNodeSetFamilyCardinality, Isa
+    <2>. QED
+        BY <2>1, <2>3
+<1>8. Cardinality(Split) = Cardinality(C) * Cardinality(R)
+    <2>1. C \in SUBSET (SUBSET A) /\ R \in SUBSET (SUBSET B)
+        OBVIOUS
+    <2> HIDE DEF A, B, C, R
+    <2>. QED
+        BY <1>1, <1>2, <2>1, CNT_SplitSubsetsCardinality
+<1>9. Cardinality(C) = Cardinality(ObjectSinkDagOn(TW, O))
+    <2>1. ObjectSinkDagOn(TW, O) = {g \in [node: {W}, edge: SUBSET A] : Q(g)}
+        BY DEF ObjectSinkDagOn, BipartiteDagOn
+    <2>2. IsFiniteSet(SUBSET A)
+        BY <1>2, FS_SUBSET
+    <2> HIDE DEF Q
+    <2>3. Cardinality({g \in [node: {W}, edge: SUBSET A] : Q(g)})
+          = Cardinality({e \in SUBSET A : Q([node |-> W, edge |-> e])})
+        BY <2>2, DG_FixedNodeSetFamilyCardinality, Isa
+    <2>. QED
+        BY <2>1, <2>3
+<1>10. Cardinality(R) = Pow(Pow(2, Cardinality(O)) - 1, Cardinality(K))
+    BY <1>2, CNT_LeftTotalRelationsCardinality
+<1>11. Cardinality(C) \in Nat /\ Cardinality(R) \in Nat
+    BY <1>2, FS_SUBSET, FS_Subset, FS_CardinalityType
+<1>12. Cardinality(Fam) = Cardinality(R) * Cardinality(C)
+    <2> HIDE DEF Fam, EdgeFam, Split, C, R
+    <2>. QED
+        BY <1>6, <1>7, <1>8, <1>11
+<1>. QED
+    <2> HIDE DEF C, R
+    <2>. QED
+        BY <1>9, <1>10, <1>12
+
+(******************************************************************************)
+(* The function behind BipartiteDagCount is well defined and integer-valued:  *)
+(* its body BipartiteDagCountDef only consults the function argument at       *)
+(* pairs with fewer nodes, which are smaller in the lexicographic order on    *)
+(* Nat \X Nat, so WFInductiveDef applies, and WFInductiveDefType gives the    *)
+(* type since every summand is an integer.                                    *)
+(* ------------------------------------------------------------------------- *)
+(* Proof notes. The recursion is set up with WellFoundedInduction: the order  *)
+(* LexPairOrdering(OpToRel(<, Nat), OpToRel(<, Nat), Nat, Nat) on Nat \X Nat  *)
+(* is well founded (WFLexPairOrdering), WFDefOn holds because every summand   *)
+(* reads the function at a lexicographically smaller pair (the congruence of  *)
+(* the sum is CNT_SumCongruence), and WFInductiveDefType with target Int      *)
+(* gives the type.                                                            *)
+(******************************************************************************)
+LEMMA DDG_BipartiteDagCountFcnDef ==
+    /\ WFInductiveDefines(BipartiteDagCountFcn, Nat \X Nat, BipartiteDagCountDef)
+    /\ BipartiteDagCountFcn \in [Nat \X Nat -> Int]
+<1> DEFINE Pairs == Nat \X Nat
+<1> DEFINE NatLess == OpToRel(<, Nat)
+<1> DEFINE PairLess == LexPairOrdering(NatLess, NatLess, Nat, Nat)
+<1> DEFINE Idx(p) == ((0..p[1]) \X (0..p[2])) \ {<<0, 0>>}
+<1> DEFINE Term(f, p, q) == AltSign(q[1] + q[2] + 1)
+                            * Binomial(p[1], q[1]) * Binomial(p[2], q[2])
+                            * Pow(2, q[1] * (p[2] - q[2]) + q[2] * (p[1] - q[1]))
+                            * f[<<p[1] - q[1], p[2] - q[2]>>]
+<1>1. IsWellFoundedOn(PairLess, Pairs)
+    BY NatLessThanWellFounded, WFLexPairOrdering
+<1>2. \A p \in Pairs : IsFiniteSet(Idx(p))
+    BY FS_Interval, FS_Product, FS_Difference
+<1>3. ASSUME NEW p \in Pairs, NEW q \in Idx(p)
+      PROVE  <<p[1] - q[1], p[2] - q[2]>> \in SetLessThan(p, PairLess, Pairs)
+    <2>1. /\ p[1] \in Nat /\ p[2] \in Nat /\ q[1] \in 0..p[1] /\ q[2] \in 0..p[2]
+          /\ (q[1] # 0 \/ q[2] # 0)
+        OBVIOUS
+    <2>. QED
+        BY <2>1 DEF SetLessThan, LexPairOrdering, OpToRel
+<1>4. WFDefOn(PairLess, Pairs, BipartiteDagCountDef)
+    <2> SUFFICES ASSUME NEW g, NEW h, NEW p \in Pairs,
+                        \A y \in SetLessThan(p, PairLess, Pairs) : g[y] = h[y]
+                 PROVE  BipartiteDagCountDef(g, p) = BipartiteDagCountDef(h, p)
+        BY DEF WFDefOn
+    <2>1. \A q \in Idx(p) : Term(g, p, q) = Term(h, p, q)
+        BY <1>3
+    <2>2. MapThenSumSet(LAMBDA q : Term(g, p, q), Idx(p))
+          = MapThenSumSet(LAMBDA q : Term(h, p, q), Idx(p))
+        BY <1>2, <2>1, CNT_SumCongruence
+    <2>. QED
+        BY <2>2 DEF BipartiteDagCountDef
+<1>5. WFInductiveDefines(BipartiteDagCountFcn, Pairs, BipartiteDagCountDef)
+    BY <1>1, <1>4, WFInductiveDef DEF OpDefinesFcn, BipartiteDagCountFcn
+<1>6. \A g \in [Pairs -> Int], p \in Pairs : BipartiteDagCountDef(g, p) \in Int
+    <2> SUFFICES ASSUME NEW g \in [Pairs -> Int], NEW p \in Pairs
+                 PROVE  BipartiteDagCountDef(g, p) \in Int
+        OBVIOUS
+    <2>1. \A q \in Idx(p) : Term(g, p, q) \in Int
+        <3> SUFFICES ASSUME NEW q \in Idx(p) PROVE Term(g, p, q) \in Int
+            OBVIOUS
+        <3>1. p[1] \in Nat /\ p[2] \in Nat /\ q[1] \in 0..p[1] /\ q[2] \in 0..p[2]
+            OBVIOUS
+        <3>2. AltSign(q[1] + q[2] + 1) \in Int
+            BY <3>1, CNT_AltSignProperties
+        <3>3. Binomial(p[1], q[1]) \in Int /\ Binomial(p[2], q[2]) \in Int
+            BY <3>1, CNT_BinomialProperties
+        <3>4. q[1] * (p[2] - q[2]) + q[2] * (p[1] - q[1]) \in Nat
+            BY <3>1
+        <3>5. Pow(2, q[1] * (p[2] - q[2]) + q[2] * (p[1] - q[1])) \in Int
+            BY <3>4, CNT_PowProperties
+        <3>6. g[<<p[1] - q[1], p[2] - q[2]>>] \in Int
+            BY <3>1
+        <3>. QED
+            BY <3>2, <3>3, <3>5, <3>6
+    <2>2. MapThenSumSet(LAMBDA q : Term(g, p, q), Idx(p)) \in Int
+        BY <1>2, <2>1, MapThenSumSetInt
+    <2>. QED
+        BY <2>2 DEF BipartiteDagCountDef
+<1>7. Int # {}
+    OBVIOUS
+<1>. QED
+    BY <1>1, <1>4, <1>5, <1>6, <1>7, WFInductiveDefType
+
+(******************************************************************************)
+(* The recursion equation of BipartiteDagCount -- the E-recursion of          *)
+(* counting-ddgraphs.md, Theorem 1, read with t tasks and o objects:          *)
+(* DDG_BipartiteDagCountFcnDef instantiated at the pair <<t, o>>.             *)
+(******************************************************************************)
+THEOREM DDG_BipartiteDagCountDef ==
+    ASSUME NEW t \in Nat, NEW o \in Nat
+    PROVE  BipartiteDagCount(t, o) =
+             IF t = 0 /\ o = 0
+             THEN 1
+             ELSE MapThenSumSet(
+                     LAMBDA q : AltSign(q[1] + q[2] + 1)
+                                * Binomial(t, q[1]) * Binomial(o, q[2])
+                                * Pow(2, q[1] * (o - q[2]) + q[2] * (t - q[1]))
+                                * BipartiteDagCount(t - q[1], o - q[2]),
+                     ((0..t) \X (0..o)) \ {<<0, 0>>})
+<1> DEFINE p == <<t, o>>
+<1> DEFINE Idx == ((0..t) \X (0..o)) \ {<<0, 0>>}
+<1> DEFINE TermP(q) == AltSign(q[1] + q[2] + 1)
+                       * Binomial(p[1], q[1]) * Binomial(p[2], q[2])
+                       * Pow(2, q[1] * (p[2] - q[2]) + q[2] * (p[1] - q[1]))
+                       * BipartiteDagCountFcn[<<p[1] - q[1], p[2] - q[2]>>]
+<1> DEFINE TermC(q) == AltSign(q[1] + q[2] + 1)
+                       * Binomial(t, q[1]) * Binomial(o, q[2])
+                       * Pow(2, q[1] * (o - q[2]) + q[2] * (t - q[1]))
+                       * BipartiteDagCount(t - q[1], o - q[2])
+<1>1. BipartiteDagCount(t, o) = BipartiteDagCountDef(BipartiteDagCountFcn, p)
+    BY DDG_BipartiteDagCountFcnDef DEF WFInductiveDefines, BipartiteDagCount
+<1>2. IsFiniteSet(Idx)
+    BY FS_Interval, FS_Product, FS_Difference
+<1>3. \A q \in Idx : TermP(q) = TermC(q)
+    BY DEF BipartiteDagCount
+<1>4. MapThenSumSet(TermP, Idx) = MapThenSumSet(TermC, Idx)
+    BY <1>2, <1>3, CNT_SumCongruence
+<1>. QED
+    BY <1>1, <1>4 DEF BipartiteDagCountDef
+
+(******************************************************************************)
+(* The counting operators are integer-valued: BipartiteDagCount by            *)
+(* DDG_BipartiteDagCountFcnDef, and the three sums because every summand is   *)
+(* an integer (AltSign is an integer, Binomial a natural number, Pow an       *)
+(* integer).                                                                  *)
+(******************************************************************************)
+LEMMA DDG_CountsType ==
+    ASSUME NEW t \in Nat, NEW o \in Nat
+    PROVE  /\ BipartiteDagCount(t, o) \in Int
+           /\ ObjectSinkDagCount(t, o) \in Int
+           /\ DDGraphCount(t, o) \in Int
+           /\ DDGraphOfCount(t, o) \in Int
+<1>1. \A a, b \in Nat : BipartiteDagCount(a, b) \in Int
+    BY DDG_BipartiteDagCountFcnDef DEF BipartiteDagCount
+<1>2. \A a, b \in Nat : ObjectSinkDagCount(a, b) \in Int
+    <2> SUFFICES ASSUME NEW a \in Nat, NEW b \in Nat
+                 PROVE  ObjectSinkDagCount(a, b) \in Int
+        OBVIOUS
+    <2> DEFINE Term(k) == AltSign(k) * Binomial(a, k) * Pow(2, k * b)
+                          * BipartiteDagCount(a - k, b)
+    <2>1. IsFiniteSet(0..a)
+        BY FS_Interval
+    <2>2. \A k \in 0..a : Term(k) \in Int
+        <3> SUFFICES ASSUME NEW k \in 0..a PROVE Term(k) \in Int
+            OBVIOUS
+        <3>1. k \in Nat /\ a - k \in Nat /\ k * b \in Nat
+            OBVIOUS
+        <3>2. AltSign(k) \in Int
+            BY <3>1, CNT_AltSignProperties
+        <3>3. Binomial(a, k) \in Int
+            BY <3>1, CNT_BinomialProperties
+        <3>4. Pow(2, k * b) \in Int
+            BY <3>1, CNT_PowProperties
+        <3>5. BipartiteDagCount(a - k, b) \in Int
+            BY <3>1, <1>1
+        <3> QED BY <3>2, <3>3, <3>4, <3>5
+    <2>3. MapThenSumSet(Term, 0..a) \in Int
+        BY <2>1, <2>2, MapThenSumSetInt
+    <2> QED BY <2>3 DEF ObjectSinkDagCount
+<1>3. \A a, b \in Nat : DDGraphCount(a, b) \in Int
+    <2> SUFFICES ASSUME NEW a \in Nat, NEW b \in Nat
+                 PROVE  DDGraphCount(a, b) \in Int
+        OBVIOUS
+    <2> DEFINE Term(k) == AltSign(k) * Binomial(a, k) * Pow(Pow(2, b) - 1, k)
+                          * ObjectSinkDagCount(a - k, b)
+    <2>1. IsFiniteSet(0..a)
+        BY FS_Interval
+    <2>2. \A k \in 0..a : Term(k) \in Int
+        <3> SUFFICES ASSUME NEW k \in 0..a PROVE Term(k) \in Int
+            OBVIOUS
+        <3>1. k \in Nat /\ a - k \in Nat
+            OBVIOUS
+        <3>2. AltSign(k) \in Int
+            BY <3>1, CNT_AltSignProperties
+        <3>3. Binomial(a, k) \in Int
+            BY <3>1, CNT_BinomialProperties
+        <3>4. Pow(2, b) - 1 \in Int
+            BY CNT_PowProperties
+        <3>5. Pow(Pow(2, b) - 1, k) \in Int
+            BY <3>1, <3>4, CNT_PowProperties
+        <3>6. ObjectSinkDagCount(a - k, b) \in Int
+            BY <3>1, <1>2
+        <3> QED BY <3>2, <3>3, <3>5, <3>6
+    <2>3. MapThenSumSet(Term, 0..a) \in Int
+        BY <2>1, <2>2, MapThenSumSetInt
+    <2> QED BY <2>3 DEF DDGraphCount
+<1>4. DDGraphOfCount(t, o) \in Int
+    <2> DEFINE Idx == (0..t) \X (0..o)
+    <2> DEFINE Term(p) == Binomial(t, p[1]) * Binomial(o, p[2]) * DDGraphCount(p[1], p[2])
+    <2>1. IsFiniteSet(Idx)
+        BY FS_Interval, FS_Product
+    <2>2. \A p \in Idx : Term(p) \in Int
+        <3> SUFFICES ASSUME NEW p \in Idx PROVE Term(p) \in Int
+            OBVIOUS
+        <3>1. p[1] \in Nat /\ p[2] \in Nat
+            OBVIOUS
+        <3>2. Binomial(t, p[1]) \in Int /\ Binomial(o, p[2]) \in Int
+            BY <3>1, CNT_BinomialProperties
+        <3>3. DDGraphCount(p[1], p[2]) \in Int
+            BY <3>1, <1>3
+        <3> QED BY <3>2, <3>3
+    <2>3. MapThenSumSet(Term, Idx) \in Int
+        BY <2>1, <2>2, MapThenSumSetInt
+    <2> QED BY <2>3 DEF DDGraphOfCount
+<1> QED BY <1>1, <1>2, <1>3, <1>4
+
+(******************************************************************************)
+(* The number of bipartite DAGs on finite disjoint (T, O) is                  *)
+(* BipartiteDagCount(|T|, |O|) (counting-ddgraphs.md, Section 5.1). By strong *)
+(* induction on |T| + |O|. For a non-empty node set every member has a sink,  *)
+(* so inclusion-exclusion over the sets K of nodes forced to be sinks (with   *)
+(* the marked set Sink(g)) gives an alternating sum equal to 0; the term for  *)
+(* K = {} is the cardinality sought, every other term is                      *)
+(* DDG_ForcedSinksCardinality evaluated with the induction hypothesis, and    *)
+(* grouping the sets K by their numbers of tasks and objects yields the       *)
+(* recursion.                                                                 *)
+(* ------------------------------------------------------------------------- *)
+(* Proof notes. A fact feeding one of the higher-order summation theorems     *)
+(* must be a separate step with exactly the shape of the hypothesis (a        *)
+(* conjunction under the quantifier is not instantiated), and the instance    *)
+(* of CNT_InclusionExclusion only goes through with the family and the node   *)
+(* set hidden behind opaque DEFINEs (HIDE DEF F, V inside step <3>1).         *)
+(******************************************************************************)
+THEOREM DDG_BipartiteDagOnCardinality ==
+    ASSUME NEW T, IsFiniteSet(T), NEW O, IsFiniteSet(O), T \cap O = {}
+    PROVE  Cardinality(BipartiteDagOn(T, O))
+           = BipartiteDagCount(Cardinality(T), Cardinality(O))
+<1> DEFINE P(s) ==
+        \A TT, OO : IsFiniteSet(TT) /\ IsFiniteSet(OO) /\ TT \cap OO = {}
+                    /\ Cardinality(TT) + Cardinality(OO) = s
+                    => Cardinality(BipartiteDagOn(TT, OO))
+                       = BipartiteDagCount(Cardinality(TT), Cardinality(OO))
+<1>1. \A s \in Nat : (\A m \in 0..(s-1) : P(m)) => P(s)
+    <2> SUFFICES ASSUME NEW s \in Nat, \A m \in 0..(s-1) : P(m),
+                        NEW TT, NEW OO, IsFiniteSet(TT), IsFiniteSet(OO), TT \cap OO = {},
+                        Cardinality(TT) + Cardinality(OO) = s
+                 PROVE  Cardinality(BipartiteDagOn(TT, OO))
+                        = BipartiteDagCount(Cardinality(TT), Cardinality(OO))
+        BY DEF P
+    <2> HIDE DEF P
+    <2> DEFINE t == Cardinality(TT)
+    <2> DEFINE o == Cardinality(OO)
+    <2> DEFINE F == BipartiteDagOn(TT, OO)
+    <2> DEFINE V == TT \cup OO
+    <2>1. t \in Nat /\ o \in Nat /\ IsFiniteSet(F) /\ Cardinality(F) \in Nat /\ IsFiniteSet(V)
+        BY FS_CardinalityType, FS_Union, DDG_BipartiteDagOnFinite
+    <2>2. CASE s = 0
+        <3>1. TT = {} /\ OO = {}
+            BY <2>1, <2>2, FS_EmptySet
+        <3>2. Cardinality(F) = 1
+            BY <3>1, DDG_BipartiteDagOnEmpty, FS_Singleton
+        <3>3. BipartiteDagCount(0, 0) = 1
+            BY DDG_BipartiteDagCountDef
+        <3>. QED
+            BY <2>1, <2>2, <3>2, <3>3
+    <2>3. CASE s # 0
+        <3> DEFINE Cnt(K) == Cardinality({g \in F : K \subseteq Sink(g)})
+        <3> DEFINE Term(K) == AltSign(Cardinality(K)) * Cnt(K)
+        <3> DEFINE SubPairs == (SUBSET TT) \X (SUBSET OO)
+        <3> DEFINE h(j, k) ==
+                AltSign(j + k)
+                * (IF j = 0 /\ k = 0
+                   THEN Cardinality(F)
+                   ELSE Pow(2, j * (o - k) + k * (t - j)) * BipartiteDagCount(t - j, o - k))
+        <3> DEFINE Idx == ((0..t) \X (0..o)) \ {<<0, 0>>}
+        <3> DEFINE G(p) == Binomial(t, p[1]) * Binomial(o, p[2]) * h(p[1], p[2])
+        <3> DEFINE TermC(q) == AltSign(q[1] + q[2] + 1)
+                               * Binomial(t, q[1]) * Binomial(o, q[2])
+                               * Pow(2, q[1] * (o - q[2]) + q[2] * (t - q[1]))
+                               * BipartiteDagCount(t - q[1], o - q[2])
+        (* Inclusion-exclusion over the nodes forced to be sinks: the sum is 0 *)
+        <3>1. Cardinality({g \in F : Sink(g) \cap V = {}}) = MapThenSumSet(Term, SUBSET V)
+            <4> HIDE DEF F, V
+            <4>. QED
+                BY <2>1, CNT_InclusionExclusion
+        <3>2. V # {}
+            BY <2>1, <2>3, FS_EmptySet
+        <3>3. {g \in F : Sink(g) \cap V = {}} = {}
+            BY <3>2, DDG_BipartiteDagOnHasSink, DDG_BipartiteDagOnMember, DG_SourceSinkProperties
+        <3>4. MapThenSumSet(Term, SUBSET V) = 0
+            BY <3>1, <3>3, FS_EmptySet
+        (* Every term is DDG_ForcedSinksCardinality with the induction hypothesis *)
+        <3>5. \A K \in SUBSET V : Term(K) \in Int
+            <4> SUFFICES ASSUME NEW K \in SUBSET V PROVE Term(K) \in Int
+                OBVIOUS
+            <4>1. Cardinality(K) \in Nat /\ Cnt(K) \in Nat
+                BY <2>1, FS_Subset, FS_CardinalityType
+            <4>. QED
+                BY <4>1, CNT_AltSignProperties
+        <3>6. MapThenSumSet(Term, SUBSET V)
+              = MapThenSumSet(LAMBDA A : Term(A[1] \cup A[2]), SubPairs)
+            BY <3>5, CNT_SumOverSubsetsOfDisjointUnion
+        <3>7. \A A \in SubPairs :
+                  Term(A[1] \cup A[2]) = h(Cardinality(A[1]), Cardinality(A[2]))
+            <4> SUFFICES ASSUME NEW KT \in SUBSET TT, NEW KO \in SUBSET OO
+                         PROVE  Term(KT \cup KO) = h(Cardinality(KT), Cardinality(KO))
+                OBVIOUS
+            <4> DEFINE j == Cardinality(KT)
+            <4> DEFINE k == Cardinality(KO)
+            <4>1. /\ IsFiniteSet(KT) /\ IsFiniteSet(KO) /\ j \in Nat /\ k \in Nat
+                  /\ j <= t /\ k <= o /\ Cardinality(KT \cup KO) = j + k
+                BY FS_Subset, FS_CardinalityType, FS_Union, FS_EmptySet
+            <4>2. CASE j = 0 /\ k = 0
+                <5>1. KT \cup KO = {}
+                    BY <4>1, <4>2, FS_EmptySet
+                <5>. QED
+                    BY <4>1, <4>2, <5>1
+            <4>3. CASE ~(j = 0 /\ k = 0)
+                <5>1. TT \cap KT = KT /\ OO \cap KO = KO
+                    OBVIOUS
+                <5>2. /\ IsFiniteSet(TT \ KT) /\ IsFiniteSet(OO \ KO)
+                      /\ (TT \ KT) \cap (OO \ KO) = {}
+                      /\ Cardinality(TT \ KT) = t - j /\ Cardinality(OO \ KO) = o - k
+                    BY <5>1, FS_Difference
+                <5>3. Cardinality(TT \ KT) + Cardinality(OO \ KO) \in 0..(s-1)
+                    BY <2>1, <4>1, <4>3, <5>2
+                <5>4. Cardinality(BipartiteDagOn(TT \ KT, OO \ KO))
+                      = BipartiteDagCount(t - j, o - k)
+                    BY <5>2, <5>3 DEF P
+                <5>5. Cnt(KT \cup KO) = Pow(2, j * (o - k) + k * (t - j))
+                                        * Cardinality(BipartiteDagOn(TT \ KT, OO \ KO))
+                    BY DDG_ForcedSinksCardinality
+                <5>. QED
+                    BY <4>1, <4>3, <5>4, <5>5
+            <4>. QED
+                BY <4>2, <4>3
+        <3>8. IsFiniteSet(SubPairs)
+            BY FS_SUBSET, FS_Product
+        <3>9. MapThenSumSet(LAMBDA A : Term(A[1] \cup A[2]), SubPairs)
+              = MapThenSumSet(LAMBDA A : h(Cardinality(A[1]), Cardinality(A[2])), SubPairs)
+            BY <3>7, <3>8, CNT_SumCongruence
+        (* Group the sets K by their numbers of tasks and objects              *)
+        <3>10. \A j \in 0..t, k \in 0..o : h(j, k) \in Int
+            <4> SUFFICES ASSUME NEW j \in 0..t, NEW k \in 0..o PROVE h(j, k) \in Int
+                OBVIOUS
+            <4>1. j \in Nat /\ k \in Nat /\ j + k \in Nat /\ t - j \in Nat /\ o - k \in Nat
+                BY <2>1
+            <4>2. j * (o - k) + k * (t - j) \in Nat
+                BY <4>1
+            <4>3. /\ AltSign(j + k) \in Int /\ Pow(2, j * (o - k) + k * (t - j)) \in Int
+                  /\ BipartiteDagCount(t - j, o - k) \in Int
+                BY <2>1, <4>1, <4>2, CNT_AltSignProperties, CNT_PowProperties, DDG_CountsType
+            <4>. QED
+                BY <2>1, <4>3
+        <3>11. MapThenSumSet(LAMBDA A : h(Cardinality(A[1]), Cardinality(A[2])), SubPairs)
+               = MapThenSumSet(G, (0..t) \X (0..o))
+            BY <3>10, CNT_SumOverSubsetPairsByCardinality
+        (* Split off the term of K = {} and recognize the recursion            *)
+        <3>12. \A p \in Idx \cup {<<0, 0>>} : G(p) \in Int
+            <4> SUFFICES ASSUME NEW p \in Idx \cup {<<0, 0>>} PROVE G(p) \in Int
+                OBVIOUS
+            <4>1. p[1] \in 0..t /\ p[2] \in 0..o
+                BY <2>1
+            <4>2. Binomial(t, p[1]) \in Int /\ Binomial(o, p[2]) \in Int
+                BY <2>1, <4>1, CNT_BinomialProperties
+            <4>3. h(p[1], p[2]) \in Int
+                BY <3>10, <4>1
+            <4>. QED
+                BY <4>2, <4>3
+        <3>13. (0..t) \X (0..o) = Idx \cup {<<0, 0>>}
+            BY <2>1
+        <3>13b. <<0, 0>> \notin Idx
+            OBVIOUS
+        <3>13c. IsFiniteSet(Idx)
+            BY <2>1, FS_Interval, FS_Product, FS_Difference
+        <3> HIDE DEF h, G
+        <3>14. MapThenSumSet(G, (0..t) \X (0..o)) = G(<<0, 0>>) + MapThenSumSet(G, Idx)
+            <4>1. MapThenSumSet(G, Idx \cup {<<0, 0>>}) = G(<<0, 0>>) + MapThenSumSet(G, Idx)
+                BY <3>12, <3>13b, <3>13c, MapThenSumSetAddElement
+            <4>. QED
+                BY <3>13, <4>1
+        <3>15. G(<<0, 0>>) = Cardinality(F)
+            BY <2>1, CNT_BinomialProperties, CNT_AltSignProperties DEF G, h
+        <3>16. \A p \in Idx : G(p) = (-1) * TermC(p) /\ TermC(p) \in Int
+            <4> SUFFICES ASSUME NEW p \in Idx
+                         PROVE  G(p) = (-1) * TermC(p) /\ TermC(p) \in Int
+                OBVIOUS
+            <4>1. /\ p[1] \in Nat /\ p[2] \in Nat /\ t - p[1] \in Nat /\ o - p[2] \in Nat
+                  /\ ~(p[1] = 0 /\ p[2] = 0)
+                BY <2>1
+            <4>2. p[1] * (o - p[2]) + p[2] * (t - p[1]) \in Nat
+                BY <4>1
+            <4>3. /\ AltSign(p[1] + p[2]) \in Int
+                  /\ AltSign(p[1] + p[2] + 1) = -AltSign(p[1] + p[2])
+                BY <4>1, CNT_AltSignProperties
+            <4>4. Binomial(t, p[1]) \in Int /\ Binomial(o, p[2]) \in Int
+                BY <2>1, <4>1, CNT_BinomialProperties
+            <4>5. Pow(2, p[1] * (o - p[2]) + p[2] * (t - p[1])) \in Int
+                BY <4>2, CNT_PowProperties
+            <4>6. BipartiteDagCount(t - p[1], o - p[2]) \in Int
+                BY <4>1, DDG_CountsType
+            <4>. QED
+                BY <4>1, <4>2, <4>3, <4>4, <4>5, <4>6 DEF G, h
+        <3> HIDE DEF TermC
+        <3>17. \A p \in Idx : G(p) = (-1) * TermC(p)
+            BY <3>16
+        <3>18. \A p \in Idx : TermC(p) \in Int
+            BY <3>16
+        <3>19. -1 \in Int
+            OBVIOUS
+        <3>20. MapThenSumSet(G, Idx) = MapThenSumSet(LAMBDA p : (-1) * TermC(p), Idx)
+            BY <3>13c, <3>17, CNT_SumCongruence
+        <3>21. MapThenSumSet(LAMBDA p : (-1) * TermC(p), Idx) = (-1) * MapThenSumSet(TermC, Idx)
+            BY <3>13c, <3>18, <3>19, CNT_SumConstFactor
+        <3>22. MapThenSumSet(TermC, Idx) = BipartiteDagCount(t, o)
+            BY <2>1, <2>3, DDG_BipartiteDagCountDef DEF TermC
+        <3>23. BipartiteDagCount(t, o) \in Int
+            BY <2>1, DDG_CountsType
+        <3>. QED
+            BY <2>1, <3>4, <3>6, <3>9, <3>11, <3>14, <3>15, <3>20, <3>21, <3>22, <3>23
+    <2>. QED
+        BY <2>2, <2>3
+<1>2. \A s \in Nat : P(s)
+    <2> HIDE DEF P
+    <2>. QED
+        BY <1>1, GeneralNatInduction, IsaM("blast")
+<1>3. Cardinality(T) + Cardinality(O) \in Nat
+    BY FS_CardinalityType
+<1>. QED
+    BY <1>2, <1>3 DEF P
+
+(******************************************************************************)
+(* The number of bipartite DAGs on (T, O) whose sinks are all objects is      *)
+(* ObjectSinkDagCount(|T|, |O|) (counting-ddgraphs.md, Section 5.2 read on    *)
+(* sinks): inclusion-exclusion over the sets K of tasks forced to be sinks,   *)
+(* each term being DDG_ForcedSinksCardinality with KO = {} evaluated through  *)
+(* DDG_BipartiteDagOnCardinality, then grouping the sets K by cardinality.    *)
+(******************************************************************************)
+THEOREM DDG_ObjectSinkDagOnCardinality ==
+    ASSUME NEW T, IsFiniteSet(T), NEW O, IsFiniteSet(O), T \cap O = {}
+    PROVE  Cardinality(ObjectSinkDagOn(T, O))
+           = ObjectSinkDagCount(Cardinality(T), Cardinality(O))
+<1> DEFINE t == Cardinality(T)
+<1> DEFINE o == Cardinality(O)
+<1> DEFINE F == BipartiteDagOn(T, O)
+<1> DEFINE Term(K) == AltSign(Cardinality(K)) * Cardinality({g \in F : K \subseteq Sink(g)})
+<1> DEFINE h(k) == AltSign(k) * (Pow(2, k * o) * BipartiteDagCount(t - k, o))
+<1> DEFINE Summand(k) == AltSign(k) * Binomial(t, k) * Pow(2, k * o)
+                         * BipartiteDagCount(t - k, o)
+<1>1. t \in Nat /\ o \in Nat /\ IsFiniteSet(F)
+    BY FS_CardinalityType, DDG_BipartiteDagOnFinite
+(* Inclusion-exclusion over the tasks forced to be sinks                      *)
+<1>2. Cardinality(ObjectSinkDagOn(T, O)) = Cardinality({g \in F : Sink(g) \cap T = {}})
+    BY DDG_ObjectSinkDagOnNoTaskSink
+<1>3. Cardinality({g \in F : Sink(g) \cap T = {}}) = MapThenSumSet(Term, SUBSET T)
+    BY <1>1, CNT_InclusionExclusion
+(* Each term is DDG_ForcedSinksCardinality with KO = {}, evaluated through   *)
+(* DDG_BipartiteDagOnCardinality                                              *)
+<1>4. \A K \in SUBSET T : Term(K) = h(Cardinality(K))
+    <2> SUFFICES ASSUME NEW K \in SUBSET T PROVE Term(K) = h(Cardinality(K))
+        OBVIOUS
+    <2> DEFINE k == Cardinality(K)
+    <2>1. k \in Nat /\ k <= t /\ IsFiniteSet(T \ K) /\ (T \ K) \cap O = {} /\ T \cap K = K
+        BY FS_Subset, FS_CardinalityType, FS_Difference
+    <2>2. Cardinality(T \ K) = t - k
+        BY <2>1, FS_Difference
+    <2>3. \A KO \in SUBSET O :
+              Cardinality({g \in F : K \cup KO \subseteq Sink(g)})
+              = Pow(2, k * (o - Cardinality(KO)) + Cardinality(KO) * (t - k))
+                * Cardinality(BipartiteDagOn(T \ K, O \ KO))
+        BY DDG_ForcedSinksCardinality
+    <2>4. Cardinality({g \in F : K \cup {} \subseteq Sink(g)})
+          = Pow(2, k * (o - Cardinality({})) + Cardinality({}) * (t - k))
+            * Cardinality(BipartiteDagOn(T \ K, O \ {}))
+        BY <2>3
+    <2>5. {g \in F : K \cup {} \subseteq Sink(g)} = {g \in F : K \subseteq Sink(g)} /\ O \ {} = O
+        OBVIOUS
+    <2>6. Cardinality({}) = 0 /\ k * (o - 0) + 0 * (t - k) = k * o
+        BY <1>1, <2>1, FS_EmptySet
+    <2>7. Cardinality(BipartiteDagOn(T \ K, O)) = BipartiteDagCount(t - k, o)
+        BY <2>1, <2>2, DDG_BipartiteDagOnCardinality
+    <2>. QED
+        BY <2>4, <2>5, <2>6, <2>7
+<1>5. MapThenSumSet(Term, SUBSET T) = MapThenSumSet(LAMBDA K : h(Cardinality(K)), SUBSET T)
+    BY <1>4, FS_SUBSET, CNT_SumCongruence
+(* Group the sets K by cardinality                                            *)
+<1>6. \A k \in 0..t : h(k) \in Int /\ Binomial(t, k) * h(k) = Summand(k)
+    <2> SUFFICES ASSUME NEW k \in 0..t
+                 PROVE  h(k) \in Int /\ Binomial(t, k) * h(k) = Summand(k)
+        OBVIOUS
+    <2>1. k \in Nat /\ t - k \in Nat /\ k * o \in Nat
+        BY <1>1
+    <2>2. /\ AltSign(k) \in Int /\ Binomial(t, k) \in Int /\ Pow(2, k * o) \in Int
+          /\ BipartiteDagCount(t - k, o) \in Int
+        BY <1>1, <2>1, CNT_AltSignProperties, CNT_BinomialProperties, CNT_PowProperties,
+           DDG_CountsType
+    <2>. QED
+        BY <2>2
+<1> HIDE DEF h
+<1>7. \A k \in 0..t : h(k) \in Int
+    BY <1>6
+<1>8. \A k \in 0..t : Binomial(t, k) * h(k) = Summand(k)
+    BY <1>6
+<1>9. MapThenSumSet(LAMBDA K : h(Cardinality(K)), SUBSET T)
+      = MapThenSumSet(LAMBDA k : Binomial(t, k) * h(k), 0..t)
+    BY <1>7, CNT_SumOverSubsetsByCardinality
+<1>10. MapThenSumSet(LAMBDA k : Binomial(t, k) * h(k), 0..t) = MapThenSumSet(Summand, 0..t)
+    BY <1>1, <1>8, FS_Interval, CNT_SumCongruence
+<1>. QED
+    BY <1>2, <1>3, <1>5, <1>9, <1>10 DEF ObjectSinkDagCount
+
+(******************************************************************************)
+(* The number of DD graphs with node set exactly T \cup O is                  *)
+(* DDGraphCount(|T|, |O|) (counting-ddgraphs.md, Section 5.3 read on          *)
+(* sources): within the family whose sinks are objects, inclusion-exclusion   *)
+(* over the sets K of tasks forced to be sources, each term being             *)
+(* DDG_ForcedSourcesCardinality evaluated through                             *)
+(* DDG_ObjectSinkDagOnCardinality, then grouping the sets K by cardinality.   *)
+(******************************************************************************)
+THEOREM DDG_DDGraphOnCardinality ==
+    ASSUME NEW T, IsFiniteSet(T), NEW O, IsFiniteSet(O), T \cap O = {}
+    PROVE  Cardinality(DDGraphOn(T, O)) = DDGraphCount(Cardinality(T), Cardinality(O))
+<1> DEFINE t == Cardinality(T)
+<1> DEFINE o == Cardinality(O)
+<1> DEFINE F == ObjectSinkDagOn(T, O)
+<1> DEFINE Term(K) == AltSign(Cardinality(K)) * Cardinality({g \in F : K \subseteq Source(g)})
+<1> DEFINE h(k) == AltSign(k) * (Pow(Pow(2, o) - 1, k) * ObjectSinkDagCount(t - k, o))
+<1> DEFINE Summand(k) == AltSign(k) * Binomial(t, k) * Pow(Pow(2, o) - 1, k)
+                         * ObjectSinkDagCount(t - k, o)
+<1>1. t \in Nat /\ o \in Nat /\ IsFiniteSet(F)
+    BY FS_CardinalityType, DDG_BipartiteDagOnFinite
+(* Inclusion-exclusion over the tasks forced to be sources                    *)
+<1>2. Cardinality(DDGraphOn(T, O)) = Cardinality({g \in F : Source(g) \cap T = {}})
+    BY DDG_DDGraphOnNoTaskSource
+<1>3. Cardinality({g \in F : Source(g) \cap T = {}}) = MapThenSumSet(Term, SUBSET T)
+    BY <1>1, CNT_InclusionExclusion
+(* Each term is DDG_ForcedSourcesCardinality evaluated through                *)
+(* DDG_ObjectSinkDagOnCardinality                                             *)
+<1>4. \A K \in SUBSET T : Term(K) = h(Cardinality(K))
+    <2> SUFFICES ASSUME NEW K \in SUBSET T PROVE Term(K) = h(Cardinality(K))
+        OBVIOUS
+    <2>1. IsFiniteSet(T \ K) /\ (T \ K) \cap O = {} /\ T \cap K = K
+        BY FS_Difference
+    <2>2. Cardinality(T \ K) = t - Cardinality(K)
+        BY <2>1, FS_Difference
+    <2>3. Cardinality(ObjectSinkDagOn(T \ K, O)) = ObjectSinkDagCount(t - Cardinality(K), o)
+        BY <2>1, <2>2, DDG_ObjectSinkDagOnCardinality
+    <2>. QED
+        BY <2>3, DDG_ForcedSourcesCardinality
+<1>5. MapThenSumSet(Term, SUBSET T) = MapThenSumSet(LAMBDA K : h(Cardinality(K)), SUBSET T)
+    BY <1>4, FS_SUBSET, CNT_SumCongruence
+(* Group the sets K by cardinality                                            *)
+<1>6. \A k \in 0..t : h(k) \in Int /\ Binomial(t, k) * h(k) = Summand(k)
+    <2> SUFFICES ASSUME NEW k \in 0..t
+                 PROVE  h(k) \in Int /\ Binomial(t, k) * h(k) = Summand(k)
+        OBVIOUS
+    <2>1. k \in Nat /\ t - k \in Nat /\ Pow(2, o) - 1 \in Int
+        BY <1>1, CNT_PowProperties
+    <2>2. /\ AltSign(k) \in Int /\ Binomial(t, k) \in Int /\ Pow(Pow(2, o) - 1, k) \in Int
+          /\ ObjectSinkDagCount(t - k, o) \in Int
+        BY <1>1, <2>1, CNT_AltSignProperties, CNT_BinomialProperties, CNT_PowProperties,
+           DDG_CountsType
+    <2>. QED
+        BY <2>2
+<1> HIDE DEF h
+<1>7. \A k \in 0..t : h(k) \in Int
+    BY <1>6
+<1>8. \A k \in 0..t : Binomial(t, k) * h(k) = Summand(k)
+    BY <1>6
+<1>9. MapThenSumSet(LAMBDA K : h(Cardinality(K)), SUBSET T)
+      = MapThenSumSet(LAMBDA k : Binomial(t, k) * h(k), 0..t)
+    BY <1>7, CNT_SumOverSubsetsByCardinality
+<1>10. MapThenSumSet(LAMBDA k : Binomial(t, k) * h(k), 0..t) = MapThenSumSet(Summand, 0..t)
+    BY <1>1, <1>8, FS_Interval, CNT_SumCongruence
+<1>. QED
+    BY <1>2, <1>3, <1>5, <1>9, <1>10 DEF DDGraphCount
+
+(******************************************************************************)
+(* The main counting result: DDGraphOf(T, O) has DDGraphOfCount(|T|, |O|)     *)
+(* members (counting-ddgraphs.md, Section 9.2). DDGraphOf is the union of the *)
+(* families DDGraphOn(t, o) over the sub-partitions (t, o), which are         *)
+(* pairwise disjoint since a member determines its sub-partition as (node     *)
+(* \cap T, node \cap O); each family is counted by DDG_DDGraphOnCardinality   *)
+(* and the sub-partitions are grouped by their numbers of tasks and objects.  *)
+(******************************************************************************)
+THEOREM DDG_DDGraphOfCardinality ==
+    ASSUME NEW T, IsFiniteSet(T), NEW O, IsFiniteSet(O), T \cap O = {}
+    PROVE  Cardinality(DDGraphOf(T, O)) = DDGraphOfCount(Cardinality(T), Cardinality(O))
+<1> DEFINE t == Cardinality(T)
+<1> DEFINE o == Cardinality(O)
+<1> DEFINE I == (SUBSET T) \X (SUBSET O)
+<1> DEFINE Block(to) == DDGraphOn(to[1], to[2])
+<1>1. t \in Nat /\ o \in Nat /\ IsFiniteSet(I)
+    BY FS_CardinalityType, FS_SUBSET, FS_Product
+<1>2. \A to \in I : IsFiniteSet(to[1]) /\ IsFiniteSet(to[2]) /\ to[1] \cap to[2] = {}
+    BY FS_Subset
+<1>3. \A to \in I : IsFiniteSet(Block(to))
+    BY <1>2, DDG_BipartiteDagOnFinite
+<1>4. \A to, uo \in I : to # uo => Block(to) \cap Block(uo) = {}
+    <2> SUFFICES ASSUME NEW to \in I, NEW uo \in I, NEW g \in Block(to) \cap Block(uo)
+                 PROVE  to = uo
+        OBVIOUS
+    <2>1. g.node = to[1] \cup to[2] /\ g.node = uo[1] \cup uo[2]
+        BY DEF DDGraphOn
+    <2>. QED
+        BY <2>1
+<1>5. DDGraphOf(T, O) = UNION {Block(to) : to \in I}
+    BY DEF DDGraphOf
+<1>6. Cardinality(UNION {Block(to) : to \in I})
+      = MapThenSumSet(LAMBDA to : Cardinality(Block(to)), I)
+    BY <1>1, <1>3, <1>4, CNT_DisjointUnionCardinality
+<1>7. \A to \in I : Cardinality(Block(to)) = DDGraphCount(Cardinality(to[1]), Cardinality(to[2]))
+    BY <1>2, DDG_DDGraphOnCardinality
+<1>8. MapThenSumSet(LAMBDA to : Cardinality(Block(to)), I)
+      = MapThenSumSet(LAMBDA to : DDGraphCount(Cardinality(to[1]), Cardinality(to[2])), I)
+    BY <1>1, <1>7, CNT_SumCongruence
+<1>9. \A j \in 0..t, k \in 0..o : DDGraphCount(j, k) \in Int
+    BY DDG_CountsType
+<1>10. MapThenSumSet(LAMBDA to : DDGraphCount(Cardinality(to[1]), Cardinality(to[2])), I)
+       = MapThenSumSet(LAMBDA p : Binomial(t, p[1]) * Binomial(o, p[2]) * DDGraphCount(p[1], p[2]),
+                       (0..t) \X (0..o))
+    BY <1>9, CNT_SumOverSubsetPairsByCardinality
+<1>. QED
+    BY <1>5, <1>6, <1>8, <1>10 DEF DDGraphOfCount
 
 ================================================================================
