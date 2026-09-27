@@ -1,8 +1,8 @@
 """The commit-convention checkers must run on a bare interpreter.
 
-The Makefile's check-commits target and the CI commits and pairing jobs invoke
-these modules with the system python3, before any venv exists; nothing but this
-test enforces that they stay standard-library only.
+The Makefile's check-commits target and the CI commits, pairing and discover
+jobs invoke these modules with the system python3, before any venv exists;
+nothing but this test enforces that they stay standard-library only.
 """
 
 import subprocess
@@ -23,7 +23,7 @@ def test_checkers_import_without_site_packages():
             "-c",
             (
                 "import scripts.check_commit, scripts.check_proof_pairing, "
-                "scripts.check_state_space, scripts.naming"
+                "scripts.check_state_space, scripts.chunk_proofs, scripts.naming"
             ),
         ),
         cwd=REPO_ROOT,

@@ -288,11 +288,53 @@ THEOREM TP2_TaskSafetyInv == Init /\ [][Next]_vars => []TaskSafetyInv
 
 THEOREM TP2_AttemptsIsIncreasing == Spec => AttemptsIsIncreasing
 
+(**
+ * STEP-LEVEL STABILITY OF TASK STATES. The task lifecycle only moves forward:
+ * SUCCEEDED exits to COMPLETED only, DISCARDED to ABORTED only, FAILED to
+ * RETRIED only, and the finalized states are terminal. Stated for a single
+ * step so that refining specifications can lift it through their step
+ * simulation.
+ *)
+LEMMA LemTaskStateStable ==
+    ASSUME NEW t \in Task, [Next]_vars
+    PROVE  /\ taskState[t] \in {TASK_SUCCEEDED, TASK_COMPLETED}
+              => taskState'[t] \in {TASK_SUCCEEDED, TASK_COMPLETED}
+           /\ taskState[t] \in {TASK_DISCARDED, TASK_ABORTED}
+              => taskState'[t] \in {TASK_DISCARDED, TASK_ABORTED}
+           /\ taskState[t] \in {TASK_FAILED, TASK_RETRIED}
+              => taskState'[t] \in {TASK_FAILED, TASK_RETRIED}
+           /\ taskState[t] \in {TASK_DISCARDED, TASK_COMPLETED, TASK_ABORTED, TASK_RETRIED}
+              => taskState'[t] \in {TASK_DISCARDED, TASK_COMPLETED, TASK_ABORTED, TASK_RETRIED}
+           /\ taskState[t] \in {TASK_COMPLETED, TASK_ABORTED, TASK_RETRIED}
+              => taskState'[t] = taskState[t]
+
+(**
+ * A recorded next attempt is never overwritten: SetTaskRetries only writes
+ * NULL entries (T \subseteq UnretriedTask), and no other action touches
+ * nextAttemptOf.
+ *)
+LEMMA LemNextAttemptFrozen ==
+    ASSUME NEW t \in Task, nextAttemptOf[t] /= NULL, [Next]_vars
+    PROVE  nextAttemptOf'[t] = nextAttemptOf[t]
+
+(**
+ * The SUCCEEDED / DISCARDED status of a task stabilizes: SUCCEEDED exits only
+ * to COMPLETED and DISCARDED only to ABORTED, both terminal and outside
+ * SUCCEEDED / DISCARDED.
+ *)
+LEMMA LemSucceededDiscardedStabilize ==
+    ASSUME NEW t \in Task
+    PROVE  [][Next]_vars
+           => \/ <>[](t \in SucceededTask)
+              \/ <>[](t \in DiscardedTask)
+              \/ <>[](~ (t \in SucceededTask) /\ ~ (t \in DiscardedTask))
+
 THEOREM TP2_PermanentFinalization == Spec => PermanentFinalization
 
 LEMMA LemFailedTaskEventualRetry ==
     ASSUME NEW t \in Task
-    PROVE []TaskSafetyInv /\ [][Next]_vars /\ Fairness
+    PROVE []TaskSafetyInv /\ [][Next]_vars
+          /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
           => t \in UnretriedTask ~> t \in FailedTask /\ nextAttemptOf[t] \in UnknownTask
 
 THEOREM TP2_FailedTaskEventualRetry == Spec => FailedTaskEventualRetry
