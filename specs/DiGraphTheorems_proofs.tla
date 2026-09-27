@@ -2246,4 +2246,112 @@ THEOREM DG_HasDirectedCycleMCEquiv ==
 <1>. QED
     BY <1>1, <1>2
 
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(* Sources, sinks and cycles; counting graphs with a fixed node set.          *)
+(******************************************************************************)
+
+(******************************************************************************)
+(* A node visited by a directed cycle is entered and left by the cycle, so it *)
+(* has both a predecessor and a successor: c[i+1] follows c[i], c[i-1]        *)
+(* precedes it, and the first node, which is also the last one, is entered    *)
+(* from the penultimate node and left towards the second. Hence no directed   *)
+(* cycle passes through a source or a sink.                                   *)
+(******************************************************************************)
+LEMMA DG_CycleAvoidsSourcesAndSinks ==
+    ASSUME NEW G, IsDirectedGraph(G),
+           NEW c \in DirectedCycle(G), NEW i \in 1..Len(c)
+    PROVE  /\ Predecessor(G, c[i]) # {}
+           /\ Successor(G, c[i]) # {}
+           /\ c[i] \notin Source(G) \cup Sink(G)
+<1>1. /\ Len(c) \in Nat /\ Len(c) > 1 /\ c[1] = c[Len(c)]
+      /\ \A k \in 1..(Len(c) - 1) : <<c[k], c[k+1]>> \in G.edge
+      /\ \A k \in 1..Len(c) : c[k] \in G.node
+    BY LenProperties, ElementOfSeq DEF DirectedCycle, Path
+<1>2. Successor(G, c[i]) # {}
+    <2>1. CASE i < Len(c)
+        <3>1. <<c[i], c[i+1]>> \in G.edge /\ c[i+1] \in G.node
+            BY <1>1, <2>1
+        <3>. QED
+            BY <3>1 DEF Successor
+    <2>2. CASE i = Len(c)
+        <3>1. <<c[1], c[1+1]>> \in G.edge /\ c[1+1] \in G.node /\ c[i] = c[1]
+            BY <1>1, <2>2
+        <3>. QED
+            BY <3>1 DEF Successor
+    <2>. QED
+        BY <1>1, <2>1, <2>2
+<1>3. Predecessor(G, c[i]) # {}
+    <2>1. CASE i > 1
+        <3>1. <<c[i-1], c[(i-1)+1]>> \in G.edge /\ c[i-1] \in G.node
+            BY <1>1, <2>1
+        <3>. QED
+            BY <3>1 DEF Predecessor
+    <2>2. CASE i = 1
+        <3>1. <<c[Len(c)-1], c[(Len(c)-1)+1]>> \in G.edge /\ c[Len(c)-1] \in G.node
+            BY <1>1, <2>2
+        <3>. QED
+            BY <1>1, <2>2, <3>1 DEF Predecessor
+    <2>. QED
+        BY <1>1, <2>1, <2>2
+<1>. QED
+    BY <1>2, <1>3 DEF Source, Sink
+
+(******************************************************************************)
+(* Deleting a set X of sources and sinks of G, together with every edge       *)
+(* touching X, yields a well-formed directed graph H that is acyclic iff G    *)
+(* is. H is a subgraph of G, so a cycle of H is a cycle of G; conversely a    *)
+(* cycle of G avoids X (DG_CycleAvoidsSourcesAndSinks), so all its nodes and  *)
+(* edges survive in H.                                                        *)
+(******************************************************************************)
+THEOREM DG_SourceSinkRemovalDagEquiv ==
+    ASSUME NEW G, IsDirectedGraph(G), NEW X, X \subseteq Source(G) \cup Sink(G)
+    PROVE  LET H == [node |-> G.node \ X,
+                     edge |-> G.edge \cap ((G.node \ X) \X (G.node \ X))]
+           IN  /\ IsDirectedGraph(H)
+               /\ IsDag(G) <=> IsDag(H)
+<1> DEFINE N == G.node \ X
+<1> DEFINE H == [node |-> N, edge |-> G.edge \cap (N \X N)]
+<1>1. IsDirectedGraph(H) /\ H \in DirectedSubgraph(G)
+    BY DEF IsDirectedGraph, DirectedSubgraph
+<1>2. IsDag(G) => IsDag(H)
+    BY <1>1, DG_DirectedSubgraphProperties
+<1>3. ASSUME NEW c \in DirectedCycle(G) PROVE c \in DirectedCycle(H)
+    <2>1. /\ c \in Seq(G.node) /\ Len(c) \in Nat /\ Len(c) > 1 /\ c[1] = c[Len(c)]
+          /\ \A k \in 1..(Len(c) - 1) : <<c[k], c[k+1]>> \in G.edge
+        BY LenProperties DEF DirectedCycle, Path
+    <2>2. \A k \in 1..Len(c) : c[k] \in N
+        BY <2>1, ElementOfSeq, DG_CycleAvoidsSourcesAndSinks
+    <2>3. c \in Seq(N)
+        BY <2>1, <2>2, LenProperties, SeqDef
+    <2>. QED
+        BY <2>1, <2>2, <2>3 DEF DirectedCycle, Path
+<1>. QED
+    BY <1>1, <1>2, <1>3 DEF IsDag, HasDirectedCycle
+
+(******************************************************************************)
+(* Graphs with a fixed node set V and an edge set drawn from a finite family  *)
+(* S are in bijection with their edge sets: a family of such graphs carved    *)
+(* out by a predicate P is finite and has as many members as the family of    *)
+(* edge sets e \in S for which [node |-> V, edge |-> e] satisfies P.          *)
+(* To be generalized to record sets and moved to the TLAPS standard           *)
+(* library (FiniteSetTheorems) when convenient.                               *)
+(******************************************************************************)
+THEOREM DG_FixedNodeSetFamilyCardinality ==
+    ASSUME NEW V, NEW S, IsFiniteSet(S), NEW P(_)
+    PROVE  /\ IsFiniteSet({g \in [node: {V}, edge: S] : P(g)})
+           /\ Cardinality({g \in [node: {V}, edge: S] : P(g)})
+              = Cardinality({e \in S : P([node |-> V, edge |-> e])})
+<1> DEFINE Fam == {g \in [node: {V}, edge: S] : P(g)}
+<1> DEFINE Edg == {e \in S : P([node |-> V, edge |-> e])}
+<1> DEFINE f == [e \in Edg |-> [node |-> V, edge |-> e]]
+<1>1. IsFiniteSet(Edg)
+    BY FS_Subset
+<1>2. \A g \in Fam : g = [node |-> V, edge |-> g.edge] /\ g.edge \in Edg
+    OBVIOUS
+<1>3. f \in Bijection(Edg, Fam)
+    BY <1>2 DEF Bijection, Injection, Surjection, IsInjective
+<1>. QED
+    BY <1>1, <1>3, FS_Bijection DEF ExistsBijection
+
 ================================================================================

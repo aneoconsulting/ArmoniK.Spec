@@ -385,4 +385,51 @@ THEOREM DG_HasDirectedCycleMCEquiv ==
     ASSUME NEW G, IsDirectedGraph(G), IsFiniteSet(G.node)
     PROVE  HasDirectedCycle(G) <=> MCHasDirectedCycle(G)
 
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(* Sources, sinks and cycles; counting graphs with a fixed node set.          *)
+(******************************************************************************)
+
+(******************************************************************************)
+(* A node visited by a directed cycle is entered and left by the cycle, so it *)
+(* has both a predecessor and a successor: c[i+1] follows c[i], c[i-1]        *)
+(* precedes it, and the first node, which is also the last one, is entered    *)
+(* from the penultimate node and left towards the second. Hence no directed   *)
+(* cycle passes through a source or a sink.                                   *)
+(******************************************************************************)
+LEMMA DG_CycleAvoidsSourcesAndSinks ==
+    ASSUME NEW G, IsDirectedGraph(G),
+           NEW c \in DirectedCycle(G), NEW i \in 1..Len(c)
+    PROVE  /\ Predecessor(G, c[i]) # {}
+           /\ Successor(G, c[i]) # {}
+           /\ c[i] \notin Source(G) \cup Sink(G)
+
+(******************************************************************************)
+(* Deleting a set X of sources and sinks of G, together with every edge       *)
+(* touching X, yields a well-formed directed graph H that is acyclic iff G    *)
+(* is. H is a subgraph of G, so a cycle of H is a cycle of G; conversely a    *)
+(* cycle of G avoids X (DG_CycleAvoidsSourcesAndSinks), so all its nodes and  *)
+(* edges survive in H.                                                        *)
+(******************************************************************************)
+THEOREM DG_SourceSinkRemovalDagEquiv ==
+    ASSUME NEW G, IsDirectedGraph(G), NEW X, X \subseteq Source(G) \cup Sink(G)
+    PROVE  LET H == [node |-> G.node \ X,
+                     edge |-> G.edge \cap ((G.node \ X) \X (G.node \ X))]
+           IN  /\ IsDirectedGraph(H)
+               /\ IsDag(G) <=> IsDag(H)
+
+(******************************************************************************)
+(* Graphs with a fixed node set V and an edge set drawn from a finite family  *)
+(* S are in bijection with their edge sets: a family of such graphs carved    *)
+(* out by a predicate P is finite and has as many members as the family of    *)
+(* edge sets e \in S for which [node |-> V, edge |-> e] satisfies P.          *)
+(* To be generalized to record sets and moved to the TLAPS standard           *)
+(* library (FiniteSetTheorems) when convenient.                               *)
+(******************************************************************************)
+THEOREM DG_FixedNodeSetFamilyCardinality ==
+    ASSUME NEW V, NEW S, IsFiniteSet(S), NEW P(_)
+    PROVE  /\ IsFiniteSet({g \in [node: {V}, edge: S] : P(g)})
+           /\ Cardinality({g \in [node: {V}, edge: S] : P(g)})
+              = Cardinality({e \in S : P([node |-> V, edge |-> e])})
+
 ================================================================================
