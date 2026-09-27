@@ -17,7 +17,7 @@
 (* parametric in that predicate; nothing in this module fixes its meaning.    *)
 (******************************************************************************)
 
-EXTENDS DiGraphs
+EXTENDS DiGraphs, Counting
 
 (******************************************************************************)
 (* TRUE iff G is a DD graph over task ids T and object ids O: a DAG that is   *)
@@ -30,9 +30,23 @@ IsDDGraph(G, T, O) ==
     /\ Sink(G) \subseteq O
 
 (******************************************************************************)
+(* The set of DD graphs over task ids T and object ids O whose node set is    *)
+(* exactly T \cup O: the graphs with that node set and cross-partition edges  *)
+(* that are DAGs and whose sources and sinks are all objects. This is the     *)
+(* family counted by DDGraphCount (see DDG_DDGraphOnCardinality).             *)
+(******************************************************************************)
+DDGraphOn(T, O) ==
+    { g \in [node: {T \cup O}, edge: SUBSET ((T \X O) \cup (O \X T))] :
+        /\ IsDag(g)
+        /\ Source(g) \subseteq O
+        /\ Sink(g) \subseteq O }
+
+(******************************************************************************)
 (* The set of all DD graphs over task ids T and object ids O. The set         *)
 (* includes the empty graph and every graph whose nodes are a subset of       *)
-(* T \union O satisfying the DD-graph constraints.                            *)
+(* T \union O satisfying the DD-graph constraints: the union, over every      *)
+(* sub-partition (t, o) of (T, O), of the DD graphs with node set exactly     *)
+(* t \cup o.                                                                  *)
 (*                                                                            *)
 (* The union is indexed by a single pair `to \in (SUBSET T) \X (SUBSET O)`    *)
 (* rather than the more natural two-binder comprehension                      *)
@@ -45,13 +59,7 @@ IsDDGraph(G, T, O) ==
 (* which is what lets DDG_DDGraphOfMember be discharged.                      *)
 (******************************************************************************)
 DDGraphOf(T, O) ==
-    UNION {
-        { g \in [node: {to[1] \union to[2]}, edge: SUBSET ((to[1] \X to[2]) \union (to[2] \X to[1]))] :
-            /\ IsDag(g)
-            /\ Source(g) \subseteq to[2]
-            /\ Sink(g) \subseteq to[2]
-        } : to \in (SUBSET T) \X (SUBSET O)
-    }
+    UNION { DDGraphOn(to[1], to[2]) : to \in (SUBSET T) \X (SUBSET O) }
 
 (******************************************************************************)
 (* The set of open paths ending at node n in G under predicate Op: simple     *)
@@ -144,5 +152,113 @@ Derivation(G, n, Op(_), T) ==
         /\ Sink(D) = {n}
         /\ Source(D) \subseteq Source(G)
         /\ \A t \in D.node \cap T : Predecessor(G, t) \subseteq D.node}
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(* Counting DD graphs.                                                        *)
+(*                                                                            *)
+(* The operators below compute Cardinality(DDGraphOf(T, O)) from the sizes    *)
+(* t = Cardinality(T) and o = Cardinality(O) alone, see                       *)
+(* DDG_DDGraphOfCardinality.                                                  *)
+(* They implement the "streamlined system" of counting-ddgraphs.md, Theorem 1 *)
+(* and Section 9, whose functions take the object partition first: read that  *)
+(* report with m = o objects and n = t tasks. Three auxiliary families of     *)
+(* labeled graphs on the exact node set T \cup O are counted on the way:      *)
+(*   - BipartiteDagOn(T, O), every bipartite DAG (count E);                   *)
+(*   - ObjectSinkDagOn(T, O), those whose sinks are all objects (count D);    *)
+(*   - DDGraphOn(T, O), those whose sources and sinks are objects (count N).  *)
+(* A member of DDGraphOn has every task interior, so the two constraints are  *)
+(* stripped one family at a time by inclusion-exclusion over the tasks forced *)
+(* to be sinks, resp. sources. Only the count of bipartite DAGs is recursive; *)
+(* the other counts are finite sums of values already computed.               *)
+(*                                                                            *)
+(* Powers are written with Pow, alternating signs with AltSign and binomial   *)
+(* coefficients with Binomial (module Counting); sums with MapThenSumSet.     *)
+(******************************************************************************)
+
+(******************************************************************************)
+(* The bipartite DAGs over (T, O) with node set exactly T \cup O: every edge  *)
+(* links a task and an object, in either direction.                           *)
+(******************************************************************************)
+BipartiteDagOn(T, O) ==
+    { g \in [node: {T \cup O}, edge: SUBSET ((T \X O) \cup (O \X T))] : IsDag(g) }
+
+(******************************************************************************)
+(* The bipartite DAGs over (T, O) with node set exactly T \cup O whose sinks  *)
+(* are all objects, i.e. in which every task has a successor.                 *)
+(******************************************************************************)
+ObjectSinkDagOn(T, O) == { g \in BipartiteDagOn(T, O) : Sink(g) \subseteq O }
+
+(******************************************************************************)
+(* E(t, o), the number of bipartite DAGs with t labeled tasks and o labeled   *)
+(* objects, by inclusion-exclusion over the sets of nodes forced to be sinks  *)
+(* (Robinson's recurrence for labeled DAGs, adapted to the bipartite case):   *)
+(*                                                                            *)
+(*   E(0, 0) = 1  and, for (t, o) # (0, 0),                                   *)
+(*   E(t, o) = Sum over (i, j) in (0..t) \X (0..o), (i, j) # (0, 0), of       *)
+(*             (-1)^(i+j+1) C(t, i) C(o, j) 2^(i (o-j) + j (t-i)) E(t-i, o-j) *)
+(*                                                                            *)
+(* where i tasks and j objects are forced to be sinks and the power of two    *)
+(* counts their free incoming edges from the other nodes. The recursion is    *)
+(* well founded since every term on the right has fewer nodes;                *)
+(* DDG_BipartiteDagCountDef states the resulting unfolding.                   *)
+(*                                                                            *)
+(* BipartiteDagCountDef is the body of the recursion, with the function being *)
+(* defined as an explicit parameter, in the form the theorems of module       *)
+(* WellFoundedInduction expect; BipartiteDagCountFcn is the recursively       *)
+(* defined function on Nat \X Nat and BipartiteDagCount its curried form.     *)
+(******************************************************************************)
+BipartiteDagCountDef(f, p) ==
+    IF p = <<0, 0>>
+    THEN 1
+    ELSE MapThenSumSet(
+            LAMBDA q : AltSign(q[1] + q[2] + 1)
+                       * Binomial(p[1], q[1]) * Binomial(p[2], q[2])
+                       * Pow(2, q[1] * (p[2] - q[2]) + q[2] * (p[1] - q[1]))
+                       * f[<<p[1] - q[1], p[2] - q[2]>>],
+            ((0..p[1]) \X (0..p[2])) \ {<<0, 0>>})
+
+BipartiteDagCountFcn[p \in Nat \X Nat] == BipartiteDagCountDef(BipartiteDagCountFcn, p)
+
+BipartiteDagCount(t, o) == BipartiteDagCountFcn[<<t, o>>]
+
+(******************************************************************************)
+(* D(t, o), the number of bipartite DAGs on (t, o) whose sinks are all        *)
+(* objects, by inclusion-exclusion over the k tasks forced to be sinks, each  *)
+(* of which freely receives edges from the o objects:                         *)
+(*                                                                            *)
+(*   D(t, o) = Sum over k in 0..t of (-1)^k C(t, k) 2^(k o) E(t - k, o)       *)
+(******************************************************************************)
+ObjectSinkDagCount(t, o) ==
+    MapThenSumSet(LAMBDA k : AltSign(k) * Binomial(t, k) * Pow(2, k * o)
+                             * BipartiteDagCount(t - k, o),
+                  0..t)
+
+(******************************************************************************)
+(* N(t, o), the number of DD graphs with node set exactly T \cup O: starting  *)
+(* from the DAGs whose sinks are objects, inclusion-exclusion over the k      *)
+(* tasks forced to be sources, each of which keeps a non-empty set of         *)
+(* successors among the o objects -- hence the factor (2^o - 1)^k:            *)
+(*                                                                            *)
+(*   N(t, o) = Sum over k in 0..t of (-1)^k C(t, k) (2^o - 1)^k D(t - k, o)   *)
+(******************************************************************************)
+DDGraphCount(t, o) ==
+    MapThenSumSet(LAMBDA k : AltSign(k) * Binomial(t, k)
+                             * Pow(Pow(2, o) - 1, k)
+                             * ObjectSinkDagCount(t - k, o),
+                  0..t)
+
+(******************************************************************************)
+(* Cardinality(DDGraphOf(T, O)) for t tasks and o objects: the members of     *)
+(* DDGraphOf are grouped by their node set, a sub-partition with i tasks and  *)
+(* j objects that can be chosen in C(t, i) C(o, j) ways:                      *)
+(*                                                                            *)
+(*   NHat(t, o) = Sum over (i, j) in (0..t) \X (0..o) of                      *)
+(*                C(t, i) C(o, j) N(i, j)                                     *)
+(******************************************************************************)
+DDGraphOfCount(t, o) ==
+    MapThenSumSet(LAMBDA p : Binomial(t, p[1]) * Binomial(o, p[2])
+                             * DDGraphCount(p[1], p[2]),
+                  (0..t) \X (0..o))
 
 ================================================================================
