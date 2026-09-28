@@ -1,6 +1,6 @@
 -------------------------- MODULE GraphProcessing2_mc --------------------------
 
-EXTENDS GraphProcessing2
+EXTENDS GraphProcessing2, TLC
 
 MCDirectedGraphOf(N) == DDGraphOf(N \cap Task, N \cap Object)
 
