@@ -217,22 +217,19 @@ RequestTasksStopping(T) ==
 
 (**
  * TASK CANCELLATION ACKNOWLEDGMENT
- * The request to cancel a set 'T' of tasks is acknowledged. Tasks not
- * currently assigned are changed to the STOPPED state, provided that their
- * processing has not already been completed (i.e., the tasks are in
- * REGISTERED, STAGED or PAUSED states).
+ * The request to cancel a set 'T' of tasks is acknowledged. STAGED or PAUSED
+ * tasks are changed to the STOPPED state: only tasks eligible for execution
+ * need to be parked. A request on a REGISTERED task stays pending -- it
+ * already prevents assignment, and it is acknowledged if the task ever
+ * stages.
  *)
 StopTasks(T) ==
     /\ T /= {}
     /\ T \subseteq stoppingRequested
-    /\ T \intersect AssignedTask = {}
+    /\ T \subseteq StagedTask \union PausedTask
     /\ T \intersect taskDeleted = {}
     /\ taskState' =
-        [t \in Task |-> IF t \in T /\ (\/ t \in RegisteredTask
-                                       \/ t \in StagedTask
-                                       \/ t \in PausedTask)
-                            THEN TASK_STOPPED
-                            ELSE taskState[t]]
+        [t \in Task |-> IF t \in T THEN TASK_STOPPED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, stoppingRequested,
                     pausingRequested, taskDeleted >>
 
@@ -288,7 +285,7 @@ DeleteTasks(T) ==
     /\ T \intersect FailedTask = {}
     /\ T \intersect DiscardedTask = {}
     /\ T \intersect PausedTask = {}
-    /\ T \intersect (RegisteredTask \union StagedTask) \intersect stoppingRequested = {}
+    /\ T \intersect StagedTask \intersect stoppingRequested = {}
     /\ T \intersect pausingRequested = {}
     /\ \A t \in T: t \in RegisteredTask => ~ \E u \in Task: nextAttemptOf[u] = t
     /\ taskDeleted' = taskDeleted \union T
@@ -386,8 +383,7 @@ DeletionValidity ==
     /\ taskDeleted \intersect DiscardedTask = {}
     /\ taskDeleted \intersect PausedTask = {}
     /\ taskDeleted \intersect pausingRequested = {}
-    /\ taskDeleted \intersect (RegisteredTask \union StagedTask)
-                  \intersect stoppingRequested = {}
+    /\ taskDeleted \intersect StagedTask \intersect stoppingRequested = {}
     /\ \A t \in Task: nextAttemptOf[t] \in RegisteredTask
                       => nextAttemptOf[t] \notin taskDeleted
 
