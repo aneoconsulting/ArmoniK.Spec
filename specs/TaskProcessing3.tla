@@ -371,6 +371,17 @@ RequestedStoppingEventualAcknowledgment ==
         ~> t \in StoppedTask \/ t \in AbortedTask
 
 (**
+ * SAFETY
+ * A cancellation request permanently prevents execution: once a task is
+ * both requested for stopping and not assigned, it can never (re-)enter the
+ * ASSIGNED state.
+ *)
+StoppingRequestPreventsAssignment ==
+    \A t \in Task:
+        [](t \in stoppingRequested /\ ~ (t \in AssignedTask)
+           => [](~ (t \in AssignedTask)))
+
+(**
  * LIVENESS
  * This specification refines the TaskProcessing specification.
  *)
