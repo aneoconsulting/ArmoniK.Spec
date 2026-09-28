@@ -276,8 +276,8 @@ THEOREM TP4_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
     <2>3. ASSUME NEW T \in SUBSET Task, DiscardTasks(T)
           PROVE TP3!DiscardTasks(T)
         BY <2>3 DEF DiscardTasks, TP3!DiscardTasks,
-        RegisteredTask, StagedTask, PausedTask,
-        TP3!RegisteredTask, TP3!StagedTask, TP3!PausedTask
+        RegisteredTask, StagedTask, PausedTask, StoppedTask,
+        TP3!RegisteredTask, TP3!StagedTask, TP3!PausedTask, TP3!StoppedTask
     <2>4. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U)
           PROVE TP3!SetTaskRetries(T, U)
         BY <2>4, Zenon DEF SetTaskRetries, TP3!SetTaskRetries,
@@ -377,7 +377,6 @@ THEOREM TP4_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
                         /\ [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!RetryTasks({t}))
                         /\ [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!StopTasks({t}))
                         /\ [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!PauseTasks({t}))
-                        /\ [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!ResumeTasks({t}))
         BY Isa DEF TP3!Fairness
     <2>. DEFINE P == taskDeleted \intersect {t} = {}
     <2>1. [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(\E u \in Task : TP3!SetTaskRetries({t}, {u}))
@@ -564,170 +563,60 @@ THEOREM TP4_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
         <3>. QED
             BY <3>1, <3>2, <3>3, <3>4, PTL
     <2>8. [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!StopTasks({t}))
-        <3>0. TaskSafetyInv /\ ENABLED <<TP3!StopTasks({t})>>_TP3!vars
-              => /\ t \in stoppingRequested
-                 /\ t \notin AssignedTask
-                 /\ \/ t \in RegisteredTask
-                    \/ t \in StagedTask
-                    \/ t \in PausedTask
-            <4>. SUFFICES ASSUME TaskSafetyInv,
-                                 ENABLED <<TP3!StopTasks({t})>>_TP3!vars
-                          PROVE  /\ t \in stoppingRequested
-                                 /\ t \notin AssignedTask
-                                 /\ \/ t \in RegisteredTask
-                                    \/ t \in StagedTask
-                                    \/ t \in PausedTask
-                OBVIOUS
-            <4>0. taskState = [r \in Task |-> taskState[r]]
-                BY DEF TaskSafetyInv, TypeOk
-            <4>1. PICK taskStatep, nextAttemptOfp,
-                       stoppingRequestedp, pausingRequestedp :
-                    /\ TP3!StopTasks({t})!1
-                    /\ TP3!StopTasks({t})!2
-                    /\ TP3!StopTasks({t})!3
-                    /\ taskStatep
-                       = [r \in Task |-> IF r \in {t} /\ (\/ r \in TP3!RegisteredTask
-                                                          \/ r \in TP3!StagedTask
-                                                          \/ r \in TP3!PausedTask)
-                                              THEN TP3!TASK_STOPPED
-                                              ELSE taskState[r]]
-                    /\ nextAttemptOfp = nextAttemptOf
-                    /\ stoppingRequestedp = stoppingRequested
-                    /\ pausingRequestedp = pausingRequested
-                    /\ << taskStatep, nextAttemptOfp,
-                          stoppingRequestedp, pausingRequestedp >>
-                       /= << taskState, nextAttemptOf,
-                             stoppingRequested, pausingRequested >>
+        <3>0. ENABLED <<TP3!StopTasks({t})>>_TP3!vars
+              => t \in stoppingRequested /\ t \in StagedTask \union PausedTask
+            <4>. SUFFICES ASSUME NEW taskStatep, NEW nextAttemptOfp,
+                                 NEW stoppingRequestedp, NEW pausingRequestedp,
+                                 {t} \subseteq stoppingRequested,
+                                 {t} \subseteq TP3!StagedTask \union TP3!PausedTask
+                          PROVE  t \in stoppingRequested /\ t \in StagedTask \union PausedTask
                 BY ExpandENABLED DEF TP3!StopTasks, TP3!vars
-            <4>2. t \in stoppingRequested /\ t \notin AssignedTask
-                BY <4>1 DEF TP3!AssignedTask, AssignedTask
-            <4>3. taskStatep /= taskState
-                BY <4>1
-            <4>4. \E r \in Task : taskStatep[r] /= taskState[r]
-                <5>. SUFFICES ASSUME \A r \in Task : taskStatep[r] = taskState[r]
-                              PROVE FALSE
-                    OBVIOUS
-                <5>1. taskStatep = [r \in Task |-> taskState[r]]
-                    BY <4>1
-                <5>. QED
-                    BY <4>0, <4>3, <5>1
-            <4>5. \E r \in Task : r \in {t} /\ (\/ r \in TP3!RegisteredTask
-                                                \/ r \in TP3!StagedTask
-                                                \/ r \in TP3!PausedTask)
-                BY <4>1, <4>4
             <4>. QED
-                BY <4>2, <4>5 DEF TP3!RegisteredTask, TP3!StagedTask,
-                TP3!PausedTask, RegisteredTask, StagedTask, PausedTask
-        <3>1. P /\ TaskSafetyInv /\ ENABLED <<TP3!StopTasks({t})>>_TP3!vars
+                BY DEF TP3!StagedTask, TP3!PausedTask, StagedTask, PausedTask
+        <3>1. P /\ ENABLED <<TP3!StopTasks({t})>>_TP3!vars
               => ENABLED <<StopTasks({t})>>_vars
-            <4>1. /\ P
-                  /\ t \in stoppingRequested
-                  /\ t \notin AssignedTask
-                  /\ \/ t \in RegisteredTask
-                     \/ t \in StagedTask
-                     \/ t \in PausedTask
+            <4>1. P /\ t \in stoppingRequested /\ t \in StagedTask \union PausedTask
                   => ENABLED <<StopTasks({t})>>_vars
-                BY ExpandENABLED DEF StopTasks, vars,
-                RegisteredTask, StagedTask, PausedTask, AssignedTask
+                BY ExpandENABLED DEF StopTasks, vars, StagedTask, PausedTask
             <4>. QED
                 BY <3>0, <4>1
         <3>2. <<StopTasks({t})>>_vars => <<TP3!StopTasks({t})>>_TP3!vars
             BY DEF StopTasks, vars, TP3!StopTasks, TP3!vars,
-            RegisteredTask, StagedTask, PausedTask, AssignedTask,
-            TP3!RegisteredTask, TP3!StagedTask, TP3!PausedTask, TP3!AssignedTask
+            StagedTask, PausedTask, TP3!StagedTask, TP3!PausedTask
         <3>3. TaskSafetyInv /\ ENABLED <<TP3!StopTasks({t})>>_TP3!vars => P
-            BY <3>0 DEF TaskSafetyInv, DeletionValidity,
-            RegisteredTask, StagedTask, PausedTask
+            BY <3>0 DEF TaskSafetyInv, DeletionValidity, StagedTask, PausedTask
         <3>4. Fairness => WF_vars(StopTasks({t}))
             BY Isa DEF Fairness
         <3>. QED
             BY <3>1, <3>2, <3>3, <3>4, PTL
     <2>9. [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!PauseTasks({t}))
-        <3>0. TaskSafetyInv /\ ENABLED <<TP3!PauseTasks({t})>>_TP3!vars
-              => /\ t \in pausingRequested
-                 /\ \/ t \in StagedTask
-                    \/ t \in AssignedTask
-            <4>. SUFFICES ASSUME TaskSafetyInv,
-                                 ENABLED <<TP3!PauseTasks({t})>>_TP3!vars
-                          PROVE  /\ t \in pausingRequested
-                                 /\ \/ t \in StagedTask
-                                    \/ t \in AssignedTask
-                OBVIOUS
-            <4>0. taskState = [r \in Task |-> taskState[r]]
-                BY DEF TaskSafetyInv, TypeOk
-            <4>1. PICK taskStatep, nextAttemptOfp,
-                       stoppingRequestedp, pausingRequestedp :
-                    /\ {t} /= {}
-                    /\ {t} \subseteq pausingRequested
-                    /\ taskStatep
-                       = [r \in Task |-> IF r \in {t} /\ (r \in StagedTask
-                                                          \/ r \in AssignedTask)
-                                              THEN "TASK_PAUSED"
-                                              ELSE taskState[r]]
-                    /\ nextAttemptOfp = nextAttemptOf
-                    /\ stoppingRequestedp = stoppingRequested
-                    /\ pausingRequestedp = pausingRequested
-                    /\ << taskStatep, nextAttemptOfp,
-                          stoppingRequestedp, pausingRequestedp >>
-                       /= << taskState, nextAttemptOf,
-                             stoppingRequested, pausingRequested >>
-                BY ExpandENABLED DEF TP3!PauseTasks, TP3!vars,
-                TP3!StagedTask, TP3!AssignedTask, StagedTask, AssignedTask
-            <4>2. t \in pausingRequested
-                BY <4>1
-            <4>3. taskStatep /= taskState
-                BY <4>1
-            <4>4. \E r \in Task : taskStatep[r] /= taskState[r]
-                <5>. SUFFICES ASSUME \A r \in Task : taskStatep[r] = taskState[r]
-                              PROVE FALSE
-                    OBVIOUS
-                <5>1. taskStatep = [r \in Task |-> taskState[r]]
-                    BY <4>1
-                <5>. QED
-                    BY <4>0, <4>3, <5>1
-            <4>5. \E r \in Task : r \in {t} /\ (\/ r \in StagedTask
-                                                \/ r \in AssignedTask)
-                BY <4>1, <4>4
+        <3>0. ENABLED <<TP3!PauseTasks({t})>>_TP3!vars
+              => t \in pausingRequested /\ t \in StagedTask
+            <4>. SUFFICES ASSUME NEW taskStatep, NEW nextAttemptOfp,
+                                 NEW stoppingRequestedp, NEW pausingRequestedp,
+                                 {t} \subseteq pausingRequested,
+                                 {t} \subseteq TP3!StagedTask
+                          PROVE  t \in pausingRequested /\ t \in StagedTask
+                BY ExpandENABLED DEF TP3!PauseTasks, TP3!vars
             <4>. QED
-                BY <4>2, <4>5
-        <3>1. P /\ TaskSafetyInv /\ ENABLED <<TP3!PauseTasks({t})>>_TP3!vars
+                BY DEF TP3!StagedTask, StagedTask
+        <3>1. P /\ ENABLED <<TP3!PauseTasks({t})>>_TP3!vars
               => ENABLED <<PauseTasks({t})>>_vars
-            <4>1. /\ P
-                  /\ t \in pausingRequested
-                  /\ \/ t \in StagedTask
-                     \/ t \in AssignedTask
+            <4>1. P /\ t \in pausingRequested /\ t \in StagedTask
                   => ENABLED <<PauseTasks({t})>>_vars
-                BY ExpandENABLED DEF PauseTasks, vars, StagedTask, AssignedTask
+                BY ExpandENABLED DEF PauseTasks, vars, StagedTask
             <4>. QED
                 BY <3>0, <4>1
         <3>2. <<PauseTasks({t})>>_vars => <<TP3!PauseTasks({t})>>_TP3!vars
-            BY DEF PauseTasks, vars, TP3!PauseTasks, TP3!vars, StagedTask, AssignedTask,
-            TP3!StagedTask, TP3!AssignedTask
+            BY DEF PauseTasks, vars, TP3!PauseTasks, TP3!vars, StagedTask, TP3!StagedTask
         <3>3. TaskSafetyInv /\ ENABLED <<TP3!PauseTasks({t})>>_TP3!vars => P
             BY <3>0 DEF TaskSafetyInv, DeletionValidity
         <3>4. Fairness => WF_vars(PauseTasks({t}))
             BY Isa DEF Fairness
         <3>. QED
             BY <3>1, <3>2, <3>3, <3>4, PTL
-    <2>10. [][Next]_vars /\ []TaskSafetyInv /\ Fairness =>  WF_TP3!vars(TP3!ResumeTasks({t}))
-        <3>0. ENABLED <<TP3!ResumeTasks({t})>>_TP3!vars => t \in pausingRequested
-            BY ExpandENABLED DEF TP3!ResumeTasks, TP3!vars
-        <3>1. P /\ ENABLED <<TP3!ResumeTasks({t})>>_TP3!vars
-              => ENABLED <<ResumeTasks({t})>>_vars
-            <4>1. P /\ t \in pausingRequested => ENABLED <<ResumeTasks({t})>>_vars
-                BY ExpandENABLED, Isa DEF ResumeTasks, vars
-            <4>. QED
-                BY <3>0, <4>1
-        <3>2. <<ResumeTasks({t})>>_vars => <<TP3!ResumeTasks({t})>>_TP3!vars
-            BY DEF ResumeTasks, vars, PausedTask, TP3!ResumeTasks, TP3!vars, TP3!PausedTask
-        <3>3. TaskSafetyInv /\ ENABLED <<TP3!ResumeTasks({t})>>_TP3!vars => P
-            BY <3>0 DEF TaskSafetyInv, DeletionValidity
-        <3>4. Fairness => WF_vars(ResumeTasks({t}))
-            BY Isa DEF Fairness
-        <3>. QED
-            BY <3>1, <3>2, <3>3, <3>4, PTL
     <2>. QED
-        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, Isa
+        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, Isa
 <1>. QED
     BY <1>1, <1>2, <1>3, TP4_TaskSafetyInv, PTL DEF RefineTaskProcessing3, Spec, TP3!Spec
 
