@@ -1,0 +1,2363 @@
+------------------- MODULE GraphProcessing3Theorems_proofs ---------------------
+EXTENDS GraphProcessing3, DDGraphTheorems, FiniteSetTheorems, TLAPS
+
+USE DEF OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_COMPLETED, OBJECT_ABORTED,
+        TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED,
+        TASK_SUCCEEDED, TASK_FAILED, TASK_DISCARDED, TASK_COMPLETED,
+        TASK_RETRIED, TASK_ABORTED, TASK_STOPPED, TASK_PAUSED
+
+USE DEF GP2!TASK_UNKNOWN, GP2!TASK_REGISTERED, GP2!TASK_STAGED, GP2!TASK_ASSIGNED,
+        GP2!TASK_SUCCEEDED, GP2!TASK_FAILED, GP2!TASK_DISCARDED, GP2!TASK_COMPLETED,
+        GP2!TASK_RETRIED, GP2!TASK_ABORTED,
+        GP2!OBJECT_UNKNOWN, GP2!OBJECT_REGISTERED, GP2!OBJECT_COMPLETED, GP2!OBJECT_ABORTED,
+        GP2!TP2!TASK_UNKNOWN, GP2!TP2!TASK_REGISTERED, GP2!TP2!TASK_STAGED,
+        GP2!TP2!TASK_ASSIGNED, GP2!TP2!TASK_SUCCEEDED, GP2!TP2!TASK_FAILED,
+        GP2!TP2!TASK_DISCARDED, GP2!TP2!TASK_COMPLETED, GP2!TP2!TASK_RETRIED,
+        GP2!TP2!TASK_ABORTED,
+        TP3!TASK_UNKNOWN, TP3!TASK_REGISTERED, TP3!TASK_STAGED, TP3!TASK_ASSIGNED,
+        TP3!TASK_SUCCEEDED, TP3!TASK_FAILED, TP3!TASK_DISCARDED, TP3!TASK_COMPLETED,
+        TP3!TASK_RETRIED, TP3!TASK_ABORTED, TP3!TASK_STOPPED, TP3!TASK_PAUSED,
+        TP3!TP2!TASK_UNKNOWN, TP3!TP2!TASK_REGISTERED, TP3!TP2!TASK_STAGED,
+        TP3!TP2!TASK_ASSIGNED, TP3!TP2!TASK_SUCCEEDED, TP3!TP2!TASK_FAILED,
+        TP3!TP2!TASK_DISCARDED, TP3!TP2!TASK_COMPLETED, TP3!TP2!TASK_RETRIED,
+        TP3!TP2!TASK_ABORTED
+
+(*****************************************************************************)
+(* DEFINITION EQUIVALENCES (INSTANCE BRIDGES)                                *)
+(*                                                                           *)
+(* An INSTANCE re-creates a renamed copy of every operator in scope of the   *)
+(* instanced module. So GP2!Predecessor, TP3!Bijection, ... are opaque       *)
+(* symbols distinct from GraphProcessing3's own Predecessor, Bijection, ...  *)
+(* even though, under the identity / taskStateBar mappings, they denote the  *)
+(* same thing. The lemmas below discharge those equivalences once, grouped   *)
+(* by abstraction. State constants are handled by the USE DEFs of the proof  *)
+(* module.                                                                   *)
+(*****************************************************************************)
+
+(* GraphProcessing2 (Bar mapping) -- the Bar projection of each state set.    *)
+(* STOPPED and PAUSED tasks are parked: both collapse to STAGED under the     *)
+(* Bar, every other class is preserved. Object-state sets are identity        *)
+(* (objectState is not remapped).                                             *)
+LEMMA LemGP2BarStates ==
+    /\ GP2!UnknownTask = UnknownTask
+    /\ GP2!RegisteredTask = RegisteredTask
+    /\ GP2!StagedTask = StagedTask \union PausedTask \union StoppedTask
+    /\ GP2!AssignedTask = AssignedTask
+    /\ GP2!SucceededTask = SucceededTask
+    /\ GP2!FailedTask = FailedTask
+    /\ GP2!DiscardedTask = DiscardedTask
+    /\ GP2!CompletedTask = CompletedTask
+    /\ GP2!RetriedTask = RetriedTask
+    /\ GP2!AbortedTask = AbortedTask
+    /\ GP2!UnknownObject = UnknownObject
+    /\ GP2!RegisteredObject = RegisteredObject
+    /\ GP2!CompletedObject = CompletedObject
+    /\ GP2!AbortedObject = AbortedObject
+    /\ GP2!UnretriedTask = UnretriedTask
+BY DEF AbortedObject, AbortedTask, AssignedTask, CompletedObject, CompletedTask,
+    DiscardedTask, FailedTask, GP2!AbortedObject, GP2!AbortedTask, GP2!AssignedTask,
+    GP2!CompletedObject, GP2!CompletedTask, GP2!DiscardedTask, GP2!FailedTask,
+    GP2!RegisteredObject, GP2!RegisteredTask, GP2!StagedTask, GP2!SucceededTask,
+    GP2!RetriedTask, GP2!UnknownObject, GP2!UnknownTask, GP2!UnretriedTask,
+    PausedTask, RegisteredObject, RegisteredTask, RetriedTask, StagedTask,
+    StoppedTask, SucceededTask, taskStateBar, UnknownObject, UnknownTask,
+    UnretriedTask
+
+(* GraphProcessing2 (Bar mapping) -- graph operators (mapping-independent).   *)
+LEMMA LemGP2GraphBridges ==
+    /\ \A G, n : Predecessor(G, n) = GP2!Predecessor(G, n)
+    /\ \A G, n : Successor(G, n) = GP2!Successor(G, n)
+    /\ \A G : Source(G) = GP2!Source(G)
+    /\ \A G : Sink(G) = GP2!Sink(G)
+    /\ \A G, H : GraphUnion(G, H) = GP2!GraphUnion(G, H)
+    /\ EmptyGraph = GP2!EmptyGraph
+    /\ \A G : IsDirectedGraph(G) <=> GP2!IsDirectedGraph(G)
+    /\ \A G, U, V : IsBipartiteWithPartitions(G, U, V) <=> GP2!IsBipartiteWithPartitions(G, U, V)
+    /\ \A G : IsDag(G) <=> GP2!IsDag(G)
+    /\ \A G, T, O : IsDDGraph(G, T, O) <=> GP2!IsDDGraph(G, T, O)
+    /\ \A SS : IsFiniteSet(SS) <=> GP2!IsFiniteSet(SS)
+    /\ \A SS : DirectedGraphOf(SS) = GP2!DirectedGraphOf(SS)
+    /\ \A G : DirectedSubgraph(G) = GP2!DirectedSubgraph(G)
+    /\ \A G, t, u : RetrySubGraph(G, t, u) = GP2!RetrySubGraph(G, t, u)
+BY DEF DirectedCycle, DirectedGraphOf, DirectedSubgraph, EmptyGraph, GP2!DirectedSubgraph, GP2!DirectedCycle,
+    GP2!DirectedGraphOf, GP2!EmptyGraph, GP2!GraphUnion, GP2!HasDirectedCycle,
+    GP2!IsBipartiteWithPartitions, GP2!IsDag, GP2!IsDDGraph, GP2!IsDirectedGraph,
+    GP2!IsFiniteSet, GP2!Path, GP2!Predecessor, GP2!RetrySubGraph, GP2!Sink,
+    GP2!Source, GP2!Successor, GraphUnion, HasDirectedCycle,
+    IsBipartiteWithPartitions, IsDag, IsDDGraph, IsDirectedGraph, IsFiniteSet,
+    Path, Predecessor, RetrySubGraph, Sink, Source, Successor
+
+(* GraphProcessing2 (Bar mapping) -- retry bookkeeping and library operators  *)
+(* (identity nextAttemptOf).                                                  *)
+LEMMA LemGP2Bridges ==
+    /\ \A SS, TT : Bijection(SS, TT) = GP2!Bijection(SS, TT)
+    /\ \A SS : Cardinality(SS) = GP2!Cardinality(SS)
+    /\ \A t \in Task : PreviousAttempts(t) = GP2!PreviousAttempts(t)
+BY Zenon DEF Bijection, Cardinality, GP2!Bijection, GP2!Cardinality,
+    GP2!Injection, GP2!IsFiniteSet, GP2!IsInjective, GP2!IsTransitivelyClosedOn,
+    GP2!NextAttemptOfRel, GP2!PreviousAttempts, GP2!Surjection,
+    GP2!TCNextAttemptOfRel, GP2!TransitiveClosureOn, Injection, IsFiniteSet,
+    IsInjective, IsTransitivelyClosedOn, NextAttemptOfRel, PreviousAttempts,
+    Surjection, TCNextAttemptOfRel, TransitiveClosureOn
+
+(* GP3's IsOpenNode coincides pointwise with GP2!IsOpenNode under the Bar:    *)
+(* openness only tests the finalized classes (completed/aborted/retried task, *)
+(* completed/aborted object), all of which the Bar preserves -- parked        *)
+(* STOPPED/PAUSED tasks are open on both sides. Hence the open-induced        *)
+(* ancestor subgraphs, the open-path sets and the upstream-target conditions  *)
+(* are mapping-independent.                                                   *)
+LEMMA LemGP2OpenNodeBridge ==
+    /\ \A n : IsOpenNode(n) <=> GP2!IsOpenNode(n)
+    /\ \A o : AncestorSubGraph(deps, o, IsOpenNode)
+              = GP2!AncestorSubGraph(deps, o, GP2!IsOpenNode)
+    /\ \A o : OpenPath(deps, o, IsOpenNode)
+              = GP2!OpenPath(deps, o, GP2!IsOpenNode)
+    /\ \A t \in Task, o \in Object :
+           IsTaskUpstreamOnOpenPathToTarget(t, o)
+           <=> GP2!IsTaskUpstreamOnOpenPathToTarget(t, o)
+<1>1. \A n : IsOpenNode(n) <=> GP2!IsOpenNode(n)
+    BY LemGP2BarStates DEF GP2!IsOpenNode, IsOpenNode
+<1>2. ASSUME NEW o
+      PROVE  AncestorSubGraph(deps, o, IsOpenNode)
+             = GP2!AncestorSubGraph(deps, o, GP2!IsOpenNode)
+    <2>1. GP2!AncestorSubGraph(deps, o, GP2!IsOpenNode)
+          = AncestorSubGraph(deps, o, GP2!IsOpenNode)
+        BY DEF GP2!AncestorSubGraph, AncestorSubGraph, GP2!Ancestor, Ancestor,
+            GP2!AreConnectedIn, AreConnectedIn, GP2!SimplePath, SimplePath,
+            GP2!Path, Path, GP2!IsInjective, IsInjective
+    <2>2. AncestorSubGraph(deps, o, GP2!IsOpenNode) = AncestorSubGraph(deps, o, IsOpenNode)
+        BY <1>1 DEF AncestorSubGraph
+    <2>. QED
+        BY <2>1, <2>2
+<1>3. ASSUME NEW o
+      PROVE  OpenPath(deps, o, IsOpenNode) = GP2!OpenPath(deps, o, GP2!IsOpenNode)
+    <2>1. GP2!OpenPath(deps, o, GP2!IsOpenNode) = OpenPath(deps, o, GP2!IsOpenNode)
+        BY DEF GP2!OpenPath, OpenPath, GP2!SimplePath, SimplePath, GP2!Path, Path,
+            GP2!IsInjective, IsInjective
+    <2>2. OpenPath(deps, o, GP2!IsOpenNode) = OpenPath(deps, o, IsOpenNode)
+        BY <1>1 DEF OpenPath
+    <2>. QED
+        BY <2>1, <2>2
+<1>4. ASSUME NEW t \in Task, NEW o \in Object
+      PROVE  IsTaskUpstreamOnOpenPathToTarget(t, o)
+             <=> GP2!IsTaskUpstreamOnOpenPathToTarget(t, o)
+    BY <1>3 DEF IsTaskUpstreamOnOpenPathToTarget, GP2!IsTaskUpstreamOnOpenPathToTarget
+<1>. QED
+    BY <1>1, <1>2, <1>3, <1>4
+
+(* TaskProcessing3 (identity mapping) -- every state set coincides.           *)
+LEMMA LemTP3States ==
+    /\ TP3!UnknownTask = UnknownTask
+    /\ TP3!RegisteredTask = RegisteredTask
+    /\ TP3!StagedTask = StagedTask
+    /\ TP3!AssignedTask = AssignedTask
+    /\ TP3!SucceededTask = SucceededTask
+    /\ TP3!FailedTask = FailedTask
+    /\ TP3!DiscardedTask = DiscardedTask
+    /\ TP3!CompletedTask = CompletedTask
+    /\ TP3!RetriedTask = RetriedTask
+    /\ TP3!AbortedTask = AbortedTask
+    /\ TP3!StoppedTask = StoppedTask
+    /\ TP3!PausedTask = PausedTask
+    /\ TP3!UnretriedTask = UnretriedTask
+BY DEF AbortedTask, AssignedTask, CompletedTask, DiscardedTask, FailedTask,
+    PausedTask, RegisteredTask, RetriedTask, StagedTask, StoppedTask,
+    SucceededTask, TP3!AbortedTask, TP3!AssignedTask, TP3!CompletedTask,
+    TP3!DiscardedTask, TP3!FailedTask, TP3!PausedTask, TP3!RegisteredTask,
+    TP3!RetriedTask, TP3!StagedTask, TP3!StoppedTask, TP3!SucceededTask,
+    TP3!UnknownTask, TP3!UnretriedTask, UnknownTask, UnretriedTask
+
+(* TaskProcessing3 (identity mapping) -- retry bookkeeping and library        *)
+(* operators.                                                                 *)
+LEMMA LemTP3Bridges ==
+    /\ \A SS, TT : Bijection(SS, TT) = TP3!Bijection(SS, TT)
+    /\ \A SS : IsFiniteSet(SS) <=> TP3!IsFiniteSet(SS)
+    /\ \A SS : Cardinality(SS) = TP3!Cardinality(SS)
+    /\ \A t \in Task : PreviousAttempts(t) = TP3!PreviousAttempts(t)
+BY Zenon DEF Bijection, Cardinality, Injection, IsFiniteSet, IsInjective,
+    IsTransitivelyClosedOn, NextAttemptOfRel, PreviousAttempts, Surjection,
+    TCNextAttemptOfRel, TP3!Bijection, TP3!Cardinality, TP3!Injection,
+    TP3!IsFiniteSet, TP3!IsInjective, TP3!IsTransitivelyClosedOn,
+    TP3!NextAttemptOfRel, TP3!PreviousAttempts, TP3!Surjection,
+    TP3!TCNextAttemptOfRel, TP3!TransitiveClosureOn, TransitiveClosureOn
+
+(* TaskProcessing2 reached through GraphProcessing2 (GP2!TP2) and through     *)
+(* TaskProcessing3 (TP3!TP2) is the same instance: both substitute the same   *)
+(* parked Bar for taskState. The Bar projection of its state sets, and the    *)
+(* identity of the two copies of the actions whose fairness is transferred.   *)
+LEMMA LemGP2TP2BarStates ==
+    /\ GP2!TP2!UnknownTask = UnknownTask
+    /\ GP2!TP2!RegisteredTask = RegisteredTask
+    /\ GP2!TP2!StagedTask = StagedTask \union PausedTask \union StoppedTask
+    /\ GP2!TP2!AssignedTask = AssignedTask
+    /\ GP2!TP2!SucceededTask = SucceededTask
+    /\ GP2!TP2!FailedTask = FailedTask
+    /\ GP2!TP2!DiscardedTask = DiscardedTask
+    /\ GP2!TP2!CompletedTask = CompletedTask
+    /\ GP2!TP2!RetriedTask = RetriedTask
+    /\ GP2!TP2!AbortedTask = AbortedTask
+    /\ GP2!TP2!UnretriedTask = UnretriedTask
+BY DEF AbortedTask, AssignedTask, CompletedTask, DiscardedTask, FailedTask,
+    GP2!TP2!AbortedTask, GP2!TP2!AssignedTask, GP2!TP2!CompletedTask,
+    GP2!TP2!DiscardedTask, GP2!TP2!FailedTask, GP2!TP2!RegisteredTask,
+    GP2!TP2!StagedTask, GP2!TP2!SucceededTask, GP2!TP2!RetriedTask,
+    GP2!TP2!UnknownTask, GP2!TP2!UnretriedTask, PausedTask, RegisteredTask,
+    RetriedTask, StagedTask, StoppedTask, SucceededTask, taskStateBar,
+    UnknownTask, UnretriedTask
+
+LEMMA LemGP2TP2Bridges ==
+    /\ \A T : <<GP2!TP2!RegisterTasks(T)>>_(GP2!TP2!vars) <=> <<TP3!TP2!RegisterTasks(T)>>_(TP3!TP2!vars)
+    /\ \A T : <<GP2!TP2!StageTasks(T)>>_(GP2!TP2!vars) <=> <<TP3!TP2!StageTasks(T)>>_(TP3!TP2!vars)
+    /\ \A T : <<GP2!TP2!CompleteTasks(T)>>_(GP2!TP2!vars) <=> <<TP3!TP2!CompleteTasks(T)>>_(TP3!TP2!vars)
+    /\ \A T : <<GP2!TP2!AbortTasks(T)>>_(GP2!TP2!vars) <=> <<TP3!TP2!AbortTasks(T)>>_(TP3!TP2!vars)
+    /\ \A T : <<GP2!TP2!RetryTasks(T)>>_(GP2!TP2!vars) <=> <<TP3!TP2!RetryTasks(T)>>_(TP3!TP2!vars)
+<1>1. TP3!taskStateBar = taskStateBar
+    BY DEF TP3!taskStateBar, taskStateBar
+<1>2. TP3!taskStateBar' = taskStateBar'
+    BY DEF TP3!taskStateBar, taskStateBar
+<1>. QED
+    BY <1>1, <1>2 DEF GP2!TP2!vars, TP3!TP2!vars,
+        GP2!TP2!RegisterTasks, GP2!TP2!StageTasks, GP2!TP2!CompleteTasks,
+        GP2!TP2!AbortTasks, GP2!TP2!RetryTasks,
+        TP3!TP2!RegisterTasks, TP3!TP2!StageTasks, TP3!TP2!CompleteTasks,
+        TP3!TP2!AbortTasks, TP3!TP2!RetryTasks,
+        GP2!TP2!UnknownTask, GP2!TP2!RegisteredTask, GP2!TP2!SucceededTask,
+        GP2!TP2!DiscardedTask, GP2!TP2!FailedTask, GP2!TP2!UnretriedTask,
+        TP3!TP2!UnknownTask, TP3!TP2!RegisteredTask, TP3!TP2!SucceededTask,
+        TP3!TP2!DiscardedTask, TP3!TP2!FailedTask, TP3!TP2!UnretriedTask,
+        GP2!TP2!IsFiniteSet, TP3!TP2!IsFiniteSet
+
+(* Assumption bridges: GP3's assumptions discharge each abstract spec's       *)
+(* assumptions under the instance, so the abstract theorems are usable.       *)
+LEMMA LemGP2Assumptions == GP2!GP2Assumptions
+BY GP3Assumptions DEF Bijection, ExistsBijection, GP2!Bijection,
+    GP2!ExistsBijection, GP2!GP2Assumptions, GP2!Injection, GP2!IsDenumerableSet,
+    GP2!IsInjective, GP2!Surjection, GP3Assumptions, Injection, IsDenumerableSet,
+    IsInjective, Surjection
+
+LEMMA LemTP3Assumptions == TP3!TP3Assumptions
+BY GP3Assumptions DEF Bijection, ExistsBijection, GP3Assumptions, Injection,
+    IsDenumerableSet, IsInjective, Surjection, TP3!Bijection, TP3!ExistsBijection,
+    TP3!Injection, TP3!IsDenumerableSet, TP3!IsInjective, TP3!Surjection,
+    TP3!TP3Assumptions
+
+(* The Bar algebra. taskStateBar is unchanged when taskState is; the Bar of a *)
+(* plain task-state update is the update of the Bar, writing the barred       *)
+(* value.                                                                     *)
+LEMMA LemBarStutter == taskState' = taskState => taskStateBar' = taskStateBar
+BY DEF taskStateBar
+
+LEMMA LemBarUpdate ==
+    ASSUME NEW A, NEW v, NEW bv,
+           bv = (IF v \in {TASK_STOPPED, TASK_PAUSED} THEN TASK_STAGED ELSE v),
+           taskState' = [s \in Task |-> IF s \in A THEN v ELSE taskState[s]]
+    PROVE  taskStateBar' =
+               [s \in Task |-> IF s \in A THEN bv ELSE taskStateBar[s]]
+<1>. SUFFICES ASSUME NEW u \in Task
+              PROVE taskStateBar'[u] = IF u \in A THEN bv ELSE taskStateBar[u]
+    BY Zenon DEF taskStateBar
+<1>1. CASE u \in A
+    BY <1>1, Zenon DEF taskStateBar
+<1>2. CASE u \notin A
+    BY <1>2, Zenon DEF taskStateBar
+<1>. QED
+    BY <1>1, <1>2, Zenon
+
+(*****************************************************************************)
+(* TYPE INVARIANT                                                            *)
+(*****************************************************************************)
+
+LEMMA LemTypeOk == Init /\ [][Next]_vars => []TypeOk
+<1>. USE DEF TypeOk, TP3State, OP2State
+<1>1. Init => TypeOk
+    BY DG_EmptyGraphProperties DEF Init
+<1>2. TypeOk /\ [Next]_vars => TypeOk'
+    <2>. SUFFICES ASSUME TypeOk, [Next]_vars
+                  PROVE TypeOk'
+        OBVIOUS
+    <2>1. ASSUME NEW G \in DirectedGraphOf(Task \union Object), RegisterGraph(G)
+          PROVE TypeOk'
+        <3>1. IsDDGraph(GraphUnion(deps, G), Task, Object)
+            BY <2>1 DEF RegisterGraph
+        <3>2. deps' = GraphUnion(deps, G)
+            BY <2>1 DEF RegisterGraph
+        <3>3. deps' \in DirectedGraphOf(Task \union Object)
+            BY <3>1, <3>2, DG_DagProperties DEF DirectedGraphOf, IsBipartiteWithPartitions,
+                IsDDGraph, IsDirectedGraph
+        <3>. QED
+            BY <2>1, <3>3 DEF RegisterGraph
+    <2>2. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U)
+          PROVE TypeOk'
+        <3>1. PICK f \in Bijection(T, U) :
+                nextAttemptOf' = [t \in Task |-> IF t \in T THEN f[t] ELSE nextAttemptOf[t]]
+            BY <2>2 DEF SetTaskRetries
+        <3>2. nextAttemptOf' \in [Task -> Task \union {NULL}]
+            BY <3>1 DEF Bijection, Injection
+        <3>. QED
+            BY <2>2, <3>2 DEF SetTaskRetries
+    <2>. QED
+        BY <2>1, <2>2, Zenon DEF AbortObjects, AbortTasks, AssignTasks, CompleteObjects,
+            CompleteTasks, DiscardTasks, Next, PauseTasks, ProcessTasks, ReleaseTasks,
+            RequestTasksPausing, RequestTasksStopping, ResumeTasks, RetryTasks,
+            StageTasks, StopTasks, TargetObjects, Terminating, UntargetObjects, vars
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+THEOREM GP3_TypeOk == Spec => []TypeOk
+BY LemTypeOk DEF Spec
+
+(*****************************************************************************)
+(* REFINEMENT OF GraphProcessing2 -- INITIAL STATE & STEP SIMULATION         *)
+(*                                                                           *)
+(* Under the parked Bar every GraphProcessing3 step projects onto a          *)
+(* GraphProcessing2 step (or a GP2 stutter): the stop/pause bookkeeping and  *)
+(* the parking of a staged task (StopTasks, PauseTasks, ResumeTasks) map to  *)
+(* stutters, the STOPPED branch of ProcessTasks maps to GP2!ReleaseTasks,    *)
+(* and every remaining action maps to its GP2 namesake -- the guards involve *)
+(* only Bar-invariant state classes.                                         *)
+(*****************************************************************************)
+
+LEMMA LemRefineGP2Next == TypeOk /\ [Next]_vars => [GP2!Next]_(GP2!vars)
+<1>. SUFFICES ASSUME TypeOk, [Next]_vars
+              PROVE GP2!Next \/ UNCHANGED GP2!vars
+    BY DEF GP2!vars, vars
+<1>1. ASSUME NEW G \in DirectedGraphOf(Task \union Object), RegisterGraph(G)
+      PROVE \E GG \in GP2!DirectedGraphOf(Task \union Object) : GP2!RegisterGraph(GG)
+    <2>1. G \in GP2!DirectedGraphOf(Task \union Object)
+        BY <1>1, LemGP2GraphBridges
+    <2>2. taskStateBar' = [t \in Task |-> IF t \in G.node THEN TASK_REGISTERED ELSE taskStateBar[t]]
+        <3>1. taskState' = [t \in Task |-> IF t \in G.node THEN TASK_REGISTERED ELSE taskState[t]]
+            BY <1>1, Zenon DEF RegisterGraph
+        <3>. QED
+            BY <3>1, LemBarUpdate, Isa
+    <2>3. GP2!RegisterGraph(G)
+        BY <1>1, <2>2, LemGP2BarStates, LemGP2GraphBridges, Zenon
+        DEF RegisterGraph, GP2!RegisterGraph
+    <2>. QED BY <2>1, <2>3
+<1>2. ASSUME NEW O \in SUBSET Object, TargetObjects(O)
+      PROVE GP2!TargetObjects(O)
+    BY <1>2, LemBarStutter, LemGP2BarStates DEF GP2!TargetObjects, TargetObjects
+<1>3. ASSUME NEW O \in SUBSET Object, UntargetObjects(O)
+      PROVE GP2!UntargetObjects(O)
+    BY <1>3, LemBarStutter DEF GP2!UntargetObjects, UntargetObjects
+<1>4. ASSUME NEW O \in SUBSET Object, CompleteObjects(O)
+      PROVE GP2!CompleteObjects(O)
+    BY <1>4, LemBarStutter, LemGP2BarStates, LemGP2GraphBridges, Zenon
+    DEF CompleteObjects, GP2!CompleteObjects
+<1>5. ASSUME NEW O \in SUBSET Object, AbortObjects(O)
+      PROVE GP2!AbortObjects(O)
+    BY <1>5, LemBarStutter, LemGP2BarStates, LemGP2GraphBridges, Zenon
+    DEF AbortObjects, GP2!AbortObjects
+<1>6. ASSUME NEW T \in SUBSET Task, StageTasks(T)
+      PROVE GP2!StageTasks(T)
+    <2>1. taskStateBar' = [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskStateBar[t]]
+        <3>1. taskState' = [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
+            BY <1>6, Zenon DEF StageTasks
+        <3>. QED
+            BY <3>1, LemBarUpdate, Isa
+    <2>. QED
+        BY <1>6, <2>1, LemGP2BarStates, LemGP2GraphBridges, Zenon
+        DEF StageTasks, GP2!StageTasks
+<1>7. ASSUME NEW T \in SUBSET Task, DiscardTasks(T)
+      PROVE GP2!DiscardTasks(T)
+    <2>1. taskStateBar' = [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskStateBar[t]]
+        <3>1. taskState' = [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
+            BY <1>7, Zenon DEF DiscardTasks
+        <3>. QED
+            BY <3>1, LemBarUpdate, Isa
+    <2>2. T \subseteq GP2!RegisteredTask \union GP2!StagedTask
+        BY <1>7, LemGP2BarStates, Zenon DEF DiscardTasks
+    <2>. QED
+        BY <1>7, <2>1, <2>2 DEF DiscardTasks, GP2!DiscardTasks
+<1>8. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U)
+      PROVE GP2!SetTaskRetries(T, U)
+    BY <1>8, LemBarStutter, LemGP2BarStates, LemGP2Bridges, Zenon
+    DEF SetTaskRetries, GP2!SetTaskRetries
+<1>9. ASSUME NEW T \in SUBSET Task, AssignTasks(T)
+      PROVE GP2!AssignTasks(T)
+    <2>1. taskStateBar' = [t \in Task |-> IF t \in T THEN TASK_ASSIGNED ELSE taskStateBar[t]]
+        <3>1. taskState' = [t \in Task |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
+            BY <1>9, Zenon DEF AssignTasks
+        <3>. QED
+            BY <3>1, LemBarUpdate, Isa
+    <2>2. T \subseteq GP2!StagedTask
+        BY <1>9, LemGP2BarStates, Zenon DEF AssignTasks
+    <2>. QED
+        BY <1>9, <2>1, <2>2 DEF AssignTasks, GP2!AssignTasks
+<1>10. ASSUME NEW T \in SUBSET Task, ReleaseTasks(T)
+       PROVE GP2!ReleaseTasks(T)
+    <2>1. taskStateBar' = [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskStateBar[t]]
+        <3>1. taskState' = [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
+            BY <1>10, Zenon DEF ReleaseTasks
+        <3>. QED
+            BY <3>1, LemBarUpdate, Isa
+    <2>. QED
+        BY <1>10, <2>1, LemGP2BarStates, Zenon DEF GP2!ReleaseTasks, ReleaseTasks
+<1>11. ASSUME NEW T \in SUBSET Task, ProcessTasks(T)
+       PROVE GP2!ProcessTasks(T) \/ GP2!ReleaseTasks(T)
+    <2>1. /\ T /= {} /\ T \subseteq GP2!AssignedTask
+          /\ UNCHANGED <<nextAttemptOf, deps, objectState, objectTargets>>
+        BY <1>11, LemGP2BarStates, Zenon DEF ProcessTasks
+    <2>2. CASE taskState' =
+            [t \in Task |-> IF t \in T THEN TASK_SUCCEEDED ELSE taskState[t]]
+        <3>1. taskStateBar' = [t \in Task |-> IF t \in T THEN TASK_SUCCEEDED ELSE taskStateBar[t]]
+            <4>1. taskState' = [t \in Task |-> IF t \in T THEN TASK_SUCCEEDED ELSE taskState[t]]
+                BY <2>2, Zenon
+            <4>. QED
+                BY <4>1, LemBarUpdate, Isa
+        <3>. QED
+            BY <1>11, <2>1, <3>1, Zenon DEF GP2!ProcessTasks, ProcessTasks
+    <2>3. CASE taskState' =
+            [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
+        <3>1. taskStateBar' = [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskStateBar[t]]
+            <4>1. taskState' = [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
+                BY <2>3, Zenon
+            <4>. QED
+                BY <4>1, LemBarUpdate, Isa
+        <3>. QED
+            BY <1>11, <2>1, <3>1, Zenon DEF GP2!ProcessTasks, ProcessTasks
+    <2>4. CASE /\ \A t \in T: Cardinality(PreviousAttempts(t)) < MaxRetries
+               /\ taskState' =
+                    [t \in Task |-> IF t \in T THEN TASK_FAILED ELSE taskState[t]]
+        <3>1. taskStateBar' = [t \in Task |-> IF t \in T THEN TASK_FAILED ELSE taskStateBar[t]]
+            <4>1. taskState' = [t \in Task |-> IF t \in T THEN TASK_FAILED ELSE taskState[t]]
+                BY <2>4, Zenon
+            <4>. QED
+                BY <4>1, LemBarUpdate, Isa
+        <3>2. \A t \in T : GP2!Cardinality(GP2!PreviousAttempts(t)) < MaxRetries
+            BY <2>4, LemGP2Bridges, Zenon
+        <3>. QED
+            BY <2>1, <3>1, <3>2, Zenon DEF GP2!ProcessTasks
+    <2>5. CASE taskState' =
+            [t \in Task |-> IF t \in T THEN TASK_STOPPED ELSE taskState[t]]
+        <3>1. taskStateBar' = [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskStateBar[t]]
+            <4>1. taskState' = [t \in Task |-> IF t \in T THEN TASK_STOPPED ELSE taskState[t]]
+                BY <2>5, Zenon
+            <4>. QED
+                BY <4>1, LemBarUpdate, Isa
+        <3>. QED
+            BY <2>1, <3>1, Zenon DEF GP2!ReleaseTasks
+    <2>. QED BY <2>2, <2>3, <2>4, <2>5, <1>11, Zenon DEF ProcessTasks
+<1>12. ASSUME NEW T \in SUBSET Task, CompleteTasks(T)
+       PROVE GP2!CompleteTasks(T)
+    <2>1. taskStateBar' = [t \in Task |-> IF t \in T THEN TASK_COMPLETED ELSE taskStateBar[t]]
+        <3>1. taskState' = [t \in Task |-> IF t \in T THEN TASK_COMPLETED ELSE taskState[t]]
+            BY <1>12, Zenon DEF CompleteTasks
+        <3>. QED
+            BY <3>1, LemBarUpdate, Isa
+    <2>2. \A o \in UNION {GP2!Successor(deps, t): t \in T} :
+              o \in GP2!RegisteredObject
+              => \E w \in (GP2!Predecessor(deps, o) \ T) :
+                     w \notin UNION {GP2!CompletedTask, GP2!AbortedTask,
+                                     GP2!RetriedTask, GP2!FailedTask}
+        BY <1>12, LemGP2BarStates, LemGP2GraphBridges, Zenon DEF CompleteTasks
+    <2>. QED
+        BY <1>12, <2>1, <2>2, LemGP2BarStates, Zenon
+        DEF CompleteTasks, GP2!CompleteTasks
+<1>13. ASSUME NEW T \in SUBSET Task, AbortTasks(T)
+       PROVE GP2!AbortTasks(T)
+    <2>1. taskStateBar' = [t \in Task |-> IF t \in T THEN TASK_ABORTED ELSE taskStateBar[t]]
+        <3>1. taskState' = [t \in Task |-> IF t \in T THEN TASK_ABORTED ELSE taskState[t]]
+            BY <1>13, Zenon DEF AbortTasks
+        <3>. QED
+            BY <3>1, LemBarUpdate, Isa
+    <2>2. \A o \in UNION {GP2!Successor(deps, t): t \in T} :
+              o \in GP2!RegisteredObject
+              => \E w \in (GP2!Predecessor(deps, o) \ T) :
+                     w \notin UNION {GP2!CompletedTask, GP2!AbortedTask,
+                                     GP2!RetriedTask, GP2!FailedTask}
+        BY <1>13, LemGP2BarStates, LemGP2GraphBridges, Zenon DEF AbortTasks
+    <2>. QED
+        BY <1>13, <2>1, <2>2, LemGP2BarStates, Zenon
+        DEF AbortTasks, GP2!AbortTasks
+<1>14. ASSUME NEW T \in SUBSET Task, RetryTasks(T)
+       PROVE GP2!RetryTasks(T)
+    <2>1. taskStateBar' = [t \in Task |-> IF t \in T THEN TASK_RETRIED ELSE taskStateBar[t]]
+        <3>1. taskState' = [t \in Task |-> IF t \in T THEN TASK_RETRIED ELSE taskState[t]]
+            BY <1>14, Zenon DEF RetryTasks
+        <3>. QED
+            BY <3>1, LemBarUpdate, Isa
+    <2>2. \A o \in UNION {GP2!Successor(deps, t): t \in T} :
+              o \in GP2!RegisteredObject
+              => \E w \in (GP2!Predecessor(deps, o) \ T) :
+                     w \notin UNION {GP2!CompletedTask, GP2!AbortedTask, GP2!RetriedTask}
+        BY <1>14, LemGP2BarStates, LemGP2GraphBridges, Zenon DEF RetryTasks
+    <2>. QED
+        BY <1>14, <2>1, <2>2, LemGP2BarStates, Zenon
+        DEF RetryTasks, GP2!RetryTasks
+<1>15. ASSUME NEW T \in SUBSET Task, RequestTasksStopping(T)
+       PROVE UNCHANGED GP2!vars
+    BY <1>15, LemBarStutter DEF GP2!vars, RequestTasksStopping
+<1>16. ASSUME NEW T \in SUBSET Task, StopTasks(T)
+       PROVE UNCHANGED GP2!vars
+    <2>1. taskStateBar' = taskStateBar
+        <3>. SUFFICES ASSUME NEW u \in Task
+                      PROVE taskStateBar'[u] = taskStateBar[u]
+            BY <1>16 DEF StopTasks, taskStateBar
+        <3>1. CASE u \in T
+            BY <1>16, <3>1 DEF PausedTask, StagedTask, StopTasks, taskStateBar
+        <3>2. CASE u \notin T
+            BY <1>16, <3>2 DEF StopTasks, taskStateBar
+        <3>. QED BY <3>1, <3>2
+    <2>. QED
+        BY <1>16, <2>1 DEF GP2!vars, StopTasks
+<1>17. ASSUME NEW T \in SUBSET Task, RequestTasksPausing(T)
+       PROVE UNCHANGED GP2!vars
+    BY <1>17, LemBarStutter DEF GP2!vars, RequestTasksPausing
+<1>18. ASSUME NEW T \in SUBSET Task, PauseTasks(T)
+       PROVE UNCHANGED GP2!vars
+    <2>1. taskStateBar' = taskStateBar
+        <3>. SUFFICES ASSUME NEW u \in Task
+                      PROVE taskStateBar'[u] = taskStateBar[u]
+            BY <1>18 DEF PauseTasks, taskStateBar
+        <3>1. CASE u \in T
+            BY <1>18, <3>1 DEF PauseTasks, StagedTask, taskStateBar
+        <3>2. CASE u \notin T
+            BY <1>18, <3>2 DEF PauseTasks, taskStateBar
+        <3>. QED BY <3>1, <3>2
+    <2>. QED
+        BY <1>18, <2>1 DEF GP2!vars, PauseTasks
+<1>19. ASSUME NEW T \in SUBSET Task, ResumeTasks(T)
+       PROVE UNCHANGED GP2!vars
+    <2>1. taskStateBar' = taskStateBar
+        <3>. SUFFICES ASSUME NEW u \in Task
+                      PROVE taskStateBar'[u] = taskStateBar[u]
+            BY <1>19 DEF ResumeTasks, taskStateBar
+        <3>1. CASE u \in T /\ u \in PausedTask
+            BY <1>19, <3>1 DEF PausedTask, ResumeTasks, taskStateBar
+        <3>2. CASE u \in T /\ u \notin PausedTask
+            BY <1>19, <3>2 DEF PausedTask, ResumeTasks, taskStateBar
+        <3>3. CASE u \notin T
+            BY <1>19, <3>3 DEF ResumeTasks, taskStateBar
+        <3>. QED BY <3>1, <3>2, <3>3
+    <2>. QED
+        BY <1>19, <2>1 DEF GP2!vars, ResumeTasks
+<1>20. CASE Terminating
+    BY <1>20, LemBarStutter, LemGP2BarStates, Zenon
+    DEF Terminating, GP2!Terminating, vars, GP2!vars
+<1>21. CASE UNCHANGED vars
+    BY <1>21, LemBarStutter DEF GP2!vars, vars
+<1>. QED
+    BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8, <1>9, <1>10,
+       <1>11, <1>12, <1>13, <1>14, <1>15, <1>16, <1>17, <1>18, <1>19,
+       <1>20, <1>21, Zenon
+    DEF Next, GP2!Next
+
+LEMMA LemRefineGP2InitNext ==
+    Init /\ [][Next]_vars => GP2!Init /\ [][GP2!Next]_(GP2!vars)
+<1>1. Init => GP2!Init
+    BY LemGP2GraphBridges DEF GP2!Init, Init, taskStateBar
+<1>. QED
+    BY <1>1, LemRefineGP2Next, LemTypeOk, PTL
+
+(*****************************************************************************)
+(* REFINEMENT OF TaskProcessing3 -- INITIAL STATE & STEP SIMULATION          *)
+(*                                                                           *)
+(* The task projection is the identity: every GraphProcessing3 step is a     *)
+(* TaskProcessing3 step (RegisterGraph registers the graph's task nodes) or  *)
+(* a TP3 stutter (the object-only actions).                                  *)
+(*****************************************************************************)
+
+LEMMA LemRefineTP3Next == TypeOk /\ [Next]_vars => [TP3!Next]_(TP3!vars)
+<1>. SUFFICES ASSUME TypeOk, [Next]_vars
+              PROVE TP3!Next \/ UNCHANGED TP3!vars
+    BY DEF TP3!vars, vars
+<1>1. ASSUME NEW G \in DirectedGraphOf(Task \union Object), RegisterGraph(G)
+      PROVE (\E S \in SUBSET Task : TP3!RegisterTasks(S)) \/ UNCHANGED TP3!vars
+    <2>1. CASE G.node \intersect Task /= {}
+        <3>1. G.node \intersect Task \subseteq TP3!UnknownTask
+            BY <1>1, LemTP3States DEF RegisterGraph
+        <3>2. TP3!IsFiniteSet(G.node \intersect Task)
+            BY <1>1, FS_Subset, LemTP3Bridges, Zenon DEF RegisterGraph
+        <3>3. taskState' = [t \in Task |-> IF t \in G.node \intersect Task
+                                THEN TASK_REGISTERED ELSE taskState[t]]
+            BY <1>1, Zenon DEF RegisterGraph, TypeOk
+        <3>4. TP3!RegisterTasks(G.node \intersect Task)
+            BY <1>1, <2>1, <3>1, <3>2, <3>3, Zenon
+            DEF RegisterGraph, TP3!RegisterTasks
+        <3>. QED BY <3>4, Zenon
+    <2>2. CASE G.node \intersect Task = {}
+        <3>1. taskState' = taskState
+            BY <1>1, <2>2, Zenon DEF RegisterGraph, TypeOk
+        <3>. QED BY <3>1, <1>1 DEF RegisterGraph, TP3!vars
+    <2>. QED BY <2>1, <2>2
+<1>2. ASSUME NEW O \in SUBSET Object, TargetObjects(O)
+      PROVE UNCHANGED TP3!vars
+    BY <1>2 DEF TargetObjects, TP3!vars
+<1>3. ASSUME NEW O \in SUBSET Object, UntargetObjects(O)
+      PROVE UNCHANGED TP3!vars
+    BY <1>3 DEF TP3!vars, UntargetObjects
+<1>4. ASSUME NEW O \in SUBSET Object, CompleteObjects(O)
+      PROVE UNCHANGED TP3!vars
+    BY <1>4 DEF CompleteObjects, TP3!vars
+<1>5. ASSUME NEW O \in SUBSET Object, AbortObjects(O)
+      PROVE UNCHANGED TP3!vars
+    BY <1>5 DEF AbortObjects, TP3!vars
+<1>6. ASSUME NEW T \in SUBSET Task, StageTasks(T)
+      PROVE TP3!StageTasks(T)
+    BY <1>6, LemTP3States DEF StageTasks, TP3!StageTasks
+<1>7. ASSUME NEW T \in SUBSET Task, DiscardTasks(T)
+      PROVE TP3!DiscardTasks(T)
+    BY <1>7, LemTP3States, Zenon DEF DiscardTasks, TP3!DiscardTasks
+<1>8. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U)
+      PROVE TP3!SetTaskRetries(T, U)
+    BY <1>8, LemTP3States, LemTP3Bridges, Zenon
+    DEF SetTaskRetries, TP3!SetTaskRetries
+<1>9. ASSUME NEW T \in SUBSET Task, AssignTasks(T)
+      PROVE TP3!AssignTasks(T)
+    BY <1>9, LemTP3States DEF AssignTasks, TP3!AssignTasks
+<1>10. ASSUME NEW T \in SUBSET Task, ReleaseTasks(T)
+       PROVE TP3!ReleaseTasks(T)
+    BY <1>10, LemTP3States DEF ReleaseTasks, TP3!ReleaseTasks
+<1>11. ASSUME NEW T \in SUBSET Task, ProcessTasks(T)
+       PROVE TP3!ProcessTasks(T)
+    <2>1. (\A t \in T: Cardinality(PreviousAttempts(t)) < MaxRetries)
+          => \A s \in T: TP3!Cardinality(TP3!PreviousAttempts(s)) < MaxRetries
+        BY LemTP3Bridges, Zenon
+    <2>. QED
+        BY <1>11, <2>1, LemTP3States, Zenon DEF ProcessTasks, TP3!ProcessTasks
+<1>12. ASSUME NEW T \in SUBSET Task, CompleteTasks(T)
+       PROVE TP3!CompleteTasks(T)
+    BY <1>12, LemTP3States DEF CompleteTasks, TP3!CompleteTasks
+<1>13. ASSUME NEW T \in SUBSET Task, AbortTasks(T)
+       PROVE TP3!AbortTasks(T)
+    BY <1>13, LemTP3States DEF AbortTasks, TP3!AbortTasks
+<1>14. ASSUME NEW T \in SUBSET Task, RetryTasks(T)
+       PROVE TP3!RetryTasks(T)
+    <2>1. T \intersect TP3!UnretriedTask = {}
+        BY <1>14, LemTP3States DEF RetryTasks, UnretriedTask
+    <2>. QED
+        BY <1>14, <2>1, LemTP3States, Zenon DEF RetryTasks, TP3!RetryTasks
+<1>15. ASSUME NEW T \in SUBSET Task, RequestTasksStopping(T)
+       PROVE TP3!RequestTasksStopping(T)
+    BY <1>15, LemTP3States DEF RequestTasksStopping, TP3!RequestTasksStopping
+<1>16. ASSUME NEW T \in SUBSET Task, StopTasks(T)
+       PROVE TP3!StopTasks(T)
+    BY <1>16, LemTP3States, Zenon DEF StopTasks, TP3!StopTasks
+<1>17. ASSUME NEW T \in SUBSET Task, RequestTasksPausing(T)
+       PROVE TP3!RequestTasksPausing(T)
+    BY <1>17, LemTP3States DEF RequestTasksPausing, TP3!RequestTasksPausing
+<1>18. ASSUME NEW T \in SUBSET Task, PauseTasks(T)
+       PROVE TP3!PauseTasks(T)
+    BY <1>18, LemTP3States, Zenon DEF PauseTasks, TP3!PauseTasks
+<1>19. ASSUME NEW T \in SUBSET Task, ResumeTasks(T)
+       PROVE TP3!ResumeTasks(T)
+    BY <1>19, LemTP3States, Zenon DEF ResumeTasks, TP3!ResumeTasks
+<1>20. CASE Terminating
+    BY <1>20, LemTP3States, Zenon
+    DEF Terminating, TP3!Terminating, vars, TP3!vars
+<1>21. CASE UNCHANGED vars
+    BY <1>21 DEF TP3!vars, vars
+<1>. QED
+    BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8, <1>9, <1>10,
+       <1>11, <1>12, <1>13, <1>14, <1>15, <1>16, <1>17, <1>18, <1>19,
+       <1>20, <1>21, Zenon
+    DEF Next, TP3!Next
+
+LEMMA LemRefineTP3InitNext ==
+    Init /\ [][Next]_vars => TP3!Init /\ [][TP3!Next]_(TP3!vars)
+<1>1. Init => TP3!Init
+    BY DEF Init, TP3!Init
+<1>. QED
+    BY <1>1, LemRefineTP3Next, LemTypeOk, PTL
+
+(*****************************************************************************)
+(* INHERITED INVARIANTS AND STEP-LEVEL FACTS                                 *)
+(*                                                                           *)
+(* The step simulations lift the abstract specs' invariants and step-level   *)
+(* lemmas to GraphProcessing3 without re-proving them: task-only facts come  *)
+(* from TaskProcessing3, graph facts from GraphProcessing2.                  *)
+(*****************************************************************************)
+
+(* The task-control bookkeeping invariant of TaskProcessing3: requests target *)
+(* known tasks and a paused task always has a pending pause request.          *)
+LEMMA LemTP3TaskSafetyInv == Init /\ [][Next]_vars => []TP3!TaskSafetyInv
+<1>1. TP3!Init /\ [][TP3!Next]_(TP3!vars) => []TP3!TaskSafetyInv
+    BY TP3!LemTaskSafetyInv, LemTP3Assumptions, Isa
+<1>. QED
+    BY <1>1, LemRefineTP3InitNext, PTL
+
+(* The task lifecycle only moves forward (TaskProcessing3's                   *)
+(* LemTaskStateStable).                                                       *)
+LEMMA LemTP3TaskStateStable ==
+    ASSUME TypeOk, [Next]_vars, NEW t \in Task
+    PROVE  /\ taskState[t] \in {TASK_SUCCEEDED, TASK_COMPLETED}
+              => taskState'[t] \in {TASK_SUCCEEDED, TASK_COMPLETED}
+           /\ taskState[t] \in {TASK_DISCARDED, TASK_ABORTED}
+              => taskState'[t] \in {TASK_DISCARDED, TASK_ABORTED}
+           /\ taskState[t] \in {TASK_FAILED, TASK_RETRIED}
+              => taskState'[t] \in {TASK_FAILED, TASK_RETRIED}
+           /\ taskState[t] = TASK_STOPPED
+              => taskState'[t] \in {TASK_STOPPED, TASK_DISCARDED}
+           /\ taskState[t] \in {TASK_COMPLETED, TASK_ABORTED, TASK_RETRIED}
+              => taskState'[t] = taskState[t]
+BY LemRefineTP3Next, TP3!LemTaskStateStable, LemTP3Assumptions
+
+(* A cancellation request is never withdrawn (TaskProcessing3's               *)
+(* LemStoppingRequestStable).                                                 *)
+LEMMA LemTP3StoppingRequestStable ==
+    ASSUME TypeOk, [Next]_vars, NEW t \in Task
+    PROVE  t \in stoppingRequested => (t \in stoppingRequested)'
+BY LemRefineTP3Next, TP3!LemStoppingRequestStable, LemTP3Assumptions
+
+(* GP2's GSI_TaskPreds: a task past registration has completed inputs.        *)
+LEMMA LemGP2GSITaskPreds == Init /\ [][Next]_vars => []GP2!GSI_TaskPreds
+<1>1. GP2!Init /\ [][GP2!Next]_(GP2!vars) => []GP2!GSI_TaskPreds
+    BY GP2!LemGSITaskPreds, LemGP2Assumptions, Isa
+<1>. QED
+    BY <1>1, LemRefineGP2InitNext, PTL
+
+(* GraphStateIntegrity: a parked (paused or stopped) task is Bar-STAGED, and  *)
+(* GP2's GSI_TaskPreds guarantees every Bar-staged task has completed inputs. *)
+LEMMA LemGraphStateIntegrity == Init /\ [][Next]_vars => []GraphStateIntegrity
+<1>1. GP2!GSI_TaskPreds => GraphStateIntegrity
+    BY LemGP2BarStates, LemGP2GraphBridges, Zenon
+    DEF GP2!GSI_TaskPreds, GraphStateIntegrity
+<1>. QED
+    BY <1>1, LemGP2GSITaskPreds, PTL
+
+THEOREM GP3_GraphStateIntegrity == Spec => []GraphStateIntegrity
+BY LemGraphStateIntegrity DEF Spec
+
+(*****************************************************************************)
+(* REFINEMENT OF GraphProcessing2 -- FAIRNESS                                *)
+(*                                                                           *)
+(* Each GP2 fairness conjunct is transferred from GraphProcessing3's         *)
+(* fairness by its own lemma LemRefineGP2<WF|SF><Action>. Most follow the    *)
+(* ENABLED + action-implication pattern: the Bar-side ENABLED inverts to a   *)
+(* state condition on Bar-invariant classes, which re-establishes the        *)
+(* concrete ENABLED, and a concrete step is a Bar step of the same action.   *)
+(* Two need a temporal argument: SF(ProcessTasks), whose STOPPED outcome is  *)
+(* a Bar-Release, and WF(AssignTasks), whose Bar-enabledness includes the    *)
+(* parked tasks. The guarded actions are wrapped in named operators so that  *)
+(* ExpandENABLED can process <<Op(t)>>_v.                                    *)
+(*****************************************************************************)
+
+DiscardOnAbortedInput(t) ==
+    Predecessor(deps, t) \intersect AbortedObject /= {} /\ DiscardTasks({t})
+
+AssignUpstream(t, o) ==
+    IsTaskUpstreamOnOpenPathToTarget(t, o) /\ AssignTasks({t})
+
+ResumeUpstream(t, o) ==
+    IsTaskUpstreamOnOpenPathToTarget(t, o) /\ ResumeTasks({t})
+
+DiscardStoppedUpstream(t, o) ==
+    /\ IsTaskUpstreamOnOpenPathToTarget(t, o)
+    /\ t \in StoppedTask
+    /\ DiscardTasks({t})
+
+(* WF(GP2!CompleteObjects): the guards involve only objectState and           *)
+(* Bar-invariant task classes, so enabledness and steps transfer verbatim.    *)
+LEMMA LemRefineGP2WFCompleteObjects ==
+    ASSUME NEW o \in Object
+    PROVE  WF_vars(CompleteObjects({o})) => WF_(GP2!vars)(GP2!CompleteObjects({o}))
+<1>1. ENABLED <<GP2!CompleteObjects({o})>>_(GP2!vars) => ENABLED <<CompleteObjects({o})>>_vars
+    <2>1. ENABLED <<GP2!CompleteObjects({o})>>_(GP2!vars)
+          => /\ {o} \subseteq GP2!RegisteredObject
+             /\ \/ {o} \subseteq GP2!Source(deps)
+                \/ \A oo \in {o} : \E p \in GP2!Predecessor(deps, oo) :
+                       p \in GP2!SucceededTask
+        BY ExpandENABLED DEF GP2!CompleteObjects, GP2!vars, taskStateBar
+    <2>2.  /\ {o} \subseteq GP2!RegisteredObject
+           /\ \/ {o} \subseteq GP2!Source(deps)
+              \/ \A oo \in {o} : \E p \in GP2!Predecessor(deps, oo) :
+                     p \in GP2!SucceededTask
+           => /\ o \in RegisteredObject
+              /\ \/ {o} \subseteq Source(deps)
+                 \/ \E p \in Predecessor(deps, o) : p \in SucceededTask
+        BY LemGP2BarStates, LemGP2GraphBridges, Zenon
+    <2>3. /\ o \in RegisteredObject
+          /\ \/ {o} \subseteq Source(deps)
+             \/ \E p \in Predecessor(deps, o) : p \in SucceededTask
+          => ENABLED <<CompleteObjects({o})>>_vars
+        <3>1. CompleteObjects({o}) => objectState' /= objectState
+            BY DEF CompleteObjects, RegisteredObject
+        <3>2. <<CompleteObjects({o})>>_vars <=> CompleteObjects({o})
+            BY <3>1 DEF vars
+        <3>3. ENABLED <<CompleteObjects({o})>>_vars <=> ENABLED CompleteObjects({o})
+            BY <3>2, ENABLEDaxioms
+        <3>4. /\ o \in RegisteredObject
+              /\ \/ {o} \subseteq Source(deps)
+                 \/ \E p \in Predecessor(deps, o) : p \in SucceededTask
+              => ENABLED CompleteObjects({o})
+            BY ExpandENABLED, Zenon DEF CompleteObjects
+        <3>. QED
+            BY <3>3, <3>4
+    <2>. QED
+        BY <2>1, <2>2, <2>3
+<1>2. <<CompleteObjects({o})>>_vars => <<GP2!CompleteObjects({o})>>_(GP2!vars)
+    <2>. SUFFICES ASSUME CompleteObjects({o})
+                  PROVE  GP2!CompleteObjects({o}) /\ GP2!vars' /= GP2!vars
+        BY DEF vars
+    <2>1. GP2!CompleteObjects({o})
+        BY LemBarStutter, LemGP2BarStates, LemGP2GraphBridges, Zenon
+        DEF CompleteObjects, GP2!CompleteObjects
+    <2>2. objectState' /= objectState
+        BY DEF CompleteObjects, RegisteredObject
+    <2>. QED
+        BY <2>1, <2>2, Zenon DEF GP2!vars
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+(* WF(GP2!AbortObjects): as CompleteObjects; a parked producer is Bar-STAGED, *)
+(* never Bar-DISCARDED, so the abort guard is Bar-invariant.                  *)
+LEMMA LemRefineGP2WFAbortObjects ==
+    ASSUME NEW o \in Object
+    PROVE  WF_vars(AbortObjects({o})) => WF_(GP2!vars)(GP2!AbortObjects({o}))
+<1>1. ENABLED <<GP2!AbortObjects({o})>>_(GP2!vars) => ENABLED <<AbortObjects({o})>>_vars
+    <2>1. ENABLED <<GP2!AbortObjects({o})>>_(GP2!vars)
+          => /\ o \in RegisteredObject
+             /\ \/ {o} \subseteq Source(deps)
+                \/ /\ Predecessor(deps, o)
+                      \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
+                   /\ \E p \in Predecessor(deps, o) : p \in DiscardedTask
+        <3>. SUFFICES ASSUME NEW depsp, NEW objectStatep, NEW objectTargetsp,
+                             NEW taskStatep, NEW nextAttemptOfp,
+                             {o} \subseteq GP2!RegisteredObject,
+                             \/ {o} \subseteq GP2!Source(deps)
+                             \/ \A oo \in {o} :
+                                    /\ GP2!Predecessor(deps, oo)
+                                       \subseteq UNION {GP2!DiscardedTask, GP2!CompletedTask,
+                                                        GP2!AbortedTask, GP2!RetriedTask}
+                                    /\ \E p \in GP2!Predecessor(deps, oo) : p \in GP2!DiscardedTask
+                      PROVE  /\ o \in RegisteredObject
+                             /\ \/ {o} \subseteq Source(deps)
+                                \/ /\ Predecessor(deps, o)
+                                      \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask,
+                                                       RetriedTask}
+                                   /\ \E p \in Predecessor(deps, o) : p \in DiscardedTask
+            BY ExpandENABLED DEF GP2!AbortObjects, GP2!vars, taskStateBar
+        <3>. QED
+            BY LemGP2BarStates, LemGP2GraphBridges, Zenon
+    <2>2. /\ o \in RegisteredObject
+          /\ \/ {o} \subseteq Source(deps)
+             \/ /\ Predecessor(deps, o)
+                   \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
+                /\ \E p \in Predecessor(deps, o) : p \in DiscardedTask
+          => ENABLED <<AbortObjects({o})>>_vars
+        <3>1. AbortObjects({o}) => objectState' /= objectState
+            BY DEF AbortObjects, RegisteredObject
+        <3>2. <<AbortObjects({o})>>_vars <=> AbortObjects({o})
+            BY <3>1 DEF vars
+        <3>3. ENABLED <<AbortObjects({o})>>_vars <=> ENABLED AbortObjects({o})
+            BY <3>2, ENABLEDaxioms
+        <3>4. /\ o \in RegisteredObject
+              /\ \/ {o} \subseteq Source(deps)
+                 \/ /\ Predecessor(deps, o)
+                       \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
+                    /\ \E p \in Predecessor(deps, o) : p \in DiscardedTask
+              => ENABLED AbortObjects({o})
+            BY ExpandENABLED, Zenon DEF AbortObjects
+        <3>. QED
+            BY <3>3, <3>4
+    <2>. QED
+        BY <2>1, <2>2
+<1>2. <<AbortObjects({o})>>_vars => <<GP2!AbortObjects({o})>>_(GP2!vars)
+    <2>. SUFFICES ASSUME AbortObjects({o})
+                  PROVE  GP2!AbortObjects({o}) /\ GP2!vars' /= GP2!vars
+        BY DEF vars
+    <2>1. GP2!AbortObjects({o})
+        BY LemBarStutter, LemGP2BarStates, LemGP2GraphBridges, Zenon
+        DEF AbortObjects, GP2!AbortObjects
+    <2>2. objectState' /= objectState
+        BY DEF AbortObjects, RegisteredObject
+    <2>. QED
+        BY <2>1, <2>2, Zenon DEF GP2!vars
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+(* WF(GP2!StageTasks): Bar-REGISTERED = REGISTERED, so both sides are enabled *)
+(* exactly when the task is registered with completed inputs.                 *)
+LEMMA LemRefineGP2WFStageTasks ==
+    ASSUME NEW t \in Task
+    PROVE  WF_vars(StageTasks({t})) => WF_(GP2!vars)(GP2!StageTasks({t}))
+<1>1. ENABLED <<GP2!StageTasks({t})>>_(GP2!vars) => ENABLED <<StageTasks({t})>>_vars
+    <2>1. ENABLED <<GP2!StageTasks({t})>>_(GP2!vars)
+          => /\ t \in RegisteredTask
+             /\ UNION {Predecessor(deps, s) : s \in {t}} \subseteq CompletedObject
+        <3>. SUFFICES ASSUME NEW depsp, NEW objectStatep, NEW objectTargetsp,
+                             NEW taskStatep, NEW nextAttemptOfp,
+                             {t} \subseteq GP2!RegisteredTask,
+                             UNION {GP2!Predecessor(deps, s) : s \in {t}} \subseteq GP2!CompletedObject
+                      PROVE  /\ t \in RegisteredTask
+                             /\ UNION {Predecessor(deps, s) : s \in {t}} \subseteq CompletedObject
+            BY ExpandENABLED DEF GP2!StageTasks, GP2!vars, taskStateBar
+        <3>. QED
+            BY LemGP2BarStates, LemGP2GraphBridges, Zenon
+    <2>2. /\ t \in RegisteredTask
+          /\ UNION {Predecessor(deps, s) : s \in {t}} \subseteq CompletedObject
+          => ENABLED <<StageTasks({t})>>_vars
+        <3>1. StageTasks({t}) => taskState' /= taskState
+            BY DEF RegisteredTask, StageTasks
+        <3>2. <<StageTasks({t})>>_vars <=> StageTasks({t})
+            BY <3>1 DEF vars
+        <3>3. ENABLED <<StageTasks({t})>>_vars <=> ENABLED StageTasks({t})
+            BY <3>2, ENABLEDaxioms
+        <3>4. /\ t \in RegisteredTask
+              /\ UNION {Predecessor(deps, s) : s \in {t}} \subseteq CompletedObject
+              => ENABLED StageTasks({t})
+            BY ExpandENABLED, Zenon DEF StageTasks
+        <3>. QED
+            BY <3>3, <3>4
+    <2>. QED
+        BY <2>1, <2>2
+<1>2. <<StageTasks({t})>>_vars => <<GP2!StageTasks({t})>>_(GP2!vars)
+    <2>. SUFFICES ASSUME StageTasks({t})
+                  PROVE  GP2!StageTasks({t}) /\ GP2!vars' /= GP2!vars
+        BY DEF vars
+    <2>1. taskStateBar' = [s \in Task |-> IF s \in {t} THEN TASK_STAGED ELSE taskStateBar[s]]
+        <3>. SUFFICES ASSUME NEW u \in Task
+                      PROVE taskStateBar'[u] = IF u \in {t} THEN TASK_STAGED ELSE taskStateBar[u]
+            BY DEF StageTasks, taskStateBar
+        <3>. QED
+            BY DEF RegisteredTask, StageTasks, taskStateBar
+    <2>2. GP2!StageTasks({t})
+        BY <2>1, LemGP2BarStates, LemGP2GraphBridges, Zenon DEF GP2!StageTasks, StageTasks
+    <2>3. taskStateBar' /= taskStateBar
+        BY <2>1 DEF RegisteredTask, StageTasks, taskStateBar
+    <2>. QED
+        BY <2>2, <2>3, Zenon DEF GP2!vars
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+(* WF(GP2!DiscardOnAbortedInput): GP3's discard domain (registered, staged,   *)
+(* paused, stopped) Bar-maps exactly onto GP2's (registered, staged), so the  *)
+(* enabledness conditions coincide.                                           *)
+LEMMA LemRefineGP2WFDiscardOnAbortedInput ==
+    ASSUME NEW t \in Task
+    PROVE  WF_vars(DiscardOnAbortedInput(t)) => WF_(GP2!vars)(GP2!DiscardOnAbortedInput(t))
+<1>1. ENABLED <<GP2!DiscardOnAbortedInput(t)>>_(GP2!vars) => ENABLED <<DiscardOnAbortedInput(t)>>_vars
+    <2>1. ENABLED <<GP2!DiscardOnAbortedInput(t)>>_(GP2!vars)
+          => /\ Predecessor(deps, t) \intersect AbortedObject /= {}
+             /\ t \in UNION {RegisteredTask, StagedTask, PausedTask, StoppedTask}
+        <3>. SUFFICES ASSUME NEW depsp, NEW objectStatep, NEW objectTargetsp,
+                             NEW taskStatep, NEW nextAttemptOfp,
+                             GP2!Predecessor(deps, t) \intersect GP2!AbortedObject /= {},
+                             {t} \subseteq GP2!RegisteredTask \union GP2!StagedTask
+                      PROVE  /\ Predecessor(deps, t) \intersect AbortedObject /= {}
+                             /\ t \in UNION {RegisteredTask, StagedTask, PausedTask, StoppedTask}
+            BY ExpandENABLED
+            DEF GP2!DiscardOnAbortedInput, GP2!DiscardTasks, GP2!vars, taskStateBar
+        <3>. QED
+            BY LemGP2BarStates, LemGP2GraphBridges, Zenon
+    <2>2. /\ Predecessor(deps, t) \intersect AbortedObject /= {}
+          /\ t \in UNION {RegisteredTask, StagedTask, PausedTask, StoppedTask}
+          => ENABLED <<DiscardOnAbortedInput(t)>>_vars
+        <3>1. DiscardOnAbortedInput(t) => taskState' /= taskState
+            BY DEF DiscardOnAbortedInput, DiscardTasks, RegisteredTask, StagedTask,
+            PausedTask, StoppedTask
+        <3>2. <<DiscardOnAbortedInput(t)>>_vars <=> DiscardOnAbortedInput(t)
+            BY <3>1 DEF vars
+        <3>3. ENABLED <<DiscardOnAbortedInput(t)>>_vars <=> ENABLED DiscardOnAbortedInput(t)
+            BY <3>2, ENABLEDaxioms
+        <3>4. /\ Predecessor(deps, t) \intersect AbortedObject /= {}
+              /\ t \in UNION {RegisteredTask, StagedTask, PausedTask, StoppedTask}
+              => ENABLED DiscardOnAbortedInput(t)
+            BY ExpandENABLED, Zenon DEF DiscardOnAbortedInput, DiscardTasks
+        <3>. QED
+            BY <3>3, <3>4
+    <2>. QED
+        BY <2>1, <2>2
+<1>2. <<DiscardOnAbortedInput(t)>>_vars => <<GP2!DiscardOnAbortedInput(t)>>_(GP2!vars)
+    <2>. SUFFICES ASSUME DiscardOnAbortedInput(t)
+                  PROVE  GP2!DiscardOnAbortedInput(t) /\ GP2!vars' /= GP2!vars
+        BY DEF vars
+    <2>1. taskStateBar' = [s \in Task |-> IF s \in {t} THEN TASK_DISCARDED ELSE taskStateBar[s]]
+        <3>. SUFFICES ASSUME NEW u \in Task
+                      PROVE taskStateBar'[u] = IF u \in {t} THEN TASK_DISCARDED ELSE taskStateBar[u]
+            BY DEF DiscardOnAbortedInput, DiscardTasks, taskStateBar
+        <3>. QED
+            BY DEF DiscardOnAbortedInput, DiscardTasks, taskStateBar
+    <2>2. GP2!DiscardTasks({t})
+        <3>1. t \in UNION {RegisteredTask, StagedTask, PausedTask, StoppedTask}
+            BY DEF DiscardOnAbortedInput, DiscardTasks
+        <3>2. {t} \subseteq GP2!RegisteredTask \union GP2!StagedTask
+            BY <3>1, LemGP2BarStates, Zenon
+        <3>. QED
+            BY <2>1, <3>2, Zenon DEF DiscardOnAbortedInput, DiscardTasks, GP2!DiscardTasks
+    <2>3. GP2!Predecessor(deps, t) \intersect GP2!AbortedObject /= {}
+        BY LemGP2BarStates, LemGP2GraphBridges, Zenon DEF DiscardOnAbortedInput
+    <2>4. taskStateBar' /= taskStateBar
+        <3>1. t \in UNION {RegisteredTask, StagedTask, PausedTask, StoppedTask}
+            BY DEF DiscardOnAbortedInput, DiscardTasks
+        <3>. QED
+            BY <2>1, <3>1 DEF PausedTask, RegisteredTask, StagedTask, StoppedTask, taskStateBar
+    <2>. QED
+        BY <2>2, <2>3, <2>4, Zenon DEF GP2!DiscardOnAbortedInput, GP2!vars
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+(* WF(GP2!CompleteTasks): the retention guard's excluded classes (completed,  *)
+(* aborted, retried, failed) are Bar-invariant, and a parked witness is       *)
+(* Bar-STAGED -- still outside the exclusions.                                *)
+LEMMA LemRefineGP2WFCompleteTasks ==
+    ASSUME NEW t \in Task
+    PROVE  WF_vars(CompleteTasks({t})) => WF_(GP2!vars)(GP2!CompleteTasks({t}))
+<1>1. ENABLED <<GP2!CompleteTasks({t})>>_(GP2!vars) => ENABLED <<CompleteTasks({t})>>_vars
+    <2>1. ENABLED <<GP2!CompleteTasks({t})>>_(GP2!vars)
+          => /\ t \in SucceededTask
+             /\ \A oo \in UNION {Successor(deps, s) : s \in {t}} :
+                    oo \in RegisteredObject
+                    => \E w \in (Predecessor(deps, oo) \ {t}) :
+                           w \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}
+        <3>. SUFFICES ASSUME NEW depsp, NEW objectStatep, NEW objectTargetsp,
+                             NEW taskStatep, NEW nextAttemptOfp,
+                             {t} \subseteq GP2!SucceededTask,
+                             \A oo \in UNION {GP2!Successor(deps, s) : s \in {t}} :
+                                 oo \in GP2!RegisteredObject
+                                 => \E w \in (GP2!Predecessor(deps, oo) \ {t}) :
+                                        w \notin UNION {GP2!CompletedTask, GP2!AbortedTask,
+                                                        GP2!RetriedTask, GP2!FailedTask}
+                      PROVE  /\ t \in SucceededTask
+                             /\ \A oo \in UNION {Successor(deps, s) : s \in {t}} :
+                                    oo \in RegisteredObject
+                                    => \E w \in (Predecessor(deps, oo) \ {t}) :
+                                           w \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}
+            BY ExpandENABLED DEF GP2!CompleteTasks, GP2!vars, taskStateBar
+        <3>. QED
+            BY LemGP2BarStates, LemGP2GraphBridges, Zenon
+    <2>2. /\ t \in SucceededTask
+          /\ \A oo \in UNION {Successor(deps, s) : s \in {t}} :
+                 oo \in RegisteredObject
+                 => \E w \in (Predecessor(deps, oo) \ {t}) :
+                        w \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}
+          => ENABLED <<CompleteTasks({t})>>_vars
+        <3>1. CompleteTasks({t}) => taskState' /= taskState
+            BY DEF CompleteTasks, SucceededTask
+        <3>2. <<CompleteTasks({t})>>_vars <=> CompleteTasks({t})
+            BY <3>1 DEF vars
+        <3>3. ENABLED <<CompleteTasks({t})>>_vars <=> ENABLED CompleteTasks({t})
+            BY <3>2, ENABLEDaxioms
+        <3>4. /\ t \in SucceededTask
+              /\ \A oo \in UNION {Successor(deps, s) : s \in {t}} :
+                     oo \in RegisteredObject
+                     => \E w \in (Predecessor(deps, oo) \ {t}) :
+                            w \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}
+              => ENABLED CompleteTasks({t})
+            BY ExpandENABLED, Zenon DEF CompleteTasks
+        <3>. QED
+            BY <3>3, <3>4
+    <2>. QED
+        BY <2>1, <2>2
+<1>2. <<CompleteTasks({t})>>_vars => <<GP2!CompleteTasks({t})>>_(GP2!vars)
+    <2>. SUFFICES ASSUME CompleteTasks({t})
+                  PROVE  GP2!CompleteTasks({t}) /\ GP2!vars' /= GP2!vars
+        BY DEF vars
+    <2>1. taskStateBar' = [s \in Task |-> IF s \in {t} THEN TASK_COMPLETED ELSE taskStateBar[s]]
+        <3>. SUFFICES ASSUME NEW u \in Task
+                      PROVE taskStateBar'[u] = IF u \in {t} THEN TASK_COMPLETED ELSE taskStateBar[u]
+            BY DEF CompleteTasks, taskStateBar
+        <3>. QED
+            BY DEF CompleteTasks, SucceededTask, taskStateBar
+    <2>2. GP2!CompleteTasks({t})
+        BY <2>1, LemGP2BarStates, LemGP2GraphBridges, Zenon DEF CompleteTasks, GP2!CompleteTasks
+    <2>3. taskStateBar' /= taskStateBar
+        BY <2>1 DEF CompleteTasks, SucceededTask, taskStateBar
+    <2>. QED
+        BY <2>2, <2>3, Zenon DEF GP2!vars
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+(* WF(GP2!AbortTasks): as CompleteTasks (Bar-DISCARDED = DISCARDED).          *)
+LEMMA LemRefineGP2WFAbortTasks ==
+    ASSUME NEW t \in Task
+    PROVE  WF_vars(AbortTasks({t})) => WF_(GP2!vars)(GP2!AbortTasks({t}))
+<1>1. ENABLED <<GP2!AbortTasks({t})>>_(GP2!vars) => ENABLED <<AbortTasks({t})>>_vars
+    <2>1. ENABLED <<GP2!AbortTasks({t})>>_(GP2!vars)
+          => /\ t \in DiscardedTask
+             /\ \A oo \in UNION {Successor(deps, s) : s \in {t}} :
+                    oo \in RegisteredObject
+                    => \E w \in (Predecessor(deps, oo) \ {t}) :
+                           w \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}
+        <3>. SUFFICES ASSUME NEW depsp, NEW objectStatep, NEW objectTargetsp,
+                             NEW taskStatep, NEW nextAttemptOfp,
+                             {t} \subseteq GP2!DiscardedTask,
+                             \A oo \in UNION {GP2!Successor(deps, s) : s \in {t}} :
+                                 oo \in GP2!RegisteredObject
+                                 => \E w \in (GP2!Predecessor(deps, oo) \ {t}) :
+                                        w \notin UNION {GP2!CompletedTask, GP2!AbortedTask,
+                                                        GP2!RetriedTask, GP2!FailedTask}
+                      PROVE  /\ t \in DiscardedTask
+                             /\ \A oo \in UNION {Successor(deps, s) : s \in {t}} :
+                                    oo \in RegisteredObject
+                                    => \E w \in (Predecessor(deps, oo) \ {t}) :
+                                           w \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}
+            BY ExpandENABLED DEF GP2!AbortTasks, GP2!vars, taskStateBar
+        <3>. QED
+            BY LemGP2BarStates, LemGP2GraphBridges, Zenon
+    <2>2. /\ t \in DiscardedTask
+          /\ \A oo \in UNION {Successor(deps, s) : s \in {t}} :
+                 oo \in RegisteredObject
+                 => \E w \in (Predecessor(deps, oo) \ {t}) :
+                        w \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}
+          => ENABLED <<AbortTasks({t})>>_vars
+        <3>1. AbortTasks({t}) => taskState' /= taskState
+            BY DEF AbortTasks, DiscardedTask
+        <3>2. <<AbortTasks({t})>>_vars <=> AbortTasks({t})
+            BY <3>1 DEF vars
+        <3>3. ENABLED <<AbortTasks({t})>>_vars <=> ENABLED AbortTasks({t})
+            BY <3>2, ENABLEDaxioms
+        <3>4. /\ t \in DiscardedTask
+              /\ \A oo \in UNION {Successor(deps, s) : s \in {t}} :
+                     oo \in RegisteredObject
+                     => \E w \in (Predecessor(deps, oo) \ {t}) :
+                            w \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}
+              => ENABLED AbortTasks({t})
+            BY ExpandENABLED, Zenon DEF AbortTasks
+        <3>. QED
+            BY <3>3, <3>4
+    <2>. QED
+        BY <2>1, <2>2
+<1>2. <<AbortTasks({t})>>_vars => <<GP2!AbortTasks({t})>>_(GP2!vars)
+    <2>. SUFFICES ASSUME AbortTasks({t})
+                  PROVE  GP2!AbortTasks({t}) /\ GP2!vars' /= GP2!vars
+        BY DEF vars
+    <2>1. taskStateBar' = [s \in Task |-> IF s \in {t} THEN TASK_ABORTED ELSE taskStateBar[s]]
+        <3>. SUFFICES ASSUME NEW u \in Task
+                      PROVE taskStateBar'[u] = IF u \in {t} THEN TASK_ABORTED ELSE taskStateBar[u]
+            BY DEF AbortTasks, taskStateBar
+        <3>. QED
+            BY DEF AbortTasks, DiscardedTask, taskStateBar
+    <2>2. GP2!AbortTasks({t})
+        BY <2>1, LemGP2BarStates, LemGP2GraphBridges, Zenon DEF AbortTasks, GP2!AbortTasks
+    <2>3. taskStateBar' /= taskStateBar
+        BY <2>1 DEF AbortTasks, DiscardedTask, taskStateBar
+    <2>. QED
+        BY <2>2, <2>3, Zenon DEF GP2!vars
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+(* WF(GP2!RetryTasks): the retry guard and the retention classes are          *)
+(* Bar-invariant.                                                             *)
+LEMMA LemRefineGP2WFRetryTasks ==
+    ASSUME NEW t \in Task
+    PROVE  WF_vars(RetryTasks({t})) => WF_(GP2!vars)(GP2!RetryTasks({t}))
+<1>1. ENABLED <<GP2!RetryTasks({t})>>_(GP2!vars) => ENABLED <<RetryTasks({t})>>_vars
+    <2>1. ENABLED <<GP2!RetryTasks({t})>>_(GP2!vars)
+          => /\ t \in FailedTask
+             /\ \A s \in {t} : nextAttemptOf[s] \notin UnknownTask \union {NULL}
+             /\ \A oo \in UNION {Successor(deps, s) : s \in {t}} :
+                    oo \in RegisteredObject
+                    => \E w \in (Predecessor(deps, oo) \ {t}) :
+                           w \notin UNION {CompletedTask, AbortedTask, RetriedTask}
+        <3>. SUFFICES ASSUME NEW depsp, NEW objectStatep, NEW objectTargetsp,
+                             NEW taskStatep, NEW nextAttemptOfp,
+                             {t} \subseteq GP2!FailedTask,
+                             \A s \in {t} : nextAttemptOf[s] \notin GP2!UnknownTask \union {NULL},
+                             \A oo \in UNION {GP2!Successor(deps, s) : s \in {t}} :
+                                 oo \in GP2!RegisteredObject
+                                 => \E w \in (GP2!Predecessor(deps, oo) \ {t}) :
+                                        w \notin UNION {GP2!CompletedTask, GP2!AbortedTask, GP2!RetriedTask}
+                      PROVE  /\ t \in FailedTask
+                             /\ \A s \in {t} : nextAttemptOf[s] \notin UnknownTask \union {NULL}
+                             /\ \A oo \in UNION {Successor(deps, s) : s \in {t}} :
+                                    oo \in RegisteredObject
+                                    => \E w \in (Predecessor(deps, oo) \ {t}) :
+                                           w \notin UNION {CompletedTask, AbortedTask, RetriedTask}
+            BY ExpandENABLED DEF GP2!RetryTasks, GP2!vars, taskStateBar
+        <3>. QED
+            BY LemGP2BarStates, LemGP2GraphBridges, Zenon
+    <2>2. /\ t \in FailedTask
+          /\ \A s \in {t} : nextAttemptOf[s] \notin UnknownTask \union {NULL}
+          /\ \A oo \in UNION {Successor(deps, s) : s \in {t}} :
+                 oo \in RegisteredObject
+                 => \E w \in (Predecessor(deps, oo) \ {t}) :
+                        w \notin UNION {CompletedTask, AbortedTask, RetriedTask}
+          => ENABLED <<RetryTasks({t})>>_vars
+        <3>1. RetryTasks({t}) => taskState' /= taskState
+            BY DEF FailedTask, RetryTasks
+        <3>2. <<RetryTasks({t})>>_vars <=> RetryTasks({t})
+            BY <3>1 DEF vars
+        <3>3. ENABLED <<RetryTasks({t})>>_vars <=> ENABLED RetryTasks({t})
+            BY <3>2, ENABLEDaxioms
+        <3>4. /\ t \in FailedTask
+              /\ \A s \in {t} : nextAttemptOf[s] \notin UnknownTask \union {NULL}
+              /\ \A oo \in UNION {Successor(deps, s) : s \in {t}} :
+                     oo \in RegisteredObject
+                     => \E w \in (Predecessor(deps, oo) \ {t}) :
+                            w \notin UNION {CompletedTask, AbortedTask, RetriedTask}
+              => ENABLED RetryTasks({t})
+            BY ExpandENABLED, Zenon DEF RetryTasks
+        <3>. QED
+            BY <3>3, <3>4
+    <2>. QED
+        BY <2>1, <2>2
+<1>2. <<RetryTasks({t})>>_vars => <<GP2!RetryTasks({t})>>_(GP2!vars)
+    <2>. SUFFICES ASSUME RetryTasks({t})
+                  PROVE  GP2!RetryTasks({t}) /\ GP2!vars' /= GP2!vars
+        BY DEF vars
+    <2>1. taskStateBar' = [s \in Task |-> IF s \in {t} THEN TASK_RETRIED ELSE taskStateBar[s]]
+        <3>. SUFFICES ASSUME NEW u \in Task
+                      PROVE taskStateBar'[u] = IF u \in {t} THEN TASK_RETRIED ELSE taskStateBar[u]
+            BY DEF RetryTasks, taskStateBar
+        <3>. QED
+            BY DEF FailedTask, RetryTasks, taskStateBar
+    <2>2. GP2!RetryTasks({t})
+        BY <2>1, LemGP2BarStates, LemGP2GraphBridges, Zenon DEF GP2!RetryTasks, RetryTasks
+    <2>3. taskStateBar' /= taskStateBar
+        BY <2>1 DEF FailedTask, RetryTasks, taskStateBar
+    <2>. QED
+        BY <2>2, <2>3, Zenon DEF GP2!vars
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+(* WF(GP2!SetTaskRetries): the retry bookkeeping involves only nextAttemptOf  *)
+(* and Bar-invariant classes; the clone witness transfers verbatim.           *)
+LEMMA LemRefineGP2WFSetTaskRetries ==
+    ASSUME NEW t \in Task
+    PROVE  WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
+           => WF_(GP2!vars)(\E u \in Task : GP2!SetTaskRetries({t}, {u}))
+<1>1. ENABLED <<\E u \in Task : GP2!SetTaskRetries({t}, {u})>>_(GP2!vars)
+      => ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
+    <2>1. ENABLED <<\E u \in Task : GP2!SetTaskRetries({t}, {u})>>_(GP2!vars)
+          => \E u \in Task : /\ t \in GP2!UnretriedTask
+                             /\ u \in GP2!UnknownTask
+                             /\ ~ \E v \in Task : nextAttemptOf[v] = u
+        BY ExpandENABLED DEF GP2!SetTaskRetries, GP2!vars, taskStateBar
+    <2>2. (\E u \in Task : /\ t \in UnretriedTask
+                           /\ u \in UnknownTask
+                           /\ ~ \E v \in Task : nextAttemptOf[v] = u)
+          => ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
+        <3>. SUFFICES ASSUME NEW u0 \in Task, t \in UnretriedTask, u0 \in UnknownTask,
+                             ~ \E v \in Task : nextAttemptOf[v] = u0
+                      PROVE  ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
+            BY Zenon
+        <3>1. ENABLED <<SetTaskRetries({t}, {u0})>>_vars
+            <4>. SUFFICES \E depsp, objectStatep, objectTargetsp, taskStatep,
+                             nextAttemptOfp, stoppingRequestedp, pausingRequestedp :
+                             /\ {t} # {}
+                             /\ {t} \subseteq UnretriedTask
+                             /\ {u0} \subseteq UnknownTask
+                             /\ \A v \in {u0} : ~ \E w \in Task : nextAttemptOf[w] = v
+                             /\ \E f \in Bijection({t}, {u0}) :
+                                     nextAttemptOfp
+                                     = [t_1 \in Task |->
+                                         IF t_1 \in {t} THEN f[t_1] ELSE nextAttemptOf[t_1]]
+                             /\ taskStatep = taskState
+                             /\ depsp = deps
+                             /\ objectStatep = objectState
+                             /\ objectTargetsp = objectTargets
+                             /\ stoppingRequestedp = stoppingRequested
+                             /\ pausingRequestedp = pausingRequested
+                             /\ ~ (/\ depsp = deps
+                                   /\ objectStatep = objectState
+                                   /\ objectTargetsp = objectTargets
+                                   /\ taskStatep = taskState
+                                   /\ nextAttemptOfp = nextAttemptOf
+                                   /\ stoppingRequestedp = stoppingRequested
+                                   /\ pausingRequestedp = pausingRequested)
+                BY ExpandENABLED, SMT DEF SetTaskRetries, vars
+            <4>. DEFINE g == [x \in {t} |-> u0]
+            <4>1. g \in Bijection({t}, {u0})
+                BY DEF Bijection, Injection, IsInjective, Surjection
+            <4>2. [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]]
+                  /= nextAttemptOf
+                <5>1. nextAttemptOf[t] = NULL
+                    BY DEF FailedTask, UnretriedTask
+                <5>2. [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]][t] = u0
+                    BY DEF Bijection, Injection, Surjection
+                <5>3. u0 /= NULL
+                    BY GP3Assumptions DEF UnknownTask
+                <5>. QED
+                    BY <5>1, <5>2, <5>3
+            <4>3. WITNESS deps, objectState, objectTargets, taskState,
+                          [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]],
+                          stoppingRequested, pausingRequested
+            <4>. QED
+                BY <4>1, <4>2, Zenon
+        <3>2. ENABLED <<SetTaskRetries({t}, {u0})>>_vars
+              => ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
+            BY ExpandENABLED, SMT DEF SetTaskRetries, vars
+        <3>. QED
+            BY <3>1, <3>2
+    <2>3.  (\E u \in Task : /\ t \in GP2!UnretriedTask
+                            /\ u \in GP2!UnknownTask
+                            /\ ~ \E v \in Task : nextAttemptOf[v] = u)
+           => (\E u \in Task : /\ t \in UnretriedTask
+                               /\ u \in UnknownTask
+                               /\ ~ \E v \in Task : nextAttemptOf[v] = u)
+        BY LemGP2BarStates, Zenon
+    <2>. QED
+        BY <2>1, <2>2, <2>3
+<1>2. <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
+      => <<\E u \in Task : GP2!SetTaskRetries({t}, {u})>>_(GP2!vars)
+    <2>. SUFFICES ASSUME NEW u \in Task, SetTaskRetries({t}, {u})
+                  PROVE  GP2!SetTaskRetries({t}, {u}) /\ GP2!vars' /= GP2!vars
+        BY Zenon DEF vars
+    <2>1. GP2!SetTaskRetries({t}, {u})
+        BY LemBarStutter, LemGP2BarStates, LemGP2Bridges, Zenon
+        DEF SetTaskRetries, GP2!SetTaskRetries
+    <2>2. nextAttemptOf' /= nextAttemptOf
+        <3>1. PICK f \in Bijection({t}, {u}) :
+                nextAttemptOf' = [s \in Task |-> IF s \in {t} THEN f[s] ELSE nextAttemptOf[s]]
+            BY Zenon DEF SetTaskRetries
+        <3>2. nextAttemptOf'[t] = f[t] /\ f[t] = u
+            BY <3>1 DEF Bijection, Injection, Surjection
+        <3>3. nextAttemptOf[t] /= u
+            BY Zenon DEF SetTaskRetries
+        <3>. QED
+            BY <3>1, <3>2, <3>3
+    <2>. QED
+        BY <2>1, <2>2, Zenon DEF GP2!vars
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+(* WF(GP2!RegisterGraph(RetrySubGraph)): the retry subgraph and every guard   *)
+(* of the registration involve only deps, objectState, nextAttemptOf and the  *)
+(* Bar-invariant UNKNOWN class, and the updates are deterministic in the      *)
+(* current state -- so Bar-enabledness re-establishes the concrete one with   *)
+(* the update terms as witnesses.                                             *)
+LEMMA LemRefineGP2WFRegisterRetrySubGraph ==
+    ASSUME NEW t \in Task
+    PROVE  /\ []TypeOk
+           /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
+           => WF_(GP2!vars)(GP2!RegisterGraph(GP2!RetrySubGraph(deps, t, nextAttemptOf[t])))
+<1>. DEFINE G  == RetrySubGraph(deps, t, nextAttemptOf[t])
+            ND == GraphUnion(deps, G)
+            OU == [o \in Object |->
+                       IF o \in G.node \intersect UnknownObject
+                           THEN OBJECT_REGISTERED
+                           ELSE objectState[o]]
+            TU == [s \in Task |->
+                       IF s \in G.node THEN TASK_REGISTERED ELSE taskState[s]]
+<1>. HIDE DEF G, ND, OU, TU
+<1>1. GP2!RetrySubGraph(deps, t, nextAttemptOf[t]) = G
+    BY LemGP2GraphBridges, Zenon DEF G
+<1>2. ENABLED <<GP2!RegisterGraph(GP2!RetrySubGraph(deps, t, nextAttemptOf[t]))>>_(GP2!vars)
+      => ENABLED <<RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t]))>>_vars
+    <2>1. ENABLED <<GP2!RegisterGraph(GP2!RetrySubGraph(deps, t, nextAttemptOf[t]))>>_(GP2!vars)
+          => /\ G /= GP2!EmptyGraph
+             /\ GP2!IsFiniteSet(G.node)
+             /\ G.node \cap Task \subseteq GP2!UnknownTask
+             /\ \A s \in G.node \cap Task:
+                 /\ GP2!Successor(G, s) \intersect GP2!AbortedObject = {}
+                 /\ GP2!Successor(G, s) \intersect GP2!Source(deps)
+                    \intersect (GP2!CompletedObject \union GP2!AbortedObject) = {}
+             /\ GP2!IsDDGraph(GP2!GraphUnion(deps, G), Task, Object)
+             /\ \A s \in Task :
+                 nextAttemptOf[s] /= NULL /\ nextAttemptOf[s] \in G.node =>
+                     /\ GP2!Predecessor(G, nextAttemptOf[s]) = GP2!Predecessor(deps, s)
+                     /\ GP2!Successor(G, nextAttemptOf[s]) = GP2!Successor(deps, s)
+             /\ \/ GP2!GraphUnion(deps, G) /= deps
+                \/ [o \in Object |->
+                       IF o \in G.node \intersect GP2!UnknownObject
+                           THEN GP2!OBJECT_REGISTERED
+                           ELSE objectState[o]] /= objectState
+                \/ [s \in Task |->
+                       IF s \in G.node THEN GP2!TASK_REGISTERED ELSE taskStateBar[s]]
+                   /= taskStateBar
+        BY <1>1, ExpandENABLED, Zenon
+        DEF GP2!RegisterGraph, GP2!vars, taskStateBar
+    <2>2. /\ G /= GP2!EmptyGraph
+          /\ GP2!IsFiniteSet(G.node)
+          /\ G.node \cap Task \subseteq GP2!UnknownTask
+          /\ \A s \in G.node \cap Task:
+              /\ GP2!Successor(G, s) \intersect GP2!AbortedObject = {}
+              /\ GP2!Successor(G, s) \intersect GP2!Source(deps)
+                 \intersect (GP2!CompletedObject \union GP2!AbortedObject) = {}
+          /\ GP2!IsDDGraph(GP2!GraphUnion(deps, G), Task, Object)
+          /\ \A s \in Task :
+              nextAttemptOf[s] /= NULL /\ nextAttemptOf[s] \in G.node =>
+                  /\ GP2!Predecessor(G, nextAttemptOf[s]) = GP2!Predecessor(deps, s)
+                  /\ GP2!Successor(G, nextAttemptOf[s]) = GP2!Successor(deps, s)
+          /\ \/ GP2!GraphUnion(deps, G) /= deps
+             \/ [o \in Object |->
+                    IF o \in G.node \intersect GP2!UnknownObject
+                        THEN GP2!OBJECT_REGISTERED
+                        ELSE objectState[o]] /= objectState
+             \/ [s \in Task |->
+                    IF s \in G.node THEN GP2!TASK_REGISTERED ELSE taskStateBar[s]]
+                /= taskStateBar
+          => /\ G /= EmptyGraph
+             /\ IsFiniteSet(G.node)
+             /\ G.node \cap Task \subseteq UnknownTask
+             /\ \A s \in G.node \cap Task:
+                 /\ Successor(G, s) \intersect AbortedObject = {}
+                 /\ Successor(G, s) \intersect Source(deps)
+                    \intersect (CompletedObject \union AbortedObject) = {}
+             /\ IsDDGraph(GraphUnion(deps, G), Task, Object)
+             /\ \A s \in Task :
+                 nextAttemptOf[s] /= NULL /\ nextAttemptOf[s] \in G.node =>
+                     /\ Predecessor(G, nextAttemptOf[s]) = Predecessor(deps, s)
+                     /\ Successor(G, nextAttemptOf[s]) = Successor(deps, s)
+             /\ \/ GraphUnion(deps, G) /= deps
+                \/ OU /= objectState
+                \/ TU /= taskState
+        <3>1. [s \in Task |->
+                   IF s \in G.node THEN GP2!TASK_REGISTERED ELSE taskStateBar[s]]
+              /= taskStateBar
+              => TU /= taskState
+            <4>. SUFFICES ASSUME TU = taskState
+                          PROVE [s \in Task |->
+                                     IF s \in G.node THEN GP2!TASK_REGISTERED ELSE taskStateBar[s]]
+                                = taskStateBar
+                OBVIOUS
+            <4>1. \A s \in Task : taskState[s] = IF s \in G.node THEN TASK_REGISTERED ELSE taskState[s]
+                BY Zenon DEF TU
+            <4>2. \A s \in Task : s \in G.node => taskState[s] = TASK_REGISTERED
+                BY <4>1, Zenon
+            <4>. QED
+                BY <4>2, Zenon DEF taskStateBar
+        <3>2. [o \in Object |->
+                   IF o \in G.node \intersect GP2!UnknownObject
+                       THEN GP2!OBJECT_REGISTERED
+                       ELSE objectState[o]] = OU
+            BY LemGP2BarStates, Zenon DEF OU
+        <3>. QED
+            BY <3>1, <3>2, LemGP2BarStates, LemGP2GraphBridges, Zenon DEF OU, TU
+    <2>3. /\ G /= EmptyGraph
+          /\ IsFiniteSet(G.node)
+          /\ G.node \cap Task \subseteq UnknownTask
+          /\ \A s \in G.node \cap Task:
+              /\ Successor(G, s) \intersect AbortedObject = {}
+              /\ Successor(G, s) \intersect Source(deps)
+                 \intersect (CompletedObject \union AbortedObject) = {}
+          /\ IsDDGraph(GraphUnion(deps, G), Task, Object)
+          /\ \A s \in Task :
+              nextAttemptOf[s] /= NULL /\ nextAttemptOf[s] \in G.node =>
+                  /\ Predecessor(G, nextAttemptOf[s]) = Predecessor(deps, s)
+                  /\ Successor(G, nextAttemptOf[s]) = Successor(deps, s)
+          /\ \/ GraphUnion(deps, G) /= deps
+             \/ OU /= objectState
+             \/ TU /= taskState
+          => ENABLED <<RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t]))>>_vars
+        <3>. SUFFICES ASSUME G /= EmptyGraph,
+                             IsFiniteSet(G.node),
+                             G.node \cap Task \subseteq UnknownTask,
+                             \A s \in G.node \cap Task:
+                                 /\ Successor(G, s) \intersect AbortedObject = {}
+                                 /\ Successor(G, s) \intersect Source(deps)
+                                    \intersect (CompletedObject \union AbortedObject) = {},
+                             IsDDGraph(GraphUnion(deps, G), Task, Object),
+                             \A s \in Task :
+                                 nextAttemptOf[s] /= NULL /\ nextAttemptOf[s] \in G.node =>
+                                     /\ Predecessor(G, nextAttemptOf[s]) = Predecessor(deps, s)
+                                     /\ Successor(G, nextAttemptOf[s]) = Successor(deps, s),
+                             \/ GraphUnion(deps, G) /= deps
+                             \/ OU /= objectState
+                             \/ TU /= taskState
+                      PROVE  ENABLED <<RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t]))>>_vars
+            OBVIOUS
+        <3>1. SUFFICES \E depsp, objectStatep, objectTargetsp, taskStatep,
+                          nextAttemptOfp, stoppingRequestedp, pausingRequestedp :
+                          /\ G /= EmptyGraph
+                          /\ IsFiniteSet(G.node)
+                          /\ G.node \cap Task \subseteq UnknownTask
+                          /\ \A s \in G.node \cap Task:
+                              /\ Successor(G, s) \intersect AbortedObject = {}
+                              /\ Successor(G, s) \intersect Source(deps)
+                                 \intersect (CompletedObject \union AbortedObject) = {}
+                          /\ IsDDGraph(GraphUnion(deps, G), Task, Object)
+                          /\ \A s \in Task :
+                              nextAttemptOf[s] /= NULL /\ nextAttemptOf[s] \in G.node =>
+                                  /\ Predecessor(G, nextAttemptOf[s]) = Predecessor(deps, s)
+                                  /\ Successor(G, nextAttemptOf[s]) = Successor(deps, s)
+                          /\ depsp = GraphUnion(deps, G)
+                          /\ objectStatep =
+                              [o \in Object |->
+                                  IF o \in G.node \intersect UnknownObject
+                                      THEN OBJECT_REGISTERED
+                                      ELSE objectState[o]]
+                          /\ taskStatep =
+                              [s \in Task |->
+                                  IF s \in G.node THEN TASK_REGISTERED ELSE taskState[s]]
+                          /\ << objectTargetsp, nextAttemptOfp,
+                                stoppingRequestedp, pausingRequestedp >>
+                             = << objectTargets, nextAttemptOf,
+                                  stoppingRequested, pausingRequested >>
+                          /\ ~ (/\ depsp = deps
+                                /\ objectStatep = objectState
+                                /\ objectTargetsp = objectTargets
+                                /\ taskStatep = taskState
+                                /\ nextAttemptOfp = nextAttemptOf
+                                /\ stoppingRequestedp = stoppingRequested
+                                /\ pausingRequestedp = pausingRequested)
+            BY ExpandENABLED, SMT DEF G, RegisterGraph, vars
+        <3>2. WITNESS GraphUnion(deps, G), OU, objectTargets, TU,
+                      nextAttemptOf, stoppingRequested, pausingRequested
+        <3>. QED
+            BY Zenon DEF OU, TU
+    <2>. QED
+        BY <2>1, <2>2, <2>3
+<1>3. TypeOk /\ <<RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t]))>>_vars
+      => <<GP2!RegisterGraph(GP2!RetrySubGraph(deps, t, nextAttemptOf[t]))>>_(GP2!vars)
+    <2>. SUFFICES ASSUME TypeOk, RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])),
+                         vars' /= vars
+                  PROVE  GP2!RegisterGraph(GP2!RetrySubGraph(deps, t, nextAttemptOf[t]))
+                         /\ GP2!vars' /= GP2!vars
+        BY DEF vars
+    <2>1. RegisterGraph(G)
+        BY Zenon DEF G
+    <2>2. taskStateBar' = [s \in Task |-> IF s \in G.node THEN TASK_REGISTERED ELSE taskStateBar[s]]
+        <3>. SUFFICES ASSUME NEW u \in Task
+                      PROVE taskStateBar'[u] = IF u \in G.node THEN TASK_REGISTERED ELSE taskStateBar[u]
+            BY <2>1 DEF RegisterGraph, taskStateBar
+        <3>1. CASE u \in G.node
+            BY <2>1, <3>1 DEF RegisterGraph, taskStateBar
+        <3>2. CASE u \notin G.node
+            BY <2>1, <3>2 DEF RegisterGraph, taskStateBar
+        <3>. QED BY <3>1, <3>2
+    <2>3. GP2!RegisterGraph(G)
+        BY <2>1, <2>2, LemGP2BarStates, LemGP2GraphBridges, Zenon
+        DEF RegisterGraph, GP2!RegisterGraph
+    <2>4. GP2!vars' /= GP2!vars
+        <3>1. \/ deps' /= deps \/ objectState' /= objectState \/ taskState' /= taskState
+            BY <2>1, Zenon DEF RegisterGraph, TypeOk, vars
+        <3>2. taskState' /= taskState => taskStateBar' /= taskStateBar
+            <4>1. taskState' = [s \in Task |-> IF s \in G.node THEN TASK_REGISTERED ELSE taskState[s]]
+                BY <2>1, Zenon DEF RegisterGraph
+            <4>. SUFFICES ASSUME taskStateBar' = taskStateBar, taskState' /= taskState
+                          PROVE FALSE
+                OBVIOUS
+            <4>2. PICK w \in Task : taskState'[w] /= taskState[w]
+                BY <4>1, Zenon DEF TypeOk
+            <4>3. w \in G.node /\ taskState'[w] = TASK_REGISTERED /\ taskState[w] /= TASK_REGISTERED
+                BY <4>1, <4>2, Zenon
+            <4>4. w \in UnknownTask
+                BY <2>1, <4>3, Zenon DEF RegisterGraph, UnknownTask
+            <4>5. taskStateBar'[w] = TASK_REGISTERED /\ taskStateBar[w] = TASK_UNKNOWN
+                BY <4>3, <4>4, Zenon DEF taskStateBar, UnknownTask
+            <4>. QED
+                BY <4>5, Zenon
+        <3>. QED
+            BY <3>1, <3>2, Zenon DEF GP2!vars
+    <2>. QED
+        BY <1>1, <2>3, <2>4, Zenon
+<1>. QED
+    BY <1>2, <1>3, PTL
+
+(* SF(GP2!ProcessTasks): the Bar-side enabledness is exactly t ASSIGNED, as   *)
+(* GP3's. A GP3 processing step whose outcome is STOPPED is a Bar-Release,    *)
+(* not a Bar-Process -- but processing is a once-per-task event: after any    *)
+(* firing the task is never assigned again (LemTP3TaskStateStable), so        *)
+(* infinitely-often-enabled is contradictory and GP2's strong fairness holds  *)
+(* vacuously.                                                                 *)
+LEMMA LemRefineGP2SFProcessTasks ==
+    ASSUME NEW t \in Task
+    PROVE  []TypeOk /\ [][Next]_vars /\ SF_vars(ProcessTasks({t}))
+           => SF_(GP2!vars)(GP2!ProcessTasks({t}))
+<1>. DEFINE Processed ==
+                taskState[t] \in {TASK_SUCCEEDED, TASK_FAILED, TASK_DISCARDED, TASK_STOPPED,
+                                  TASK_COMPLETED, TASK_RETRIED, TASK_ABORTED}
+<1>. SUFFICES []TypeOk /\ [][Next]_vars /\ SF_vars(ProcessTasks({t}))
+              /\ []<>ENABLED <<GP2!ProcessTasks({t})>>_(GP2!vars)
+              => FALSE
+    BY PTL
+\* --- enabledness: exactly t ASSIGNED, on both sides ---
+<1>1. ENABLED <<GP2!ProcessTasks({t})>>_(GP2!vars) <=> t \in AssignedTask
+    <2>1. GP2!ProcessTasks({t}) => taskStateBar' /= taskStateBar
+        BY DEF GP2!AssignedTask, GP2!ProcessTasks, taskStateBar
+    <2>2. <<GP2!ProcessTasks({t})>>_(GP2!vars) <=> GP2!ProcessTasks({t})
+        BY <2>1 DEF GP2!vars
+    <2>3. ENABLED <<GP2!ProcessTasks({t})>>_(GP2!vars) <=> ENABLED GP2!ProcessTasks({t})
+        BY <2>2, ENABLEDaxioms
+    <2>4. ENABLED GP2!ProcessTasks({t}) <=> t \in GP2!AssignedTask
+        BY ExpandENABLED, Zenon DEF GP2!AssignedTask, GP2!ProcessTasks, taskStateBar
+    <2>. QED
+        BY <2>3, <2>4, LemGP2BarStates
+<1>2. ENABLED <<ProcessTasks({t})>>_vars <=> t \in AssignedTask
+    <2>1. ProcessTasks({t}) => taskState' /= taskState
+        BY Zenon DEF AssignedTask, ProcessTasks
+    <2>2. <<ProcessTasks({t})>>_vars <=> ProcessTasks({t})
+        BY <2>1 DEF vars
+    <2>3. ENABLED <<ProcessTasks({t})>>_vars <=> ENABLED ProcessTasks({t})
+        BY <2>2, ENABLEDaxioms
+    <2>4. ENABLED ProcessTasks({t}) <=> t \in AssignedTask
+        BY ExpandENABLED, Zenon DEF AssignedTask, ProcessTasks
+    <2>. QED
+        BY <2>3, <2>4
+\* --- processing is a once-per-task event ---
+<1>3. <<ProcessTasks({t})>>_vars => Processed'
+    BY Zenon DEF ProcessTasks, AssignedTask
+<1>4. TypeOk /\ Processed /\ [Next]_vars => Processed'
+    BY LemTP3TaskStateStable
+<1>5. Processed => ~ (t \in AssignedTask)
+    BY DEF AssignedTask
+\* --- infinitely often enabled forces a firing, after which t is never
+\* --- assigned again: contradiction
+<1>. QED
+    BY <1>1, <1>2, <1>3, <1>4, <1>5, PTL
+
+(* WF(GP2!AssignUpstream(t, o)) -- the centerpiece. GP2 sees a parked task as *)
+(* STAGED, so its assignment fairness demands progress whenever the task sits *)
+(* parked on an open path to the live target o. GP3 discharges it by cases on *)
+(* how the task is parked: a STOPPED task on an open path to o is eventually  *)
+(* discarded (leaving the Bar-staged region -- contradiction); a pending stop *)
+(* request on a staged/paused task is eventually acknowledged (STOPPED,       *)
+(* previous case); a pause request pending forever is eventually resumed      *)
+(* away; and a staged task with no pending request is assignable, so GP3's    *)
+(* strong assignment fairness fires through the churn.                        *)
+LEMMA LemRefineGP2WFAssignTasks ==
+    ASSUME NEW t \in Task, NEW o \in Object
+    PROVE  /\ []TypeOk /\ []TP3!TaskSafetyInv /\ [][Next]_vars
+           /\ SF_vars(AssignUpstream(t, o))
+           /\ WF_vars(StopTasks({t}))
+           /\ WF_vars(ResumeUpstream(t, o))
+           /\ WF_vars(DiscardStoppedUpstream(t, o))
+           => WF_(GP2!vars)(GP2!AssignUpstream(t, o))
+<1>. DEFINE Up == IsTaskUpstreamOnOpenPathToTarget(t, o)
+<1>. SUFFICES /\ []TypeOk /\ []TP3!TaskSafetyInv /\ [][Next]_vars
+              /\ SF_vars(AssignUpstream(t, o))
+              /\ WF_vars(StopTasks({t}))
+              /\ WF_vars(ResumeUpstream(t, o))
+              /\ WF_vars(DiscardStoppedUpstream(t, o))
+              /\ <>[]ENABLED <<GP2!AssignUpstream(t, o)>>_(GP2!vars)
+              /\ <>[][~ GP2!AssignUpstream(t, o)]_(GP2!vars)
+              => FALSE
+    BY PTL
+\* --- ENABLED characterizations ---
+<1>1. ENABLED <<GP2!AssignUpstream(t, o)>>_(GP2!vars)
+      <=> Up /\ (t \in StagedTask \/ t \in PausedTask \/ t \in StoppedTask)
+    <2>1. GP2!AssignUpstream(t, o) => taskStateBar' /= taskStateBar
+        BY DEF GP2!AssignTasks, GP2!AssignUpstream, GP2!StagedTask, taskStateBar
+    <2>2. <<GP2!AssignUpstream(t, o)>>_(GP2!vars) <=> GP2!AssignUpstream(t, o)
+        BY <2>1 DEF GP2!vars
+    <2>3. ENABLED <<GP2!AssignUpstream(t, o)>>_(GP2!vars) <=> ENABLED GP2!AssignUpstream(t, o)
+        BY <2>2, ENABLEDaxioms
+    <2>4. ENABLED GP2!AssignUpstream(t, o)
+          <=> GP2!IsTaskUpstreamOnOpenPathToTarget(t, o) /\ t \in GP2!StagedTask
+        BY ExpandENABLED, Zenon
+        DEF GP2!AssignUpstream, GP2!AssignTasks, GP2!StagedTask, taskStateBar
+    <2>. QED
+        BY <2>3, <2>4, LemGP2BarStates, LemGP2OpenNodeBridge
+<1>2. ENABLED <<StopTasks({t})>>_vars
+      <=> t \in stoppingRequested /\ (t \in StagedTask \/ t \in PausedTask)
+    <2>1. StopTasks({t}) => taskState' /= taskState
+        BY DEF StopTasks, StagedTask, PausedTask
+    <2>2. <<StopTasks({t})>>_vars <=> StopTasks({t})
+        BY <2>1 DEF vars
+    <2>3. ENABLED <<StopTasks({t})>>_vars <=> ENABLED StopTasks({t})
+        BY <2>2, ENABLEDaxioms
+    <2>4. ENABLED StopTasks({t})
+          <=> t \in stoppingRequested /\ (t \in StagedTask \/ t \in PausedTask)
+        BY ExpandENABLED, Zenon DEF StopTasks
+    <2>. QED
+        BY <2>3, <2>4
+<1>3. ENABLED <<ResumeUpstream(t, o)>>_vars <=> Up /\ t \in pausingRequested
+    <2>1. ResumeUpstream(t, o) => pausingRequested' /= pausingRequested
+        BY Zenon DEF ResumeTasks, ResumeUpstream
+    <2>2. <<ResumeUpstream(t, o)>>_vars <=> ResumeUpstream(t, o)
+        BY <2>1 DEF vars
+    <2>3. ENABLED <<ResumeUpstream(t, o)>>_vars <=> ENABLED ResumeUpstream(t, o)
+        BY <2>2, ENABLEDaxioms
+    <2>4. ENABLED ResumeUpstream(t, o) <=> Up /\ t \in pausingRequested
+        BY ExpandENABLED, Zenon DEF ResumeTasks, ResumeUpstream
+    <2>. QED
+        BY <2>3, <2>4
+<1>4. ENABLED <<DiscardStoppedUpstream(t, o)>>_vars <=> Up /\ t \in StoppedTask
+    <2>1. DiscardStoppedUpstream(t, o) => taskState' /= taskState
+        BY Zenon DEF DiscardStoppedUpstream, DiscardTasks, StoppedTask
+    <2>2. <<DiscardStoppedUpstream(t, o)>>_vars <=> DiscardStoppedUpstream(t, o)
+        BY <2>1 DEF vars
+    <2>3. ENABLED <<DiscardStoppedUpstream(t, o)>>_vars <=> ENABLED DiscardStoppedUpstream(t, o)
+        BY <2>2, ENABLEDaxioms
+    <2>4. ENABLED DiscardStoppedUpstream(t, o) <=> Up /\ t \in StoppedTask
+        BY ExpandENABLED, Zenon DEF DiscardStoppedUpstream, DiscardTasks, StoppedTask
+    <2>. QED
+        BY <2>3, <2>4
+<1>5. ENABLED <<AssignUpstream(t, o)>>_vars
+      <=> /\ Up /\ t \in StagedTask
+          /\ ~ (t \in stoppingRequested) /\ ~ (t \in pausingRequested)
+    <2>1. AssignUpstream(t, o) => taskState' /= taskState
+        BY DEF AssignTasks, AssignUpstream, StagedTask
+    <2>2. <<AssignUpstream(t, o)>>_vars <=> AssignUpstream(t, o)
+        BY <2>1 DEF vars
+    <2>3. ENABLED <<AssignUpstream(t, o)>>_vars <=> ENABLED AssignUpstream(t, o)
+        BY <2>2, ENABLEDaxioms
+    <2>4. ENABLED AssignUpstream(t, o)
+          <=> /\ Up /\ t \in StagedTask
+              /\ ~ (t \in stoppingRequested) /\ ~ (t \in pausingRequested)
+        BY ExpandENABLED, Zenon DEF AssignTasks, AssignUpstream, StagedTask
+    <2>. QED
+        BY <2>3, <2>4
+\* --- step refinement and firing effects ---
+<1>6. <<AssignUpstream(t, o)>>_vars => <<GP2!AssignUpstream(t, o)>>_(GP2!vars)
+    <2>. SUFFICES ASSUME AssignUpstream(t, o)
+                  PROVE  GP2!AssignUpstream(t, o) /\ GP2!vars' /= GP2!vars
+        BY DEF vars
+    <2>1. taskStateBar' = [s \in Task |-> IF s \in {t} THEN TASK_ASSIGNED ELSE taskStateBar[s]]
+        <3>. SUFFICES ASSUME NEW u \in Task
+                      PROVE taskStateBar'[u] = IF u \in {t} THEN TASK_ASSIGNED ELSE taskStateBar[u]
+            BY DEF AssignTasks, AssignUpstream, taskStateBar
+        <3>. QED
+            BY DEF AssignTasks, AssignUpstream, StagedTask, taskStateBar
+    <2>2. GP2!AssignTasks({t})
+        <3>1. {t} \subseteq GP2!StagedTask
+            BY LemGP2BarStates DEF AssignTasks, AssignUpstream
+        <3>. QED
+            BY <2>1, <3>1 DEF AssignTasks, AssignUpstream, GP2!AssignTasks
+    <2>3. GP2!IsTaskUpstreamOnOpenPathToTarget(t, o)
+        BY LemGP2OpenNodeBridge DEF AssignUpstream
+    <2>4. taskStateBar' /= taskStateBar
+        BY <2>1 DEF AssignTasks, AssignUpstream, StagedTask, taskStateBar
+    <2>. QED
+        BY <2>2, <2>3, <2>4, Zenon DEF GP2!AssignUpstream, GP2!vars
+<1>7. (t \in StagedTask \/ t \in PausedTask) /\ <<StopTasks({t})>>_vars
+      => (t \in StoppedTask)'
+    BY Zenon DEF StoppedTask, StopTasks, vars
+<1>8. <<ResumeUpstream(t, o)>>_vars => ~ ((t \in pausingRequested)')
+    BY Zenon DEF ResumeTasks, ResumeUpstream, vars
+<1>9. <<DiscardStoppedUpstream(t, o)>>_vars => (t \in DiscardedTask)'
+    BY Zenon DEF DiscardedTask, DiscardStoppedUpstream, DiscardTasks, vars
+\* --- stability and state validities ---
+<1>10. TypeOk /\ t \in StoppedTask /\ [Next]_vars
+       => (t \in StoppedTask)' \/ (t \in DiscardedTask)'
+    BY LemTP3TaskStateStable DEF StoppedTask, DiscardedTask
+<1>11. TypeOk /\ t \in stoppingRequested /\ [Next]_vars => (t \in stoppingRequested)'
+    BY LemTP3StoppingRequestStable
+<1>12. /\ t \in DiscardedTask
+          => ~ (t \in StagedTask) /\ ~ (t \in PausedTask) /\ ~ (t \in StoppedTask)
+       /\ t \in StoppedTask => ~ (t \in StagedTask) /\ ~ (t \in PausedTask)
+       /\ TP3!TaskSafetyInv => (t \in PausedTask => t \in pausingRequested)
+    BY LemTP3States, Zenon
+    DEF DiscardedTask, PausedTask, StagedTask, StoppedTask, TP3!TaskSafetyInv,
+        TP3!TaskStateIntegrity
+\* --- the contradiction ladder: while the Bar-assignment stays enabled and
+\* --- unfired, t is eventually never stopped, then never stop-requested, then
+\* --- forever pause-requested -- which the resumption fairness refutes.
+<1>13. /\ []TypeOk /\ [][Next]_vars
+       /\ WF_vars(DiscardStoppedUpstream(t, o))
+       /\ <>[](Up /\ (t \in StagedTask \/ t \in PausedTask \/ t \in StoppedTask))
+       => <>[](~ (t \in StoppedTask))
+    BY <1>4, <1>9, <1>10, <1>12, PTL
+<1>14. /\ []TypeOk /\ [][Next]_vars
+       /\ WF_vars(StopTasks({t}))
+       /\ <>[](t \in StagedTask \/ t \in PausedTask \/ t \in StoppedTask)
+       /\ <>[](~ (t \in StoppedTask))
+       => <>[](~ (t \in stoppingRequested))
+    BY <1>2, <1>7, <1>11, PTL
+<1>15. /\ []TP3!TaskSafetyInv
+       /\ SF_vars(AssignUpstream(t, o))
+       /\ <>[][~ AssignUpstream(t, o)]_vars
+       /\ <>[](Up /\ (t \in StagedTask \/ t \in PausedTask \/ t \in StoppedTask))
+       /\ <>[](~ (t \in StoppedTask))
+       /\ <>[](~ (t \in stoppingRequested))
+       => <>[](t \in pausingRequested)
+    BY <1>5, <1>12, PTL
+<1>16. /\ WF_vars(ResumeUpstream(t, o))
+       /\ <>[]Up
+       /\ <>[](t \in pausingRequested)
+       => FALSE
+    BY <1>3, <1>8, PTL
+<1>. QED
+    BY <1>1, <1>6, <1>13, <1>14, <1>15, <1>16, PTL
+
+(* GP2's open-upstream constraint: the open ancestor subgraph and the         *)
+(* subgraph relation are mapping-independent, so each per-object conjunct     *)
+(* transfers through the boxed bridge (a subscript change on a stable value). *)
+LEMMA LemRefineGP2OpenUpstreamEventuallyClosed ==
+    OpenUpstreamEventuallyClosed => GP2!OpenUpstreamEventuallyClosed
+<1>. DEFINE A(x) == AncestorSubGraph(deps, x, IsOpenNode)
+            B(x) == GP2!AncestorSubGraph(deps, x, GP2!IsOpenNode)
+<1>. USE DEF OpenUpstreamEventuallyClosed, GP2!OpenUpstreamEventuallyClosed
+<1>. SUFFICES ASSUME NEW o \in Object
+              PROVE  OpenUpstreamEventuallyClosed
+                     => <>[][B(o)' \in GP2!DirectedSubgraph(B(o))]_(B(o))
+    BY Isa
+\* --- the open ancestor subgraphs coincide in every state, boxed in the clean
+\* --- context, and one constraint step is then one GP2 constraint step
+<1>1. [](B(o) = A(o))
+    <2>1. B(o) = A(o)
+        BY LemGP2OpenNodeBridge
+    <2>. QED
+        BY <2>1, PTL
+<1>2. B(o) = A(o) /\ (B(o) = A(o))'
+      => ([A(o)' \in DirectedSubgraph(A(o))]_(A(o))
+          => [B(o)' \in GP2!DirectedSubgraph(B(o))]_(B(o)))
+    BY LemGP2GraphBridges
+<1>3. OpenUpstreamEventuallyClosed
+      => <>[][A(o)' \in DirectedSubgraph(A(o))]_(A(o))
+    BY Isa
+<1>. QED
+    BY <1>1, <1>2, <1>3, PTL
+
+(*****************************************************************************)
+(* REFINEMENT OF GraphProcessing2 -- THE FULL THEOREM                        *)
+(*****************************************************************************)
+
+THEOREM GP3_RefineGraphProcessing2 == Spec => RefineGraphProcessing2
+<1>. SUFFICES ASSUME Spec
+              PROVE  GP2!Spec
+    BY DEF RefineGraphProcessing2
+<1>1. []TypeOk /\ []TP3!TaskSafetyInv
+    BY LemTypeOk, LemTP3TaskSafetyInv DEF Spec
+<1>2. [][Next]_vars /\ Fairness /\ OpenUpstreamEventuallyClosed
+    BY DEF Spec
+(* Initial state, step simulation and the open-upstream constraint. *)
+<1>3. GP2!Init /\ [][GP2!Next]_(GP2!vars)
+    BY LemRefineGP2InitNext DEF Spec
+<1>4. GP2!OpenUpstreamEventuallyClosed
+    BY <1>2, LemRefineGP2OpenUpstreamEventuallyClosed
+(* Object fairness, conjunct by conjunct. *)
+<1>5. \A o \in Object : /\ WF_(GP2!vars)(GP2!CompleteObjects({o}))
+                       /\ WF_(GP2!vars)(GP2!AbortObjects({o}))
+    <2>. SUFFICES ASSUME NEW o \in Object
+                  PROVE  /\ WF_(GP2!vars)(GP2!CompleteObjects({o}))
+                         /\ WF_(GP2!vars)(GP2!AbortObjects({o}))
+        OBVIOUS
+    <2>1. WF_vars(CompleteObjects({o})) /\ WF_vars(AbortObjects({o}))
+        BY <1>2, Isa DEF Fairness
+    <2>. QED
+        BY <2>1, LemRefineGP2WFCompleteObjects, LemRefineGP2WFAbortObjects
+(* Task fairness, conjunct by conjunct. *)
+<1>6. ASSUME NEW t \in Task
+      PROVE  /\ WF_(GP2!vars)(\E u \in Task : GP2!SetTaskRetries({t}, {u}))
+             /\ WF_(GP2!vars)(GP2!RegisterGraph(GP2!RetrySubGraph(deps, t, nextAttemptOf[t])))
+             /\ WF_(GP2!vars)(GP2!StageTasks({t}))
+             /\ WF_(GP2!vars)(GP2!DiscardOnAbortedInput(t))
+             /\ SF_(GP2!vars)(GP2!ProcessTasks({t}))
+             /\ WF_(GP2!vars)(GP2!CompleteTasks({t}))
+             /\ WF_(GP2!vars)(GP2!AbortTasks({t}))
+             /\ WF_(GP2!vars)(GP2!RetryTasks({t}))
+    <2>1. /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
+          /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
+          /\ WF_vars(StageTasks({t}))
+          /\ WF_vars(DiscardOnAbortedInput(t))
+          /\ SF_vars(ProcessTasks({t}))
+          /\ WF_vars(CompleteTasks({t}))
+          /\ WF_vars(AbortTasks({t}))
+          /\ WF_vars(RetryTasks({t}))
+        BY <1>2, Isa DEF Fairness, DiscardOnAbortedInput
+    <2>. QED
+        BY <1>1, <1>2, <2>1, LemRefineGP2WFSetTaskRetries, LemRefineGP2WFRegisterRetrySubGraph,
+           LemRefineGP2WFStageTasks, LemRefineGP2WFDiscardOnAbortedInput,
+           LemRefineGP2SFProcessTasks, LemRefineGP2WFCompleteTasks, LemRefineGP2WFAbortTasks,
+           LemRefineGP2WFRetryTasks
+(* Assignment fairness, per (task, object) pair. *)
+<1>7. ASSUME NEW t \in Task, NEW o \in Object
+      PROVE  WF_(GP2!vars)(GP2!AssignUpstream(t, o))
+    <2>1. /\ SF_vars(AssignUpstream(t, o))
+          /\ WF_vars(StopTasks({t}))
+          /\ WF_vars(ResumeUpstream(t, o))
+          /\ WF_vars(DiscardStoppedUpstream(t, o))
+        BY <1>2, Isa DEF Fairness, AssignUpstream, ResumeUpstream, DiscardStoppedUpstream
+    <2>. QED
+        BY <1>1, <1>2, <2>1, LemRefineGP2WFAssignTasks
+<1>8. GP2!Fairness
+    BY <1>5, <1>6, <1>7, Isa
+    DEF GP2!Fairness, GP2!DiscardOnAbortedInput, GP2!AssignUpstream
+<1>. QED
+    BY <1>3, <1>4, <1>8 DEF GP2!Spec
+
+(*****************************************************************************)
+(* REFINEMENT OF TaskProcessing3 -- FAIRNESS                                 *)
+(*                                                                           *)
+(* The task projection is the identity, so the SetTaskRetries, ProcessTasks, *)
+(* StopTasks and PauseTasks conjuncts transfer directly from GP3's           *)
+(* fairness. The clone conjuncts (RegisterTasks / StageTasks on              *)
+(* nextAttemptOf[t]) and the finalization trio (Complete / Abort / Retry)    *)
+(* are not directly fair at GP3 level (the graph adds guards); they are      *)
+(* lifted from TaskProcessing2's fairness under the Bar, retrieved through   *)
+(* the GraphProcessing2 refinement, with TaskProcessing3's step-level        *)
+(* converse of its TaskProcessing2 refinement (Lem<A>FromTP2Step).           *)
+(*****************************************************************************)
+
+(* TaskProcessing2's specification under the Bar, retrieved through the       *)
+(* GraphProcessing2 refinement.                                               *)
+LEMMA LemGP2RefineTaskProcessing2 == Spec => GP2!RefineTaskProcessing2
+<1>1. Spec => GP2!Spec
+    BY GP3_RefineGraphProcessing2 DEF RefineGraphProcessing2
+<1>2. GP2!Spec => GP2!RefineTaskProcessing2
+    BY GP2!GP2_RefineTaskProcessing2, LemGP2Assumptions, Isa
+<1>. QED
+    BY <1>1, <1>2
+
+(* WF(TP3!SetTaskRetries): direct transfer -- the actions coincide on the     *)
+(* task variables.                                                            *)
+LEMMA LemRefineTP3WFSetTaskRetries ==
+    ASSUME NEW t \in Task
+    PROVE  WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
+           => WF_(TP3!vars)(\E u \in Task : TP3!SetTaskRetries({t}, {u}))
+<1>1. ENABLED <<\E u \in Task : TP3!SetTaskRetries({t}, {u})>>_(TP3!vars)
+      => ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
+    <2>1. ENABLED <<\E u \in Task : TP3!SetTaskRetries({t}, {u})>>_(TP3!vars)
+          => \E u \in Task : /\ t \in TP3!UnretriedTask
+                             /\ u \in TP3!UnknownTask
+                             /\ ~ \E v \in Task : nextAttemptOf[v] = u
+        BY ExpandENABLED DEF TP3!SetTaskRetries, TP3!vars
+    <2>2. (\E u \in Task : /\ t \in UnretriedTask
+                           /\ u \in UnknownTask
+                           /\ ~ \E v \in Task : nextAttemptOf[v] = u)
+          => ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
+        <3>. SUFFICES ASSUME NEW u0 \in Task, t \in UnretriedTask, u0 \in UnknownTask,
+                             ~ \E v \in Task : nextAttemptOf[v] = u0
+                      PROVE  ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
+            BY Zenon
+        <3>1. ENABLED <<SetTaskRetries({t}, {u0})>>_vars
+            <4>. SUFFICES \E depsp, objectStatep, objectTargetsp, taskStatep,
+                             nextAttemptOfp, stoppingRequestedp, pausingRequestedp :
+                             /\ {t} # {}
+                             /\ {t} \subseteq UnretriedTask
+                             /\ {u0} \subseteq UnknownTask
+                             /\ \A v \in {u0} : ~ \E w \in Task : nextAttemptOf[w] = v
+                             /\ \E f \in Bijection({t}, {u0}) :
+                                     nextAttemptOfp
+                                     = [t_1 \in Task |->
+                                         IF t_1 \in {t} THEN f[t_1] ELSE nextAttemptOf[t_1]]
+                             /\ taskStatep = taskState
+                             /\ depsp = deps
+                             /\ objectStatep = objectState
+                             /\ objectTargetsp = objectTargets
+                             /\ stoppingRequestedp = stoppingRequested
+                             /\ pausingRequestedp = pausingRequested
+                             /\ ~ (/\ depsp = deps
+                                   /\ objectStatep = objectState
+                                   /\ objectTargetsp = objectTargets
+                                   /\ taskStatep = taskState
+                                   /\ nextAttemptOfp = nextAttemptOf
+                                   /\ stoppingRequestedp = stoppingRequested
+                                   /\ pausingRequestedp = pausingRequested)
+                BY ExpandENABLED, SMT DEF SetTaskRetries, vars
+            <4>. DEFINE g == [x \in {t} |-> u0]
+            <4>1. g \in Bijection({t}, {u0})
+                BY DEF Bijection, Injection, IsInjective, Surjection
+            <4>2. [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]]
+                  /= nextAttemptOf
+                <5>1. nextAttemptOf[t] = NULL
+                    BY DEF FailedTask, UnretriedTask
+                <5>2. [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]][t] = u0
+                    BY DEF Bijection, Injection, Surjection
+                <5>3. u0 /= NULL
+                    BY GP3Assumptions DEF UnknownTask
+                <5>. QED
+                    BY <5>1, <5>2, <5>3
+            <4>3. WITNESS deps, objectState, objectTargets, taskState,
+                          [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]],
+                          stoppingRequested, pausingRequested
+            <4>. QED
+                BY <4>1, <4>2, Zenon
+        <3>2. ENABLED <<SetTaskRetries({t}, {u0})>>_vars
+              => ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
+            BY ExpandENABLED, SMT DEF SetTaskRetries, vars
+        <3>. QED
+            BY <3>1, <3>2
+    <2>. QED
+        BY <2>1, <2>2, LemTP3States, Zenon
+<1>2. <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
+      => <<\E u \in Task : TP3!SetTaskRetries({t}, {u})>>_(TP3!vars)
+    <2>. SUFFICES ASSUME NEW u \in Task, SetTaskRetries({t}, {u})
+                  PROVE  TP3!SetTaskRetries({t}, {u}) /\ TP3!vars' /= TP3!vars
+        BY Zenon DEF vars
+    <2>1. TP3!SetTaskRetries({t}, {u})
+        BY LemTP3States, LemTP3Bridges, Zenon
+        DEF SetTaskRetries, TP3!SetTaskRetries
+    <2>2. nextAttemptOf' /= nextAttemptOf
+        <3>1. PICK f \in Bijection({t}, {u}) :
+                nextAttemptOf' = [s \in Task |-> IF s \in {t} THEN f[s] ELSE nextAttemptOf[s]]
+            BY Zenon DEF SetTaskRetries
+        <3>2. nextAttemptOf'[t] = f[t] /\ f[t] = u
+            BY <3>1 DEF Bijection, Injection, Surjection
+        <3>3. nextAttemptOf[t] /= u
+            BY Zenon DEF SetTaskRetries
+        <3>. QED
+            BY <3>1, <3>2, <3>3
+    <2>. QED
+        BY <2>1, <2>2, Zenon DEF TP3!vars
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+(* SF(TP3!ProcessTasks): direct transfer (identical action on the task        *)
+(* variables, enabled exactly when the task is assigned).                     *)
+LEMMA LemRefineTP3SFProcessTasks ==
+    ASSUME NEW t \in Task
+    PROVE  SF_vars(ProcessTasks({t})) => SF_(TP3!vars)(TP3!ProcessTasks({t}))
+<1>1. ENABLED <<TP3!ProcessTasks({t})>>_(TP3!vars) => ENABLED <<ProcessTasks({t})>>_vars
+    <2>1. TP3!ProcessTasks({t}) => taskState' /= taskState
+        BY Zenon DEF TP3!AssignedTask, TP3!ProcessTasks
+    <2>2. <<TP3!ProcessTasks({t})>>_(TP3!vars) <=> TP3!ProcessTasks({t})
+        BY <2>1 DEF TP3!vars
+    <2>3. ENABLED <<TP3!ProcessTasks({t})>>_(TP3!vars) <=> ENABLED TP3!ProcessTasks({t})
+        BY <2>2, ENABLEDaxioms
+    <2>4. ENABLED TP3!ProcessTasks({t}) <=> t \in TP3!AssignedTask
+        BY ExpandENABLED, Zenon DEF TP3!AssignedTask, TP3!ProcessTasks
+    <2>5. ProcessTasks({t}) => taskState' /= taskState
+        BY Zenon DEF AssignedTask, ProcessTasks
+    <2>6. <<ProcessTasks({t})>>_vars <=> ProcessTasks({t})
+        BY <2>5 DEF vars
+    <2>7. ENABLED <<ProcessTasks({t})>>_vars <=> ENABLED ProcessTasks({t})
+        BY <2>6, ENABLEDaxioms
+    <2>8. ENABLED ProcessTasks({t}) <=> t \in AssignedTask
+        BY ExpandENABLED, Zenon DEF AssignedTask, ProcessTasks
+    <2>. QED
+        BY <2>3, <2>4, <2>7, <2>8, LemTP3States, Zenon
+<1>2. <<ProcessTasks({t})>>_vars => <<TP3!ProcessTasks({t})>>_(TP3!vars)
+    <2>. SUFFICES ASSUME ProcessTasks({t})
+                  PROVE  TP3!ProcessTasks({t}) /\ TP3!vars' /= TP3!vars
+        BY DEF vars
+    <2>1. TP3!ProcessTasks({t})
+        <3>1. (\A s \in {t}: Cardinality(PreviousAttempts(s)) < MaxRetries)
+              => \A s \in {t}: TP3!Cardinality(TP3!PreviousAttempts(s)) < MaxRetries
+            BY LemTP3Bridges, Zenon
+        <3>. QED
+            BY <3>1, LemTP3States, Zenon DEF ProcessTasks, TP3!ProcessTasks
+    <2>2. taskState' /= taskState
+        BY Zenon DEF AssignedTask, ProcessTasks
+    <2>. QED
+        BY <2>1, <2>2, Zenon DEF TP3!vars
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+(* WF(TP3!StopTasks), WF(TP3!PauseTasks): direct transfer -- stop and pause   *)
+(* acknowledgments coincide under the identity mapping.                       *)
+LEMMA LemRefineTP3WFStopTasks ==
+    ASSUME NEW t \in Task
+    PROVE  WF_vars(StopTasks({t})) => WF_(TP3!vars)(TP3!StopTasks({t}))
+<1>1. ENABLED <<TP3!StopTasks({t})>>_(TP3!vars) => ENABLED <<StopTasks({t})>>_vars
+    <2>1. ENABLED <<TP3!StopTasks({t})>>_(TP3!vars) => t \in stoppingRequested /\ t \in StagedTask \union PausedTask
+        <3>. SUFFICES ASSUME NEW taskStatep, NEW nextAttemptOfp,
+                             NEW stoppingRequestedp, NEW pausingRequestedp,
+                             {t} \subseteq stoppingRequested,
+                             {t} \subseteq TP3!StagedTask \union TP3!PausedTask
+                      PROVE  t \in stoppingRequested /\ t \in StagedTask \union PausedTask
+            BY ExpandENABLED DEF TP3!StopTasks, TP3!vars
+        <3>. QED
+            BY LemTP3States
+    <2>2. t \in stoppingRequested /\ t \in StagedTask \union PausedTask => ENABLED <<StopTasks({t})>>_vars
+        <3>1. StopTasks({t}) => taskState' /= taskState
+            BY DEF StopTasks, StagedTask, PausedTask
+        <3>2. <<StopTasks({t})>>_vars <=> StopTasks({t})
+            BY <3>1 DEF vars
+        <3>3. ENABLED <<StopTasks({t})>>_vars <=> ENABLED StopTasks({t})
+            BY <3>2, ENABLEDaxioms
+        <3>4. t \in stoppingRequested /\ t \in StagedTask \union PausedTask => ENABLED StopTasks({t})
+            BY ExpandENABLED, Zenon DEF StopTasks
+        <3>. QED
+            BY <3>3, <3>4
+    <2>. QED
+        BY <2>1, <2>2
+<1>2. <<StopTasks({t})>>_vars => <<TP3!StopTasks({t})>>_(TP3!vars)
+    <2>. SUFFICES ASSUME StopTasks({t}), vars' /= vars
+                  PROVE  TP3!StopTasks({t}) /\ TP3!vars' /= TP3!vars
+        BY DEF vars
+    <2>1. TP3!StopTasks({t})
+        BY LemTP3States, Zenon DEF StopTasks, TP3!StopTasks
+    <2>2. TP3!vars' /= TP3!vars
+        BY Zenon DEF StopTasks, TP3!vars, vars
+    <2>. QED
+        BY <2>1, <2>2
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+LEMMA LemRefineTP3WFPauseTasks ==
+    ASSUME NEW t \in Task
+    PROVE  WF_vars(PauseTasks({t})) => WF_(TP3!vars)(TP3!PauseTasks({t}))
+<1>1. ENABLED <<TP3!PauseTasks({t})>>_(TP3!vars) => ENABLED <<PauseTasks({t})>>_vars
+    <2>1. ENABLED <<TP3!PauseTasks({t})>>_(TP3!vars) => t \in pausingRequested /\ t \in StagedTask
+        <3>. SUFFICES ASSUME NEW taskStatep, NEW nextAttemptOfp,
+                             NEW stoppingRequestedp, NEW pausingRequestedp,
+                             {t} \subseteq pausingRequested,
+                             {t} \subseteq TP3!StagedTask
+                      PROVE  t \in pausingRequested /\ t \in StagedTask
+            BY ExpandENABLED DEF TP3!PauseTasks, TP3!vars
+        <3>. QED
+            BY LemTP3States
+    <2>2. t \in pausingRequested /\ t \in StagedTask => ENABLED <<PauseTasks({t})>>_vars
+        <3>1. PauseTasks({t}) => taskState' /= taskState
+            BY DEF PauseTasks, StagedTask
+        <3>2. <<PauseTasks({t})>>_vars <=> PauseTasks({t})
+            BY <3>1 DEF vars
+        <3>3. ENABLED <<PauseTasks({t})>>_vars <=> ENABLED PauseTasks({t})
+            BY <3>2, ENABLEDaxioms
+        <3>4. t \in pausingRequested /\ t \in StagedTask => ENABLED PauseTasks({t})
+            BY ExpandENABLED, Zenon DEF PauseTasks
+        <3>. QED
+            BY <3>3, <3>4
+    <2>. QED
+        BY <2>1, <2>2
+<1>2. <<PauseTasks({t})>>_vars => <<TP3!PauseTasks({t})>>_(TP3!vars)
+    <2>. SUFFICES ASSUME PauseTasks({t}), vars' /= vars
+                  PROVE  TP3!PauseTasks({t}) /\ TP3!vars' /= TP3!vars
+        BY DEF vars
+    <2>1. TP3!PauseTasks({t})
+        BY LemTP3States, Zenon DEF PauseTasks, TP3!PauseTasks
+    <2>2. TP3!vars' /= TP3!vars
+        BY Zenon DEF PauseTasks, TP3!vars, vars
+    <2>. QED
+        BY <2>1, <2>2
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+(* The finalization trio and the clone registration / staging: both sides are *)
+(* enabled on the same state class, and a Bar step of the TaskProcessing2     *)
+(* action is a step of the TaskProcessing3 action (Lem<A>FromTP2Step).        *)
+LEMMA LemRefineTP3WFCompleteTasks ==
+    ASSUME NEW t \in Task
+    PROVE  /\ []TypeOk /\ [][Next]_vars
+           /\ WF_(GP2!TP2!vars)(GP2!TP2!CompleteTasks({t}))
+           => WF_(TP3!vars)(TP3!CompleteTasks({t}))
+<1>1. ENABLED <<TP3!CompleteTasks({t})>>_(TP3!vars)
+      => ENABLED <<GP2!TP2!CompleteTasks({t})>>_(GP2!TP2!vars)
+    <2>1. TP3!CompleteTasks({t}) => taskState' /= taskState
+        BY DEF TP3!CompleteTasks, TP3!SucceededTask
+    <2>2. <<TP3!CompleteTasks({t})>>_(TP3!vars) <=> TP3!CompleteTasks({t})
+        BY <2>1 DEF TP3!vars
+    <2>3. ENABLED <<TP3!CompleteTasks({t})>>_(TP3!vars) <=> ENABLED TP3!CompleteTasks({t})
+        BY <2>2, ENABLEDaxioms
+    <2>4. ENABLED TP3!CompleteTasks({t}) <=> t \in TP3!SucceededTask
+        BY ExpandENABLED, Zenon DEF TP3!CompleteTasks, TP3!SucceededTask
+    <2>5. GP2!TP2!CompleteTasks({t}) => taskStateBar' /= taskStateBar
+        BY DEF GP2!TP2!CompleteTasks, GP2!TP2!SucceededTask, taskStateBar
+    <2>6. <<GP2!TP2!CompleteTasks({t})>>_(GP2!TP2!vars) <=> GP2!TP2!CompleteTasks({t})
+        BY <2>5 DEF GP2!TP2!vars
+    <2>7. ENABLED <<GP2!TP2!CompleteTasks({t})>>_(GP2!TP2!vars)
+          <=> ENABLED GP2!TP2!CompleteTasks({t})
+        BY <2>6, ENABLEDaxioms
+    <2>8. ENABLED GP2!TP2!CompleteTasks({t}) <=> t \in GP2!TP2!SucceededTask
+        BY ExpandENABLED, Zenon
+        DEF GP2!TP2!CompleteTasks, GP2!TP2!SucceededTask, taskStateBar
+    <2>. QED
+        BY <2>3, <2>4, <2>7, <2>8, LemGP2TP2BarStates, LemTP3States, Zenon
+<1>2. TypeOk /\ [Next]_vars /\ <<GP2!TP2!CompleteTasks({t})>>_(GP2!TP2!vars)
+      => <<TP3!CompleteTasks({t})>>_(TP3!vars)
+    <2>. SUFFICES ASSUME TypeOk, [Next]_vars, <<GP2!TP2!CompleteTasks({t})>>_(GP2!TP2!vars)
+                  PROVE  <<TP3!CompleteTasks({t})>>_(TP3!vars)
+        OBVIOUS
+    <2>1. TP3!TypeOk /\ [TP3!Next]_(TP3!vars)
+        BY LemRefineTP3Next DEF TypeOk, TP3!TypeOk, TP3State, TP3!TP3State
+    <2>2. <<TP3!TP2!CompleteTasks({t})>>_(TP3!TP2!vars)
+        BY LemGP2TP2Bridges
+    <2>. QED
+        BY <2>1, <2>2, TP3!LemCompleteTasksFromTP2Step, LemTP3Assumptions
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+LEMMA LemRefineTP3WFAbortTasks ==
+    ASSUME NEW t \in Task
+    PROVE  /\ []TypeOk /\ [][Next]_vars
+           /\ WF_(GP2!TP2!vars)(GP2!TP2!AbortTasks({t}))
+           => WF_(TP3!vars)(TP3!AbortTasks({t}))
+<1>1. ENABLED <<TP3!AbortTasks({t})>>_(TP3!vars)
+      => ENABLED <<GP2!TP2!AbortTasks({t})>>_(GP2!TP2!vars)
+    <2>1. TP3!AbortTasks({t}) => taskState' /= taskState
+        BY DEF TP3!AbortTasks, TP3!DiscardedTask
+    <2>2. <<TP3!AbortTasks({t})>>_(TP3!vars) <=> TP3!AbortTasks({t})
+        BY <2>1 DEF TP3!vars
+    <2>3. ENABLED <<TP3!AbortTasks({t})>>_(TP3!vars) <=> ENABLED TP3!AbortTasks({t})
+        BY <2>2, ENABLEDaxioms
+    <2>4. ENABLED TP3!AbortTasks({t}) <=> t \in TP3!DiscardedTask
+        BY ExpandENABLED, Zenon DEF TP3!AbortTasks, TP3!DiscardedTask
+    <2>5. GP2!TP2!AbortTasks({t}) => taskStateBar' /= taskStateBar
+        BY DEF GP2!TP2!AbortTasks, GP2!TP2!DiscardedTask, taskStateBar
+    <2>6. <<GP2!TP2!AbortTasks({t})>>_(GP2!TP2!vars) <=> GP2!TP2!AbortTasks({t})
+        BY <2>5 DEF GP2!TP2!vars
+    <2>7. ENABLED <<GP2!TP2!AbortTasks({t})>>_(GP2!TP2!vars)
+          <=> ENABLED GP2!TP2!AbortTasks({t})
+        BY <2>6, ENABLEDaxioms
+    <2>8. ENABLED GP2!TP2!AbortTasks({t}) <=> t \in GP2!TP2!DiscardedTask
+        BY ExpandENABLED, Zenon
+        DEF GP2!TP2!AbortTasks, GP2!TP2!DiscardedTask, taskStateBar
+    <2>. QED
+        BY <2>3, <2>4, <2>7, <2>8, LemGP2TP2BarStates, LemTP3States, Zenon
+<1>2. TypeOk /\ [Next]_vars /\ <<GP2!TP2!AbortTasks({t})>>_(GP2!TP2!vars)
+      => <<TP3!AbortTasks({t})>>_(TP3!vars)
+    <2>. SUFFICES ASSUME TypeOk, [Next]_vars, <<GP2!TP2!AbortTasks({t})>>_(GP2!TP2!vars)
+                  PROVE  <<TP3!AbortTasks({t})>>_(TP3!vars)
+        OBVIOUS
+    <2>1. TP3!TypeOk /\ [TP3!Next]_(TP3!vars)
+        BY LemRefineTP3Next DEF TypeOk, TP3!TypeOk, TP3State, TP3!TP3State
+    <2>2. <<TP3!TP2!AbortTasks({t})>>_(TP3!TP2!vars)
+        BY LemGP2TP2Bridges
+    <2>. QED
+        BY <2>1, <2>2, TP3!LemAbortTasksFromTP2Step, LemTP3Assumptions
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+LEMMA LemRefineTP3WFRetryTasks ==
+    ASSUME NEW t \in Task
+    PROVE  /\ []TypeOk /\ [][Next]_vars
+           /\ WF_(GP2!TP2!vars)(GP2!TP2!RetryTasks({t}))
+           => WF_(TP3!vars)(TP3!RetryTasks({t}))
+<1>1. ENABLED <<TP3!RetryTasks({t})>>_(TP3!vars)
+      => ENABLED <<GP2!TP2!RetryTasks({t})>>_(GP2!TP2!vars)
+    <2>1. TP3!RetryTasks({t}) => taskState' /= taskState
+        BY DEF TP3!FailedTask, TP3!RetryTasks
+    <2>2. <<TP3!RetryTasks({t})>>_(TP3!vars) <=> TP3!RetryTasks({t})
+        BY <2>1 DEF TP3!vars
+    <2>3. ENABLED <<TP3!RetryTasks({t})>>_(TP3!vars) <=> ENABLED TP3!RetryTasks({t})
+        BY <2>2, ENABLEDaxioms
+    <2>4. ENABLED TP3!RetryTasks({t})
+          <=> t \in TP3!FailedTask /\ ~ (t \in TP3!UnretriedTask)
+        BY ExpandENABLED, Zenon DEF TP3!FailedTask, TP3!RetryTasks, TP3!UnretriedTask
+    <2>5. GP2!TP2!RetryTasks({t}) => taskStateBar' /= taskStateBar
+        BY DEF GP2!TP2!FailedTask, GP2!TP2!RetryTasks, taskStateBar
+    <2>6. <<GP2!TP2!RetryTasks({t})>>_(GP2!TP2!vars) <=> GP2!TP2!RetryTasks({t})
+        BY <2>5 DEF GP2!TP2!vars
+    <2>7. ENABLED <<GP2!TP2!RetryTasks({t})>>_(GP2!TP2!vars)
+          <=> ENABLED GP2!TP2!RetryTasks({t})
+        BY <2>6, ENABLEDaxioms
+    <2>8. ENABLED GP2!TP2!RetryTasks({t})
+          <=> t \in GP2!TP2!FailedTask /\ ~ (t \in GP2!TP2!UnretriedTask)
+        BY ExpandENABLED, Zenon
+        DEF GP2!TP2!RetryTasks, GP2!TP2!FailedTask, GP2!TP2!UnretriedTask, taskStateBar
+    <2>. QED
+        BY <2>3, <2>4, <2>7, <2>8, LemGP2TP2BarStates, LemTP3States, Zenon
+<1>2. TypeOk /\ [Next]_vars /\ <<GP2!TP2!RetryTasks({t})>>_(GP2!TP2!vars)
+      => <<TP3!RetryTasks({t})>>_(TP3!vars)
+    <2>. SUFFICES ASSUME TypeOk, [Next]_vars, <<GP2!TP2!RetryTasks({t})>>_(GP2!TP2!vars)
+                  PROVE  <<TP3!RetryTasks({t})>>_(TP3!vars)
+        OBVIOUS
+    <2>1. TP3!TypeOk /\ [TP3!Next]_(TP3!vars)
+        BY LemRefineTP3Next DEF TypeOk, TP3!TypeOk, TP3State, TP3!TP3State
+    <2>2. <<TP3!TP2!RetryTasks({t})>>_(TP3!TP2!vars)
+        BY LemGP2TP2Bridges
+    <2>. QED
+        BY <2>1, <2>2, TP3!LemRetryTasksFromTP2Step, LemTP3Assumptions
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+LEMMA LemRefineTP3WFRegisterTasks ==
+    ASSUME NEW t \in Task
+    PROVE  /\ []TypeOk /\ [][Next]_vars
+           /\ WF_(GP2!TP2!vars)(GP2!TP2!RegisterTasks({nextAttemptOf[t]}))
+           => WF_(TP3!vars)(TP3!RegisterTasks({nextAttemptOf[t]}))
+<1>1. ENABLED <<TP3!RegisterTasks({nextAttemptOf[t]})>>_(TP3!vars)
+      => ENABLED <<GP2!TP2!RegisterTasks({nextAttemptOf[t]})>>_(GP2!TP2!vars)
+    <2>1. TP3!RegisterTasks({nextAttemptOf[t]}) => taskState' /= taskState
+        BY Zenon DEF TP3!RegisterTasks, TP3!UnknownTask
+    <2>2. <<TP3!RegisterTasks({nextAttemptOf[t]})>>_(TP3!vars) <=> TP3!RegisterTasks({nextAttemptOf[t]})
+        BY <2>1 DEF TP3!vars
+    <2>3. ENABLED <<TP3!RegisterTasks({nextAttemptOf[t]})>>_(TP3!vars) <=> ENABLED TP3!RegisterTasks({nextAttemptOf[t]})
+        BY <2>2, ENABLEDaxioms
+    <2>4. TP3!IsFiniteSet({nextAttemptOf[t]}) <=> IsFiniteSet({nextAttemptOf[t]})
+        BY DEF IsFiniteSet, TP3!IsFiniteSet
+    <2>5. ENABLED TP3!RegisterTasks({nextAttemptOf[t]}) <=> nextAttemptOf[t] \in TP3!UnknownTask
+        BY <2>4, FS_Singleton, ExpandENABLED, Zenon
+        DEF TP3!RegisterTasks, TP3!UnknownTask
+    <2>6. GP2!TP2!RegisterTasks({nextAttemptOf[t]}) => taskStateBar' /= taskStateBar
+        BY Zenon DEF GP2!TP2!RegisterTasks, GP2!TP2!UnknownTask, taskStateBar
+    <2>7. <<GP2!TP2!RegisterTasks({nextAttemptOf[t]})>>_(GP2!TP2!vars) <=> GP2!TP2!RegisterTasks({nextAttemptOf[t]})
+        BY <2>6 DEF GP2!TP2!vars
+    <2>8. ENABLED <<GP2!TP2!RegisterTasks({nextAttemptOf[t]})>>_(GP2!TP2!vars)
+          <=> ENABLED GP2!TP2!RegisterTasks({nextAttemptOf[t]})
+        BY <2>7, ENABLEDaxioms
+    <2>9. GP2!TP2!IsFiniteSet({nextAttemptOf[t]}) <=> IsFiniteSet({nextAttemptOf[t]})
+        BY DEF GP2!TP2!IsFiniteSet, IsFiniteSet
+    <2>10. ENABLED GP2!TP2!RegisterTasks({nextAttemptOf[t]}) <=> nextAttemptOf[t] \in GP2!TP2!UnknownTask
+        BY <2>9, FS_Singleton, ExpandENABLED, Zenon
+        DEF GP2!TP2!RegisterTasks, GP2!TP2!UnknownTask, taskStateBar
+    <2>. QED
+        BY <2>3, <2>5, <2>8, <2>10, LemGP2TP2BarStates, LemTP3States, Zenon
+<1>2. TypeOk /\ [Next]_vars /\ <<GP2!TP2!RegisterTasks({nextAttemptOf[t]})>>_(GP2!TP2!vars)
+      => <<TP3!RegisterTasks({nextAttemptOf[t]})>>_(TP3!vars)
+    <2>. SUFFICES ASSUME TypeOk, [Next]_vars, <<GP2!TP2!RegisterTasks({nextAttemptOf[t]})>>_(GP2!TP2!vars)
+                  PROVE  <<TP3!RegisterTasks({nextAttemptOf[t]})>>_(TP3!vars)
+        OBVIOUS
+    <2>1. TP3!TypeOk /\ [TP3!Next]_(TP3!vars)
+        BY LemRefineTP3Next DEF TypeOk, TP3!TypeOk, TP3State, TP3!TP3State
+    <2>2. <<TP3!TP2!RegisterTasks({nextAttemptOf[t]})>>_(TP3!TP2!vars)
+        BY LemGP2TP2Bridges
+    <2>. QED
+        BY <2>1, <2>2, TP3!LemRegisterTasksFromTP2Step, LemTP3Assumptions
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+LEMMA LemRefineTP3WFStageTasks ==
+    ASSUME NEW t \in Task
+    PROVE  /\ []TypeOk /\ [][Next]_vars
+           /\ WF_(GP2!TP2!vars)(GP2!TP2!StageTasks({nextAttemptOf[t]}))
+           => WF_(TP3!vars)(TP3!StageTasks({nextAttemptOf[t]}))
+<1>1. ENABLED <<TP3!StageTasks({nextAttemptOf[t]})>>_(TP3!vars)
+      => ENABLED <<GP2!TP2!StageTasks({nextAttemptOf[t]})>>_(GP2!TP2!vars)
+    <2>1. TP3!StageTasks({nextAttemptOf[t]}) => taskState' /= taskState
+        BY DEF TP3!RegisteredTask, TP3!StageTasks
+    <2>2. <<TP3!StageTasks({nextAttemptOf[t]})>>_(TP3!vars) <=> TP3!StageTasks({nextAttemptOf[t]})
+        BY <2>1 DEF TP3!vars
+    <2>3. ENABLED <<TP3!StageTasks({nextAttemptOf[t]})>>_(TP3!vars) <=> ENABLED TP3!StageTasks({nextAttemptOf[t]})
+        BY <2>2, ENABLEDaxioms
+    <2>4. ENABLED TP3!StageTasks({nextAttemptOf[t]}) <=> nextAttemptOf[t] \in TP3!RegisteredTask
+        BY ExpandENABLED, Zenon DEF TP3!RegisteredTask, TP3!StageTasks
+    <2>5. GP2!TP2!StageTasks({nextAttemptOf[t]}) => taskStateBar' /= taskStateBar
+        BY DEF GP2!TP2!RegisteredTask, GP2!TP2!StageTasks, taskStateBar
+    <2>6. <<GP2!TP2!StageTasks({nextAttemptOf[t]})>>_(GP2!TP2!vars) <=> GP2!TP2!StageTasks({nextAttemptOf[t]})
+        BY <2>5 DEF GP2!TP2!vars
+    <2>7. ENABLED <<GP2!TP2!StageTasks({nextAttemptOf[t]})>>_(GP2!TP2!vars)
+          <=> ENABLED GP2!TP2!StageTasks({nextAttemptOf[t]})
+        BY <2>6, ENABLEDaxioms
+    <2>8. ENABLED GP2!TP2!StageTasks({nextAttemptOf[t]}) <=> nextAttemptOf[t] \in GP2!TP2!RegisteredTask
+        BY ExpandENABLED, Zenon
+        DEF GP2!TP2!StageTasks, GP2!TP2!RegisteredTask, taskStateBar
+    <2>. QED
+        BY <2>3, <2>4, <2>7, <2>8, LemGP2TP2BarStates, LemTP3States, Zenon
+<1>2. TypeOk /\ [Next]_vars /\ <<GP2!TP2!StageTasks({nextAttemptOf[t]})>>_(GP2!TP2!vars)
+      => <<TP3!StageTasks({nextAttemptOf[t]})>>_(TP3!vars)
+    <2>. SUFFICES ASSUME TypeOk, [Next]_vars, <<GP2!TP2!StageTasks({nextAttemptOf[t]})>>_(GP2!TP2!vars)
+                  PROVE  <<TP3!StageTasks({nextAttemptOf[t]})>>_(TP3!vars)
+        OBVIOUS
+    <2>1. TP3!TypeOk /\ [TP3!Next]_(TP3!vars)
+        BY LemRefineTP3Next DEF TypeOk, TP3!TypeOk, TP3State, TP3!TP3State
+    <2>2. <<TP3!TP2!StageTasks({nextAttemptOf[t]})>>_(TP3!TP2!vars)
+        BY LemGP2TP2Bridges
+    <2>. QED
+        BY <2>1, <2>2, TP3!LemStageTasksFromTP2Step, LemTP3Assumptions
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+(*****************************************************************************)
+(* REFINEMENT OF TaskProcessing3 -- THE FULL THEOREM                         *)
+(*****************************************************************************)
+
+THEOREM GP3_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
+<1>. SUFFICES ASSUME Spec
+              PROVE  TP3!Spec
+    BY DEF RefineTaskProcessing3
+<1>1. []TypeOk
+    BY LemTypeOk DEF Spec
+<1>2. [][Next]_vars /\ Fairness
+    BY DEF Spec
+(* Initial state and step simulation. *)
+<1>3. TP3!Init /\ [][TP3!Next]_(TP3!vars)
+    BY LemRefineTP3InitNext DEF Spec
+(* TaskProcessing2's fairness under the Bar, through the GraphProcessing2
+   refinement. *)
+<1>4. GP2!TP2!Fairness
+    <2>1. GP2!TP2!Spec
+        BY LemGP2RefineTaskProcessing2, Isa DEF GP2!RefineTaskProcessing2
+    <2>. QED
+        BY <2>1 DEF GP2!TP2!Spec
+(* TP3's fairness, conjunct by conjunct. *)
+<1>5. ASSUME NEW t \in Task
+      PROVE  /\ WF_(TP3!vars)(\E u \in Task : TP3!SetTaskRetries({t}, {u}))
+             /\ WF_(TP3!vars)(TP3!RegisterTasks({nextAttemptOf[t]}))
+             /\ WF_(TP3!vars)(TP3!StageTasks({nextAttemptOf[t]}))
+             /\ SF_(TP3!vars)(TP3!ProcessTasks({t}))
+             /\ WF_(TP3!vars)(TP3!CompleteTasks({t}))
+             /\ WF_(TP3!vars)(TP3!AbortTasks({t}))
+             /\ WF_(TP3!vars)(TP3!RetryTasks({t}))
+             /\ WF_(TP3!vars)(TP3!StopTasks({t}))
+             /\ WF_(TP3!vars)(TP3!PauseTasks({t}))
+    <2>1. /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
+          /\ SF_vars(ProcessTasks({t}))
+          /\ WF_vars(StopTasks({t}))
+          /\ WF_vars(PauseTasks({t}))
+        BY <1>2, Isa DEF Fairness
+    <2>2. /\ WF_(GP2!TP2!vars)(GP2!TP2!RegisterTasks({nextAttemptOf[t]}))
+          /\ WF_(GP2!TP2!vars)(GP2!TP2!StageTasks({nextAttemptOf[t]}))
+          /\ WF_(GP2!TP2!vars)(GP2!TP2!CompleteTasks({t}))
+          /\ WF_(GP2!TP2!vars)(GP2!TP2!AbortTasks({t}))
+          /\ WF_(GP2!TP2!vars)(GP2!TP2!RetryTasks({t}))
+        BY <1>4, Isa DEF GP2!TP2!Fairness
+    <2>3. WF_(TP3!vars)(\E u \in Task : TP3!SetTaskRetries({t}, {u}))
+        BY <2>1, LemRefineTP3WFSetTaskRetries
+    <2>4. SF_(TP3!vars)(TP3!ProcessTasks({t}))
+        BY <2>1, LemRefineTP3SFProcessTasks
+    <2>5. WF_(TP3!vars)(TP3!StopTasks({t})) /\ WF_(TP3!vars)(TP3!PauseTasks({t}))
+        BY <2>1, LemRefineTP3WFStopTasks, LemRefineTP3WFPauseTasks
+    <2>6. WF_(TP3!vars)(TP3!RegisterTasks({nextAttemptOf[t]}))
+        BY <1>1, <1>2, <2>2, LemRefineTP3WFRegisterTasks
+    <2>7. WF_(TP3!vars)(TP3!StageTasks({nextAttemptOf[t]}))
+        BY <1>1, <1>2, <2>2, LemRefineTP3WFStageTasks
+    <2>8. WF_(TP3!vars)(TP3!CompleteTasks({t}))
+        BY <1>1, <1>2, <2>2, LemRefineTP3WFCompleteTasks
+    <2>9. WF_(TP3!vars)(TP3!AbortTasks({t}))
+        BY <1>1, <1>2, <2>2, LemRefineTP3WFAbortTasks
+    <2>10. WF_(TP3!vars)(TP3!RetryTasks({t}))
+        BY <1>1, <1>2, <2>2, LemRefineTP3WFRetryTasks
+    <2>. QED
+        BY <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10
+<1>6. TP3!Fairness
+    BY <1>5, Isa DEF TP3!Fairness
+<1>. QED
+    BY <1>3, <1>6 DEF TP3!Spec
+
+================================================================================
