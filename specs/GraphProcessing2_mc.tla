@@ -17,12 +17,6 @@ MCSpec ==
 --------------------------------------------------------------------------------
 
 (**
- * Symmetry relation between task and object identifiers.
- *)
-Symmetry ==
-    Permutations(Task) \union Permutations(Object)
-
-(**
  * The finiteness of the task ID set can lead to a suttering when all task IDs
  * are "known" and a failed task cannot be retried because no new task can be
  * found for retry. This constraint restricts system actions during model-checking

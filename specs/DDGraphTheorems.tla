@@ -16,6 +16,19 @@
 EXTENDS DDGraphs, DiGraphTheorems, FiniteSets
 
 (******************************************************************************)
+(* Sequence prefix/suffix operators, copied verbatim from CommunityModules     *)
+(* `SequencesExt.tla`. DiGraphs no longer extends SequencesExt (it dragged the *)
+(* Bags -> theorem-library tree into every downstream module), so the handful  *)
+(* of these operators used in the statements below are inlined here instead.   *)
+(* The companion DDGraphTheorems_proofs module keeps SequencesExtTheorems      *)
+(* (for ReverseProperties etc.), where these come from SequencesExt directly.  *)
+(******************************************************************************)
+Reverse(s) == [i \in 1..Len(s) |-> s[(Len(s) - i) + 1]]
+IsPrefix(s, t) == Len(s) <= Len(t) /\ SubSeq(s, 1, Len(s)) = SubSeq(t, 1, Len(s))
+IsSuffix(s, t) == IsPrefix(Reverse(s), Reverse(t))
+IsStrictSuffix(s, t) == IsSuffix(s, t) /\ s # t
+
+(******************************************************************************)
 (* Every member of DDGraphOf(T, O) is a DD graph over T and O, with nodes in *)
 (* T \cup O and edges in (T \X O) \cup (O \X T). The disjointness hypothesis *)
 (* T \cap O = {} is needed because DDGraphOf does not itself enforce it on   *)

@@ -23,12 +23,4 @@ MCSpec ==
     /\ [][Next]_vars
     /\ Fairness
 
---------------------------------------------------------------------------------
-
-(**
- * Symmetry relation between task and object identifiers.
- *)
-Symmetry ==
-    Permutations(Task) \union Permutations(Object)
-
 ================================================================================
