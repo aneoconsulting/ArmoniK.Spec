@@ -233,15 +233,14 @@ RequestTasksPausing(T) ==
 
 (**
  * TASK PAUSING ACKNOWLEDGMENT
- * The request to pause a set 'T' of tasks is acknowledged. STAGED or
- * ASSIGNED tasks are set to the PAUSED state.
+ * The request to pause a set 'T' of staged tasks is acknowledged: they are
+ * set to the PAUSED state. An assigned task is paused only once released.
  *)
 PauseTasks(T) ==
     /\ T /= {} /\ T \subseteq pausingRequested
+    /\ T \subseteq StagedTask
     /\ taskState' =
-        [t \in Task |-> IF t \in T /\ (t \in StagedTask \/ t \in AssignedTask)
-                            THEN TASK_PAUSED
-                            ELSE taskState[t]]
+        [t \in Task |-> IF t \in T THEN TASK_PAUSED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
 
 (**
