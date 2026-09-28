@@ -345,7 +345,8 @@ Next ==
  *     without eventually being processed.
  *   - A task cannot remain indefinitely processed without being eventually
  *     finalized (completed, retried or aborted).
- *   - A task cannot remain indefinitely paused without being resumed.
+ *   - A task whose cancellation (resp. pausing) request can be acknowledged
+ *     is eventually stopped (resp. paused).
  *)
 Fairness ==
     \A t \in Task:
@@ -358,7 +359,6 @@ Fairness ==
         /\ WF_vars(RetryTasks({t}))
         /\ WF_vars(StopTasks({t}))
         /\ WF_vars(PauseTasks({t}))
-        /\ WF_vars(ResumeTasks({t}))
 
 (**
  * Full system specification.
