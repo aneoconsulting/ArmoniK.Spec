@@ -5273,8 +5273,8 @@ LEMMA LemRefineGP1WFFinalizeObjects ==
                        p \in SucceededTask \/ p \in DiscardedTask \/ p \in FailedTask)
           => <><<CompleteObjects({o})>>_vars)
     BY LemCompleteObjectsFires, PTL
-<1>2. [](TypeOk /\ <<CompleteObjects({o})>>_vars => <<GP1!FinalizeObjects({o})>>_(GP1!vars))
-    BY LemGP1FinalizeObjectsStep, PTL
+<1>2. TypeOk /\ <<CompleteObjects({o})>>_vars => <<GP1!FinalizeObjects({o})>>_(GP1!vars)
+    BY LemGP1FinalizeObjectsStep
 <1>3. []TypeOk
     BY PTL DEF GraphSafetyInv
 <1>. QED
