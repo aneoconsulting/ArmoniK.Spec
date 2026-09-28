@@ -281,11 +281,16 @@ LEMMA LemTypeOk == Init /\ [][Next]_vars => []TypeOk
             BY <2>1 DEF RegisterGraph
         <3>2. deps' = GraphUnion(deps, G)
             BY <2>1 DEF RegisterGraph
-        <3>3. deps' \in DirectedGraphOf(Task \union Object)
-            BY <3>1, <3>2, DG_DagProperties DEF DirectedGraphOf, IsBipartiteWithPartitions,
-                IsDDGraph, IsDirectedGraph
+        <3>3. IsDirectedGraph(deps')
+            BY <3>1, <3>2, DG_DagProperties DEF IsDDGraph
+        <3>4. deps'.node \subseteq Task \union Object
+            BY <3>1, <3>2 DEF IsDDGraph, IsBipartiteWithPartitions
+        <3>5. deps'.edge \subseteq (Task \union Object) \X (Task \union Object)
+            BY <3>3, <3>4 DEF IsDirectedGraph
+        <3>6. deps' \in DirectedGraphOf(Task \union Object)
+            BY <3>3, <3>4, <3>5 DEF DirectedGraphOf, IsDirectedGraph
         <3>. QED
-            BY <2>1, <3>3 DEF RegisterGraph
+            BY <2>1, <3>6 DEF RegisterGraph
     <2>2. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U)
           PROVE TypeOk'
         <3>1. PICK f \in Bijection(T, U) :
