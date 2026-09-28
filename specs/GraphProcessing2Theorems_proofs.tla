@@ -1727,9 +1727,24 @@ LEMMA LemRegisteredObjectHasOpenProducer ==
                        w \notin UNION {CompletedTask, AbortedTask, RetriedTask})'
         BY <2>12 DEF AbortedTask, AssignTasks, CompletedTask, Predecessor,
             RegisteredObject, RegisteredObjectHasOpenProducer, RetriedTask
-    <2>13. CASE \E T \in SUBSET Task : ReleaseTasks(T) \/ ProcessTasks(T)
-        BY <2>13 DEF AbortedTask, CompletedTask, Predecessor, ProcessTasks,
-            RegisteredObject, RegisteredObjectHasOpenProducer, ReleaseTasks, RetriedTask
+    <2>13. ASSUME NEW T \in SUBSET Task, ReleaseTasks(T) \/ ProcessTasks(T)
+           PROVE  (\E w \in Predecessor(deps, o) :
+                       w \notin UNION {CompletedTask, AbortedTask, RetriedTask})'
+        <3>1. UNCHANGED << deps, objectState >>
+            BY <2>13 DEF ProcessTasks, ReleaseTasks
+        <3>2. PICK w \in Predecessor(deps, o) :
+                  w \notin UNION {CompletedTask, AbortedTask, RetriedTask}
+            BY <3>1 DEF Predecessor, RegisteredObject, RegisteredObjectHasOpenProducer
+        <3>3. \A x \in Task :
+                  \/ taskState'[x] = taskState[x]
+                  \/ taskState'[x] \in {TASK_STAGED, TASK_SUCCEEDED, TASK_DISCARDED, TASK_FAILED}
+            BY <2>13 DEF ProcessTasks, ReleaseTasks
+        <3>4. (w \in Predecessor(deps, o))'
+            BY <3>1, <3>2 DEF Predecessor
+        <3>5. (w \notin UNION {CompletedTask, AbortedTask, RetriedTask})'
+            BY <2>2, <3>2, <3>3, Zenon DEF AbortedTask, CompletedTask, RetriedTask
+        <3>. QED
+            BY <3>4, <3>5
     <2>. QED
         BY <2>4, <2>5, <2>7, <2>8, <2>9, <2>10, <2>11, <2>12, <2>13 DEF Next
 <1>. QED
@@ -3383,10 +3398,34 @@ LEMMA LemRefineTP2WFSetTaskRetries ==
                     /\ taskStatep = taskState
                     /\ nextAttemptOfp = nextAttemptOf)
             BY ONLY <3>5, <3>6, Zenon
-        <3>8. WITNESS deps, objectState, objectTargets, taskState,
-                      [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]]
+        \* the \E-introduction, over an opaque body: on the unfolded body both
+        \* SMT and Zenon time out with the upstream tlapm
+        <3>. DEFINE Body(dp, osp, otp, tsp, nap) ==
+                        /\ \E u_1 \in Task :
+                            /\ {t} # {}
+                            /\ {t} \subseteq UnretriedTask
+                            /\ {u_1} \subseteq UnknownTask
+                            /\ \A v \in {u_1} : ~ \E w \in Task : nextAttemptOf[w] = v
+                            /\ \E f \in Bijection({t}, {u_1}) :
+                                    nap
+                                    = [t_1 \in Task |->
+                                        IF t_1 \in {t} THEN f[t_1] ELSE nextAttemptOf[t_1]]
+                            /\ tsp = taskState
+                            /\ dp = deps
+                            /\ osp = objectState
+                            /\ otp = objectTargets
+                        /\ ~ (/\ dp = deps
+                              /\ osp = objectState
+                              /\ otp = objectTargets
+                              /\ tsp = taskState
+                              /\ nap = nextAttemptOf)
+        <3>8. Body(depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp)
+            BY ONLY <3>7 DEF Body
+        <3>. HIDE DEF Body
+        <3>9. \E dp, osp, otp, tsp, nap : Body(dp, osp, otp, tsp, nap)
+            BY ONLY <3>8, Zenon
         <3>. QED
-            BY ONLY <3>7, Zenon
+            BY ONLY <3>9 DEF Body
     <2>. QED
         BY <2>1, <2>2
 \* --- (2) step refinement: concrete step => abstract step ---
