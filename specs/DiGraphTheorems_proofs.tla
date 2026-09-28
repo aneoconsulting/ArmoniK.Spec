@@ -348,10 +348,14 @@ THEOREM DG_EmptyGraphProperties ==
     <2>. SUFFICES ASSUME NEW G, IsDirectedGraph(G)
          PROVE G.node = {} <=> G = EmptyGraph
         OBVIOUS
-    <2>1. G.node = {} <=> (G.node \X G.node) = {}
-        OBVIOUS
+    <2>1. G.node = {} => G.edge = {}
+        BY DEF IsDirectedGraph
+    <2>2. G.node = {} => G = EmptyGraph
+        BY <2>1, Zenon DEF IsDirectedGraph, EmptyGraph
+    <2>3. G = EmptyGraph => G.node = {}
+        BY DEF EmptyGraph
     <2>. QED
-        BY <2>1 DEF IsDirectedGraph, EmptyGraph
+        BY <2>2, <2>3
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7
 
