@@ -73,6 +73,26 @@ BY LemType, LemTaskStateIntegrity, PTL DEF TaskSafetyInv
 THEOREM TP3_TaskSafetyInv == Spec => []TaskSafetyInv
 BY LemTaskSafetyInv DEF Spec
 
+(* A cancellation request permanently bars a non-assigned task from the      *)
+(* ASSIGNED state: stoppingRequested is monotone and AssignTasks excludes    *)
+(* requested tasks.                                                          *)
+THEOREM TP3_StoppingRequestPreventsAssignment ==
+    Spec => StoppingRequestPreventsAssignment
+<1>. SUFFICES ASSUME NEW t \in Task
+              PROVE Spec => [](t \in stoppingRequested /\ ~ (t \in AssignedTask)
+                               => [](~ (t \in AssignedTask)))
+    BY DEF StoppingRequestPreventsAssignment
+<1>1. /\ t \in stoppingRequested /\ ~ (t \in AssignedTask)
+      /\ TaskSafetyInv /\ [Next]_vars
+      => (t \in stoppingRequested /\ ~ (t \in AssignedTask))'
+    BY DEF TaskSafetyInv, TypeOk, TaskStateIntegrity, Next, vars,
+       RegisterTasks, StageTasks, DiscardTasks, SetTaskRetries, AssignTasks,
+       ReleaseTasks, ProcessTasks, CompleteTasks, AbortTasks, RetryTasks,
+       RequestTasksStopping, StopTasks, RequestTasksPausing, PauseTasks,
+       ResumeTasks, Terminating, AssignedTask, StagedTask
+<1>. QED
+    BY <1>1, LemTaskSafetyInv, PTL DEF Spec
+
 THEOREM TP3_RequestedStoppingEventualAcknowledgment ==
     Spec => RequestedStoppingEventualAcknowledgment
 <1>. SUFFICES ASSUME NEW t \in Task
