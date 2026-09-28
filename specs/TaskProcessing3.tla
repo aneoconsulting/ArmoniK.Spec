@@ -224,12 +224,10 @@ StopTasks(T) ==
 
 (**
  * TASK PAUSING REQUESTING
- * The pausing of a set 'T' of tasks is requested. Tasks can be paused
- * provided that they have not been previously requested to be canceled.
+ * The pausing of a set 'T' of tasks is requested.
  *)
 RequestTasksPausing(T) ==
     /\ T /= {} /\ T \intersect UnknownTask = {}
-    /\ T \intersect stoppingRequested = {}
     /\ pausingRequested' = pausingRequested \union T
     /\ UNCHANGED << taskState, nextAttemptOf, stoppingRequested >>
 
