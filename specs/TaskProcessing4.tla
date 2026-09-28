@@ -99,7 +99,7 @@ StageTasks(T) ==
  *)
 DiscardTasks(T) ==
     /\ T /= {}
-    /\ T \subseteq UNION {RegisteredTask, StagedTask, PausedTask}
+    /\ T \subseteq UNION {RegisteredTask, StagedTask, PausedTask, StoppedTask}
     /\ T \intersect taskDeleted = {}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
