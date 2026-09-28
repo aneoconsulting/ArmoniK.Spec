@@ -37,10 +37,14 @@ obligations, same exit code.
 
 The two numbers are far apart because a leaf directive costs the upstream prover
 about ten times more on the INSTANCE-heavy modules -- exactly the ones that need
-splitting -- than on those that fit: the budget is what one run has been seen to
-carry (GraphProcessing1, ~800 directives, passes; GraphProcessing2, ~1900, does
-not), and at the measured 4.4 obligations per minute on GraphProcessing2, a range
-of fifty directives is about 35 minutes of proving. Lower `--max-steps` when a
+splitting -- than on those that fit. The budget sits below the smallest module
+seen not to fit one run: GraphProcessing3, ~550 directives, instantiates
+GraphProcessing2 under a substitution and proves some 3 obligations per minute
+with the upstream prover, about nine hours whole (GraphProcessing2, ~1900, does
+not fit either). The modules between the budget and GraphProcessing1 (~800,
+seen to pass whole) are split as well, for a few more runners. At the measured
+4.4 obligations per minute on GraphProcessing2, a range of fifty directives is
+about 35 minutes of proving. Lower `--max-steps` when a
 range runs out of time, raise it to spend fewer runners; lower `--budget` when a
 whole-file run does.
 
@@ -67,7 +71,7 @@ LEAF = re.compile(r"\b(BY|OBVIOUS|OMITTED)\b")
 
 # Leaf directives one upstream tlapm run is trusted with, and per range of a
 # module that exceeds it. See the module docstring for where the numbers come from.
-DEFAULT_BUDGET = 1000
+DEFAULT_BUDGET = 500
 DEFAULT_MAX_STEPS = 50
 
 
