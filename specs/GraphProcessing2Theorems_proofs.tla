@@ -2575,7 +2575,7 @@ LEMMA LemRegisteredObjectHasLiveProducer ==
         <3>5. w \notin T
             <4>1. \A x \in T : x \in FailedTask /\ nextAttemptOf[x] /= NULL
                                 /\ nextAttemptOf[x] \notin UnknownTask
-                BY <2>13 DEF FailedTask, RetryTasks, UnretriedTask
+                BY <2>13 DEF FailedTask, RetryTasks
             <4>. QED
                 BY <3>2, <4>1, Zenon
         <3>6. taskState'[w] = taskState[w]
@@ -3161,46 +3161,17 @@ LEMMA LemOpenUpstreamStable ==
 <1>. QED
     BY <1>1, <1>2, PTL
 
-(* The upstream-open-path guard coincides with GP1's under the Bar. GP2's       *)
-(* guard adds o \in RegisteredObject, but that is forced: an open path ends at  *)
-(* o, so o is a node of deps (GSI_Nodes => not unknown) and is open (=> not      *)
-(* completed/aborted), leaving o registered. OpenPath matches GP1's via          *)
-(* LemGP1OpenNodeBridge.                                                           *)
+(* The upstream-open-path guard coincides with GP1's under the Bar: both      *)
+(* test the target set and the open paths, which match via                    *)
+(* LemGP1OpenNodeBridge.                                                       *)
 LEMMA LemUpstreamBridge ==
-    ASSUME TypeOk, GSI_Nodes, NEW t \in Task, NEW o \in Object
+    ASSUME TypeOk, NEW t \in Task, NEW o \in Object
     PROVE  IsTaskUpstreamOnOpenPathToTarget(t, o)
            <=> GP1!IsTaskUpstreamOnOpenPathToTarget(t, o)
-<1>. USE DEF IsTaskUpstreamOnOpenPathToTarget, GP1!IsTaskUpstreamOnOpenPathToTarget
 <1>1. OpenPath(deps, o, IsOpenNode) = GP1!OpenPath(deps, o, GP1!IsOpenNode)
     BY LemGP1OpenNodeBridge
-<1>2. (\E p \in OpenPath(deps, o, IsOpenNode) : p[1] = t) => o \in RegisteredObject
-    <2>. SUFFICES ASSUME NEW p \in OpenPath(deps, o, IsOpenNode)
-                  PROVE  o \in RegisteredObject
-        OBVIOUS
-    <2>1. /\ p \in SimplePath(deps)
-          /\ p[Len(p)] = o
-          /\ \A i \in 1..Len(p) : IsOpenNode(p[i])
-        BY DEF OpenPath
-    <2>2. p \in Seq(deps.node) /\ Len(p) \in Nat /\ Len(p) >= 1
-        BY <2>1, DG_SimplePathIsSeq
-    <2>3. Len(p) \in 1..Len(p)
-        BY <2>2
-    <2>4. o \in deps.node
-        <3>1. p[Len(p)] \in deps.node
-            BY <2>2, <2>3, ElementOfSeq
-        <3>. QED
-            BY <2>1, <3>1
-    <2>5. IsOpenNode(o)
-        BY <2>1, <2>3
-    <2>6. o \notin UnknownObject
-        BY <2>4 DEF GSI_Nodes
-    <2>7. o \notin CompletedObject /\ o \notin AbortedObject
-        BY <2>5 DEF IsOpenNode
-    <2>. QED
-        BY <2>6, <2>7 DEF AbortedObject, CompletedObject, OP2State, RegisteredObject, TypeOk,
-            UnknownObject
 <1>. QED
-    BY <1>1, <1>2
+    BY <1>1 DEF IsTaskUpstreamOnOpenPathToTarget, GP1!IsTaskUpstreamOnOpenPathToTarget
 
 (* GP2-side enabledness of the upstream-guarded assignment, as a state          *)
 (* condition. Clean lemma level so ENABLEDaxioms sees no temporal context.      *)
@@ -3226,17 +3197,17 @@ LEMMA LemAssignUpstreamEnabled ==
 (* GP1!AssignTasks under the Bar.                                               *)
 LEMMA LemRefineGP1WFAssignTasks ==
     ASSUME NEW t \in Task, NEW o \in Object
-    PROVE  /\ []TypeOk /\ []GSI_Nodes /\ WF_vars(AssignUpstream(t, o))
+    PROVE  /\ []TypeOk /\ WF_vars(AssignUpstream(t, o))
            => WF_(GP1!vars)(/\ GP1!IsTaskUpstreamOnOpenPathToTarget(t, o)
                             /\ GP1!AssignTasks({t}))
 <1>. DEFINE AbsA == /\ GP1!IsTaskUpstreamOnOpenPathToTarget(t, o)
                     /\ GP1!AssignTasks({t})
 \* --- (1) enabledness lift ---
-<1>1. TypeOk /\ GSI_Nodes /\ ENABLED <<AbsA>>_(GP1!vars)
+<1>1. TypeOk /\ ENABLED <<AbsA>>_(GP1!vars)
       => ENABLED <<AssignUpstream(t, o)>>_vars
-    <2>1. TypeOk /\ GSI_Nodes /\ ENABLED <<AbsA>>_(GP1!vars)
+    <2>1. TypeOk /\ ENABLED <<AbsA>>_(GP1!vars)
           => IsTaskUpstreamOnOpenPathToTarget(t, o) /\ t \in StagedTask
-        <3>. SUFFICES ASSUME TypeOk, GSI_Nodes, ENABLED <<AbsA>>_(GP1!vars)
+        <3>. SUFFICES ASSUME TypeOk, ENABLED <<AbsA>>_(GP1!vars)
                       PROVE  IsTaskUpstreamOnOpenPathToTarget(t, o) /\ t \in StagedTask
             OBVIOUS
         <3>1. GP1!IsTaskUpstreamOnOpenPathToTarget(t, o) /\ t \in GP1!StagedTask
@@ -3261,8 +3232,8 @@ LEMMA LemRefineGP1WFAssignTasks ==
     <2>. QED
         BY <2>1, <2>2
 \* --- (2) step refinement ---
-<1>2. TypeOk /\ GSI_Nodes /\ <<AssignUpstream(t, o)>>_vars => <<AbsA>>_(GP1!vars)
-    <2>. SUFFICES ASSUME TypeOk, GSI_Nodes, AssignUpstream(t, o), vars' /= vars
+<1>2. TypeOk /\ <<AssignUpstream(t, o)>>_vars => <<AbsA>>_(GP1!vars)
+    <2>. SUFFICES ASSUME TypeOk, AssignUpstream(t, o), vars' /= vars
                   PROVE  AbsA /\ GP1!vars' /= GP1!vars
         BY DEF vars
     <2>1. taskState[t] = TASK_STAGED
@@ -3282,7 +3253,7 @@ LEMMA LemRefineGP1WFAssignTasks ==
     <2>. QED
         BY <2>4, <2>5, <2>6 DEF GP1!vars
 <1>. QED
-    <2>1. [](TypeOk /\ GSI_Nodes /\ ENABLED <<AbsA>>_(GP1!vars)
+    <2>1. [](TypeOk /\ ENABLED <<AbsA>>_(GP1!vars)
              => ENABLED <<AssignUpstream(t, o)>>_vars)
         BY <1>1, PTL
     <2>. QED
@@ -3962,13 +3933,13 @@ LEMMA LemRetryEnabledFromLiveProducer ==
               PROVE  ENABLED <<RetryTasks({t})>>_vars
     OBVIOUS
 <1>1. ENABLED <<RetryTasks({t})>>_vars
-       <=> /\ t \in FailedTask /\ ~ t \in UnretriedTask
-           /\ \A x \in {t} : nextAttemptOf[x] \notin UnknownTask
+       <=> /\ t \in FailedTask
+           /\ \A x \in {t} : nextAttemptOf[x] \notin UnknownTask \union {NULL}
            /\ \A o2 \in UNION {Successor(deps, x) : x \in {t}} :
                   o2 \in RegisteredObject
                       => \E u \in (Predecessor(deps, o2) \ {t}) :
                              u \notin UNION {CompletedTask, AbortedTask, RetriedTask}
-    BY ExpandENABLED DEF RetryTasks, vars, FailedTask, UnretriedTask
+    BY ExpandENABLED DEF RetryTasks, vars, FailedTask
 <1>2. \A o2 \in UNION {Successor(deps, x) : x \in {t}} :
            o2 \in RegisteredObject
                => \E u \in (Predecessor(deps, o2) \ {t}) :
@@ -3999,8 +3970,10 @@ LEMMA LemRetryEnabledFromLiveProducer ==
         BY <2>5 DEF AbortedTask, CompletedTask, FailedTask, RetriedTask
     <2>. QED
         BY <2>5, <2>7, <2>8, Zenon
+<1>3. nextAttemptOf[t] \notin UnknownTask \union {NULL}
+    BY DEF UnretriedTask
 <1>. QED
-    BY <1>1, <1>2, Zenon
+    BY <1>1, <1>2, <1>3, Zenon
 
 (* Under quiescence a failed producer of o cannot stay FAILED: its clone is  *)
 (* registered (the two corollaries above), so RetryTasks({t}) is enabled     *)
@@ -5627,12 +5600,12 @@ LEMMA LemRefineGP1WFFinalizeTasks ==
     <2>3. TypeOk /\ Pf /\ ENABLED <<GP1!FinalizeTasks({t})>>_(GP1!vars)
            => (ENABLED <<RetryTasks({t})>>_vars <=> t \in FailedTask)
         <3>1. ENABLED <<RetryTasks({t})>>_vars
-              <=> /\ t \in FailedTask /\ ~ t \in UnretriedTask
-                  /\ \A x \in {t} : nextAttemptOf[x] \notin UnknownTask
+              <=> /\ t \in FailedTask
+                  /\ \A x \in {t} : nextAttemptOf[x] \notin UnknownTask \union {NULL}
                   /\ OutGuard
-            BY ExpandENABLED DEF RetryTasks, vars, FailedTask, UnretriedTask
+            BY ExpandENABLED DEF RetryTasks, vars, FailedTask
         <3>2. Pf /\ t \in FailedTask
-              => ~ t \in UnretriedTask /\ nextAttemptOf[t] \notin UnknownTask
+              => nextAttemptOf[t] \notin UnknownTask \union {NULL}
             BY DEF UnretriedTask, FailedTask
         <3>. QED
             BY <1>1, <3>1, <3>2, Zenon

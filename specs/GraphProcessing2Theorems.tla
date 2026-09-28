@@ -610,13 +610,11 @@ LEMMA LemOpenUpstreamNodeSets ==
 LEMMA LemOpenUpstreamStable ==
     OpenUpstreamEventuallyClosed <=> []OpenUpstreamEventuallyClosed
 
-(* The upstream-open-path guard coincides with GP1's under the Bar. GP2's       *)
-(* guard adds o \in RegisteredObject, but that is forced: an open path ends at  *)
-(* o, so o is a node of deps (GSI_Nodes => not unknown) and is open (=> not      *)
-(* completed/aborted), leaving o registered. OpenPath matches GP1's via          *)
-(* LemGP1OpenNodeBridge.                                                           *)
+(* The upstream-open-path guard coincides with GP1's under the Bar: both      *)
+(* test the target set and the open paths, which match via                    *)
+(* LemGP1OpenNodeBridge.                                                       *)
 LEMMA LemUpstreamBridge ==
-    ASSUME TypeOk, GSI_Nodes, NEW t \in Task, NEW o \in Object
+    ASSUME TypeOk, NEW t \in Task, NEW o \in Object
     PROVE  IsTaskUpstreamOnOpenPathToTarget(t, o)
            <=> GP1!IsTaskUpstreamOnOpenPathToTarget(t, o)
 
@@ -633,7 +631,7 @@ LEMMA LemAssignUpstreamEnabled ==
 (* GP1!AssignTasks under the Bar.                                               *)
 LEMMA LemRefineGP1WFAssignTasks ==
     ASSUME NEW t \in Task, NEW o \in Object
-    PROVE  /\ []TypeOk /\ []GSI_Nodes /\ WF_vars(AssignUpstream(t, o))
+    PROVE  /\ []TypeOk /\ WF_vars(AssignUpstream(t, o))
            => WF_(GP1!vars)(/\ GP1!IsTaskUpstreamOnOpenPathToTarget(t, o)
                             /\ GP1!AssignTasks({t}))
 
