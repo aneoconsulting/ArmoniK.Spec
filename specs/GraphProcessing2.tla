@@ -58,7 +58,6 @@ IsOpenNode(n) ==
  *)
 IsTaskUpstreamOnOpenPathToTarget(t, o) ==
     /\ o \in objectTargets
-    /\ o \in RegisteredObject
     /\ \E p \in OpenPath(deps, o, IsOpenNode): p[1] = t
 
 -------------------------------------------------------------------------------
@@ -222,8 +221,7 @@ AbortTasks(T) ==
 
 RetryTasks(T) ==
     /\ T /= {} /\ T \subseteq FailedTask
-    /\ T \intersect UnretriedTask = {}
-    /\ \A t \in T: nextAttemptOf[t] \notin UnknownTask
+    /\ \A t \in T: nextAttemptOf[t] \notin UnknownTask \union {NULL}
     /\ \A o \in UNION {Successor(deps, t): t \in T} :
         o \in RegisteredObject
             => \E u \in (Predecessor(deps, o) \ T) : u \notin UNION {CompletedTask, AbortedTask, RetriedTask}
