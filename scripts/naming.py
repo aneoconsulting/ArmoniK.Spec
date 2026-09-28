@@ -115,6 +115,11 @@ def scopes(specs_dir: Path) -> set[str]:
     return scopes_of(specs_dir.glob("*.tla"))
 
 
+def proof_modules(specs_dir: Path) -> list[str]:
+    """The modules of `specs_dir` tlapm checks, in a stable order (see scripts/chunk_proofs.py)."""
+    return sorted(path.stem for path in specs_dir.glob(f"*{PROOF_SUFFIX}.tla"))
+
+
 def main() -> int:
     """Print the checks a module is entitled to, as CI reads them."""
     parser = argparse.ArgumentParser(description=__doc__)

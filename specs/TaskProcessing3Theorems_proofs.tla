@@ -5,6 +5,11 @@ USE DEF TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED,
 TASK_SUCCEEDED, TASK_FAILED, TASK_DISCARDED, TASK_COMPLETED,
 TASK_RETRIED, TASK_ABORTED, TASK_STOPPED, TASK_PAUSED
 
+USE DEF TP2!TASK_UNKNOWN, TP2!TASK_REGISTERED, TP2!TASK_STAGED,
+        TP2!TASK_ASSIGNED, TP2!TASK_SUCCEEDED, TP2!TASK_FAILED,
+        TP2!TASK_DISCARDED, TP2!TASK_COMPLETED, TP2!TASK_RETRIED,
+        TP2!TASK_ABORTED
+
 LEMMA SameAssumptions == TP3Assumptions => TP2!TP2Assumptions
 BY DEF IsDenumerableSet, ExistsBijection, Bijection, Injection, Surjection,
 IsInjective, TP2!IsDenumerableSet, TP2!ExistsBijection, TP2!Bijection,
@@ -73,14 +78,263 @@ BY LemType, LemTaskStateIntegrity, PTL DEF TaskSafetyInv
 THEOREM TP3_TaskSafetyInv == Spec => []TaskSafetyInv
 BY LemTaskSafetyInv DEF Spec
 
+(**
+ * STEP-LEVEL STABILITY OF TASK STATES. The task lifecycle only moves forward:
+ * SUCCEEDED exits to COMPLETED only, DISCARDED to ABORTED only, FAILED to
+ * RETRIED only, STOPPED to DISCARDED only, and the finalized states are
+ * terminal. Stated for a single step so that refining specifications can lift
+ * it through their step simulation.
+ *)
+LEMMA LemTaskStateStable ==
+    ASSUME NEW t \in Task, [Next]_vars
+    PROVE  /\ taskState[t] \in {TASK_SUCCEEDED, TASK_COMPLETED}
+              => taskState'[t] \in {TASK_SUCCEEDED, TASK_COMPLETED}
+           /\ taskState[t] \in {TASK_DISCARDED, TASK_ABORTED}
+              => taskState'[t] \in {TASK_DISCARDED, TASK_ABORTED}
+           /\ taskState[t] \in {TASK_FAILED, TASK_RETRIED}
+              => taskState'[t] \in {TASK_FAILED, TASK_RETRIED}
+           /\ taskState[t] = TASK_STOPPED
+              => taskState'[t] \in {TASK_STOPPED, TASK_DISCARDED}
+           /\ taskState[t] \in {TASK_COMPLETED, TASK_ABORTED, TASK_RETRIED}
+              => taskState'[t] = taskState[t]
+BY DEF Next, vars, RegisterTasks, StageTasks, DiscardTasks, SetTaskRetries, AssignTasks, ReleaseTasks,
+    ProcessTasks, CompleteTasks, AbortTasks, RetryTasks, RequestTasksStopping, StopTasks,
+    RequestTasksPausing, PauseTasks, ResumeTasks, Terminating, UnknownTask, RegisteredTask, StagedTask,
+    AssignedTask, SucceededTask, FailedTask, DiscardedTask, StoppedTask, PausedTask
+
+(**
+ * A cancellation request is never withdrawn.
+ *)
+LEMMA LemStoppingRequestStable ==
+    ASSUME NEW t \in Task, [Next]_vars
+    PROVE  t \in stoppingRequested => (t \in stoppingRequested)'
+BY DEF Next, vars, RegisterTasks, StageTasks, DiscardTasks, SetTaskRetries, AssignTasks, ReleaseTasks,
+    ProcessTasks, CompleteTasks, AbortTasks, RetryTasks, RequestTasksStopping, StopTasks,
+    RequestTasksPausing, PauseTasks, ResumeTasks, Terminating
+
+(**
+ * STEP-LEVEL CONVERSE OF THE TaskProcessing2 REFINEMENT. A step whose Bar is a
+ * TaskProcessing2 finalization, registration or staging of a single task is
+ * the matching step of that single task: the Bar leaves COMPLETED, ABORTED,
+ * RETRIED, UNKNOWN and REGISTERED unchanged, only the matching action writes
+ * the target state, and the Bar frame forces the singleton. Refining
+ * specifications lift them to transfer TaskProcessing2's fairness back to
+ * TaskProcessing3.
+ *)
+LEMMA LemCompleteTasksFromTP2Step ==
+    ASSUME NEW t \in Task
+    PROVE  TypeOk /\ [Next]_vars /\ <<TP2!CompleteTasks({t})>>_(TP2!vars)
+           => <<CompleteTasks({t})>>_vars
+<1>. SUFFICES ASSUME TypeOk, [Next]_vars, TP2!CompleteTasks({t})
+              PROVE  <<CompleteTasks({t})>>_vars
+    BY DEF TP2!vars
+<1>1. /\ t \in Task
+      /\ taskState[t] = TASK_SUCCEEDED /\ taskState'[t] = TASK_COMPLETED
+      /\ \A s \in Task \ {t} : taskStateBar'[s] = taskStateBar[s]
+    <2>1. /\ taskStateBar' = [s \in Task |-> IF s \in {t} THEN TASK_COMPLETED ELSE taskStateBar[s]]
+          /\ t \in TP2!SucceededTask
+        BY DEF TP2!CompleteTasks
+    <2>2. t \in Task /\ taskStateBar[t] = TASK_SUCCEEDED /\ taskStateBar'[t] = TASK_COMPLETED
+        BY <2>1 DEF TP2!SucceededTask
+    <2>3. taskState[t] = TASK_SUCCEEDED /\ taskState'[t] = TASK_COMPLETED
+        BY <2>2 DEF taskStateBar
+    <2>. QED
+        BY <2>1, <2>2, <2>3
+\* TASK_COMPLETED is written to a TASK_SUCCEEDED task by CompleteTasks only
+<1>2. PICK T \in SUBSET Task : CompleteTasks(T) /\ t \in T
+    BY <1>1 DEF Next, vars, RegisterTasks, StageTasks, DiscardTasks, SetTaskRetries, AssignTasks, ReleaseTasks,
+    ProcessTasks, CompleteTasks, AbortTasks, RetryTasks, RequestTasksStopping, StopTasks,
+    RequestTasksPausing, PauseTasks, ResumeTasks, Terminating, UnknownTask, RegisteredTask, StagedTask,
+        AssignedTask, SucceededTask, FailedTask, DiscardedTask, StoppedTask, PausedTask
+\* the Bar frame forces the singleton
+<1>3. T = {t}
+    <2>. SUFFICES ASSUME NEW s \in T, s /= t
+                  PROVE  FALSE
+        BY <1>2
+    <2>1. taskState[s] = TASK_SUCCEEDED /\ taskState'[s] = TASK_COMPLETED
+        BY <1>2 DEF CompleteTasks, SucceededTask
+    <2>. QED
+        BY <1>1, <2>1 DEF taskStateBar
+<1>. QED
+    BY <1>1, <1>2, <1>3 DEF vars
+
+LEMMA LemAbortTasksFromTP2Step ==
+    ASSUME NEW t \in Task
+    PROVE  TypeOk /\ [Next]_vars /\ <<TP2!AbortTasks({t})>>_(TP2!vars)
+           => <<AbortTasks({t})>>_vars
+<1>. SUFFICES ASSUME TypeOk, [Next]_vars, TP2!AbortTasks({t})
+              PROVE  <<AbortTasks({t})>>_vars
+    BY DEF TP2!vars
+<1>1. /\ t \in Task
+      /\ taskState[t] = TASK_DISCARDED /\ taskState'[t] = TASK_ABORTED
+      /\ \A s \in Task \ {t} : taskStateBar'[s] = taskStateBar[s]
+    <2>1. /\ taskStateBar' = [s \in Task |-> IF s \in {t} THEN TASK_ABORTED ELSE taskStateBar[s]]
+          /\ t \in TP2!DiscardedTask
+        BY DEF TP2!AbortTasks
+    <2>2. t \in Task /\ taskStateBar[t] = TASK_DISCARDED /\ taskStateBar'[t] = TASK_ABORTED
+        BY <2>1 DEF TP2!DiscardedTask
+    <2>3. taskState[t] = TASK_DISCARDED /\ taskState'[t] = TASK_ABORTED
+        BY <2>2 DEF taskStateBar
+    <2>. QED
+        BY <2>1, <2>2, <2>3
+\* TASK_ABORTED is written to a TASK_DISCARDED task by AbortTasks only
+<1>2. PICK T \in SUBSET Task : AbortTasks(T) /\ t \in T
+    BY <1>1 DEF Next, vars, RegisterTasks, StageTasks, DiscardTasks, SetTaskRetries, AssignTasks, ReleaseTasks,
+    ProcessTasks, CompleteTasks, AbortTasks, RetryTasks, RequestTasksStopping, StopTasks,
+    RequestTasksPausing, PauseTasks, ResumeTasks, Terminating, UnknownTask, RegisteredTask, StagedTask,
+        AssignedTask, SucceededTask, FailedTask, DiscardedTask, StoppedTask, PausedTask
+\* the Bar frame forces the singleton
+<1>3. T = {t}
+    <2>. SUFFICES ASSUME NEW s \in T, s /= t
+                  PROVE  FALSE
+        BY <1>2
+    <2>1. taskState[s] = TASK_DISCARDED /\ taskState'[s] = TASK_ABORTED
+        BY <1>2 DEF AbortTasks, DiscardedTask
+    <2>. QED
+        BY <1>1, <2>1 DEF taskStateBar
+<1>. QED
+    BY <1>1, <1>2, <1>3 DEF vars
+
+LEMMA LemRetryTasksFromTP2Step ==
+    ASSUME NEW t \in Task
+    PROVE  TypeOk /\ [Next]_vars /\ <<TP2!RetryTasks({t})>>_(TP2!vars)
+           => <<RetryTasks({t})>>_vars
+<1>. SUFFICES ASSUME TypeOk, [Next]_vars, TP2!RetryTasks({t})
+              PROVE  <<RetryTasks({t})>>_vars
+    BY DEF TP2!vars
+<1>1. /\ t \in Task
+      /\ taskState[t] = TASK_FAILED /\ taskState'[t] = TASK_RETRIED
+      /\ \A s \in Task \ {t} : taskStateBar'[s] = taskStateBar[s]
+    <2>1. /\ taskStateBar' = [s \in Task |-> IF s \in {t} THEN TASK_RETRIED ELSE taskStateBar[s]]
+          /\ t \in TP2!FailedTask
+        BY DEF TP2!RetryTasks
+    <2>2. t \in Task /\ taskStateBar[t] = TASK_FAILED /\ taskStateBar'[t] = TASK_RETRIED
+        BY <2>1 DEF TP2!FailedTask
+    <2>3. taskState[t] = TASK_FAILED /\ taskState'[t] = TASK_RETRIED
+        BY <2>2 DEF taskStateBar
+    <2>. QED
+        BY <2>1, <2>2, <2>3
+\* TASK_RETRIED is written to a TASK_FAILED task by RetryTasks only
+<1>2. PICK T \in SUBSET Task : RetryTasks(T) /\ t \in T
+    BY <1>1 DEF Next, vars, RegisterTasks, StageTasks, DiscardTasks, SetTaskRetries, AssignTasks, ReleaseTasks,
+    ProcessTasks, CompleteTasks, AbortTasks, RetryTasks, RequestTasksStopping, StopTasks,
+    RequestTasksPausing, PauseTasks, ResumeTasks, Terminating, UnknownTask, RegisteredTask, StagedTask,
+        AssignedTask, SucceededTask, FailedTask, DiscardedTask, StoppedTask, PausedTask, UnretriedTask
+\* the Bar frame forces the singleton
+<1>3. T = {t}
+    <2>. SUFFICES ASSUME NEW s \in T, s /= t
+                  PROVE  FALSE
+        BY <1>2
+    <2>1. taskState[s] = TASK_FAILED /\ taskState'[s] = TASK_RETRIED
+        BY <1>2 DEF RetryTasks, FailedTask, UnretriedTask
+    <2>. QED
+        BY <1>1, <2>1 DEF taskStateBar
+<1>. QED
+    BY <1>1, <1>2, <1>3 DEF vars
+
+LEMMA LemRegisterTasksFromTP2Step ==
+    ASSUME NEW u
+    PROVE  TypeOk /\ [Next]_vars /\ <<TP2!RegisterTasks({u})>>_(TP2!vars)
+           => <<RegisterTasks({u})>>_vars
+<1>. SUFFICES ASSUME TypeOk, [Next]_vars, TP2!RegisterTasks({u})
+              PROVE  <<RegisterTasks({u})>>_vars
+    BY DEF TP2!vars
+<1>1. /\ u \in Task
+      /\ taskState[u] = TASK_UNKNOWN /\ taskState'[u] = TASK_REGISTERED
+      /\ \A s \in Task \ {u} : taskStateBar'[s] = taskStateBar[s]
+    <2>1. /\ taskStateBar' = [s \in Task |-> IF s \in {u} THEN TASK_REGISTERED ELSE taskStateBar[s]]
+          /\ u \in TP2!UnknownTask
+        BY DEF TP2!RegisterTasks
+    <2>2. u \in Task /\ taskStateBar[u] = TASK_UNKNOWN /\ taskStateBar'[u] = TASK_REGISTERED
+        BY <2>1 DEF TP2!UnknownTask
+    <2>3. taskState[u] = TASK_UNKNOWN /\ taskState'[u] = TASK_REGISTERED
+        BY <2>2 DEF taskStateBar
+    <2>. QED
+        BY <2>1, <2>2, <2>3
+\* TASK_REGISTERED is written to a TASK_UNKNOWN task by RegisterTasks only
+<1>2. PICK T \in SUBSET Task : RegisterTasks(T) /\ u \in T
+    BY <1>1 DEF Next, vars, RegisterTasks, StageTasks, DiscardTasks, SetTaskRetries, AssignTasks, ReleaseTasks,
+    ProcessTasks, CompleteTasks, AbortTasks, RetryTasks, RequestTasksStopping, StopTasks,
+    RequestTasksPausing, PauseTasks, ResumeTasks, Terminating, UnknownTask, RegisteredTask, StagedTask,
+        AssignedTask, SucceededTask, FailedTask, DiscardedTask, StoppedTask, PausedTask
+\* the Bar frame forces the singleton
+<1>3. T = {u}
+    <2>. SUFFICES ASSUME NEW s \in T, s /= u
+                  PROVE  FALSE
+        BY <1>2
+    <2>1. taskState[s] = TASK_UNKNOWN /\ taskState'[s] = TASK_REGISTERED
+        BY <1>2 DEF RegisterTasks, UnknownTask
+    <2>. QED
+        BY <1>1, <2>1 DEF taskStateBar
+<1>. QED
+    BY <1>1, <1>2, <1>3 DEF vars
+
+LEMMA LemStageTasksFromTP2Step ==
+    ASSUME NEW u
+    PROVE  TypeOk /\ [Next]_vars /\ <<TP2!StageTasks({u})>>_(TP2!vars)
+           => <<StageTasks({u})>>_vars
+<1>. SUFFICES ASSUME TypeOk, [Next]_vars, TP2!StageTasks({u})
+              PROVE  <<StageTasks({u})>>_vars
+    BY DEF TP2!vars
+<1>1. /\ u \in Task
+      /\ taskState[u] = TASK_REGISTERED
+      /\ taskState'[u] \in {TASK_STAGED, TASK_PAUSED, TASK_STOPPED}
+      /\ \A s \in Task \ {u} : taskStateBar'[s] = taskStateBar[s]
+    <2>1. /\ taskStateBar' = [s \in Task |-> IF s \in {u} THEN TASK_STAGED ELSE taskStateBar[s]]
+          /\ u \in TP2!RegisteredTask
+        BY DEF TP2!StageTasks
+    <2>2. u \in Task /\ taskStateBar[u] = TASK_REGISTERED /\ taskStateBar'[u] = TASK_STAGED
+        BY <2>1 DEF TP2!RegisteredTask
+    <2>3. taskState[u] = TASK_REGISTERED /\ taskState'[u] \in {TASK_STAGED, TASK_PAUSED, TASK_STOPPED}
+        BY <2>2 DEF taskStateBar
+    <2>. QED
+        BY <2>1, <2>2, <2>3
+\* a TASK_REGISTERED task is moved to a Bar-STAGED state by StageTasks only
+<1>2. PICK T \in SUBSET Task : StageTasks(T) /\ u \in T
+    BY <1>1 DEF Next, vars, RegisterTasks, StageTasks, DiscardTasks, SetTaskRetries, AssignTasks, ReleaseTasks,
+    ProcessTasks, CompleteTasks, AbortTasks, RetryTasks, RequestTasksStopping, StopTasks,
+    RequestTasksPausing, PauseTasks, ResumeTasks, Terminating, UnknownTask, RegisteredTask, StagedTask,
+        AssignedTask, SucceededTask, FailedTask, DiscardedTask, StoppedTask, PausedTask
+\* the Bar frame forces the singleton
+<1>3. T = {u}
+    <2>. SUFFICES ASSUME NEW s \in T, s /= u
+                  PROVE  FALSE
+        BY <1>2
+    <2>1. taskState[s] = TASK_REGISTERED /\ taskState'[s] = TASK_STAGED
+        BY <1>2 DEF StageTasks, RegisteredTask
+    <2>. QED
+        BY <1>1, <2>1 DEF taskStateBar
+<1>. QED
+    BY <1>1, <1>2, <1>3 DEF vars
+
+(* A cancellation request permanently bars a non-assigned task from the      *)
+(* ASSIGNED state: stoppingRequested is monotone and AssignTasks excludes    *)
+(* requested tasks.                                                          *)
+THEOREM TP3_StoppingRequestPreventsAssignment ==
+    Spec => StoppingRequestPreventsAssignment
+<1>. SUFFICES ASSUME NEW t \in Task
+              PROVE Spec => [](t \in stoppingRequested /\ ~ (t \in AssignedTask)
+                               => [](~ (t \in AssignedTask)))
+    BY DEF StoppingRequestPreventsAssignment
+<1>1. /\ t \in stoppingRequested /\ ~ (t \in AssignedTask)
+      /\ TaskSafetyInv /\ [Next]_vars
+      => (t \in stoppingRequested /\ ~ (t \in AssignedTask))'
+    BY DEF TaskSafetyInv, TypeOk, TaskStateIntegrity, Next, vars,
+       RegisterTasks, StageTasks, DiscardTasks, SetTaskRetries, AssignTasks,
+       ReleaseTasks, ProcessTasks, CompleteTasks, AbortTasks, RetryTasks,
+       RequestTasksStopping, StopTasks, RequestTasksPausing, PauseTasks,
+       ResumeTasks, Terminating, AssignedTask, StagedTask
+<1>. QED
+    BY <1>1, LemTaskSafetyInv, PTL DEF Spec
+
 THEOREM TP3_RequestedStoppingEventualAcknowledgment ==
     Spec => RequestedStoppingEventualAcknowledgment
 <1>. SUFFICES ASSUME NEW t \in Task
-              PROVE Spec => /\ t \in UNION {RegisteredTask, StagedTask, PausedTask}
+              PROVE Spec => /\ t \in UNION {StagedTask, PausedTask}
                             /\ t \in stoppingRequested
                             ~> t \in StoppedTask \/ t \in AbortedTask
     BY DEF RequestedStoppingEventualAcknowledgment
-<1>. DEFINE P == t \in UNION {RegisteredTask, StagedTask, PausedTask}
+<1>. DEFINE P == t \in UNION {StagedTask, PausedTask}
                  /\ t \in stoppingRequested
             R == t \in DiscardedTask
             Q == t \in StoppedTask \/ t \in AbortedTask
@@ -225,10 +479,6 @@ THEOREM TP3_RequestedStoppingEventualAcknowledgment ==
     BY <1>9, <1>10, PTL
 
 THEOREM TP3_RefineTaskProcessing2 == Spec => RefineTaskProcessing2
-<1>. USE DEF TP2!TASK_UNKNOWN, TP2!TASK_REGISTERED, TP2!TASK_STAGED,
-     TP2!TASK_ASSIGNED, TP2!TASK_SUCCEEDED, TP2!TASK_FAILED,
-     TP2!TASK_DISCARDED, TP2!TASK_COMPLETED, TP2!TASK_RETRIED,
-     TP2!TASK_ABORTED
 <1>1. Init => TP2!Init
     BY DEF Init, TP2!Init, taskStateBar
 <1>2. TaskSafetyInv /\ [Next]_vars => [TP2!Next]_TP2!vars
@@ -260,8 +510,8 @@ THEOREM TP3_RefineTaskProcessing2 == Spec => RefineTaskProcessing2
     <2>3. ASSUME NEW T \in SUBSET Task, DiscardTasks(T)
           PROVE TP2!DiscardTasks(T)
         BY <2>3 DEF DiscardTasks, TP2!DiscardTasks, RegisteredTask,
-        StagedTask, PausedTask, TP2!RegisteredTask, TP2!StagedTask,
-        taskStateBar
+        StagedTask, PausedTask, StoppedTask, TP2!RegisteredTask,
+        TP2!StagedTask, taskStateBar
     <2>4. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task,
                SetTaskRetries(T, U)
           PROVE TP2!SetTaskRetries(T, U)
@@ -331,105 +581,32 @@ THEOREM TP3_RefineTaskProcessing2 == Spec => RefineTaskProcessing2
            PROVE UNCHANGED TP2!vars
         BY <2>11 DEF RequestTasksStopping, TP2!vars, taskStateBar
     <2>12. ASSUME NEW T \in SUBSET Task, StopTasks(T)
-           PROVE (\E S \in SUBSET Task: TP2!StageTasks(S)) \/ UNCHANGED TP2!vars
-        <3>. USE DEF TaskSafetyInv, TypeOk, TaskStateIntegrity
-        <3>1. CASE T \intersect RegisteredTask /= {}
-            <4>1. T \intersect RegisteredTask \in SUBSET Task
-                OBVIOUS
-            <4>2. T \intersect RegisteredTask \subseteq TP2!RegisteredTask
-                BY <2>12 DEF StopTasks, RegisteredTask, TP2!RegisteredTask, taskStateBar
-            <4>3. taskStateBar' = [t \in Task |-> IF t \in T \intersect RegisteredTask
-                                    THEN TASK_STAGED ELSE taskStateBar[t]]
-                <5>. SUFFICES ASSUME NEW u \in Task
-                              PROVE taskStateBar'[u] = IF u \in T \intersect RegisteredTask
-                                        THEN TASK_STAGED ELSE taskStateBar[u]
-                    BY <2>12 DEF StopTasks, taskStateBar
-                <5>1. CASE u \in T /\ u \in RegisteredTask
-                    BY <5>1, <2>12 DEF StopTasks, taskStateBar, RegisteredTask
-                <5>2. CASE u \in T /\ u \in StagedTask
-                    BY <5>2, <2>12 DEF StopTasks, taskStateBar, StagedTask, RegisteredTask
-                <5>3. CASE u \in T /\ u \in PausedTask
-                    BY <5>3, <2>12 DEF StopTasks, taskStateBar, PausedTask, RegisteredTask
-                <5>4. CASE u \in T /\ u \notin RegisteredTask /\ u \notin StagedTask /\ u \notin PausedTask
-                    BY <5>4, <2>12 DEF StopTasks, taskStateBar, RegisteredTask, StagedTask, PausedTask
-                <5>5. CASE u \notin T
-                    BY <5>5, <2>12 DEF StopTasks, taskStateBar
-                <5>. QED BY <5>1, <5>2, <5>3, <5>4, <5>5
-            <4>4. UNCHANGED nextAttemptOf
-                BY <2>12 DEF StopTasks
-            <4>5. TP2!StageTasks(T \intersect RegisteredTask)
-                BY <3>1, <4>1, <4>2, <4>3, <4>4 DEF TP2!StageTasks
-            <4>. QED BY <4>1, <4>5
-        <3>2. CASE T \intersect RegisteredTask = {}
-            <4>. SUFFICES UNCHANGED TP2!vars
-                OBVIOUS
-            <4>1. UNCHANGED nextAttemptOf
-                BY <2>12 DEF StopTasks
-            <4>2. taskStateBar' = taskStateBar
-                <5>. SUFFICES ASSUME NEW u \in Task
-                              PROVE taskStateBar'[u] = taskStateBar[u]
-                    BY <2>12 DEF StopTasks, taskStateBar
-                <5>1. CASE u \in T /\ u \in StagedTask
-                    BY <5>1, <2>12 DEF StopTasks, taskStateBar, StagedTask
-                <5>2. CASE u \in T /\ u \in PausedTask
-                    BY <5>2, <2>12 DEF StopTasks, taskStateBar, PausedTask
-                <5>3. CASE u \in T /\ u \notin StagedTask /\ u \notin PausedTask
-                    BY <5>3, <3>2, <2>12 DEF StopTasks, taskStateBar,
-                    RegisteredTask, StagedTask, PausedTask
-                <5>4. CASE u \notin T
-                    BY <5>4, <2>12 DEF StopTasks, taskStateBar
-                <5>. QED BY <5>1, <5>2, <5>3, <5>4
-            <4>. QED BY <4>1, <4>2 DEF TP2!vars, taskStateBar
-        <3>. QED BY <3>1, <3>2
+           PROVE UNCHANGED TP2!vars
+        <3>1. taskStateBar' = taskStateBar
+            <4>. SUFFICES ASSUME NEW u \in Task
+                          PROVE taskStateBar'[u] = taskStateBar[u]
+                BY <2>12 DEF StopTasks, taskStateBar
+            <4>1. CASE u \in T
+                BY <4>1, <2>12 DEF StopTasks, taskStateBar, StagedTask, PausedTask
+            <4>2. CASE u \notin T
+                BY <4>2, <2>12 DEF StopTasks, taskStateBar
+            <4>. QED BY <4>1, <4>2
+        <3>. QED BY <2>12, <3>1 DEF StopTasks, TP2!vars
     <2>13. ASSUME NEW T \in SUBSET Task, RequestTasksPausing(T)
            PROVE UNCHANGED TP2!vars
         BY <2>13 DEF RequestTasksPausing, TP2!vars, taskStateBar
     <2>14. ASSUME NEW T \in SUBSET Task, PauseTasks(T)
-           PROVE (\E S \in SUBSET Task: TP2!ReleaseTasks(S)) \/ UNCHANGED TP2!vars
-        <3>1. CASE T \intersect AssignedTask /= {}
-            <4>1. T \intersect AssignedTask \in SUBSET Task
-                OBVIOUS
-            <4>2. T \intersect AssignedTask \subseteq TP2!AssignedTask
-                BY <2>14 DEF PauseTasks, AssignedTask, TP2!AssignedTask, taskStateBar
-            <4>3. taskStateBar' = [t \in Task |-> IF t \in T \intersect AssignedTask
-                                    THEN TASK_STAGED ELSE taskStateBar[t]]
-                <5>. SUFFICES ASSUME NEW u \in Task
-                              PROVE taskStateBar'[u] = IF u \in T \intersect AssignedTask
-                                        THEN TASK_STAGED ELSE taskStateBar[u]
-                    BY <2>14 DEF PauseTasks, taskStateBar
-                <5>1. CASE u \in T /\ u \in AssignedTask
-                    BY <5>1, <2>14 DEF PauseTasks, taskStateBar, AssignedTask
-                <5>2. CASE u \in T /\ u \in StagedTask
-                    BY <5>2, <2>14 DEF PauseTasks, taskStateBar, StagedTask, AssignedTask
-                <5>3. CASE u \in T /\ u \notin AssignedTask /\ u \notin StagedTask
-                    BY <5>3, <2>14 DEF PauseTasks, taskStateBar, AssignedTask, StagedTask
-                <5>4. CASE u \notin T
-                    BY <5>4, <2>14 DEF PauseTasks, taskStateBar
-                <5>. QED BY <5>1, <5>2, <5>3, <5>4
-            <4>4. UNCHANGED nextAttemptOf
-                BY <2>14 DEF PauseTasks
-            <4>5. TP2!ReleaseTasks(T \intersect AssignedTask)
-                BY <3>1, <4>1, <4>2, <4>3, <4>4 DEF TP2!ReleaseTasks
-            <4>. QED BY <4>1, <4>5
-        <3>2. CASE T \intersect AssignedTask = {}
-            <4>. SUFFICES UNCHANGED TP2!vars
-                OBVIOUS
-            <4>1. UNCHANGED nextAttemptOf
-                BY <2>14 DEF PauseTasks
-            <4>2. taskStateBar' = taskStateBar
-                <5>. SUFFICES ASSUME NEW u \in Task
-                              PROVE taskStateBar'[u] = taskStateBar[u]
-                    BY <2>14 DEF PauseTasks, taskStateBar
-                <5>1. CASE u \in T /\ u \in StagedTask
-                    BY <5>1, <2>14 DEF PauseTasks, taskStateBar, StagedTask
-                <5>2. CASE u \in T /\ u \notin StagedTask
-                    BY <5>2, <3>2, <2>14 DEF PauseTasks, taskStateBar,
-                    AssignedTask, StagedTask
-                <5>3. CASE u \notin T
-                    BY <5>3, <2>14 DEF PauseTasks, taskStateBar
-                <5>. QED BY <5>1, <5>2, <5>3
-            <4>. QED BY <4>1, <4>2 DEF TP2!vars, taskStateBar
-        <3>. QED BY <3>1, <3>2
+           PROVE UNCHANGED TP2!vars
+        <3>1. taskStateBar' = taskStateBar
+            <4>. SUFFICES ASSUME NEW u \in Task
+                          PROVE taskStateBar'[u] = taskStateBar[u]
+                BY <2>14 DEF PauseTasks, taskStateBar
+            <4>1. CASE u \in T
+                BY <4>1, <2>14 DEF PauseTasks, taskStateBar, StagedTask
+            <4>2. CASE u \notin T
+                BY <4>2, <2>14 DEF PauseTasks, taskStateBar
+            <4>. QED BY <4>1, <4>2
+        <3>. QED BY <2>14, <3>1 DEF PauseTasks, TP2!vars
     <2>15. ASSUME NEW T \in SUBSET Task, ResumeTasks(T)
            PROVE UNCHANGED TP2!vars
         BY <2>15 DEF ResumeTasks, TP2!vars, taskStateBar, PausedTask
@@ -642,47 +819,19 @@ THEOREM TP3_RefineTaskProcessing2 == Spec => RefineTaskProcessing2
                              \/ t \in StoppedTask)'
             BY DEF ProcessTasks, AssignedTask, SucceededTask, FailedTask, DiscardedTask, StoppedTask
         <3>4. t \in SucceededTask /\ [Next]_vars => (t \in SucceededTask)' \/ (t \in CompletedTask)'
-            BY DEF Next, vars, RegisterTasks, StageTasks, DiscardTasks, SetTaskRetries,
-            AssignTasks, ReleaseTasks, ProcessTasks, CompleteTasks, AbortTasks, RetryTasks,
-            RequestTasksStopping, StopTasks, RequestTasksPausing, PauseTasks, ResumeTasks,
-            Terminating, UnknownTask, RegisteredTask, StagedTask, AssignedTask,
-            SucceededTask, FailedTask, DiscardedTask, PausedTask, StoppedTask, CompletedTask
+            BY LemTaskStateStable DEF SucceededTask, CompletedTask
         <3>5. t \in FailedTask /\ [Next]_vars => (t \in FailedTask)' \/ (t \in RetriedTask)'
-            BY DEF Next, vars, RegisterTasks, StageTasks, DiscardTasks, SetTaskRetries,
-            AssignTasks, ReleaseTasks, ProcessTasks, CompleteTasks, AbortTasks, RetryTasks,
-            RequestTasksStopping, StopTasks, RequestTasksPausing, PauseTasks, ResumeTasks,
-            Terminating, UnknownTask, RegisteredTask, StagedTask, AssignedTask,
-            SucceededTask, FailedTask, DiscardedTask, PausedTask, StoppedTask, RetriedTask
+            BY LemTaskStateStable DEF FailedTask, RetriedTask
         <3>6. t \in DiscardedTask /\ [Next]_vars => (t \in DiscardedTask)' \/ (t \in AbortedTask)'
-            BY DEF Next, vars, RegisterTasks, StageTasks, DiscardTasks, SetTaskRetries,
-            AssignTasks, ReleaseTasks, ProcessTasks, CompleteTasks, AbortTasks, RetryTasks,
-            RequestTasksStopping, StopTasks, RequestTasksPausing, PauseTasks, ResumeTasks,
-            Terminating, UnknownTask, RegisteredTask, StagedTask, AssignedTask,
-            SucceededTask, FailedTask, DiscardedTask, PausedTask, StoppedTask, AbortedTask
+            BY LemTaskStateStable DEF DiscardedTask, AbortedTask
         <3>7. t \in StoppedTask /\ [Next]_vars => (t \in StoppedTask)' \/ (t \in DiscardedTask)'
-            BY DEF Next, vars, RegisterTasks, StageTasks, DiscardTasks, SetTaskRetries,
-            AssignTasks, ReleaseTasks, ProcessTasks, CompleteTasks, AbortTasks, RetryTasks,
-            RequestTasksStopping, StopTasks, RequestTasksPausing, PauseTasks, ResumeTasks,
-            Terminating, UnknownTask, RegisteredTask, StagedTask, AssignedTask,
-            SucceededTask, FailedTask, DiscardedTask, PausedTask, StoppedTask, AbortedTask
+            BY LemTaskStateStable DEF StoppedTask, DiscardedTask
         <3>8. t \in CompletedTask /\ [Next]_vars => (t \in CompletedTask)'
-            BY DEF Next, vars, RegisterTasks, StageTasks, DiscardTasks, SetTaskRetries,
-            AssignTasks, ReleaseTasks, ProcessTasks, CompleteTasks, AbortTasks, RetryTasks,
-            RequestTasksStopping, StopTasks, RequestTasksPausing, PauseTasks, ResumeTasks,
-            Terminating, UnknownTask, RegisteredTask, StagedTask, AssignedTask,
-            SucceededTask, FailedTask, DiscardedTask, PausedTask, StoppedTask, CompletedTask
+            BY LemTaskStateStable DEF CompletedTask
         <3>9. t \in RetriedTask /\ [Next]_vars => (t \in RetriedTask)'
-            BY DEF Next, vars, RegisterTasks, StageTasks, DiscardTasks, SetTaskRetries,
-            AssignTasks, ReleaseTasks, ProcessTasks, CompleteTasks, AbortTasks, RetryTasks,
-            RequestTasksStopping, StopTasks, RequestTasksPausing, PauseTasks, ResumeTasks,
-            Terminating, UnknownTask, RegisteredTask, StagedTask, AssignedTask,
-            SucceededTask, FailedTask, DiscardedTask, PausedTask, StoppedTask, RetriedTask
+            BY LemTaskStateStable DEF RetriedTask
         <3>10. t \in AbortedTask /\ [Next]_vars => (t \in AbortedTask)'
-            BY DEF Next, vars, RegisterTasks, StageTasks, DiscardTasks, SetTaskRetries,
-            AssignTasks, ReleaseTasks, ProcessTasks, CompleteTasks, AbortTasks, RetryTasks,
-            RequestTasksStopping, StopTasks, RequestTasksPausing, PauseTasks, ResumeTasks,
-            Terminating, UnknownTask, RegisteredTask, StagedTask, AssignedTask,
-            SucceededTask, FailedTask, DiscardedTask, PausedTask, StoppedTask, AbortedTask
+            BY LemTaskStateStable DEF AbortedTask
         <3>11. /\ t \in TP2!AssignedTask /\ t \in SucceededTask => FALSE
                /\ t \in TP2!AssignedTask /\ t \in DiscardedTask => FALSE
                /\ t \in TP2!AssignedTask /\ t \in FailedTask => FALSE

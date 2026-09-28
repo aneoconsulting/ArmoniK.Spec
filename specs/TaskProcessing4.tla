@@ -99,7 +99,7 @@ StageTasks(T) ==
  *)
 DiscardTasks(T) ==
     /\ T /= {}
-    /\ T \subseteq UNION {RegisteredTask, StagedTask, PausedTask}
+    /\ T \subseteq UNION {RegisteredTask, StagedTask, PausedTask, StoppedTask}
     /\ T \intersect taskDeleted = {}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
@@ -217,33 +217,28 @@ RequestTasksStopping(T) ==
 
 (**
  * TASK CANCELLATION ACKNOWLEDGMENT
- * The request to cancel a set 'T' of tasks is acknowledged. Tasks not
- * currently assigned are changed to the STOPPED state, provided that their
- * processing has not already been completed (i.e., the tasks are in
- * REGISTERED, STAGED or PAUSED states).
+ * The request to cancel a set 'T' of tasks is acknowledged. STAGED or PAUSED
+ * tasks are changed to the STOPPED state: only tasks eligible for execution
+ * need to be parked. A request on a REGISTERED task stays pending -- it
+ * already prevents assignment, and it is acknowledged if the task ever
+ * stages.
  *)
 StopTasks(T) ==
     /\ T /= {}
     /\ T \subseteq stoppingRequested
-    /\ T \intersect AssignedTask = {}
+    /\ T \subseteq StagedTask \union PausedTask
     /\ T \intersect taskDeleted = {}
     /\ taskState' =
-        [t \in Task |-> IF t \in T /\ (\/ t \in RegisteredTask
-                                       \/ t \in StagedTask
-                                       \/ t \in PausedTask)
-                            THEN TASK_STOPPED
-                            ELSE taskState[t]]
+        [t \in Task |-> IF t \in T THEN TASK_STOPPED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, stoppingRequested,
                     pausingRequested, taskDeleted >>
 
 (**
  * TASK PAUSING REQUESTING
- * The pausing of a set 'T' of tasks is requested. Tasks can be paused
- * provided that they have not been previously requested to be canceled.
+ * The pausing of a set 'T' of tasks is requested.
  *)
 RequestTasksPausing(T) ==
     /\ T /= {} /\ T \intersect UnknownTask = {}
-    /\ T \intersect stoppingRequested = {}
     /\ T \intersect taskDeleted = {}
     /\ pausingRequested' = pausingRequested \union T
     /\ UNCHANGED << taskState, nextAttemptOf, stoppingRequested,
@@ -251,16 +246,15 @@ RequestTasksPausing(T) ==
 
 (**
  * TASK PAUSING ACKNOWLEDGMENT
- * The request to pause a set 'T' of tasks is acknowledged. STAGED or
- * ASSIGNED tasks are set to the PAUSED state.
+ * The request to pause a set 'T' of staged tasks is acknowledged: they are
+ * set to the PAUSED state. An assigned task is paused only once released.
  *)
 PauseTasks(T) ==
     /\ T /= {} /\ T \subseteq pausingRequested
+    /\ T \subseteq StagedTask
     /\ T \intersect taskDeleted = {}
     /\ taskState' =
-        [t \in Task |-> IF t \in T /\ (t \in StagedTask \/ t \in AssignedTask)
-                            THEN TASK_PAUSED
-                            ELSE taskState[t]]
+        [t \in Task |-> IF t \in T THEN TASK_PAUSED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested,
                     taskDeleted >>
 
@@ -288,7 +282,7 @@ DeleteTasks(T) ==
     /\ T \intersect FailedTask = {}
     /\ T \intersect DiscardedTask = {}
     /\ T \intersect PausedTask = {}
-    /\ T \intersect (RegisteredTask \union StagedTask) \intersect stoppingRequested = {}
+    /\ T \intersect StagedTask \intersect stoppingRequested = {}
     /\ T \intersect pausingRequested = {}
     /\ \A t \in T: t \in RegisteredTask => ~ \E u \in Task: nextAttemptOf[u] = t
     /\ taskDeleted' = taskDeleted \union T
@@ -345,7 +339,8 @@ Next ==
  *     without eventually being processed.
  *   - A task cannot remain indefinitely processed without being eventually
  *     finalized (completed, retried or aborted).
- *   - A task cannot remain indefinitely paused without being resumed.
+ *   - A task whose cancellation (resp. pausing) request can be acknowledged
+ *     is eventually stopped (resp. paused).
  *)
 Fairness ==
     \A t \in Task:
@@ -358,7 +353,6 @@ Fairness ==
         /\ WF_vars(RetryTasks({t}))
         /\ WF_vars(StopTasks({t}))
         /\ WF_vars(PauseTasks({t}))
-        /\ WF_vars(ResumeTasks({t}))
 
 (**
  * Full system specification.
@@ -386,8 +380,7 @@ DeletionValidity ==
     /\ taskDeleted \intersect DiscardedTask = {}
     /\ taskDeleted \intersect PausedTask = {}
     /\ taskDeleted \intersect pausingRequested = {}
-    /\ taskDeleted \intersect (RegisteredTask \union StagedTask)
-                  \intersect stoppingRequested = {}
+    /\ taskDeleted \intersect StagedTask \intersect stoppingRequested = {}
     /\ \A t \in Task: nextAttemptOf[t] \in RegisteredTask
                       => nextAttemptOf[t] \notin taskDeleted
 

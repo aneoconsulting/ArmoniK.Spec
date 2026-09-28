@@ -8,7 +8,15 @@ name: CI
 #   3. TLC model checking            modules with a companion .cfg file
 #      + state-space statistics vs the `\* state-space:` reference in the .cfg
 #   4. Interface consistency         theorem interfaces (*Theorems)
-#   5. tlapm --strict proof checking proof files (*_proofs)
+# The proofs (*_proofs) are checked by the `proofs` jobs, one tlapm run per line
+# range that scripts/chunk_proofs.py plans. A module that fits the budget of one
+# run is one range, the whole file -- every module but the largest. Those do not
+# fit a runner's budget with the upstream prover, so the planner splits them at
+# top-level statements into ranges it can carry, and `proofs-optimized` checks
+# each of them whole with the optimized tlapm build (scripts/install-tools.sh)
+# besides. The ranges tile a module and never cut a proof in two, and `--strict`
+# reports only the range it is given, so the jobs of a split module are together
+# exactly as strict as one run over it.
 # The `pairing` job additionally enforces repo-wide that theorem interfaces
 # and proof files come in <X>Theorems.tla / <X>Theorems_proofs.tla pairs and
 # that every model or test module keeps its .cfg; the `tests` job runs the
@@ -33,6 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       specs: ${{ steps.list.outputs.specs }}
+      proofs: ${{ steps.proofs.outputs.plan }}
     steps:
       - uses: actions/checkout@v5
 
@@ -45,6 +54,17 @@ jobs:
             | grep -v '_TTrace_' | grep -xE '[A-Za-z][A-Za-z0-9_]*' | jq -R . | jq -sc .)
           echo "specs=$specs"
           echo "specs=$specs" >> "$GITHUB_OUTPUT"
+
+      # The plan is the ranges of every proof module (matrix of `proofs`) and the
+      # modules split into several (matrix of `proofs-optimized`). The planner
+      # refuses to print ranges that leave a line of a module uncovered, so a
+      # green matrix cannot mean a partially checked file.
+      - id: proofs
+        name: Plan the proof checks
+        run: |
+          set -euo pipefail
+          python3 -m scripts.chunk_proofs
+          echo "plan=$(python3 -m scripts.chunk_proofs --json)" >> "$GITHUB_OUTPUT"
 
   commits:
     name: Commit convention
@@ -164,9 +184,11 @@ jobs:
           path: .tlatools
           key: tlatools-${{ runner.os }}-${{ hashFiles('scripts/install-tools.sh') }}
 
+      # Without the optimized tlapm: 826 MB only the proofs-optimized jobs need,
+      # cached apart by them.
       - name: Install TLA+ tools
         if: steps.cache-tools.outputs.cache-hit != 'true'
-        run: ./scripts/install-tools.sh
+        run: ./scripts/install-tools.sh --no-tlapm-opt
 
       # Save only after a successful install -- a failed download must never
       # poison the cache with a partial .tlatools.
@@ -227,12 +249,118 @@ jobs:
           SPEC: ${{ matrix.spec }}
         run: .venv/bin/python -m scripts.check_thm_interface "specs/$SPEC.tla"
 
+  # One job per range of the plan, with the upstream tlapm. A range is named
+  # after its module alone when it is the whole file, and after its position
+  # and first statement otherwise.
+  proofs:
+    name: "tlapm ${{ matrix.chunk.name }}"
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chunk: ${{ fromJSON(needs.discover.outputs.proofs).chunks }}
+    steps:
+      - uses: actions/checkout@v5
+
+      # The toolchain install compiles nothing here, but still wants a JDK for
+      # the TLC half of the install it shares with the verify jobs.
+      - name: Setup JDK
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Restore TLA+ tools cache
+        id: cache-tools
+        uses: actions/cache/restore@v4
+        with:
+          path: .tlatools
+          key: tlatools-${{ runner.os }}-${{ hashFiles('scripts/install-tools.sh') }}
+
+      - name: Install TLA+ tools
+        if: steps.cache-tools.outputs.cache-hit != 'true'
+        run: ./scripts/install-tools.sh --no-tlapm-opt
+
+      # `--toolbox begin end` restricts proving to the obligations of the steps
+      # located in that range; --strict then reports the failed, omitted and
+      # missing proofs of the range alone. Over the whole file, it is a
+      # whole-file run: same obligations, same exit code.
       - name: Check proofs (tlapm --strict)
-        if: steps.plan.outputs.proofs == 'true'
         working-directory: specs
         env:
-          SPEC: ${{ matrix.spec }}
+          MODULE: ${{ matrix.chunk.module }}
+          BEGIN: ${{ matrix.chunk.begin }}
+          END: ${{ matrix.chunk.end }}
         run: |
           ../.tlatools/tlapm/bin/tlapm --strict \
             -I ../.tlatools/CommunityModules/modules \
-            "$SPEC.tla"
+            --toolbox "$BEGIN" "$END" "$MODULE.tla"
+
+  # One job per split module, checked whole with the optimized tlapm build.
+  proofs-optimized:
+    name: "tlapm-opt ${{ matrix.module }}"
+    needs: discover
+    # An empty matrix is not a job GitHub can run.
+    if: ${{ join(fromJSON(needs.discover.outputs.proofs).split) != '' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJSON(needs.discover.outputs.proofs).split }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup JDK
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Restore TLA+ tools cache
+        id: cache-tools
+        uses: actions/cache/restore@v4
+        with:
+          path: .tlatools
+          key: tlatools-${{ runner.os }}-${{ hashFiles('scripts/install-tools.sh') }}
+
+      - name: Install TLA+ tools
+        if: steps.cache-tools.outputs.cache-hit != 'true'
+        run: ./scripts/install-tools.sh --no-tlapm-opt
+
+      # Cached apart from the rest of the toolchain: only these jobs need it,
+      # and restoring 826 MB into every other job would cost more than it saves.
+      # Saved only after a successful install, so a failed download cannot
+      # poison the cache with a partial tree.
+      - name: Restore optimized tlapm cache
+        id: cache-tlapm-opt
+        uses: actions/cache/restore@v4
+        with:
+          path: .tlatools/tlapm-opt
+          key: tlapm-opt-${{ runner.os }}-${{ hashFiles('scripts/install-tools.sh') }}
+
+      - name: Install the optimized tlapm
+        if: steps.cache-tlapm-opt.outputs.cache-hit != 'true'
+        run: ./scripts/install-tools.sh --only-tlapm-opt
+
+      - name: Save optimized tlapm cache
+        if: steps.cache-tlapm-opt.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .tlatools/tlapm-opt
+          key: tlapm-opt-${{ runner.os }}-${{ hashFiles('scripts/install-tools.sh') }}
+
+      # --stretch 3: the optimized build reaches the Isabelle-bound obligations
+      # of the liveness proofs far more concurrently than the upstream one, so
+      # they must share a runner instead of having it to themselves. Measured on
+      # GraphProcessing2: two ENABLED obligations Isabelle discharges in 27 s of
+      # its 60 s alone are lost at --stretch 2 under that concurrency, and the
+      # whole module is green at --stretch 3.
+      - name: Check proofs (tlapm --strict, optimized)
+        working-directory: specs
+        env:
+          MODULE: ${{ matrix.module }}
+        run: |
+          ../.tlatools/tlapm-opt/bin/tlapm --strict --stretch 3 \
+            -I ../.tlatools/CommunityModules/modules \
+            "$MODULE.tla"
