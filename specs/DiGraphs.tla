@@ -12,7 +12,15 @@
 (* but not formally proven.                                                   *)
 (******************************************************************************)
 
-EXTENDS Naturals, Sequences, SequencesExt, FiniteSets
+EXTENDS Naturals, Sequences, FiniteSets, Functions
+
+(******************************************************************************)
+(* All sequences up to length n with all elements in `set` (includes the      *)
+(* empty sequence). Copied verbatim from CommunityModules `SequencesExt.tla`   *)
+(* to avoid extending SequencesExt, which drags the whole Bags -> theorem-     *)
+(* library tree into every module that (transitively) uses DiGraphs.           *)
+(******************************************************************************)
+SeqOf(set, n) == UNION {[1..m -> set] : m \in 0..n}
 
 (******************************************************************************)
 (* TRUE iff G is a well-formed directed graph: a record with exactly the      *)
