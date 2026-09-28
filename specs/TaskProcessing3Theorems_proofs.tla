@@ -76,11 +76,11 @@ BY LemTaskSafetyInv DEF Spec
 THEOREM TP3_RequestedStoppingEventualAcknowledgment ==
     Spec => RequestedStoppingEventualAcknowledgment
 <1>. SUFFICES ASSUME NEW t \in Task
-              PROVE Spec => /\ t \in UNION {RegisteredTask, StagedTask, PausedTask}
+              PROVE Spec => /\ t \in UNION {StagedTask, PausedTask}
                             /\ t \in stoppingRequested
                             ~> t \in StoppedTask \/ t \in AbortedTask
     BY DEF RequestedStoppingEventualAcknowledgment
-<1>. DEFINE P == t \in UNION {RegisteredTask, StagedTask, PausedTask}
+<1>. DEFINE P == t \in UNION {StagedTask, PausedTask}
                  /\ t \in stoppingRequested
             R == t \in DiscardedTask
             Q == t \in StoppedTask \/ t \in AbortedTask
@@ -260,8 +260,8 @@ THEOREM TP3_RefineTaskProcessing2 == Spec => RefineTaskProcessing2
     <2>3. ASSUME NEW T \in SUBSET Task, DiscardTasks(T)
           PROVE TP2!DiscardTasks(T)
         BY <2>3 DEF DiscardTasks, TP2!DiscardTasks, RegisteredTask,
-        StagedTask, PausedTask, TP2!RegisteredTask, TP2!StagedTask,
-        taskStateBar
+        StagedTask, PausedTask, StoppedTask, TP2!RegisteredTask,
+        TP2!StagedTask, taskStateBar
     <2>4. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task,
                SetTaskRetries(T, U)
           PROVE TP2!SetTaskRetries(T, U)
@@ -331,105 +331,32 @@ THEOREM TP3_RefineTaskProcessing2 == Spec => RefineTaskProcessing2
            PROVE UNCHANGED TP2!vars
         BY <2>11 DEF RequestTasksStopping, TP2!vars, taskStateBar
     <2>12. ASSUME NEW T \in SUBSET Task, StopTasks(T)
-           PROVE (\E S \in SUBSET Task: TP2!StageTasks(S)) \/ UNCHANGED TP2!vars
-        <3>. USE DEF TaskSafetyInv, TypeOk, TaskStateIntegrity
-        <3>1. CASE T \intersect RegisteredTask /= {}
-            <4>1. T \intersect RegisteredTask \in SUBSET Task
-                OBVIOUS
-            <4>2. T \intersect RegisteredTask \subseteq TP2!RegisteredTask
-                BY <2>12 DEF StopTasks, RegisteredTask, TP2!RegisteredTask, taskStateBar
-            <4>3. taskStateBar' = [t \in Task |-> IF t \in T \intersect RegisteredTask
-                                    THEN TASK_STAGED ELSE taskStateBar[t]]
-                <5>. SUFFICES ASSUME NEW u \in Task
-                              PROVE taskStateBar'[u] = IF u \in T \intersect RegisteredTask
-                                        THEN TASK_STAGED ELSE taskStateBar[u]
-                    BY <2>12 DEF StopTasks, taskStateBar
-                <5>1. CASE u \in T /\ u \in RegisteredTask
-                    BY <5>1, <2>12 DEF StopTasks, taskStateBar, RegisteredTask
-                <5>2. CASE u \in T /\ u \in StagedTask
-                    BY <5>2, <2>12 DEF StopTasks, taskStateBar, StagedTask, RegisteredTask
-                <5>3. CASE u \in T /\ u \in PausedTask
-                    BY <5>3, <2>12 DEF StopTasks, taskStateBar, PausedTask, RegisteredTask
-                <5>4. CASE u \in T /\ u \notin RegisteredTask /\ u \notin StagedTask /\ u \notin PausedTask
-                    BY <5>4, <2>12 DEF StopTasks, taskStateBar, RegisteredTask, StagedTask, PausedTask
-                <5>5. CASE u \notin T
-                    BY <5>5, <2>12 DEF StopTasks, taskStateBar
-                <5>. QED BY <5>1, <5>2, <5>3, <5>4, <5>5
-            <4>4. UNCHANGED nextAttemptOf
-                BY <2>12 DEF StopTasks
-            <4>5. TP2!StageTasks(T \intersect RegisteredTask)
-                BY <3>1, <4>1, <4>2, <4>3, <4>4 DEF TP2!StageTasks
-            <4>. QED BY <4>1, <4>5
-        <3>2. CASE T \intersect RegisteredTask = {}
-            <4>. SUFFICES UNCHANGED TP2!vars
-                OBVIOUS
-            <4>1. UNCHANGED nextAttemptOf
-                BY <2>12 DEF StopTasks
-            <4>2. taskStateBar' = taskStateBar
-                <5>. SUFFICES ASSUME NEW u \in Task
-                              PROVE taskStateBar'[u] = taskStateBar[u]
-                    BY <2>12 DEF StopTasks, taskStateBar
-                <5>1. CASE u \in T /\ u \in StagedTask
-                    BY <5>1, <2>12 DEF StopTasks, taskStateBar, StagedTask
-                <5>2. CASE u \in T /\ u \in PausedTask
-                    BY <5>2, <2>12 DEF StopTasks, taskStateBar, PausedTask
-                <5>3. CASE u \in T /\ u \notin StagedTask /\ u \notin PausedTask
-                    BY <5>3, <3>2, <2>12 DEF StopTasks, taskStateBar,
-                    RegisteredTask, StagedTask, PausedTask
-                <5>4. CASE u \notin T
-                    BY <5>4, <2>12 DEF StopTasks, taskStateBar
-                <5>. QED BY <5>1, <5>2, <5>3, <5>4
-            <4>. QED BY <4>1, <4>2 DEF TP2!vars, taskStateBar
-        <3>. QED BY <3>1, <3>2
+           PROVE UNCHANGED TP2!vars
+        <3>1. taskStateBar' = taskStateBar
+            <4>. SUFFICES ASSUME NEW u \in Task
+                          PROVE taskStateBar'[u] = taskStateBar[u]
+                BY <2>12 DEF StopTasks, taskStateBar
+            <4>1. CASE u \in T
+                BY <4>1, <2>12 DEF StopTasks, taskStateBar, StagedTask, PausedTask
+            <4>2. CASE u \notin T
+                BY <4>2, <2>12 DEF StopTasks, taskStateBar
+            <4>. QED BY <4>1, <4>2
+        <3>. QED BY <2>12, <3>1 DEF StopTasks, TP2!vars
     <2>13. ASSUME NEW T \in SUBSET Task, RequestTasksPausing(T)
            PROVE UNCHANGED TP2!vars
         BY <2>13 DEF RequestTasksPausing, TP2!vars, taskStateBar
     <2>14. ASSUME NEW T \in SUBSET Task, PauseTasks(T)
-           PROVE (\E S \in SUBSET Task: TP2!ReleaseTasks(S)) \/ UNCHANGED TP2!vars
-        <3>1. CASE T \intersect AssignedTask /= {}
-            <4>1. T \intersect AssignedTask \in SUBSET Task
-                OBVIOUS
-            <4>2. T \intersect AssignedTask \subseteq TP2!AssignedTask
-                BY <2>14 DEF PauseTasks, AssignedTask, TP2!AssignedTask, taskStateBar
-            <4>3. taskStateBar' = [t \in Task |-> IF t \in T \intersect AssignedTask
-                                    THEN TASK_STAGED ELSE taskStateBar[t]]
-                <5>. SUFFICES ASSUME NEW u \in Task
-                              PROVE taskStateBar'[u] = IF u \in T \intersect AssignedTask
-                                        THEN TASK_STAGED ELSE taskStateBar[u]
-                    BY <2>14 DEF PauseTasks, taskStateBar
-                <5>1. CASE u \in T /\ u \in AssignedTask
-                    BY <5>1, <2>14 DEF PauseTasks, taskStateBar, AssignedTask
-                <5>2. CASE u \in T /\ u \in StagedTask
-                    BY <5>2, <2>14 DEF PauseTasks, taskStateBar, StagedTask, AssignedTask
-                <5>3. CASE u \in T /\ u \notin AssignedTask /\ u \notin StagedTask
-                    BY <5>3, <2>14 DEF PauseTasks, taskStateBar, AssignedTask, StagedTask
-                <5>4. CASE u \notin T
-                    BY <5>4, <2>14 DEF PauseTasks, taskStateBar
-                <5>. QED BY <5>1, <5>2, <5>3, <5>4
-            <4>4. UNCHANGED nextAttemptOf
-                BY <2>14 DEF PauseTasks
-            <4>5. TP2!ReleaseTasks(T \intersect AssignedTask)
-                BY <3>1, <4>1, <4>2, <4>3, <4>4 DEF TP2!ReleaseTasks
-            <4>. QED BY <4>1, <4>5
-        <3>2. CASE T \intersect AssignedTask = {}
-            <4>. SUFFICES UNCHANGED TP2!vars
-                OBVIOUS
-            <4>1. UNCHANGED nextAttemptOf
-                BY <2>14 DEF PauseTasks
-            <4>2. taskStateBar' = taskStateBar
-                <5>. SUFFICES ASSUME NEW u \in Task
-                              PROVE taskStateBar'[u] = taskStateBar[u]
-                    BY <2>14 DEF PauseTasks, taskStateBar
-                <5>1. CASE u \in T /\ u \in StagedTask
-                    BY <5>1, <2>14 DEF PauseTasks, taskStateBar, StagedTask
-                <5>2. CASE u \in T /\ u \notin StagedTask
-                    BY <5>2, <3>2, <2>14 DEF PauseTasks, taskStateBar,
-                    AssignedTask, StagedTask
-                <5>3. CASE u \notin T
-                    BY <5>3, <2>14 DEF PauseTasks, taskStateBar
-                <5>. QED BY <5>1, <5>2, <5>3
-            <4>. QED BY <4>1, <4>2 DEF TP2!vars, taskStateBar
-        <3>. QED BY <3>1, <3>2
+           PROVE UNCHANGED TP2!vars
+        <3>1. taskStateBar' = taskStateBar
+            <4>. SUFFICES ASSUME NEW u \in Task
+                          PROVE taskStateBar'[u] = taskStateBar[u]
+                BY <2>14 DEF PauseTasks, taskStateBar
+            <4>1. CASE u \in T
+                BY <4>1, <2>14 DEF PauseTasks, taskStateBar, StagedTask
+            <4>2. CASE u \notin T
+                BY <4>2, <2>14 DEF PauseTasks, taskStateBar
+            <4>. QED BY <4>1, <4>2
+        <3>. QED BY <2>14, <3>1 DEF PauseTasks, TP2!vars
     <2>15. ASSUME NEW T \in SUBSET Task, ResumeTasks(T)
            PROVE UNCHANGED TP2!vars
         BY <2>15 DEF ResumeTasks, TP2!vars, taskStateBar, PausedTask
