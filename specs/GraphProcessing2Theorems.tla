@@ -533,22 +533,14 @@ DiscardOnAbortedInput(t) ==
 AssignUpstream(t, o) ==
     IsTaskUpstreamOnOpenPathToTarget(t, o) /\ AssignTasks({t})
 
-(* GP2-side enabledness of the discard-on-abort action, as a state condition.  *)
-(* Clean lemma level so ENABLEDaxioms sees no temporal context.                 *)
-LEMMA LemDiscardOnAbortedInputEnabled ==
-    ASSUME NEW t \in Task
-    PROVE  ENABLED <<DiscardOnAbortedInput(t)>>_vars
-           <=> Predecessor(deps, t) \intersect AbortedObject /= {}
-               /\ t \in (RegisteredTask \union StagedTask)
-
-(* While GP1!StageTasks stays enabled, t stays registered; a registered task   *)
-(* with an aborted input is discarded by the discard-on-abort fairness, which  *)
-(* would leave REGISTERED -- so eventually no input of t is aborted.            *)
+(* A registered task with an aborted input is discarded by the discard-on-   *)
+(* abort fairness, which leaves REGISTERED: so a task that eventually stays   *)
+(* registered eventually has no aborted input.                                *)
 LEMMA LemNoAbortedInputUnderStaging ==
     ASSUME NEW t \in Task
     PROVE  /\ []GraphSafetyInv /\ [][Next]_vars
            /\ WF_vars(DiscardOnAbortedInput(t))
-           /\ <>[](ENABLED <<GP1!StageTasks({t})>>_(GP1!vars))
+           /\ <>[](t \in RegisteredTask)
            => <>[](Predecessor(deps, t) \intersect AbortedObject = {})
 
 (* WF(GP1!StageTasks). GP2!StageTasks requires all inputs COMPLETED, while      *)
@@ -618,13 +610,6 @@ LEMMA LemUpstreamBridge ==
     PROVE  IsTaskUpstreamOnOpenPathToTarget(t, o)
            <=> GP1!IsTaskUpstreamOnOpenPathToTarget(t, o)
 
-(* GP2-side enabledness of the upstream-guarded assignment, as a state          *)
-(* condition. Clean lemma level so ENABLEDaxioms sees no temporal context.      *)
-LEMMA LemAssignUpstreamEnabled ==
-    ASSUME NEW t \in Task, NEW o \in Object
-    PROVE  ENABLED <<AssignUpstream(t, o)>>_vars
-           <=> IsTaskUpstreamOnOpenPathToTarget(t, o) /\ t \in StagedTask
-
 (* WF(GP1!AssignTasks) -- upstream-guarded, per (task, object) pair. WF=>WF      *)
 (* refinement needs only the ENABLED-lift and the step-refinement. The upstream *)
 (* guard matches GP1's via LemUpstreamBridge, and GP2!AssignTasks projects onto  *)
@@ -674,21 +659,14 @@ LEMMA LemTP2FailedTaskEventualRetry ==
 (* attachment is a DD graph (DDG_RetrySubGraphProperties at the partition    *)
 (* Task \ {u}, valid because an unknown clone is not a deps node); and the   *)
 (* clone is the subgraph's only task, still unknown. WF on the registration  *)
-(* then drives the clone out of UnknownTask (LemCloneRegistration), which is *)
-(* also exactly the enabledness of TP2!RegisterTasks on the clone            *)
-(* (LemRefineTP2WFRegisterTasks).                                                *)
+(* then drives the clone out of UnknownTask (LemCloneRegistration), which    *)
+(* ends the enabledness of TP2!RegisterTasks on the clone                    *)
+(* (LemRefineTP2WFRegisterTasks).                                            *)
 (*****************************************************************************)
-
-LEMMA LemRetryCloneRegistrable ==
-    ASSUME NEW t \in Task,
-           TypeOk, DependencyGraphCompliant, DepsNodeFinite, GSI_Nodes, GSI_ObjPreds,
-           UnknownAttemptImpliesFailed, TP2!TaskAttemptsIntegrity,
-           nextAttemptOf[t] \in UnknownTask
-    PROVE  ENABLED <<RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t]))>>_vars
 
 (* WF on registering the retry subgraph drives a still-unknown clone out of  *)
 (* UnknownTask: the registration is continuously enabled while the clone is  *)
-(* unknown (LemRetryCloneRegistrable), and firing it registers the clone.    *)
+(* unknown, and firing it registers the clone.                               *)
 LEMMA LemCloneRegistration ==
     ASSUME NEW t \in Task
     PROVE  /\ []TypeOk /\ []DependencyGraphCompliant /\ []DepsNodeFinite
@@ -742,9 +720,9 @@ FSTRetained  == INSTANCE FiniteStabilizationTheorems
 (*****************************************************************************)
 (* QUIESCENCE COROLLARY: under a quiesced open upstream of a registered      *)
 (* object o, no producer of o can (ever again) sit with a still-unknown      *)
-(* retry clone. The clone-subgraph registration is continuously enabled      *)
-(* (LemRetryCloneRegistrable) so WF fires it -- but any step registering the *)
-(* clone adds it, as a fresh open co-producer of o, to o's open ancestry,    *)
+(* retry clone. The clone-registration engine (LemCloneRegistration)        *)
+(* eventually registers the clone -- but any step registering the clone     *)
+(* adds it, as a fresh open co-producer of o, to o's open ancestry,          *)
 (* violating the no-growth box.                                              *)
 (*****************************************************************************)
 LEMMA LemNoUnknownCloneUnderQuiescence ==
@@ -772,18 +750,6 @@ LEMMA LemNoUnretriedProducerUnderQuiescence ==
               /\ [][S' \subseteq S]_vars
               => [](~ (t \in Predecessor(deps, o) /\ t \in UnretriedTask))
 
-(* RetryTasks({t}) is enabled purely from the live-producer invariant: for   *)
-(* each registered output, the invariant's witness is strong or pending --   *)
-(* both outside {COMPLETED, ABORTED, RETRIED} -- and never equals a failed   *)
-(* task whose clone is registered (such a task is neither strong nor         *)
-(* pending). This is what lets weak fairness retire failed producers.        *)
-LEMMA LemRetryEnabledFromLiveProducer ==
-    ASSUME NEW t \in Task
-    PROVE  /\ TypeOk /\ DependencyGraphCompliant /\ RegisteredObjectHasLiveProducer
-           /\ t \in FailedTask /\ ~ (t \in UnretriedTask)
-           /\ ~ (nextAttemptOf[t] \in UnknownTask)
-           => ENABLED <<RetryTasks({t})>>_vars
-
 (* Under quiescence a failed producer of o cannot stay FAILED: its clone is  *)
 (* registered (the two corollaries above), so RetryTasks({t}) is enabled     *)
 (* from the live-producer invariant alone, and weak fairness retires it.     *)
@@ -810,14 +776,8 @@ LEMMA LemPredsFrozenUnderQuiescence ==
               /\ [][S' \subseteq S]_vars
               => [][Predecessor(deps, o)' = Predecessor(deps, o)]_vars
 
-(* State-level cores for the object-side drains, kept in clean contexts:     *)
-(* fairness hypotheses in the ambient sequent crash the SMT translator.      *)
-LEMMA LemCompleteObjectsEnabled ==
-    ASSUME NEW o \in Object, NEW t \in Task
-    PROVE  /\ TypeOk /\ t \in Predecessor(deps, o) /\ t \in SucceededTask
-           /\ o \in RegisteredObject
-           => ENABLED <<CompleteObjects({o})>>_vars
-
+(* A produced object outside REGISTERED is finalized: it is a node of deps,  *)
+(* hence known, and COMPLETED / ABORTED are the only other object states.    *)
 LEMMA LemProducedObjectStates ==
     ASSUME NEW o \in Object, NEW t \in Task
     PROVE  /\ TypeOk /\ GSI_Nodes /\ t \in Predecessor(deps, o)
@@ -852,16 +812,6 @@ LEMMA LemObjectFinalStable ==
            /\ (o \in CompletedObject \/ o \in AbortedObject)
            /\ [Next]_vars
            => (o \in CompletedObject \/ o \in AbortedObject)'
-
-(* AbortObjects({o}) is enabled once o is registered with a discarded        *)
-(* producer and every other producer finalized.                              *)
-LEMMA LemAbortObjectsEnabled ==
-    ASSUME NEW o \in Object, NEW t \in Task
-    PROVE  /\ TypeOk /\ t \in Predecessor(deps, o) /\ t \in DiscardedTask
-           /\ (\A w \in Predecessor(deps, o) \ {t} :
-                   w \in UNION {CompletedTask, AbortedTask, RetriedTask})
-           /\ o \in RegisteredObject
-           => ENABLED <<AbortObjects({o})>>_vars
 
 (* If a registered o retains no strong producer other than t and (post-      *)
 (* drain) no producer is FAILED, every producer other than t is finalized.   *)
@@ -1037,24 +987,6 @@ LEMMA LemSPRDischarge ==
            => <>[]((t \in SucceededTask \/ t \in DiscardedTask)
                        => StrongProducerRetention(t))
 
-(* Task-finalization enabledness from StrongProducerRetention: SPR is        *)
-(* exactly the witness guard of CompleteTasks / AbortTasks.                  *)
-LEMMA LemCompleteTasksEnabled ==
-    ASSUME NEW t \in Task
-    PROVE  t \in SucceededTask /\ StrongProducerRetention(t)
-           => ENABLED <<CompleteTasks({t})>>_vars
-
-LEMMA LemAbortTasksEnabled ==
-    ASSUME NEW t \in Task
-    PROVE  t \in DiscardedTask /\ StrongProducerRetention(t)
-           => ENABLED <<AbortTasks({t})>>_vars
-
-(* CompleteObjects on a registered source object.                            *)
-LEMMA LemCompleteObjectsEnabledSource ==
-    ASSUME NEW o \in Object
-    PROVE  o \in RegisteredObject /\ o \in Source(deps)
-           => ENABLED <<CompleteObjects({o})>>_vars
-
 (* Every task eventually leaves SUCCEEDED/DISCARDED permanently: its S/D    *)
 (* status stabilizes, and a permanently-S/D task has (discharged) permanent  *)
 (* StrongProducerRetention -- which is exactly the witness guard of          *)
@@ -1064,46 +996,40 @@ LEMMA LemTaskSDDrain ==
     PROVE  /\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ OpenUpstreamEventuallyClosed
            => <>[](~ (t \in SucceededTask) /\ ~ (t \in DiscardedTask))
 
-(* Bar-ENABLED inversion for GP1!FinalizeObjects({o}).                       *)
-LEMMA LemGP1FinalizeObjectsEnabled ==
-    ASSUME NEW o \in Object
-    PROVE  TypeOk /\ ENABLED <<GP1!FinalizeObjects({o})>>_(GP1!vars)
-           => /\ o \in RegisteredObject
-              /\ \/ o \in Source(deps)
-                 \/ \E p \in Predecessor(deps, o) :
-                        p \in SucceededTask \/ p \in DiscardedTask \/ p \in FailedTask
-
 (* A concrete CompleteObjects({o}) step is a bar-FinalizeObjects({o}) step.  *)
 LEMMA LemGP1FinalizeObjectsStep ==
     ASSUME NEW o \in Object
     PROVE  TypeOk /\ <<CompleteObjects({o})>>_vars
            => <<GP1!FinalizeObjects({o})>>_(GP1!vars)
 
-(* Firing of the abstract object finalization under permanent enabledness.   *)
-(* While the abstract action stays enabled, o stays registered and           *)
-(* quiescence sets in; every producer is eventually permanently retired out  *)
-(* of S/D (the SPR-fed drain) and out of F (the clone engine), so the        *)
-(* abstract guard collapses to the source branch and                         *)
-(* WF(CompleteObjects({o})) produces a concrete completion step, which is a  *)
-(* bar-FinalizeObjects step.                                                 *)
-LEMMA LemGP1FinalizeObjectsFires ==
+(* Firing of the object completion under a permanently finalizable object:  *)
+(* while o stays registered with a source or a S/D/F producer, quiescence    *)
+(* sets in; every producer is eventually permanently retired out of S/D (the *)
+(* SPR-fed drain) and out of F (the clone engine), so the guard collapses to *)
+(* the source branch and WF(CompleteObjects({o})) fires.                     *)
+LEMMA LemCompleteObjectsFires ==
     ASSUME NEW o \in Object
     PROVE  /\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ OpenUpstreamEventuallyClosed
-           /\ []ENABLED <<GP1!FinalizeObjects({o})>>_(GP1!vars)
-           => <><<GP1!FinalizeObjects({o})>>_(GP1!vars)
+           /\ [](o \in RegisteredObject)
+           /\ [](\/ o \in Source(deps)
+                 \/ \E p \in Predecessor(deps, o) :
+                        p \in SucceededTask \/ p \in DiscardedTask \/ p \in FailedTask)
+           => <><<CompleteObjects({o})>>_vars
 
-(* WF(GP1!FinalizeObjects({o})): necessitating the fire lemma (module facts  *)
-(* are boxed) turns []ENABLED |- <>fire into weak fairness, once every       *)
-(* hypothesis is available boxed.                                            *)
+(* WF(GP1!FinalizeObjects({o})): the abstract enabledness inverts to a       *)
+(* registered object with a source or a S/D/F producer, under which the      *)
+(* completion fires (LemCompleteObjectsFires), and a concrete completion is  *)
+(* a bar-FinalizeObjects step. Necessitating the fire lemma (module facts    *)
+(* are boxed) turns []ENABLED |- <>fire into weak fairness.                  *)
 LEMMA LemRefineGP1WFFinalizeObjects ==
-    /\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ OpenUpstreamEventuallyClosed
-    => \A o \in Object : WF_(GP1!vars)(GP1!FinalizeObjects({o}))
+    ASSUME NEW o \in Object
+    PROVE  /\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ OpenUpstreamEventuallyClosed
+           => WF_(GP1!vars)(GP1!FinalizeObjects({o}))
 
 (* WF(TP2!RegisterTasks) on the recorded clone, from GP2's retry-subgraph     *)
-(* registration fairness. TP2!RegisterTasks({nextAttemptOf[t]}) is enabled    *)
-(* exactly when the clone is unknown; the registrability core lifts that to   *)
-(* the concrete action, and a concrete registration step (under that same     *)
-(* enabledness) is a TP2!RegisterTasks step on the clone.                     *)
+(* registration fairness. TP2!RegisterTasks({nextAttemptOf[t]}) is only      *)
+(* enabled while the clone is unknown, and the clone-registration engine     *)
+(* (LemCloneRegistration) ends that: the weak fairness holds vacuously.      *)
 LEMMA LemRefineTP2WFRegisterTasks ==
     ASSUME NEW t \in Task
     PROVE  /\ []GraphSafetyInv /\ [][Next]_vars
@@ -1207,18 +1133,6 @@ LEMMA LemRefineTP2WFStageTasks ==
 (* (necessitation), and the leads-to is supplied by the caller from GP1!Spec.   *)
 (*****************************************************************************)
 
-LEMMA LemTP2CompleteTasksEnabled ==
-    ASSUME NEW t \in Task
-    PROVE  [](ENABLED <<TP2!CompleteTasks({t})>>_(TP2!vars) => t \in SucceededTask)
-
-LEMMA LemTP2AbortTasksEnabled ==
-    ASSUME NEW t \in Task
-    PROVE  [](ENABLED <<TP2!AbortTasks({t})>>_(TP2!vars) => t \in DiscardedTask)
-
-LEMMA LemTP2RetryTasksEnabled ==
-    ASSUME NEW t \in Task
-    PROVE  [](ENABLED <<TP2!RetryTasks({t})>>_(TP2!vars) => t \in FailedTask)
-
 (* Bar bridges (under TypeOk): each of SUCCEEDED / DISCARDED / FAILED is inside  *)
 (* GP1!ProcessedTask, and GP1!FinalizedTask (= COMPLETED u ABORTED u RETRIED) is  *)
 (* disjoint from all three. Boxed by clean necessitation.                        *)
@@ -1249,19 +1163,19 @@ LEMMA LemProcessedStatesEventuallyLeft ==
 (* DISCARDED / FAILED; that state is in GP1!ProcessedTask (LemGP1ProcessedFinalizedBar), the    *)
 (* leads-to drives it to GP1!FinalizedTask, which is disjoint from it -- FALSE.   *)
 LEMMA LemRefineTP2WFCompleteTasks ==
-    ASSUME NEW t \in Task,
-           [](t \in SucceededTask => <>(~ (t \in SucceededTask)))
-    PROVE  WF_(TP2!vars)(TP2!CompleteTasks({t}))
+    ASSUME NEW t \in Task
+    PROVE  [](t \in SucceededTask => <>(~ (t \in SucceededTask)))
+           => WF_(TP2!vars)(TP2!CompleteTasks({t}))
 
 LEMMA LemRefineTP2WFAbortTasks ==
-    ASSUME NEW t \in Task,
-           [](t \in DiscardedTask => <>(~ (t \in DiscardedTask)))
-    PROVE  WF_(TP2!vars)(TP2!AbortTasks({t}))
+    ASSUME NEW t \in Task
+    PROVE  [](t \in DiscardedTask => <>(~ (t \in DiscardedTask)))
+           => WF_(TP2!vars)(TP2!AbortTasks({t}))
 
 LEMMA LemRefineTP2WFRetryTasks ==
-    ASSUME NEW t \in Task,
-           [](t \in FailedTask => <>(~ (t \in FailedTask)))
-    PROVE  WF_(TP2!vars)(TP2!RetryTasks({t}))
+    ASSUME NEW t \in Task
+    PROVE  [](t \in FailedTask => <>(~ (t \in FailedTask)))
+           => WF_(TP2!vars)(TP2!RetryTasks({t}))
 
 (*****************************************************************************)
 (* REFINEMENT OF GraphProcessing1 -- THE FULL THEOREM                        *)
