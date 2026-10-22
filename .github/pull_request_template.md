@@ -1,9 +1,9 @@
 <!--
 Title: <type>[(<scope>)][!]: <verb> <what>, describing the outcome of the series,
 not listing its commits. With several kinds of change, take the type of highest
-precedence: spec > lib > proof > model > test > tooling > ci > docs > chore, and
-keep the scope only if every commit shares it. Commits and title are checked by
-the `Commit convention` job; the rules are in .docs/conventions.md.
+precedence: spec > lib > proof > model > test > tooling > ci > ai > docs >
+chore, and keep the scope only if every commit shares it. Commits and title are
+checked by the `Commit convention` job; the rules are in .docs/conventions.md.
 
 Fill the sections that apply and delete the others (a tooling PR needs no
 Verification table; a spec PR needs no "how to run it" note).
@@ -27,6 +27,7 @@ separate commit; the box you check is the type of that commit.
 - [ ] `test` -- new or updated TLC assertions on the operators of a library module
 - [ ] `tooling` -- new or updated automation to build, check and verify the project
 - [ ] `ci` -- new or updated workflow
+- [ ] `ai` -- new or updated skills, settings or instructions for AI coding agents
 - [ ] `docs` -- new or updated documentation of any aspect of the project
 - [ ] `chore` -- repository housekeeping
 

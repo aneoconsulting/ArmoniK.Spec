@@ -58,7 +58,9 @@ own, and it is checked against the paths the commit touches.
 ### Types
 
 Each type owns a set of paths. Where two rows could claim a file, the more specific location wins:
-`scripts/**` and `.github/workflows/**` are `tooling` and `ci` even for a `.md` file inside them.
+`scripts/**` and `.github/workflows/**` are `tooling` and `ci` even for a `.md` file inside them, and
+`.claude/**` is `ai`. Agent instruction files go further: a `CLAUDE.md` or an `AGENTS.md` is `ai`
+wherever it sits, even inside `specs/` or `scripts/`.
 
 | type | owns | the description says |
 |---|---|---|
@@ -69,6 +71,7 @@ Each type owns a set of paths. Where two rows could claim a file, the more speci
 | `test` | `specs/*Tests.tla`, `specs/*Tests.cfg` | which operators the assertions cover |
 | `tooling` | `scripts/**`, `Makefile` | what the automation now does |
 | `ci` | `.github/workflows/**` | which job or step, and what changes for contributors |
+| `ai` | `.claude/**` — skills, settings, hooks — and every `CLAUDE.md` and `AGENTS.md` | which skill or instruction, and what the agent now does differently |
 | `docs` | `*.md`, `.docs/**`, `.github/pull_request_template.md` | which document and which section |
 | `chore` | `.gitignore`, `.vscode/**`, `LICENSE` | housekeeping, with the reason |
 
@@ -106,8 +109,9 @@ Three library modules need an alias, because their theorem interface drops the p
 The scope is **omitted** only when a single-kind commit legitimately spans several modules, which in
 practice means a mass rename; the commit then requires a body.
 
-`tooling`, `ci`, `docs` and `chore` take an optional free-form scope, lowercase and hyphenated:
-`tooling(scripts)`, `ci(cache)`, `docs(pull-request-template)`.
+`tooling`, `ci`, `ai`, `docs` and `chore` take an optional free-form scope, lowercase and
+hyphenated: `tooling(scripts)`, `ci(cache)`, `ai(tlaps-proof)`, `docs(pull-request-template)`. An
+`ai` commit about one skill takes the skill's name as scope.
 
 ### Verbs
 
@@ -120,10 +124,10 @@ known, and naming it precisely is most of the message. `prove` and `complete` be
 and `weaken` say which way a theorem statement or an assumption moved; prefer them to `update`, which
 says nothing. `check` belongs to models: it says a property is now covered by an instance.
 
-For `tooling`, `ci`, `docs` and `chore` the list is a recommendation, and any lowercase imperative
-does: `ci: cache the TLA+ toolchain`, `docs: clarify the refinement rationale`. Inflected forms of
-the listed verbs are refused everywhere — `adds`, `added` and `adding` all point back to `add`; a
-word the list does not know is only checked for these types insofar as it must look like a
+For `tooling`, `ci`, `ai`, `docs` and `chore` the list is a recommendation, and any lowercase
+imperative does: `ci: cache the TLA+ toolchain`, `docs: clarify the refinement rationale`. Inflected
+forms of the listed verbs are refused everywhere — `adds`, `added` and `adding` all point back to
+`add`; a word the list does not know is only checked for these types insofar as it must look like a
 lowercase imperative.
 
 ### Examples
@@ -137,6 +141,7 @@ model(GraphProcessing1): check GP1_RefineObjectProcessing1 on two tasks
 test(DiGraphs): add assertions for the reachability operators
 tooling(scripts): check state-space statistics against the model configs
 ci: cache the TLA+ toolchain, keyed by install-tools.sh
+ai(tlaps-proof): add the WF1 recipe to the liveness reference
 ```
 
 ## Commit body
@@ -172,9 +177,9 @@ Every path in a commit must belong to the type the commit declares. Three except
 2. **Mechanical propagation of a `!` change.** A commit marked `!` may cross kinds *and* modules
    within the specs, when the diff outside its own kind is a pure rename or signature propagation.
    This is what lets a module rename land as one commit. It never reaches beyond the specs: a rename
-   is not a reason to touch `tooling`, `ci`, `docs` or `chore` in the same commit, and a `!` on those
-   types buys nothing. The body must say the propagation is mechanical, so that a reviewer knows there
-   is no semantic change hidden in the noise.
+   is not a reason to touch `tooling`, `ci`, `ai`, `docs` or `chore` in the same commit, and a `!`
+   on those types buys nothing. The body must say the propagation is mechanical, so that a reviewer
+   knows there is no semantic change hidden in the noise.
 3. **Merge commits** — recognized by having two parents — **and reverts** that keep the subject and
    the `This reverts commit …` line `git revert` generates. A subject that merely begins with the word
    "Merge" or "Revert" is checked like any other.
@@ -182,11 +187,13 @@ Every path in a commit must belong to the type the commit declares. Three except
 ## Order of the commits in a branch
 
 ```
-spec -> model -> proof -> lib -> test -> tooling, ci -> docs
+spec -> model -> proof -> lib -> test -> tooling, ci -> ai -> docs
 ```
 
 Dependencies first, and `model` directly after `spec`: a specification that gains a constant is not
 model-checkable until its configuration follows, so the two commits belong next to each other.
+`ai` comes after `tooling` and `ci` because skills and agent instructions describe how to run
+them.
 
 ## Worked example
 
@@ -222,7 +229,7 @@ list of its commits. It is derived from them:
 * several kinds — the type of highest precedence, the layer a reviewer must judge hardest:
 
   ```
-  spec > lib > proof > model > test > tooling > ci > docs > chore
+  spec > lib > proof > model > test > tooling > ci > ai > docs > chore
   ```
 
   the scope being kept only if every commit shares it;
