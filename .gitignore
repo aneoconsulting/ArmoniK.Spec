@@ -34,3 +34,9 @@ __tlacache__
 
 # Apalache output
 _apalache-out/
+
+# Personal AI agent files: the shared configuration (.claude/, CLAUDE.md) is
+# versioned, local overrides and runtime state are not
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+CLAUDE.local.md
