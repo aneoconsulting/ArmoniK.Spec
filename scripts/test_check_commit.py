@@ -34,6 +34,7 @@ CONVENTIONS_EXAMPLES = [
     "test(DiGraphs): add assertions for the reachability operators",
     "tooling(scripts): check state-space statistics against the model configs",
     "ci: cache the TLA+ toolchain, keyed by install-tools.sh",
+    "ai(tlaps-proof): add the WF1 recipe to the liveness reference",
 ]
 
 
@@ -54,6 +55,7 @@ def test_conventions_examples_pass(header):
         ("spec(): add an action", "empty scope"),
         ("spec(NoSuchModule): add an action", "unknown module"),
         ("tooling(Bad_Scope): fix the check", "lowercase and hyphenated"),
+        ("ai(TlapsProof): fix the skill", "lowercase and hyphenated"),
         ("feat(TaskProcessing2): add an action", "unknown type"),
         ("spec(TaskProcessing2): add an action.", "must not end with a period"),
         ("no header at all", "<type>[(<scope>)][!]: <verb> <what>"),
@@ -113,6 +115,11 @@ def test_atomicity_rejects_foreign_kinds_and_scopes():
     errors = check_atomicity(header, ["specs/TaskProcessing3.tla"], {})
     assert any("belongs to TaskProcessing3" in error for error in errors)
 
+    header = Header(type="docs", scope=None, breaking=False, description="add x")
+    errors = check_atomicity(header, [".claude/skills/tlaps-proof/SKILL.md"], {})
+    assert any("an ai change in a docs commit" in error for error in errors)
+
+    header = Header(type="spec", scope="TaskProcessing2", breaking=False, description="add x")
     assert check_atomicity(header, [], {}) == ["the commit changes no file, so nothing supports its spec type"]
 
 

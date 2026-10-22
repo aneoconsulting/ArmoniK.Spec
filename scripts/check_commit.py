@@ -5,7 +5,7 @@ A commit message opens with a header naming the kind of change it carries:
     <type>[(<scope>)][!]: <verb> <what>
 
 The type is the kind of file changed -- spec, lib, proof, model, test, tooling,
-ci, docs, chore -- and a commit changes one kind only, so that each one is
+ci, ai, docs, chore -- and a commit changes one kind only, so that each one is
 reviewable and verifiable on its own. The scope names the module the change is
 about. Both are checked against the paths the commit actually touches, which is
 what makes the convention more than a naming habit. See .docs/conventions.md.
@@ -51,7 +51,7 @@ HEADER = re.compile(
 )
 # Types whose scope must name a module of specs/; the others take a free scope.
 MODULE_TYPES = ("spec", "lib", "proof", "model", "test")
-FREE_TYPES = ("tooling", "ci", "docs", "chore")
+FREE_TYPES = ("tooling", "ci", "ai", "docs", "chore")
 TYPES = MODULE_TYPES + FREE_TYPES
 FREE_SCOPE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
@@ -254,6 +254,11 @@ def _state_space_only(changes: list[str]) -> bool:
     )
 
 
+def _article(word: str) -> str:
+    """The indefinite article before the type `word`: an ai, a spec."""
+    return "an" if word[0] in "aeiou" else "a"
+
+
 def check_atomicity(header: Header, paths: list[str], changes: dict[str, list[str]]) -> list[str]:
     """Return every path of `paths` that does not belong to `header`'s kind and scope.
 
@@ -285,8 +290,8 @@ def check_atomicity(header: Header, paths: list[str], changes: dict[str, list[st
                 continue
             if not (propagation and kind in MODULE_TYPES):
                 errors.append(
-                    f"{path}: a {kind} change in a {header.type} commit; "
-                    f"move it to its own {kind} commit"
+                    f"{path}: {_article(kind)} {kind} change in {_article(header.type)} "
+                    f"{header.type} commit; move it to its own {kind} commit"
                 )
                 continue
         scope = scope_of(path)
