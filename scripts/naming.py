@@ -39,6 +39,12 @@ SPEC_MODULE = re.compile(r"^(Graph|Task|Object|Session)Processing\d+$")
 
 SPECS_DIR = "specs"
 
+# The configuration and instructions of AI coding agents: skills, settings and
+# hooks under .claude/, and the instruction files an agent reads in whatever
+# directory it works.
+AI_DIR = ".claude"
+AI_INSTRUCTIONS = {"CLAUDE.md", "AGENTS.md"}
+
 # The theorem interface of a library module drops the plural of the module name.
 _SCOPE_ALIASES = {
     "DiGraph": "DiGraphs",
@@ -75,6 +81,9 @@ def kind_of(path: str | Path) -> str | None:
     """
     path = Path(path)
     parts = path.parts
+    # Agent files are of kind ai wherever they sit, even inside scripts/ or specs/.
+    if parts[:1] == (AI_DIR,) or path.name in AI_INSTRUCTIONS:
+        return "ai"
     # The specs are flat: a module inside a subdirectory of specs/ is not one.
     if len(parts) == 2 and parts[0] == SPECS_DIR:
         # A test configuration belongs to its test module, every other .cfg is a model.

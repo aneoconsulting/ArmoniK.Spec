@@ -24,6 +24,13 @@ from scripts.naming import kind_of, scope_of, scopes_of
         ("Makefile", "tooling"),
         (".github/workflows/ci.yaml", "ci"),
         ("README.md", "docs"),
+        (".claude/skills/tlaps-proof/SKILL.md", "ai"),  # .claude/ wins over *.md
+        (".claude/skills/tlaps-proof/prove.py", "ai"),
+        (".claude/settings.json", "ai"),
+        ("CLAUDE.md", "ai"),
+        ("AGENTS.md", "ai"),
+        ("specs/CLAUDE.md", "ai"),  # instruction files are ai wherever they sit
+        ("scripts/CLAUDE.md", "ai"),
         (".docs/conventions.md", "docs"),
         (".gitignore", "chore"),
         (".vscode/settings.json.template", "chore"),
