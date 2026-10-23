@@ -84,6 +84,25 @@ THEOREM GP1_GraphSafetyInv == Spec => []GraphSafetyInv
 
 (*****************************************************************************)
 
+(**
+ * STEP-LEVEL STABILITY OF DATA DEPENDENCIES. The data dependencies of a
+ * known task are frozen by every step: only RegisterGraph adds edges, and
+ * only among the unknown tasks it registers. Stated for a single step under
+ * the weakest graph hypothesis, so that refining specifications can lift it
+ * through their step simulation.
+ *)
+LEMMA LemKnownTaskEdgesStable ==
+    ASSUME NEW t \in Task, IsDirectedGraph(deps), t \notin UnknownTask, [Next]_vars
+    PROVE  /\ Predecessor(deps, t)' = Predecessor(deps, t)
+           /\ Successor(deps, t)' = Successor(deps, t)
+
+(**
+ * The dependency graph only grows: RegisterGraph extends it by graph union
+ * and no other action touches it.
+ *)
+LEMMA LemDepsMonotone ==
+    [Next]_vars => deps.node \subseteq deps'.node /\ deps.edge \subseteq deps'.edge
+
 LEMMA LemStableTaskSuccessors ==
     ASSUME NEW t \in Task, NEW S, GraphSafetyInv
     PROVE ~ t \in UnknownTask /\ S = Successor(deps, t) /\ [Next]_vars => (S = Successor(deps, t))'
@@ -95,6 +114,18 @@ LEMMA LemRefineTaskProcessing1Fairness ==
     [][Next]_vars /\ []GraphSafetyInv /\ Fairness => TP1!Fairness
 
 THEOREM GP1_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
+
+(**
+ * LIVENESS (lifted from TaskProcessing1). Every processed task is eventually
+ * finalized. Obtained from TP1!EventualFinalization through the task-processing
+ * refinement (GP1_RefineTaskProcessing1). Reused -- under the Bar -- by
+ * GraphProcessing2 to discharge the WF of CompleteTasks / AbortTasks /
+ * RetryTasks, whose enabled-forever negation reduces to a task staying
+ * succeeded / discarded / failed forever (i.e. never finalized).
+ *)
+THEOREM GP1_TaskEventualFinalization ==
+    ASSUME NEW s \in Task
+    PROVE  Spec => (s \in ProcessedTask ~> s \in FinalizedTask)
 
 (**
  * Transition relation of taskState[t] under any system step: a task either
@@ -159,6 +190,24 @@ LEMMA LemCardinalityDescent ==
              /\ [](o \in objectTargets /\ o \in RegisteredObject)
              /\ [][S' \subseteq S]_S
              => C = n + 1 ~> C < n + 1
+
+(* Fairness is a conjunction of WF/SF formulas, each of which is stable          *)
+(* ([]WF_v(A) <=> WF_v(A)); so the whole conjunction is its own []. Reused by GP2.*)
+LEMMA LemFairnessStable == Fairness <=> []Fairness
+
+(* A target cannot stay registered forever while its open-ancestor subgraph     *)
+(* never grows: the finite cardinality C = Cardinality(S) would have to descend  *)
+(* below every bound (LemCardinalityDescent), which is impossible. This is the   *)
+(* engine of the object-finalization fairness refinement; it is reused verbatim  *)
+(* (under the Bar) by GraphProcessing2 to discharge WF(OP2!CompleteObjects) /    *)
+(* WF(OP2!AbortObjects), whose enabled-forever negation reduces to exactly this. *)
+LEMMA LemTargetedRegisteredImpossible ==
+    ASSUME NEW o \in Object
+    PROVE LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+          IN /\ []GraphSafetyInv /\ [][Next]_vars /\ []Fairness
+             /\ [](o \in objectTargets /\ o \in RegisteredObject)
+             /\ [][S' \subseteq S]_S
+             => FALSE
 
 THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
 

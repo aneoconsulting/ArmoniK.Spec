@@ -103,7 +103,7 @@ StageTasks(T) ==
  *)
 DiscardTasks(T) ==
     /\ T /= {}
-    /\ T \subseteq UNION {RegisteredTask, StagedTask, PausedTask}
+    /\ T \subseteq UNION {RegisteredTask, StagedTask, PausedTask, StoppedTask}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
@@ -208,45 +208,39 @@ RequestTasksStopping(T) ==
 
 (**
  * TASK CANCELLATION ACKNOWLEDGMENT
- * The request to cancel a set 'T' of tasks is acknowledged. Tasks not
- * currently assigned are changed to the STOPPED state, provided that their
- * processing has not already been completed (i.e., the tasks are in
- * REGISTERED, STAGED or PAUSED states).
+ * The request to cancel a set 'T' of tasks is acknowledged. STAGED or PAUSED
+ * tasks are changed to the STOPPED state: only tasks eligible for execution
+ * need to be parked. A request on a REGISTERED task stays pending -- it
+ * already prevents assignment, and it is acknowledged if the task ever
+ * stages.
  *)
 StopTasks(T) ==
     /\ T /= {}
     /\ T \subseteq stoppingRequested
-    /\ T \intersect AssignedTask = {}
+    /\ T \subseteq StagedTask \union PausedTask
     /\ taskState' =
-        [t \in Task |-> IF t \in T /\ (\/ t \in RegisteredTask
-                                       \/ t \in StagedTask
-                                       \/ t \in PausedTask)
-                            THEN TASK_STOPPED
-                            ELSE taskState[t]]
+        [t \in Task |-> IF t \in T THEN TASK_STOPPED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
 
 (**
  * TASK PAUSING REQUESTING
- * The pausing of a set 'T' of tasks is requested. Tasks can be paused
- * provided that they have not been previously requested to be canceled.
+ * The pausing of a set 'T' of tasks is requested.
  *)
 RequestTasksPausing(T) ==
     /\ T /= {} /\ T \intersect UnknownTask = {}
-    /\ T \intersect stoppingRequested = {}
     /\ pausingRequested' = pausingRequested \union T
     /\ UNCHANGED << taskState, nextAttemptOf, stoppingRequested >>
 
 (**
  * TASK PAUSING ACKNOWLEDGMENT
- * The request to pause a set 'T' of tasks is acknowledged. STAGED or
- * ASSIGNED tasks are set to the PAUSED state.
+ * The request to pause a set 'T' of staged tasks is acknowledged: they are
+ * set to the PAUSED state. An assigned task is paused only once released.
  *)
 PauseTasks(T) ==
     /\ T /= {} /\ T \subseteq pausingRequested
+    /\ T \subseteq StagedTask
     /\ taskState' =
-        [t \in Task |-> IF t \in T /\ (t \in StagedTask \/ t \in AssignedTask)
-                            THEN TASK_PAUSED
-                            ELSE taskState[t]]
+        [t \in Task |-> IF t \in T THEN TASK_PAUSED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
 
 (**
@@ -313,7 +307,8 @@ Next ==
  *     without eventually being processed.
  *   - A task cannot remain indefinitely processed without being eventually
  *     finalized (completed, retried or aborted).
- *   - A task cannot remain indefinitely paused without being resumed.
+ *   - A task whose cancellation (resp. pausing) request can be acknowledged
+ *     is eventually stopped (resp. paused).
  *)
 Fairness ==
     \A t \in Task:
@@ -326,7 +321,6 @@ Fairness ==
         /\ WF_vars(RetryTasks({t}))
         /\ WF_vars(StopTasks({t}))
         /\ WF_vars(PauseTasks({t}))
-        /\ WF_vars(ResumeTasks({t}))
 
 (**
  * Full system specification.
@@ -361,14 +355,28 @@ PermanentStopping ==
 
 (**
  * LIVENESS
- * Any registered/paused/staged task with a cancellation request 
- * must eventually reach the STOPPED state.
+ * Any staged/paused task with a cancellation request must eventually reach
+ * the STOPPED state (or be discarded and aborted). A REGISTERED task with a
+ * pending request carries no such promise: it may never stage, in which case
+ * the request only bars it from ever being assigned
+ * (see StoppingRequestPreventsAssignment).
  *)
 RequestedStoppingEventualAcknowledgment ==
     \A t \in Task:
-        /\ t \in UNION {RegisteredTask, StagedTask, PausedTask}
+        /\ t \in UNION {StagedTask, PausedTask}
         /\ t \in stoppingRequested
         ~> t \in StoppedTask \/ t \in AbortedTask
+
+(**
+ * SAFETY
+ * A cancellation request permanently prevents execution: once a task is
+ * both requested for stopping and not assigned, it can never (re-)enter the
+ * ASSIGNED state.
+ *)
+StoppingRequestPreventsAssignment ==
+    \A t \in Task:
+        [](t \in stoppingRequested /\ ~ (t \in AssignedTask)
+           => [](~ (t \in AssignedTask)))
 
 (**
  * LIVENESS

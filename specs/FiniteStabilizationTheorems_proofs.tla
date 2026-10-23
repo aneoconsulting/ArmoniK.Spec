@@ -71,10 +71,85 @@ THEOREM FST_Descent ==
     BY <1>2, PTL
 
 (**
+ * FREEZING
+ * A set that eventually never changes eventually keeps a constant value.
+ * ----
+ * Proof layout. <1>1 is the invariance argument on a suffix where S never
+ * changes: its initial value is kept forever. <1>2 commutes the eventuality
+ * with the rigid existential. Both are proved in a clean context, so the QED
+ * step may necessitate <1>1 and fire it at the suffix given by the hypothesis.
+ *)
+THEOREM FST_Freeze ==
+    <>[][FALSE]_S => \E K : <>[](S = K)
+<1>1. [][FALSE]_S => \E K : [](S = K)
+    <2>1. PICK K : S = K
+        OBVIOUS
+    <2>2. S = K /\ [FALSE]_S => (S = K)'
+        OBVIOUS
+    <2>3. [][FALSE]_S => [](S = K)
+        BY <2>1, <2>2, PTL
+    <2>. QED
+        BY <2>3
+<1>2. <>(\E K : [](S = K)) => \E K : <>[](S = K)
+    OBVIOUS
+<1>. QED
+    BY <1>1, <1>2, PTL
+
+(**
+ * RIGID FINITE CONJUNCTION
+ * Over a fixed finite set P, if every element eventually stays in T forever,
+ * then eventually every element of P stays in T forever: <>[] distributes
+ * over the finite conjunction indexed by P.
+ * ----
+ * Proof layout. A finite-set induction over P (FS_Induction). The set-extension
+ * validity Ext is proved first, while the context is free of temporal facts
+ * (so PTL necessitation applies), and kept opaque so that it instantiates
+ * first-order at any arguments; Q keeps the per-element eventuality opaque so
+ * that the induction predicate Ind is first-order for FS_Induction.
+ *)
+THEOREM FST_RigidConjunction ==
+    ASSUME NEW P, IsFiniteSet(P)
+    PROVE  (\A x \in P : <>[](x \in T)) => <>[](P \subseteq T)
+<1>. DEFINE Ext(V, e) == []( V \subseteq T /\ e \in T => V \cup {e} \subseteq T )
+<1>1. \A V, e : Ext(V, e)
+    <2>. SUFFICES ASSUME NEW V, NEW e
+                  PROVE  Ext(V, e)
+        OBVIOUS
+    <2>1. V \subseteq T /\ e \in T => V \cup {e} \subseteq T
+        OBVIOUS
+    <2>. QED
+        BY ONLY <2>1, PTL
+<1>. HIDE DEF Ext
+<1>. DEFINE Q(x) == <>[](x \in T)
+            Ind(W) == (\A x \in W : Q(x)) => <>[](W \subseteq T)
+<1>. HIDE DEF Q
+<1>2. Ind({})
+    <2>1. {} \subseteq T
+        OBVIOUS
+    <2>. QED
+        BY <2>1, PTL DEF Ind
+<1>3. ASSUME NEW W \in SUBSET P, IsFiniteSet(W), Ind(W), NEW z \in P \ W
+      PROVE  Ind(W \cup {z})
+    <2>1. (\A x \in W \cup {z} : Q(x)) => (\A x \in W : Q(x)) /\ Q(z)
+        OBVIOUS
+    <2>2. Q(z) <=> <>[](z \in T)
+        BY DEF Q
+    <2>3. Ext(W, z)
+        BY <1>1
+    <2>. QED
+        BY <1>3, <2>1, <2>2, <2>3, PTL DEF Ext, Ind
+<1>. HIDE DEF Ind
+<1>4. Ind(P)
+    BY <1>2, <1>3, FS_Induction, IsaM("blast")
+<1>. QED
+    BY <1>4 DEF Ind, Q
+
+(**
  * FINITE CONJUNCTION
  * If S eventually freezes to a finite set and every element of D eventually
  * stays in T forever, then eventually every element of S lying in D stays in
- * T forever: <>[] distributes over the finite conjunction indexed by S.
+ * T forever: the frozen value of S is a rigid finite set, over which
+ * FST_RigidConjunction applies.
  * ----
  * Proof layout. Everything is an implication established in a clean context:
  * no temporal formula enters an ASSUME except []-headed facts staged by
@@ -82,10 +157,9 @@ THEOREM FST_Descent ==
  *   - <1>1 extracts the frozen value of S.
  *   - <1>2 boxes the per-element facts (they are suffix-stable), so the
  *     engine can consume them at the frozen suffix.
- *   - <1>3 is the set-extension validity the finite combination rests on.
- *   - <1>4 is the engine, a boxed implication: on any suffix where S is
- *     frozen to a finite value, the per-element facts combine over the
- *     finitely many elements of S \cap D (FS_Induction).
+ *   - <1>3 is the engine, a boxed implication: on any suffix where S is
+ *     frozen to a finite value K, FST_RigidConjunction combines the
+ *     per-element facts over the rigid finite set K \cap D.
  *   - The QED step fires the engine at the suffix given by the hypotheses.
  *)
 THEOREM FST_Conjunction ==
@@ -112,22 +186,9 @@ THEOREM FST_Conjunction ==
         OBVIOUS
     <2>. QED
         BY <2>1, <2>2
-(* Set-extension validity for the finite combination below: proved while the
-   context is free of temporal facts (so PTL necessitation applies), and kept
-   opaque so that it instantiates first-order at any arguments. *)
-<1>. DEFINE Ext(V, e) == []( V \subseteq T /\ e \in T => V \cup {e} \subseteq T )
-<1>3. \A V, e : Ext(V, e)
-    <2>. SUFFICES ASSUME NEW V, NEW e
-                  PROVE  Ext(V, e)
-        OBVIOUS
-    <2>1. V \subseteq T /\ e \in T => V \cup {e} \subseteq T
-        OBVIOUS
-    <2>. QED
-        BY ONLY <2>1, PTL
-<1>. HIDE DEF Ext
 (* The engine: on any suffix where S is frozen to a finite value, the
    per-element facts combine over the finitely many elements of S \cap D. *)
-<1>4. []( /\ [](\A x \in D : <>[](x \in T))
+<1>3. []( /\ [](\A x \in D : <>[](x \in T))
           /\ IsFiniteSet(S)
           /\ [][FALSE]_S
           => <>[](S \cap D \subseteq T) )
@@ -140,53 +201,33 @@ THEOREM FST_Conjunction ==
             OBVIOUS
         <3>1. PICK K : [](S = K)
             BY <1>1
-        (* Finiteness is staged in a NUMBERED step: it is not []-headed, and
-           were it ambient it would block PTL necessitation below. *)
-        <3>2. SUFFICES ASSUME IsFiniteSet(K \cap D)
+        (* The frozen value is named by a rigid P, so that FST_RigidConjunction
+           applies at a bare parameter; finiteness is staged in a NUMBERED step:
+           it is not []-headed, and were it ambient it would block PTL
+           necessitation below. *)
+        <3>2. SUFFICES ASSUME NEW P, P = K \cap D, IsFiniteSet(P)
                        PROVE  <>[](S \cap D \subseteq T)
             <4>1. S = K
                 BY <3>1, PTL
             <4>. QED
                 BY <4>1, FS_Intersection
-        <3>. DEFINE Q(x) == <>[](x \in T)
-                    Ind(W) == (\A x \in W : Q(x)) => <>[](W \subseteq T)
-        <3>. HIDE DEF Q
-        <3>3. \A x \in K \cap D : Q(x)
-            <4>1. \A x \in D : Q(x)
-                BY PTL DEF Q
+        <3>3. \A x \in P : <>[](x \in T)
+            <4>1. \A x \in D : <>[](x \in T)
+                BY PTL
             <4>. QED
-                BY <4>1
-        <3>4. Ind({})
-            <4>1. {} \subseteq T
-                OBVIOUS
-            <4>. QED
-                BY <4>1, PTL DEF Ind
-        <3>5. ASSUME NEW W \in SUBSET (K \cap D), IsFiniteSet(W), Ind(W),
-                     NEW z \in (K \cap D) \ W
-              PROVE  Ind(W \cup {z})
-            <4>1. (\A x \in W \cup {z} : Q(x)) => (\A x \in W : Q(x)) /\ Q(z)
-                OBVIOUS
-            <4>2. Q(z) <=> <>[](z \in T)
-                BY DEF Q
-            <4>3. Ext(W, z)
-                BY <1>3
-            <4>. QED
-                BY <3>5, <4>1, <4>2, <4>3, PTL DEF Ext, Ind
-        <3>. HIDE DEF Ind
-        <3>6. Ind(K \cap D)
-            BY <3>2, <3>4, <3>5, FS_Induction, IsaM("blast")
-        <3>7. <>[](K \cap D \subseteq T)
-            BY <3>3, <3>6 DEF Ind
-        <3>8. [](S = K /\ K \cap D \subseteq T => S \cap D \subseteq T)
-            <4>1. S = K /\ K \cap D \subseteq T => S \cap D \subseteq T
-                OBVIOUS
+                BY <3>2, <4>1
+        <3>4. <>[](P \subseteq T)
+            BY <3>2, <3>3, FST_RigidConjunction, PTL
+        <3>5. [](S = K /\ P \subseteq T => S \cap D \subseteq T)
+            <4>1. S = K /\ P \subseteq T => S \cap D \subseteq T
+                BY <3>2
             <4>. QED
                 BY ONLY <4>1, PTL
         <3>. QED
-            BY <3>1, <3>7, <3>8, PTL
+            BY <3>1, <3>4, <3>5, PTL
     <2>. QED
         BY ONLY <2>1, PTL
 <1>. QED
-    BY <1>2, <1>4, PTL
+    BY <1>2, <1>3, PTL
 
 ================================================================================

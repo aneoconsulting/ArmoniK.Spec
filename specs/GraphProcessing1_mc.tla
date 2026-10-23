@@ -14,7 +14,7 @@
 (* In addition, optimizations are provided to speed up model checking.         *)
 (*******************************************************************************)
 
-EXTENDS GraphProcessing1
+EXTENDS GraphProcessing1, TLC
 
 MCDirectedGraphOf(N) == DDGraphOf(N \cap Task, N \cap Object)
 
