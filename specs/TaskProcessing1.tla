@@ -117,17 +117,6 @@ FinalizeTasks(T) ==
         [t \in Task |-> IF t \in T THEN TASK_FINALIZED ELSE taskState[t]]
 
 (**
- * TERMINAL STATE
- * Action representing the terminal state of the system, reached when
- * there are no more tasks being processed (i.e., assigned or not
- * yet finalized).
- *)
-Terminating ==
-    /\ AssignedTask = {}
-    /\ ProcessedTask = {}
-    /\ UNCHANGED vars
-
-(**
  * USER QUIESCENCE
  * A step in which the user drives no new work: no task is registered.
  *)
@@ -145,7 +134,7 @@ NoUserAction ==
  * Defines all possible atomic transitions of the system.
  *)
 Next ==
-    \/ \E T \in SUBSET Task:
+    \E T \in SUBSET Task:
         \/ RegisterTasks(T)
         \/ StageTasks(T)
         \/ DiscardTasks(T)
@@ -153,7 +142,6 @@ Next ==
         \/ ReleaseTasks(T)
         \/ ProcessTasks(T)
         \/ FinalizeTasks(T)
-    \/ Terminating
 
 (**
  * FAIRNESS CONDITIONS

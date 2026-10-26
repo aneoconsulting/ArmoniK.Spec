@@ -110,15 +110,6 @@ AbortObjects(O) ==
         [o \in Object |-> IF o \in O THEN OBJECT_ABORTED ELSE objectState[o]]
     /\ UNCHANGED objectTargets
 
-(**
- * TERMINAL STATE
- * Action representing the terminal state of the system, reached once all
- * targeted objects have been completed or aborted.
- *)
-Terminating ==
-    /\ objectTargets \subseteq (CompletedObject \union AbortedObject)
-    /\ UNCHANGED vars
-
 -------------------------------------------------------------------------------
 
 (*****************************************************************************)
@@ -130,13 +121,12 @@ Terminating ==
  * Defines all possible atomic transitions of the system.
  *)
 Next ==
-    \/ \E O \in SUBSET Object:
+    \E O \in SUBSET Object:
         \/ RegisterObjects(O)
         \/ TargetObjects(O)
         \/ UntargetObjects(O)
         \/ CompleteObjects(O)
         \/ AbortObjects(O)
-    \/ Terminating
 
 (**
  * FAIRNESS CONDITIONS

@@ -411,19 +411,6 @@ ResumeTasks(T) ==
     /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets,
                     stoppingRequested >>
 
-(**
- * TERMINAL STATE
- * Stuttering step reached when every targeted object is finalized and no task
- * is mid-flight (assigned, succeeded, failed or discarded).
- *)
-Terminating ==
-    /\ objectTargets \subseteq (CompletedObject \union AbortedObject)
-    /\ AssignedTask = {}
-    /\ SucceededTask = {}
-    /\ FailedTask = {}
-    /\ DiscardedTask = {}
-    /\ UNCHANGED vars
-
 -------------------------------------------------------------------------------
 
 (*****************************************************************************)
@@ -456,7 +443,6 @@ Next ==
         \/ RequestTasksPausing(T)
         \/ PauseTasks(T)
         \/ ResumeTasks(T)
-    \/ Terminating
 
 (**
  * FAIRNESS CONDITIONS

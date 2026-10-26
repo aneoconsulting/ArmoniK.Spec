@@ -97,15 +97,6 @@ FinalizeObjects(O) ==
     /\ UNCHANGED objectTargets
 
 (**
- * TERMINAL STATE
- * Action representing the terminal state of the system, reached once all
- * targeted objects have been finalized.
- *)
-Terminating ==
-    /\ objectTargets \subseteq FinalizedObject
-    /\ UNCHANGED vars
-
-(**
  * USER QUIESCENCE
  * A step in which the user drives no new work: no object is registered,
  * targeted or untargeted.
@@ -124,12 +115,11 @@ NoUserAction ==
  * Defines all possible atomic transitions of the system.
  *)
 Next ==
-    \/ \E O \in SUBSET Object:
+    \E O \in SUBSET Object:
         \/ RegisterObjects(O)
         \/ TargetObjects(O)
         \/ UntargetObjects(O)
         \/ FinalizeObjects(O)
-    \/ Terminating
 
 (**
  * FAIRNESS CONDITIONS

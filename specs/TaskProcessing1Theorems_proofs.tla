@@ -10,7 +10,7 @@ LEMMA LemType == Init /\ [][Next]_vars => []TypeOk
     BY DEF Init
 <1>2. TypeOk /\ [Next]_vars => TypeOk'
     BY DEF Next, vars, RegisterTasks, StageTasks, DiscardTasks, AssignTasks,
-    ReleaseTasks, ProcessTasks, FinalizeTasks, Terminating, UnknownTask,
+    ReleaseTasks, ProcessTasks, FinalizeTasks, UnknownTask,
     RegisteredTask, StagedTask, AssignedTask, ProcessedTask, FinalizedTask
 <1>. QED
     BY <1>1, <1>2, PTL
@@ -38,7 +38,7 @@ LEMMA LemFiniteKnownTasks == Init /\ [][Next]_vars => []FiniteKnownTasks
         BY <2>2 DEF AssignTasks, AssignedTask, DiscardTasks, FinalizeTasks, ProcessTasks,
         ProcessedTask, RegisteredTask, ReleaseTasks, StagedTask, StageTasks
     <2>. QED
-        BY <2>1, <2>2 DEF Next, Terminating, vars
+        BY <2>1, <2>2 DEF Next, vars
 <1>. QED
     BY <1>1, <1>2, PTL
 
@@ -53,7 +53,7 @@ THEOREM TP1_PermanentFinalization == Spec => PermanentFinalization
             => (t \in FinalizedTask)'
     BY DEF TypeOk, Next, vars, RegisterTasks,
     StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks,
-    FinalizeTasks, Terminating, UnknownTask, RegisteredTask, StagedTask,
+    FinalizeTasks, UnknownTask, RegisteredTask, StagedTask,
     AssignedTask, ProcessedTask, FinalizedTask
 <1>2. QED
     BY <1>1, TP1_Type, PTL DEF Spec
@@ -79,14 +79,13 @@ LEMMA LemEventualDeallocation == []TypeOk /\ [][Next]_vars /\ Fairness => Eventu
                          \/ AssignTasks(T)
                          \/ ReleaseTasks(T)
                          \/ ProcessTasks(T)
-                         \/ FinalizeTasks(T)
-                         \/ Terminating]_vars => \/ (t \in AssignedTask)'
-                                                 \/ (t \in StagedTask)'
-                                                 \/ (t \in ProcessedTask)'
+                         \/ FinalizeTasks(T)]_vars => \/ (t \in AssignedTask)'
+                                                      \/ (t \in StagedTask)'
+                                                      \/ (t \in ProcessedTask)'
         BY Zenon DEF Next
     <2>. QED
         BY DEF RegisterTasks, StageTasks, DiscardTasks, AssignTasks, ReleaseTasks,
-        ProcessTasks, FinalizeTasks, Terminating, vars, UnknownTask, RegisteredTask,
+        ProcessTasks, FinalizeTasks, vars, UnknownTask, RegisteredTask,
         StagedTask, AssignedTask, ProcessedTask, FinalizedTask
 <1>2. TypeOk /\ t \in AssignedTask /\ <<ProcessTasks({t})>>_vars
       => (t \in ProcessedTask)'
@@ -130,7 +129,7 @@ LEMMA LemEventualFinalization == []TypeOk /\ [][Next]_vars /\ Fairness => Eventu
       => (t \in ProcessedTask)' \/ (t \in FinalizedTask)'
     BY DEF TypeOk, Next, vars, RegisterTasks,
     StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks, FinalizeTasks,
-    Terminating, UnknownTask, RegisteredTask, StagedTask, AssignedTask, ProcessedTask,
+    UnknownTask, RegisteredTask, StagedTask, AssignedTask, ProcessedTask,
     FinalizedTask
 <1>2. t \in ProcessedTask => ENABLED <<FinalizeTasks({t})>>_vars
     BY ExpandENABLED DEF FinalizeTasks, vars, ProcessedTask
@@ -154,13 +153,13 @@ THEOREM TP1_EventualQuiescence == Spec => EventualQuiescence
       => (t \in RegisteredTask)' \/ (t \in StagedTask)'  \/ (t \in ProcessedTask)'
     BY DEF TypeOk, Next, vars, RegisterTasks,
     StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks, FinalizeTasks,
-    Terminating, UnknownTask, RegisteredTask, StagedTask, AssignedTask, ProcessedTask,
+    UnknownTask, RegisteredTask, StagedTask, AssignedTask, ProcessedTask,
     FinalizedTask
 <1>2. TypeOk /\ t \in StagedTask /\ [Next]_vars
       => (t \in StagedTask)' \/ (t \in AssignedTask)' \/ (t \in ProcessedTask)'
     BY DEF TypeOk, Next, vars, RegisterTasks,
     StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks, FinalizeTasks,
-    Terminating, UnknownTask, RegisteredTask, StagedTask, AssignedTask, ProcessedTask,
+    UnknownTask, RegisteredTask, StagedTask, AssignedTask, ProcessedTask,
     FinalizedTask
 <1>3. Spec => (t \in AssignedTask ~> t \in StagedTask \/ t \in ProcessedTask)
     BY TP1_EventualDeallocation DEF EventualDeallocation
@@ -209,7 +208,7 @@ LEMMA LemEventualTermination ==
     <2>3. t \in FinalizedTask /\ [Next]_vars => (t \in FinalizedTask)'
         BY DEF AssignTasks, AssignedTask, DiscardTasks, FinalizeTasks, FinalizedTask, Next,
         ProcessTasks, ProcessedTask, RegisterTasks, RegisteredTask, ReleaseTasks, StageTasks,
-        StagedTask, Terminating, UnknownTask, vars
+        StagedTask, UnknownTask, vars
     <2>4. /\ t \in FinalizedTask => t \in Settled
           /\ t \in Settled <=> ~ t \in AssignedTask /\ ~ t \in ProcessedTask
         BY DEF AssignedTask, FinalizedTask, ProcessedTask, Settled
@@ -219,7 +218,7 @@ LEMMA LemEventualTermination ==
 <1>2. [Next]_vars /\ [NoUserAction]_vars => UNCHANGED (Task \ UnknownTask)
     BY DEF AssignTasks, AssignedTask, DiscardTasks, FinalizeTasks, Next, NoUserAction,
     ProcessTasks, ProcessedTask, RegisterTasks, RegisteredTask, ReleaseTasks, StageTasks,
-    StagedTask, Terminating, UnknownTask, vars
+    StagedTask, UnknownTask, vars
 (* (c) Finitely many known tasks park together, emptying the assigned and
    processed sets. *)
 <1>3. /\ <>[]IsFiniteSet(Task \ UnknownTask)
@@ -238,7 +237,7 @@ LEMMA LemEventualTermination ==
       => RegisteredTask' \subseteq RegisteredTask /\ [RegisteredTask' # RegisteredTask]_vars
     BY DEF AssignTasks, AssignedTask, DiscardTasks, FinalizeTasks, Next, NoUserAction,
     ProcessTasks, ProcessedTask, RegisterTasks, RegisteredTask, ReleaseTasks, StageTasks,
-    StagedTask, Terminating, UnknownTask, vars
+    StagedTask, UnknownTask, vars
 <1>6. FiniteKnownTasks => IsFiniteSet(Task \ UnknownTask) /\ IsFiniteSet(RegisteredTask)
     BY FS_Subset DEF FiniteKnownTasks, RegisteredTask, UnknownTask
 <1>7. /\ <>[]IsFiniteSet(RegisteredTask)

@@ -15,7 +15,7 @@ LEMMA LemType == Init /\ [][Next]_vars => []TypeOk
     BY DEF Init
 <1>2. TypeOk /\ [Next]_vars => TypeOk'
     BY DEF Next, vars, RegisterObjects, TargetObjects, UntargetObjects,
-    CompleteObjects, AbortObjects, Terminating
+    CompleteObjects, AbortObjects
 <1>. QED
     BY <1>1, <1>2, PTL
 
@@ -48,14 +48,10 @@ LEMMA LemRefineObjectProcessing1InitNext == Init /\ [][Next]_vars
             PROVE OP1!FinalizeObjects(O)
         BY <2>5 DEF AbortObjects, OP1!FinalizeObjects, RegisteredObject,
         OP1!RegisteredObject
-    <2>6. ASSUME NEW O \in SUBSET Object, Terminating
-            PROVE OP1!Terminating
-        BY <2>6 DEF Terminating, OP1!Terminating, vars, OP1!vars,
-        CompletedObject, AbortedObject, OP1!FinalizedObject
-    <2>7. CASE UNCHANGED vars
-        BY <2>7 DEF vars, OP1!vars
+    <2>6. CASE UNCHANGED vars
+        BY <2>6 DEF vars, OP1!vars
     <2>. QED
-        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, Zenon DEF Next, OP1!Next
+        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, Zenon DEF Next, OP1!Next
 <1>. QED
     BY <1>1, <1>2, PTL
 
@@ -73,7 +69,7 @@ LEMMA LemFinalizedObjectStable ==
     PROVE  /\ o \in CompletedObject => (o \in CompletedObject)'
            /\ o \in AbortedObject => (o \in AbortedObject)'
 BY DEF AbortedObject, AbortObjects, CompletedObject, CompleteObjects, Next, RegisteredObject,
-    RegisterObjects, TargetObjects, Terminating, UnknownObject, UntargetObjects, vars
+    RegisterObjects, TargetObjects, UnknownObject, UntargetObjects, vars
 
 THEOREM OP2_PermanentFinalization == Spec => PermanentFinalization
 <1>. SUFFICES ASSUME NEW o \in Object
