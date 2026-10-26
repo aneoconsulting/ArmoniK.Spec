@@ -455,4 +455,15 @@ LEMMA LemRefineTP3WFStageTasks ==
 
 THEOREM GP3_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
 
+(*****************************************************************************)
+(* REFINEMENT OF ObjectProcessing2                                           *)
+(*                                                                           *)
+(* By transitivity: the GraphProcessing2 refinement composed with            *)
+(* GraphProcessing2's own ObjectProcessing2 refinement. The GraphProcessing2 *)
+(* mapping only remaps taskState, which ObjectProcessing2 does not mention,  *)
+(* so the composed mapping is the identity on objectState / objectTargets.   *)
+(*****************************************************************************)
+
+THEOREM GP3_RefineObjectProcessing2 == Spec => RefineObjectProcessing2
+
 ================================================================================
