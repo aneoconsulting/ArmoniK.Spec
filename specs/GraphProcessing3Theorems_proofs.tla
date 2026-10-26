@@ -2361,4 +2361,37 @@ THEOREM GP3_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
 <1>. QED
     BY <1>3, <1>6 DEF TP3!Spec
 
+(*****************************************************************************)
+(* REFINEMENT OF ObjectProcessing2                                           *)
+(*                                                                           *)
+(* By transitivity: the GraphProcessing2 refinement composed with            *)
+(* GraphProcessing2's own ObjectProcessing2 refinement. The GraphProcessing2 *)
+(* mapping only remaps taskState, which ObjectProcessing2 does not mention,  *)
+(* so the composed mapping is the identity on objectState / objectTargets.   *)
+(*****************************************************************************)
+
+THEOREM GP3_RefineObjectProcessing2 == Spec => RefineObjectProcessing2
+<1>1. Spec => GP2!Spec
+    BY GP3_RefineGraphProcessing2 DEF RefineGraphProcessing2
+<1>2. GP2!Spec => GP2!RefineObjectProcessing2
+    BY GP2!GP2_RefineObjectProcessing2, LemGP2Assumptions, Isa
+(* The two copies of ObjectProcessing2 coincide once unfolded down to the *)
+(* variables: the GraphProcessing2 mapping leaves the object state alone.  *)
+<1>3. GP2!RefineObjectProcessing2 <=> RefineObjectProcessing2
+    BY DEF GP2!RefineObjectProcessing2, RefineObjectProcessing2,
+           GP2!OP2!Spec, GP2!OP2!Init, GP2!OP2!Next, GP2!OP2!Fairness, GP2!OP2!vars,
+           GP2!OP2!RegisterObjects, GP2!OP2!TargetObjects, GP2!OP2!UntargetObjects,
+           GP2!OP2!CompleteObjects, GP2!OP2!AbortObjects, GP2!OP2!IsFiniteSet,
+           GP2!OP2!UnknownObject, GP2!OP2!RegisteredObject, GP2!OP2!CompletedObject,
+           GP2!OP2!AbortedObject, GP2!OP2!OBJECT_UNKNOWN, GP2!OP2!OBJECT_REGISTERED,
+           GP2!OP2!OBJECT_COMPLETED, GP2!OP2!OBJECT_ABORTED,
+           OP2!Spec, OP2!Init, OP2!Next, OP2!Fairness, OP2!vars,
+           OP2!RegisterObjects, OP2!TargetObjects, OP2!UntargetObjects,
+           OP2!CompleteObjects, OP2!AbortObjects, OP2!IsFiniteSet,
+           OP2!UnknownObject, OP2!RegisteredObject, OP2!CompletedObject,
+           OP2!AbortedObject, OP2!OBJECT_UNKNOWN, OP2!OBJECT_REGISTERED,
+           OP2!OBJECT_COMPLETED, OP2!OBJECT_ABORTED
+<1>. QED
+    BY <1>1, <1>2, <1>3
+
 ================================================================================
