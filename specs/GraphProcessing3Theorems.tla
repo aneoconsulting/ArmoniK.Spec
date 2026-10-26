@@ -254,10 +254,11 @@ THEOREM GP3_GraphStateIntegrity == Spec => []GraphStateIntegrity
 (* ENABLED + action-implication pattern: the Bar-side ENABLED inverts to a   *)
 (* state condition on Bar-invariant classes, which re-establishes the        *)
 (* concrete ENABLED, and a concrete step is a Bar step of the same action.   *)
-(* Two need a temporal argument: SF(ProcessTasks), whose STOPPED outcome is  *)
-(* a Bar-Release, and WF(AssignTasks), whose Bar-enabledness includes the    *)
-(* parked tasks. The guarded actions are wrapped in named operators so that  *)
-(* ExpandENABLED can process <<Op(t)>>_v.                                    *)
+(* Two need a temporal argument: SF(ProcessTasks), vacuous because a task    *)
+(* is processed successfully at most once, and WF(AssignTasks), whose        *)
+(* Bar-enabledness includes the parked tasks. The guarded actions are        *)
+(* wrapped in named operators so that ExpandENABLED can process              *)
+(* <<Op(t)>>_v.                                                              *)
 (*****************************************************************************)
 
 DiscardOnAbortedInput(t) ==
@@ -335,16 +336,15 @@ LEMMA LemRefineGP2WFRegisterRetrySubGraph ==
            /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
            => WF_(GP2!vars)(GP2!RegisterGraph(GP2!RetrySubGraph(deps, t, nextAttemptOf[t])))
 
-(* SF(GP2!ProcessTasks): the Bar-side enabledness is exactly t ASSIGNED, as   *)
-(* GP3's. A GP3 processing step whose outcome is STOPPED is a Bar-Release,    *)
-(* not a Bar-Process -- but processing is a once-per-task event: after any    *)
-(* firing the task is never assigned again (LemTP3TaskStateStable), so        *)
-(* infinitely-often-enabled is contradictory and GP2's strong fairness holds  *)
-(* vacuously.                                                                 *)
+(* SF(GP2!ProcessTasks /\ succeeded): the Bar-side enabledness is exactly t   *)
+(* ASSIGNED, as GP3's. Processing is a once-per-task event: after a           *)
+(* successful firing the task stays SUCCEEDED or COMPLETED and is never       *)
+(* assigned again (LemTP3TaskStateStable), so infinitely-often-enabled is     *)
+(* contradictory and GP2's strong fairness holds vacuously.                   *)
 LEMMA LemRefineGP2SFProcessTasks ==
     ASSUME NEW t \in Task
-    PROVE  []TypeOk /\ [][Next]_vars /\ SF_vars(ProcessTasks({t}))
-           => SF_(GP2!vars)(GP2!ProcessTasks({t}))
+    PROVE  []TypeOk /\ [][Next]_vars /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
+           => SF_(GP2!vars)(GP2!ProcessTasks({t}) /\ t \in GP2!SucceededTask')
 
 (* WF(GP2!AssignUpstream(t, o)) -- the centerpiece. GP2 sees a parked task as *)
 (* STAGED, so its assignment fairness demands progress whenever the task sits *)
@@ -400,11 +400,12 @@ LEMMA LemRefineTP3WFSetTaskRetries ==
     PROVE  WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
            => WF_(TP3!vars)(\E u \in Task : TP3!SetTaskRetries({t}, {u}))
 
-(* SF(TP3!ProcessTasks): direct transfer (identical action on the task        *)
-(* variables, enabled exactly when the task is assigned).                     *)
+(* SF(TP3!ProcessTasks /\ succeeded): direct transfer (identical action on    *)
+(* the task variables, enabled exactly when the task is assigned).            *)
 LEMMA LemRefineTP3SFProcessTasks ==
     ASSUME NEW t \in Task
-    PROVE  SF_vars(ProcessTasks({t})) => SF_(TP3!vars)(TP3!ProcessTasks({t}))
+    PROVE  SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
+           => SF_(TP3!vars)(TP3!ProcessTasks({t}) /\ t \in TP3!SucceededTask')
 
 (* WF(TP3!StopTasks), WF(TP3!PauseTasks): direct transfer -- stop and pause   *)
 (* acknowledgments coincide under the identity mapping.                       *)

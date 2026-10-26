@@ -726,10 +726,11 @@ BY LemGraphStateIntegrity DEF Spec
 (* ENABLED + action-implication pattern: the Bar-side ENABLED inverts to a   *)
 (* state condition on Bar-invariant classes, which re-establishes the        *)
 (* concrete ENABLED, and a concrete step is a Bar step of the same action.   *)
-(* Two need a temporal argument: SF(ProcessTasks), whose STOPPED outcome is  *)
-(* a Bar-Release, and WF(AssignTasks), whose Bar-enabledness includes the    *)
-(* parked tasks. The guarded actions are wrapped in named operators so that  *)
-(* ExpandENABLED can process <<Op(t)>>_v.                                    *)
+(* Two need a temporal argument: SF(ProcessTasks), vacuous because a task    *)
+(* is processed successfully at most once, and WF(AssignTasks), whose        *)
+(* Bar-enabledness includes the parked tasks. The guarded actions are        *)
+(* wrapped in named operators so that ExpandENABLED can process              *)
+(* <<Op(t)>>_v.                                                              *)
 (*****************************************************************************)
 
 DiscardOnAbortedInput(t) ==
@@ -1527,52 +1528,60 @@ LEMMA LemRefineGP2WFRegisterRetrySubGraph ==
 <1>. QED
     BY <1>2, <1>3, PTL
 
-(* SF(GP2!ProcessTasks): the Bar-side enabledness is exactly t ASSIGNED, as   *)
-(* GP3's. A GP3 processing step whose outcome is STOPPED is a Bar-Release,    *)
-(* not a Bar-Process -- but processing is a once-per-task event: after any    *)
-(* firing the task is never assigned again (LemTP3TaskStateStable), so        *)
-(* infinitely-often-enabled is contradictory and GP2's strong fairness holds  *)
-(* vacuously.                                                                 *)
+(* SF(GP2!ProcessTasks /\ succeeded): the Bar-side enabledness is exactly t   *)
+(* ASSIGNED, as GP3's. Processing is a once-per-task event: after a           *)
+(* successful firing the task stays SUCCEEDED or COMPLETED and is never       *)
+(* assigned again (LemTP3TaskStateStable), so infinitely-often-enabled is     *)
+(* contradictory and GP2's strong fairness holds vacuously.                   *)
 LEMMA LemRefineGP2SFProcessTasks ==
     ASSUME NEW t \in Task
-    PROVE  []TypeOk /\ [][Next]_vars /\ SF_vars(ProcessTasks({t}))
-           => SF_(GP2!vars)(GP2!ProcessTasks({t}))
-<1>. DEFINE Processed ==
-                taskState[t] \in {TASK_SUCCEEDED, TASK_FAILED, TASK_DISCARDED, TASK_STOPPED,
-                                  TASK_COMPLETED, TASK_RETRIED, TASK_ABORTED}
-<1>. SUFFICES []TypeOk /\ [][Next]_vars /\ SF_vars(ProcessTasks({t}))
-              /\ []<>ENABLED <<GP2!ProcessTasks({t})>>_(GP2!vars)
+    PROVE  []TypeOk /\ [][Next]_vars /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
+           => SF_(GP2!vars)(GP2!ProcessTasks({t}) /\ t \in GP2!SucceededTask')
+<1>. DEFINE Succeeded == taskState[t] \in {TASK_SUCCEEDED, TASK_COMPLETED}
+<1>. SUFFICES []TypeOk /\ [][Next]_vars /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
+              /\ []<>ENABLED <<GP2!ProcessTasks({t}) /\ t \in GP2!SucceededTask'>>_(GP2!vars)
               => FALSE
     BY PTL
-\* --- enabledness: exactly t ASSIGNED, on both sides ---
-<1>1. ENABLED <<GP2!ProcessTasks({t})>>_(GP2!vars) <=> t \in AssignedTask
-    <2>1. GP2!ProcessTasks({t}) => taskStateBar' /= taskStateBar
-        BY DEF GP2!AssignedTask, GP2!ProcessTasks, taskStateBar
-    <2>2. <<GP2!ProcessTasks({t})>>_(GP2!vars) <=> GP2!ProcessTasks({t})
-        BY <2>1 DEF GP2!vars
-    <2>3. ENABLED <<GP2!ProcessTasks({t})>>_(GP2!vars) <=> ENABLED GP2!ProcessTasks({t})
-        BY <2>2, ENABLEDaxioms
-    <2>4. ENABLED GP2!ProcessTasks({t}) <=> t \in GP2!AssignedTask
-        BY ExpandENABLED, Zenon DEF GP2!AssignedTask, GP2!ProcessTasks, taskStateBar
+\* --- enabledness: t ASSIGNED, on both sides ---
+<1>1. ENABLED <<GP2!ProcessTasks({t}) /\ t \in GP2!SucceededTask'>>_(GP2!vars) => t \in AssignedTask
+    <2>1. ENABLED <<GP2!ProcessTasks({t}) /\ t \in GP2!SucceededTask'>>_(GP2!vars)
+          => t \in GP2!AssignedTask
+        BY ExpandENABLED, Zenon DEF GP2!AssignedTask, GP2!ProcessTasks, GP2!SucceededTask,
+            GP2!vars, taskStateBar
     <2>. QED
-        BY <2>3, <2>4, LemGP2BarStates
-<1>2. ENABLED <<ProcessTasks({t})>>_vars <=> t \in AssignedTask
-    <2>1. ProcessTasks({t}) => taskState' /= taskState
-        BY Zenon DEF AssignedTask, ProcessTasks
-    <2>2. <<ProcessTasks({t})>>_vars <=> ProcessTasks({t})
-        BY <2>1 DEF vars
-    <2>3. ENABLED <<ProcessTasks({t})>>_vars <=> ENABLED ProcessTasks({t})
-        BY <2>2, ENABLEDaxioms
-    <2>4. ENABLED ProcessTasks({t}) <=> t \in AssignedTask
-        BY ExpandENABLED, Zenon DEF AssignedTask, ProcessTasks
+        BY <2>1, LemGP2BarStates
+<1>2. t \in AssignedTask => ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
+    <2>1. <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars <=> ProcessTasks({t}) /\ t \in SucceededTask'
+        BY Zenon DEF AssignedTask, ProcessTasks, vars
+    <2>2. ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
+          <=> ENABLED (ProcessTasks({t}) /\ t \in SucceededTask')
+        BY <2>1, ENABLEDaxioms
+    <2>3. ASSUME t \in AssignedTask
+          PROVE  ENABLED (ProcessTasks({t}) /\ t \in SucceededTask')
+        <3>. SUFFICES \E depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp,
+                         stoppingRequestedp, pausingRequestedp :
+                        /\ {t} # {}
+                        /\ {t} \subseteq AssignedTask
+                        /\ taskStatep = [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
+                        /\ nextAttemptOfp = nextAttemptOf /\ depsp = deps
+                        /\ objectStatep = objectState /\ objectTargetsp = objectTargets
+                        /\ stoppingRequestedp = stoppingRequested
+                        /\ pausingRequestedp = pausingRequested
+                        /\ taskStatep[t] = TASK_SUCCEEDED
+            BY ExpandENABLED, SMT DEF ProcessTasks, SucceededTask
+        <3>. WITNESS deps, objectState, objectTargets,
+                     [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]],
+                     nextAttemptOf, stoppingRequested, pausingRequested
+        <3>. QED
+            BY <2>3 DEF AssignedTask
     <2>. QED
-        BY <2>3, <2>4
-\* --- processing is a once-per-task event ---
-<1>3. <<ProcessTasks({t})>>_vars => Processed'
-    BY Zenon DEF ProcessTasks, AssignedTask
-<1>4. TypeOk /\ Processed /\ [Next]_vars => Processed'
+        BY <2>2, <2>3
+\* --- a successful processing is a once-per-task event ---
+<1>3. <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars => Succeeded'
+    BY DEF SucceededTask
+<1>4. TypeOk /\ Succeeded /\ [Next]_vars => Succeeded'
     BY LemTP3TaskStateStable
-<1>5. Processed => ~ (t \in AssignedTask)
+<1>5. Succeeded => ~ (t \in AssignedTask)
     BY DEF AssignedTask
 \* --- infinitely often enabled forces a firing, after which t is never
 \* --- assigned again: contradiction
@@ -1806,7 +1815,7 @@ THEOREM GP3_RefineGraphProcessing2 == Spec => RefineGraphProcessing2
              /\ WF_(GP2!vars)(GP2!RegisterGraph(GP2!RetrySubGraph(deps, t, nextAttemptOf[t])))
              /\ WF_(GP2!vars)(GP2!StageTasks({t}))
              /\ WF_(GP2!vars)(GP2!DiscardOnAbortedInput(t))
-             /\ SF_(GP2!vars)(GP2!ProcessTasks({t}))
+             /\ SF_(GP2!vars)(GP2!ProcessTasks({t}) /\ t \in GP2!SucceededTask')
              /\ WF_(GP2!vars)(GP2!CompleteTasks({t}))
              /\ WF_(GP2!vars)(GP2!AbortTasks({t}))
              /\ WF_(GP2!vars)(GP2!RetryTasks({t}))
@@ -1814,7 +1823,7 @@ THEOREM GP3_RefineGraphProcessing2 == Spec => RefineGraphProcessing2
           /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
           /\ WF_vars(StageTasks({t}))
           /\ WF_vars(DiscardOnAbortedInput(t))
-          /\ SF_vars(ProcessTasks({t}))
+          /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
           /\ WF_vars(CompleteTasks({t}))
           /\ WF_vars(AbortTasks({t}))
           /\ WF_vars(RetryTasks({t}))
@@ -1958,33 +1967,47 @@ LEMMA LemRefineTP3WFSetTaskRetries ==
 <1>. QED
     BY <1>1, <1>2, PTL
 
-(* SF(TP3!ProcessTasks): direct transfer (identical action on the task        *)
-(* variables, enabled exactly when the task is assigned).                     *)
+(* SF(TP3!ProcessTasks /\ succeeded): direct transfer (identical action on    *)
+(* the task variables, enabled exactly when the task is assigned).            *)
 LEMMA LemRefineTP3SFProcessTasks ==
     ASSUME NEW t \in Task
-    PROVE  SF_vars(ProcessTasks({t})) => SF_(TP3!vars)(TP3!ProcessTasks({t}))
-<1>1. ENABLED <<TP3!ProcessTasks({t})>>_(TP3!vars) => ENABLED <<ProcessTasks({t})>>_vars
-    <2>1. TP3!ProcessTasks({t}) => taskState' /= taskState
-        BY Zenon DEF TP3!AssignedTask, TP3!ProcessTasks
-    <2>2. <<TP3!ProcessTasks({t})>>_(TP3!vars) <=> TP3!ProcessTasks({t})
-        BY <2>1 DEF TP3!vars
-    <2>3. ENABLED <<TP3!ProcessTasks({t})>>_(TP3!vars) <=> ENABLED TP3!ProcessTasks({t})
+    PROVE  SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
+           => SF_(TP3!vars)(TP3!ProcessTasks({t}) /\ t \in TP3!SucceededTask')
+<1>1. ENABLED <<TP3!ProcessTasks({t}) /\ t \in TP3!SucceededTask'>>_(TP3!vars)
+      => ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
+    <2>1. ENABLED <<TP3!ProcessTasks({t}) /\ t \in TP3!SucceededTask'>>_(TP3!vars)
+          => t \in TP3!AssignedTask
+        BY ExpandENABLED, Zenon DEF TP3!AssignedTask, TP3!ProcessTasks, TP3!SucceededTask,
+            TP3!vars
+    <2>2. <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars <=> ProcessTasks({t}) /\ t \in SucceededTask'
+        BY Zenon DEF AssignedTask, ProcessTasks, vars
+    <2>3. ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
+          <=> ENABLED (ProcessTasks({t}) /\ t \in SucceededTask')
         BY <2>2, ENABLEDaxioms
-    <2>4. ENABLED TP3!ProcessTasks({t}) <=> t \in TP3!AssignedTask
-        BY ExpandENABLED, Zenon DEF TP3!AssignedTask, TP3!ProcessTasks
-    <2>5. ProcessTasks({t}) => taskState' /= taskState
-        BY Zenon DEF AssignedTask, ProcessTasks
-    <2>6. <<ProcessTasks({t})>>_vars <=> ProcessTasks({t})
-        BY <2>5 DEF vars
-    <2>7. ENABLED <<ProcessTasks({t})>>_vars <=> ENABLED ProcessTasks({t})
-        BY <2>6, ENABLEDaxioms
-    <2>8. ENABLED ProcessTasks({t}) <=> t \in AssignedTask
-        BY ExpandENABLED, Zenon DEF AssignedTask, ProcessTasks
+    <2>4. ASSUME t \in AssignedTask
+          PROVE  ENABLED (ProcessTasks({t}) /\ t \in SucceededTask')
+        <3>. SUFFICES \E depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp,
+                         stoppingRequestedp, pausingRequestedp :
+                        /\ {t} # {}
+                        /\ {t} \subseteq AssignedTask
+                        /\ taskStatep = [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
+                        /\ nextAttemptOfp = nextAttemptOf /\ depsp = deps
+                        /\ objectStatep = objectState /\ objectTargetsp = objectTargets
+                        /\ stoppingRequestedp = stoppingRequested
+                        /\ pausingRequestedp = pausingRequested
+                        /\ taskStatep[t] = TASK_SUCCEEDED
+            BY ExpandENABLED, SMT DEF ProcessTasks, SucceededTask
+        <3>. WITNESS deps, objectState, objectTargets,
+                     [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]],
+                     nextAttemptOf, stoppingRequested, pausingRequested
+        <3>. QED
+            BY <2>4 DEF AssignedTask
     <2>. QED
-        BY <2>3, <2>4, <2>7, <2>8, LemTP3States, Zenon
-<1>2. <<ProcessTasks({t})>>_vars => <<TP3!ProcessTasks({t})>>_(TP3!vars)
-    <2>. SUFFICES ASSUME ProcessTasks({t})
-                  PROVE  TP3!ProcessTasks({t}) /\ TP3!vars' /= TP3!vars
+        BY <2>1, <2>3, <2>4, LemTP3States
+<1>2. <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
+      => <<TP3!ProcessTasks({t}) /\ t \in TP3!SucceededTask'>>_(TP3!vars)
+    <2>. SUFFICES ASSUME ProcessTasks({t}), t \in SucceededTask'
+                  PROVE  TP3!ProcessTasks({t}) /\ t \in TP3!SucceededTask' /\ TP3!vars' /= TP3!vars
         BY DEF vars
     <2>1. TP3!ProcessTasks({t})
         <3>1. (\A s \in {t}: Cardinality(PreviousAttempts(s)) < MaxRetries)
@@ -1994,8 +2017,10 @@ LEMMA LemRefineTP3SFProcessTasks ==
             BY <3>1, LemTP3States, Zenon DEF ProcessTasks, TP3!ProcessTasks
     <2>2. taskState' /= taskState
         BY Zenon DEF AssignedTask, ProcessTasks
+    <2>3. t \in TP3!SucceededTask'
+        BY DEF SucceededTask, TP3!SucceededTask
     <2>. QED
-        BY <2>1, <2>2, Zenon DEF TP3!vars
+        BY <2>1, <2>2, <2>3, Zenon DEF TP3!vars
 <1>. QED
     BY <1>1, <1>2, PTL
 
@@ -2321,14 +2346,14 @@ THEOREM GP3_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
       PROVE  /\ WF_(TP3!vars)(\E u \in Task : TP3!SetTaskRetries({t}, {u}))
              /\ WF_(TP3!vars)(TP3!RegisterTasks({nextAttemptOf[t]}))
              /\ WF_(TP3!vars)(TP3!StageTasks({nextAttemptOf[t]}))
-             /\ SF_(TP3!vars)(TP3!ProcessTasks({t}))
+             /\ SF_(TP3!vars)(TP3!ProcessTasks({t}) /\ t \in TP3!SucceededTask')
              /\ WF_(TP3!vars)(TP3!CompleteTasks({t}))
              /\ WF_(TP3!vars)(TP3!AbortTasks({t}))
              /\ WF_(TP3!vars)(TP3!RetryTasks({t}))
              /\ WF_(TP3!vars)(TP3!StopTasks({t}))
              /\ WF_(TP3!vars)(TP3!PauseTasks({t}))
     <2>1. /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
-          /\ SF_vars(ProcessTasks({t}))
+          /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
           /\ WF_vars(StopTasks({t}))
           /\ WF_vars(PauseTasks({t}))
         BY <1>2, Isa DEF Fairness
@@ -2340,7 +2365,7 @@ THEOREM GP3_RefineTaskProcessing3 == Spec => RefineTaskProcessing3
         BY <1>4, Isa DEF GP2!TP2!Fairness
     <2>3. WF_(TP3!vars)(\E u \in Task : TP3!SetTaskRetries({t}, {u}))
         BY <2>1, LemRefineTP3WFSetTaskRetries
-    <2>4. SF_(TP3!vars)(TP3!ProcessTasks({t}))
+    <2>4. SF_(TP3!vars)(TP3!ProcessTasks({t}) /\ t \in TP3!SucceededTask')
         BY <2>1, LemRefineTP3SFProcessTasks
     <2>5. WF_(TP3!vars)(TP3!StopTasks({t})) /\ WF_(TP3!vars)(TP3!PauseTasks({t}))
         BY <2>1, LemRefineTP3WFStopTasks, LemRefineTP3WFPauseTasks

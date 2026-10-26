@@ -618,7 +618,7 @@ THEOREM TP3_RefineTaskProcessing2 == Spec => RefineTaskProcessing2
                         =>  /\ WF_TP2!vars(\E u \in Task : TP2!SetTaskRetries({t}, {u}))
                             /\ WF_TP2!vars(TP2!RegisterTasks({nextAttemptOf[t]}))
                             /\ WF_TP2!vars(TP2!StageTasks({nextAttemptOf[t]}))
-                            /\ SF_TP2!vars(TP2!ProcessTasks({t}))
+                            /\ SF_TP2!vars(TP2!ProcessTasks({t}) /\ t \in TP2!SucceededTask')
                             /\ WF_TP2!vars(TP2!CompleteTasks({t}))
                             /\ WF_TP2!vars(TP2!AbortTasks({t}))
                             /\ WF_TP2!vars(TP2!RetryTasks({t}))
@@ -769,71 +769,58 @@ THEOREM TP3_RefineTaskProcessing2 == Spec => RefineTaskProcessing2
             BY Isa DEF Fairness
         <3>. QED
             BY <3>1, <3>2, <3>3, PTL
-    <2>4. []TaskSafetyInv /\ [][Next]_vars /\ Fairness => SF_TP2!vars(TP2!ProcessTasks({t}))
-        <3>. SUFFICES []TaskSafetyInv /\ [][Next]_vars /\ SF_vars(ProcessTasks({t})) => SF_TP2!vars(TP2!ProcessTasks({t}))
+    <2>4. []TaskSafetyInv /\ [][Next]_vars /\ Fairness => SF_TP2!vars(TP2!ProcessTasks({t}) /\ t \in TP2!SucceededTask')
+        <3>. SUFFICES []TaskSafetyInv /\ [][Next]_vars /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask') => SF_TP2!vars(TP2!ProcessTasks({t}) /\ t \in TP2!SucceededTask')
             BY Isa DEF Fairness
-        <3>. SUFFICES []TaskSafetyInv /\ [][Next]_vars /\ SF_vars(ProcessTasks({t})) /\ []<>ENABLED <<TP2!ProcessTasks({t})>>_TP2!vars => FALSE
+        <3>. SUFFICES []TaskSafetyInv /\ [][Next]_vars /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask') /\ []<>ENABLED <<TP2!ProcessTasks({t}) /\ t \in TP2!SucceededTask'>>_TP2!vars => FALSE
             BY PTL
-        <3>. DEFINE AbsA == TP2!ProcessTasks({t})
-                    A    == ProcessTasks({t})
-        <3>1. ENABLED <<AbsA>>_TP2!vars <=> t \in TP2!AssignedTask
-            <4>1. AbsA => taskStateBar' /= taskStateBar
-                BY DEF TP2!ProcessTasks, TP2!AssignedTask, taskStateBar
-            <4>2. <<AbsA>>_TP2!vars <=> AbsA
-                BY <4>1 DEF TP2!vars
-            <4>3. ENABLED <<AbsA>>_TP2!vars <=> ENABLED AbsA
-                BY <4>2, ENABLEDaxioms
-            <4>4. ENABLED AbsA <=> t \in TP2!AssignedTask
-                BY ExpandENABLED, Zenon DEF TP2!ProcessTasks, TP2!AssignedTask,
-                taskStateBar
-            <4>. QED
-                BY <4>3, <4>4
+        <3>. DEFINE AbsA == TP2!ProcessTasks({t}) /\ t \in TP2!SucceededTask'
+                    A    == ProcessTasks({t}) /\ t \in SucceededTask'
+        <3>1. ENABLED <<AbsA>>_TP2!vars => t \in TP2!AssignedTask
+            BY ExpandENABLED, Zenon DEF TP2!ProcessTasks, TP2!AssignedTask,
+            TP2!SucceededTask, TP2!vars, taskStateBar
 
         <3>2. TaskSafetyInv /\ ENABLED <<AbsA>>_TP2!vars => ENABLED <<A>>_vars
             <4>. SUFFICES ASSUME TaskSafetyInv
                         PROVE ENABLED <<AbsA>>_TP2!vars => ENABLED <<A>>_vars
                 OBVIOUS
-            <4>1. ENABLED <<A>>_vars <=> t \in AssignedTask
+            <4>1. t \in AssignedTask => ENABLED <<A>>_vars
                 <5>1. <<A>>_vars <=> A
                     BY DEF ProcessTasks, AssignedTask, vars
                 <5>2. ENABLED <<A>>_vars <=> ENABLED A
                     BY <5>1, ENABLEDaxioms
-                <5>3. ENABLED A <=> t \in AssignedTask
-                    BY ExpandENABLED, Zenon DEF ProcessTasks, AssignedTask
+                <5>3. t \in AssignedTask => ENABLED A
+                    <6>. SUFFICES ASSUME t \in AssignedTask
+                                  PROVE  ENABLED A
+                        OBVIOUS
+                    <6>. SUFFICES \E nextAttemptOfp, pausingRequestedp, stoppingRequestedp, taskStatep :
+                                    /\ {t} # {}
+                                    /\ {t} \subseteq AssignedTask
+                                    /\ taskStatep = [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
+                                    /\ nextAttemptOfp = nextAttemptOf
+                                    /\ stoppingRequestedp = stoppingRequested
+                                    /\ pausingRequestedp = pausingRequested
+                                    /\ taskStatep[t] = TASK_SUCCEEDED
+                        BY ExpandENABLED, Zenon DEF ProcessTasks, SucceededTask
+                    <6>. WITNESS nextAttemptOf, pausingRequested, stoppingRequested,
+                                 [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
+                    <6>. QED
+                        OBVIOUS
                 <5>. QED
                     BY <5>2, <5>3
             <4>. QED
                 BY <3>1, <4>1 DEF AssignedTask, TP2!AssignedTask, taskStateBar
-        <3>3. <<A>>_vars => (\/ t \in SucceededTask
-                             \/ t \in FailedTask
-                             \/ t \in DiscardedTask
-                             \/ t \in StoppedTask)'
-            BY DEF ProcessTasks, AssignedTask, SucceededTask, FailedTask, DiscardedTask, StoppedTask
+        <3>3. <<A>>_vars => (t \in SucceededTask)'
+            OBVIOUS
         <3>4. t \in SucceededTask /\ [Next]_vars => (t \in SucceededTask)' \/ (t \in CompletedTask)'
             BY LemTaskStateStable DEF SucceededTask, CompletedTask
-        <3>5. t \in FailedTask /\ [Next]_vars => (t \in FailedTask)' \/ (t \in RetriedTask)'
-            BY LemTaskStateStable DEF FailedTask, RetriedTask
-        <3>6. t \in DiscardedTask /\ [Next]_vars => (t \in DiscardedTask)' \/ (t \in AbortedTask)'
-            BY LemTaskStateStable DEF DiscardedTask, AbortedTask
-        <3>7. t \in StoppedTask /\ [Next]_vars => (t \in StoppedTask)' \/ (t \in DiscardedTask)'
-            BY LemTaskStateStable DEF StoppedTask, DiscardedTask
-        <3>8. t \in CompletedTask /\ [Next]_vars => (t \in CompletedTask)'
+        <3>5. t \in CompletedTask /\ [Next]_vars => (t \in CompletedTask)'
             BY LemTaskStateStable DEF CompletedTask
-        <3>9. t \in RetriedTask /\ [Next]_vars => (t \in RetriedTask)'
-            BY LemTaskStateStable DEF RetriedTask
-        <3>10. t \in AbortedTask /\ [Next]_vars => (t \in AbortedTask)'
-            BY LemTaskStateStable DEF AbortedTask
-        <3>11. /\ t \in TP2!AssignedTask /\ t \in SucceededTask => FALSE
-               /\ t \in TP2!AssignedTask /\ t \in DiscardedTask => FALSE
-               /\ t \in TP2!AssignedTask /\ t \in FailedTask => FALSE
-               /\ t \in TP2!AssignedTask /\ t \in StoppedTask => FALSE
-               /\ t \in TP2!AssignedTask /\ t \in CompletedTask => FALSE
-               /\ t \in TP2!AssignedTask /\ t \in RetriedTask => FALSE
-               /\ t \in TP2!AssignedTask /\ t \in AbortedTask => FALSE
-            BY DEF TP2!AssignedTask, SucceededTask, DiscardedTask, FailedTask, StoppedTask, CompletedTask,
-            RetriedTask, AbortedTask, taskStateBar
+        <3>6. /\ t \in TP2!AssignedTask /\ t \in SucceededTask => FALSE
+              /\ t \in TP2!AssignedTask /\ t \in CompletedTask => FALSE
+            BY DEF TP2!AssignedTask, SucceededTask, CompletedTask, taskStateBar
         <3>. QED
-            BY <3>1, <3>2, <3>3, <3>4, <3>5, <3>6, <3>7, <3>8, <3>9, <3>10, <3>11, PTL
+            BY <3>1, <3>2, <3>3, <3>4, <3>5, <3>6, PTL
     <2>5. []TaskSafetyInv /\ [][Next]_vars /\ Fairness => WF_TP2!vars(TP2!CompleteTasks({t}))
         <3>. DEFINE AbsA == TP2!CompleteTasks({t})
                     A    == CompleteTasks({t})
