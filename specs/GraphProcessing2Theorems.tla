@@ -1191,17 +1191,16 @@ THEOREM GP2_RefineGraphProcessing1 == Spec => RefineGraphProcessing1
 (*****************************************************************************)
 (* REFINEMENT OF ObjectProcessing2 -- FAIRNESS                               *)
 (*                                                                           *)
-(* GP2 refines OP2 (via GP2_RefineGraphProcessing1). The two OP2 object-      *)
-(* fairness conjuncts WF(o targeted /\                                        *)
-(* CompleteObjects) / WF(o targeted /\ AbortObjects) are both enabled exactly *)
-(* when o is a registered target (OP2!RegisteredObject = GP1!RegisteredObject  *)
-(* under the Bar). A registered target cannot persist forever -- its open-     *)
-(* ancestor cardinality would descend below every bound -- which is precisely *)
-(* GP1!LemTargetedRegisteredImpossible. Its GP1-side hypotheses (GraphSafetyInv*)
-(* / Next / Fairness) come from the GP1 refinement; the open-ancestor          *)
-(* measure from GP1!OpenUpstreamEventuallyClosed, which GP2 supplies via        *)
-(* LemRefineGP1OpenUpstreamEventuallyClosed. The whole object-finalization engine is thus lifted     *)
-(* verbatim from GraphProcessing1.                                            *)
+(* GP2 refines OP2 (via GP2_RefineGraphProcessing1). OP2's only fairness    *)
+(* conjunct, WF(o targeted /\ CompleteObjects), is enabled exactly when o is *)
+(* a registered target (OP2!RegisteredObject = GP1!RegisteredObject under   *)
+(* the Bar). A registered target cannot persist forever -- its open-ancestor *)
+(* cardinality would descend below every bound -- which is precisely        *)
+(* GP1!LemTargetedRegisteredImpossible. Its GP1-side hypotheses             *)
+(* (GraphSafetyInv / Next / Fairness) come from the GP1 refinement; the     *)
+(* open-ancestor measure from GP1!OpenUpstreamEventuallyClosed, which GP2   *)
+(* supplies via LemRefineGP1OpenUpstreamEventuallyClosed. The whole         *)
+(* object-finalization engine is thus lifted verbatim from GraphProcessing1. *)
 (*****************************************************************************)
 
 (* The Bar's CASE maps COMPLETED/ABORTED -> FINALIZED and keeps REGISTERED, so   *)
@@ -1214,7 +1213,7 @@ LEMMA LemGP1RegisteredBar ==
     PROVE  [](o \in objectTargets /\ o \in RegisteredObject
               => o \in objectTargets /\ o \in GP1!RegisteredObject)
 
-(* WEAK FAIRNESS OF THE OBJECT-FINALIZATION ACTIONS, reduced -- in a CLEAN        *)
+(* WEAK FAIRNESS OF THE OBJECT-COMPLETION ACTION, reduced -- in a CLEAN          *)
 (* context, away from the refinement proof's pile of temporal hypotheses -- to    *)
 (* GraphProcessing1's targeted-registered contradiction. The negation of WF       *)
 (* leaves the action enabled forever; the (inline) ENABLED equivalence keeps the  *)
@@ -1232,16 +1231,9 @@ LEMMA LemRefineOP2WFCompleteObjects ==
               /\ []([](o \in objectTargets) => <>[][S' \subseteq S]_S)
               => WF_(OP2!vars)(o \in objectTargets /\ OP2!CompleteObjects({o}))
 
-LEMMA LemRefineOP2WFAbortObjects ==
-    ASSUME NEW o \in Object
-    PROVE  LET S == GP1!AncestorSubGraph(deps, o, GP1!IsOpenNode).node
-           IN /\ []GP1!GraphSafetyInv /\ [][GP1!Next]_(GP1!vars) /\ []GP1!Fairness
-              /\ []([](o \in objectTargets) => <>[][S' \subseteq S]_S)
-              => WF_(OP2!vars)(o \in objectTargets /\ OP2!AbortObjects({o}))
-
 (* GP1's open-upstream constraint projected onto the node set of the open    *)
-(* ancestor subgraph -- the cardinality measure of LemRefineOP2WFCompleteObjects  *)
-(* and LemRefineOP2WFAbortObjects. Clean lemma level, so that PTL may box the     *)
+(* ancestor subgraph -- the cardinality measure of                            *)
+(* LemRefineOP2WFCompleteObjects. Clean lemma level, so that PTL may box the *)
 (* action-level bridge (subgraph inclusion => node-set inclusion).           *)
 LEMMA LemGP1OpenUpstreamNodeSets ==
     ASSUME NEW o \in Object
