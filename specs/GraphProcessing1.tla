@@ -246,15 +246,6 @@ terminated ==
     /\ ProcessedTask = {}
 
 (**
- * TERMINAL STATE
- * Action representing the terminal state of the system, reached once all
- * targeted objects have been finalized.
- *)
-Terminating ==
-    /\ terminated
-    /\ UNCHANGED vars
-
-(**
  * USER QUIESCENCE
  * A step in which the user drives no new work: no graph is registered and no
  * object is targeted or untargeted.
@@ -286,7 +277,6 @@ Next ==
         \/ ReleaseTasks(T)
         \/ ProcessTasks(T)
         \/ FinalizeTasks(T)
-    \/ Terminating
 
 (**
  * FAIRNESS CONDITIONS

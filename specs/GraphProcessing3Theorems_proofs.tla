@@ -304,7 +304,7 @@ LEMMA LemTypeOk == Init /\ [][Next]_vars => []TypeOk
         BY <2>1, <2>2, Zenon DEF AbortObjects, AbortTasks, AssignTasks, CompleteObjects,
             CompleteTasks, DiscardTasks, Next, PauseTasks, ProcessTasks, ReleaseTasks,
             RequestTasksPausing, RequestTasksStopping, ResumeTasks, RetryTasks,
-            StageTasks, StopTasks, TargetObjects, Terminating, UntargetObjects, vars
+            StageTasks, StopTasks, TargetObjects, UntargetObjects, vars
 <1>. QED
     BY <1>1, <1>2, PTL
 
@@ -537,15 +537,12 @@ LEMMA LemRefineGP2Next == TypeOk /\ [Next]_vars => [GP2!Next]_(GP2!vars)
         <3>. QED BY <3>1, <3>2, <3>3
     <2>. QED
         BY <1>19, <2>1 DEF GP2!vars, ResumeTasks
-<1>20. CASE Terminating
-    BY <1>20, LemBarStutter, LemGP2BarStates, Zenon
-    DEF Terminating, GP2!Terminating, vars, GP2!vars
-<1>21. CASE UNCHANGED vars
-    BY <1>21, LemBarStutter DEF GP2!vars, vars
+<1>20. CASE UNCHANGED vars
+    BY <1>20, LemBarStutter DEF GP2!vars, vars
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8, <1>9, <1>10,
        <1>11, <1>12, <1>13, <1>14, <1>15, <1>16, <1>17, <1>18, <1>19,
-       <1>20, <1>21, Zenon
+       <1>20, Zenon
     DEF Next, GP2!Next
 
 LEMMA LemRefineGP2InitNext ==
@@ -648,15 +645,12 @@ LEMMA LemRefineTP3Next == TypeOk /\ [Next]_vars => [TP3!Next]_(TP3!vars)
 <1>19. ASSUME NEW T \in SUBSET Task, ResumeTasks(T)
        PROVE TP3!ResumeTasks(T)
     BY <1>19, LemTP3States, Zenon DEF ResumeTasks, TP3!ResumeTasks
-<1>20. CASE Terminating
-    BY <1>20, LemTP3States, Zenon
-    DEF Terminating, TP3!Terminating, vars, TP3!vars
-<1>21. CASE UNCHANGED vars
-    BY <1>21 DEF TP3!vars, vars
+<1>20. CASE UNCHANGED vars
+    BY <1>20 DEF TP3!vars, vars
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8, <1>9, <1>10,
        <1>11, <1>12, <1>13, <1>14, <1>15, <1>16, <1>17, <1>18, <1>19,
-       <1>20, <1>21, Zenon
+       <1>20, Zenon
     DEF Next, TP3!Next
 
 LEMMA LemRefineTP3InitNext ==

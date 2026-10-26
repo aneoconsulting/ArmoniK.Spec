@@ -257,19 +257,6 @@ ResumeTasks(T) ==
     /\ pausingRequested' = pausingRequested \ T
     /\ UNCHANGED << nextAttemptOf, stoppingRequested >>
 
-(**
- * TERMINAL STATE
- * Action representing the terminal state of the system, reached when
- * there are no more tasks being processed (i.e., assigned or not
- * yet finalized i.e., completed, retried, aborted or canceled).
- *)
-Terminating ==
-    /\ AssignedTask = {}
-    /\ SucceededTask = {}
-    /\ FailedTask = {}
-    /\ DiscardedTask = {}
-    /\ UNCHANGED vars
-
 -------------------------------------------------------------------------------
 
 (*****************************************************************************)
@@ -281,7 +268,7 @@ Terminating ==
  * Defines all possible atomic transitions of the system.
  *)
 Next ==
-    \/ \E T \in SUBSET Task:
+    \E T \in SUBSET Task:
         \/ RegisterTasks(T)
         \/ StageTasks(T)
         \/ DiscardTasks(T)
@@ -297,7 +284,6 @@ Next ==
         \/ RequestTasksPausing(T)
         \/ PauseTasks(T)
         \/ ResumeTasks(T)
-    \/ Terminating
 
 (**
  * FAIRNESS CONDITIONS

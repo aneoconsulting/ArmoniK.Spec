@@ -229,14 +229,6 @@ RetryTasks(T) ==
         [t \in Task |-> IF t \in T THEN TASK_RETRIED ELSE taskState[t]]
     /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets >>
 
-Terminating ==
-    /\ objectTargets \subseteq (CompletedObject \union AbortedObject)
-    /\ AssignedTask = {}
-    /\ SucceededTask = {}
-    /\ FailedTask = {}
-    /\ DiscardedTask = {}
-    /\ UNCHANGED vars
-
 -------------------------------------------------------------------------------
 
 (*****************************************************************************)
@@ -264,7 +256,6 @@ Next ==
         \/ CompleteTasks(T)
         \/ AbortTasks(T)
         \/ RetryTasks(T)
-    \/ Terminating
 
 Fairness ==
     /\ \A o \in Object:

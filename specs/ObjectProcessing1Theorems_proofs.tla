@@ -9,7 +9,7 @@ LEMMA LemType == Init /\ [][Next]_vars => []TypeOk
     BY DEF Init
 <1>2. TypeOk /\ [Next]_vars => TypeOk'
     BY DEF Next, vars, RegisterObjects, TargetObjects, UntargetObjects,
-    FinalizeObjects, Terminating
+    FinalizeObjects
 <1>. QED
     BY <1>1, <1>2, PTL
 
@@ -22,7 +22,7 @@ LEMMA LemTargetValidity == Init /\ [][Next]_vars => []TargetValidity
     BY DEF Init
 <1>2. TypeOk /\ TargetValidity /\ [Next]_vars => TargetValidity'
     BY DEF TypeOk, Next, vars, RegisterObjects, TargetObjects, UntargetObjects,
-    FinalizeObjects, Terminating
+    FinalizeObjects
 <1>. QED
     BY <1>1, <1>2, LemType, PTL
 
@@ -47,7 +47,7 @@ LEMMA LemFiniteKnownObjects == Init /\ [][Next]_vars => []FiniteKnownObjects
           PROVE (Object \ UnknownObject)' = Object \ UnknownObject
         BY <2>2 DEF FinalizeObjects, RegisteredObject, TargetObjects, UntargetObjects
     <2>. QED
-        BY <2>1, <2>2 DEF Next, Terminating, vars
+        BY <2>1, <2>2 DEF Next, vars
 <1>. QED
     BY <1>1, <1>2, PTL
 
@@ -72,7 +72,7 @@ THEOREM OP1_PermanentFinalization == Spec => PermanentFinalization
 <1>1. ObjectSafetyInv /\ o \in FinalizedObject /\ [Next]_vars
         => (o \in FinalizedObject)'
     BY DEF ObjectSafetyInv, TypeOk, OP1State, Next, vars, RegisterObjects,
-    TargetObjects, UntargetObjects, FinalizeObjects, Terminating, UnknownObject,
+    TargetObjects, UntargetObjects, FinalizeObjects, UnknownObject,
     RegisteredObject, FinalizedObject
 <1>. QED
     BY <1>1, OP1_ObjectSafetyInv, PTL DEF Spec
@@ -111,7 +111,7 @@ THEOREM OP1_EventualTargetResolution == Spec => EventualTargetResolution
                                             \/ (o \in FinalizedObject)'
                                             \/ (o \notin objectTargets)'
     BY DEF Next, vars, RegisterObjects, TargetObjects, UntargetObjects,
-    FinalizeObjects, Terminating
+    FinalizeObjects
 <1>2. <<o \in objectTargets /\ FinalizeObjects({o})>>_vars
         => (o \in FinalizedObject)'
     BY DEF FinalizeObjects, OBJECT_REGISTERED, OBJECT_FINALIZED,
@@ -154,7 +154,7 @@ LEMMA LemEventualTermination ==
            /\ RegisteredObject' \subseteq RegisteredObject
            /\ [RegisteredObject' # RegisteredObject]_vars
     BY DEF FinalizeObjects, Next, NoUserAction, RegisteredObject, RegisterObjects,
-    TargetObjects, Terminating, UnknownObject, UntargetObjects, vars
+    TargetObjects, UnknownObject, UntargetObjects, vars
 (* (b) Once the targets are frozen, an object is either never targeted again or
        targeted forever; in the latter case weak fairness finalizes it, and
        finalization is permanent. *)
@@ -174,7 +174,7 @@ LEMMA LemEventualTermination ==
         BY DEF FinalizedObject, FinalizeObjects, vars
     <2>4. ObjectSafetyInv /\ x \in FinalizedObject /\ [Next]_vars => (x \in FinalizedObject)'
         BY DEF FinalizedObject, FinalizeObjects, Next, ObjectSafetyInv, OP1State,
-        RegisteredObject, RegisterObjects, TargetObjects, Terminating, TypeOk,
+        RegisteredObject, RegisterObjects, TargetObjects, TypeOk,
         UnknownObject, UntargetObjects, vars
     <2>5. [Next]_vars /\ [NoUserAction]_vars => ((x \in objectTargets)' <=> x \in objectTargets)
         BY <1>1

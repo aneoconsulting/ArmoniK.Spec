@@ -174,7 +174,7 @@ LEMMA LemType == Init /\ [][Next]_vars => []TypeOk
 <1>2. TypeOk /\ [Next]_vars => TypeOk'
     BY DEF Next, vars, RegisterTasks, StageTasks, DiscardTasks, SetTaskRetries,
     Bijection, Surjection, AssignTasks, ReleaseTasks, ProcessTasks, CompleteTasks,
-    AbortTasks, RetryTasks, Terminating
+    AbortTasks, RetryTasks
 <1>. QED
     BY <1>1, <1>2, PTL
 
@@ -360,12 +360,10 @@ LEMMA LemTaskAttemptsIntegrity == Init /\ [][Next]_vars => []TaskAttemptsIntegri
     <2>10. ASSUME NEW T \in SUBSET Task, RetryTasks(T)
           PROVE TaskAttemptsIntegrity'
         BY <2>10 DEF RetryTasks, UnretriedTask, FailedTask
-    <2>11. CASE Terminating
-        BY <2>11 DEF Terminating, vars
-    <2>12. CASE UNCHANGED vars
-        BY <2>12 DEF vars
+    <2>11. CASE UNCHANGED vars
+        BY <2>11 DEF vars
     <2>. QED
-        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11, <2>12
+        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11
         DEF Next
 <1>. QED
     BY <1>1, <1>2, LemType, PTL
@@ -387,7 +385,7 @@ LEMMA LemFiniteKnownTasks == Init /\ [][Next]_vars => []FiniteKnownTasks
     <2>1. ASSUME NEW T \in SUBSET Task, RegisterTasks(T)
           PROVE FiniteKnownTasks'
         BY <2>1, FS_Union, FS_Subset, FS_Image DEF RegisterTasks
-    <2>. SUFFICES ASSUME [\/ \E T \in SUBSET Task:
+    <2>. SUFFICES ASSUME [\E T \in SUBSET Task:
                                 \/ StageTasks(T)
                                 \/ \E U \in SUBSET Task: SetTaskRetries(T, U)
                                 \/ DiscardTasks(T)
@@ -396,15 +394,13 @@ LEMMA LemFiniteKnownTasks == Init /\ [][Next]_vars => []FiniteKnownTasks
                                 \/ ProcessTasks(T)
                                 \/ CompleteTasks(T)
                                 \/ AbortTasks(T)
-                                \/ RetryTasks(T)
-                            \/ Terminating]_vars
+                                \/ RetryTasks(T)]_vars
                   PROVE UNCHANGED UnknownTask
             BY <2>1, Zenon DEF Next
     <2>. QED
         BY DEF vars, UnknownTask, SetTaskRetries, StageTasks, RegisteredTask, DiscardTasks,
         AssignTasks, StagedTask, ReleaseTasks, AssignedTask, ProcessTasks, CompleteTasks,
-        SucceededTask, AbortTasks, DiscardedTask, RetryTasks, UnretriedTask, FailedTask,
-        Terminating
+        SucceededTask, AbortTasks, DiscardedTask, RetryTasks, UnretriedTask, FailedTask
 <1>. QED
     BY <1>1, <1>2, PTL
 
@@ -933,7 +929,7 @@ LEMMA LemAcyclic == Init /\ [][Next]_vars => []Acyclic
             BY <3>12, <3>14, <3>9, <3>1 DEF UnretriedTask, FailedTask
     <2>. SUFFICES ASSUME UNCHANGED nextAttemptOf
                   PROVE <<t, t>> \notin TCNextAttemptOfRel'
-        <3>7. ASSUME [\/ \E T \in SUBSET Task:
+        <3>7. ASSUME [\E T \in SUBSET Task:
                             \/ RegisterTasks(T)
                             \/ StageTasks(T)
                             \/ DiscardTasks(T)
@@ -942,12 +938,11 @@ LEMMA LemAcyclic == Init /\ [][Next]_vars => []Acyclic
                             \/ ProcessTasks(T)
                             \/ CompleteTasks(T)
                             \/ AbortTasks(T)
-                            \/ RetryTasks(T)
-                        \/ Terminating]_vars
+                            \/ RetryTasks(T)]_vars
               PROVE UNCHANGED nextAttemptOf
             BY <3>7 DEF vars, RegisterTasks, StageTasks, DiscardTasks,
                AssignTasks, ReleaseTasks, ProcessTasks, CompleteTasks,
-               AbortTasks, RetryTasks, Terminating
+               AbortTasks, RetryTasks
         <3>. QED
             BY <2>1, <3>7, Zenon DEF Next
     <2>2. NextAttemptOfRel' = NextAttemptOfRel
@@ -1496,7 +1491,7 @@ LEMMA LemTaskAttemptsFinite == Init /\ [][Next]_vars => []FiniteTaskAttemptsInv
     (* All other actions keep nextAttemptOf unchanged. *)
     <2>. SUFFICES ASSUME UNCHANGED nextAttemptOf
                   PROVE IsFiniteSet(TaskAttempts(t)')
-        <3>1. ASSUME [\/ \E T \in SUBSET Task:
+        <3>1. ASSUME [\E T \in SUBSET Task:
                             \/ RegisterTasks(T)
                             \/ StageTasks(T)
                             \/ DiscardTasks(T)
@@ -1505,12 +1500,11 @@ LEMMA LemTaskAttemptsFinite == Init /\ [][Next]_vars => []FiniteTaskAttemptsInv
                             \/ ProcessTasks(T)
                             \/ CompleteTasks(T)
                             \/ AbortTasks(T)
-                            \/ RetryTasks(T)
-                        \/ Terminating]_vars
+                            \/ RetryTasks(T)]_vars
               PROVE UNCHANGED nextAttemptOf
             BY <3>1 DEF vars, RegisterTasks, StageTasks, DiscardTasks,
                AssignTasks, ReleaseTasks, ProcessTasks, CompleteTasks,
-               AbortTasks, RetryTasks, Terminating
+               AbortTasks, RetryTasks
         <3>. QED
             BY <2>1, <3>1, Zenon DEF Next
     <2>2. TaskAttempts(t)' = TaskAttempts(t)
@@ -1693,7 +1687,7 @@ LEMMA LemAttemptsBoundsInv == Init /\ [][Next]_vars => []AttemptsBoundsInv
                          t \notin FailedTask' \/ t \in FailedTask
                   PROVE /\ Cardinality(TaskAttempts(t)') <= MaxRetries
                         /\ t \in UnretriedTask' => Cardinality(PreviousAttempts(t)') < MaxRetries
-        <3>1. ASSUME [\/ \E T \in SUBSET Task:
+        <3>1. ASSUME [\E T \in SUBSET Task:
                             \/ RegisterTasks(T)
                             \/ StageTasks(T)
                             \/ DiscardTasks(T)
@@ -1701,13 +1695,12 @@ LEMMA LemAttemptsBoundsInv == Init /\ [][Next]_vars => []AttemptsBoundsInv
                             \/ ReleaseTasks(T)
                             \/ CompleteTasks(T)
                             \/ AbortTasks(T)
-                            \/ RetryTasks(T)
-                        \/ Terminating]_vars
+                            \/ RetryTasks(T)]_vars
               PROVE UNCHANGED nextAttemptOf /\ (t \notin FailedTask' \/ t \in FailedTask)
             BY <3>1 DEF vars, RegisterTasks, UnknownTask, StageTasks, RegisteredTask,
             DiscardTasks, AssignTasks, StagedTask, ReleaseTasks, AssignedTask,
             CompleteTasks, SucceededTask, AbortTasks, DiscardedTask,
-            RetryTasks, UnretriedTask, FailedTask, Terminating
+            RetryTasks, UnretriedTask, FailedTask
         <3>. QED
             BY <2>1, <2>2, <3>1, Zenon DEF Next
     <2>3. TaskAttempts(t)' = TaskAttempts(t)
@@ -1758,7 +1751,7 @@ LEMMA LemFiniteNextAttempts == Init /\ [][Next]_vars => []FiniteNextAttempts
             FiniteKnownTasks
         <3>. QED
             BY <3>1, <3>2, FS_Subset, FS_Union
-    <2>. SUFFICES ASSUME [\/ \E T \in SUBSET Task:
+    <2>. SUFFICES ASSUME [\E T \in SUBSET Task:
                                 \/ RegisterTasks(T)
                                 \/ StageTasks(T)
                                 \/ DiscardTasks(T)
@@ -1767,15 +1760,13 @@ LEMMA LemFiniteNextAttempts == Init /\ [][Next]_vars => []FiniteNextAttempts
                                 \/ ProcessTasks(T)
                                 \/ CompleteTasks(T)
                                 \/ AbortTasks(T)
-                                \/ RetryTasks(T)
-                            \/ Terminating]_vars
+                                \/ RetryTasks(T)]_vars
                   PROVE UNCHANGED nextAttemptOf
             BY <2>1, Zenon DEF Next
     <2>. QED
         BY DEF vars, RegisterTasks, UnknownTask, StageTasks, RegisteredTask, DiscardTasks,
         AssignTasks, StagedTask, ReleaseTasks, AssignedTask, ProcessTasks, CompleteTasks,
-        SucceededTask, AbortTasks, DiscardedTask, RetryTasks, UnretriedTask, FailedTask,
-        Terminating
+        SucceededTask, AbortTasks, DiscardedTask, RetryTasks, UnretriedTask, FailedTask
 <1>. QED
     BY <1>1, <1>2, LemFiniteKnownTasks, PTL
 
@@ -1792,7 +1783,7 @@ LEMMA LemExistsFreeUnknownTask == Init /\ [][Next]_vars => []ExistsFreeUnknownTa
             BY <2>1 DEF RegisterTasks, UnknownTask
         <3>. QED
             BY <2>1, <3>1, DS_FiniteDifference DEF RegisterTasks
-    <2>. SUFFICES ASSUME [\/ \E T \in SUBSET Task:
+    <2>. SUFFICES ASSUME [\E T \in SUBSET Task:
                                \/ StageTasks(T)
                                \/ DiscardTasks(T)
                                \/ \E U \in SUBSET Task: SetTaskRetries(T, U)
@@ -1801,15 +1792,13 @@ LEMMA LemExistsFreeUnknownTask == Init /\ [][Next]_vars => []ExistsFreeUnknownTa
                                \/ ProcessTasks(T)
                                \/ CompleteTasks(T)
                                \/ AbortTasks(T)
-                               \/ RetryTasks(T)
-                           \/ Terminating]_vars
+                               \/ RetryTasks(T)]_vars
                    PROVE UnknownTask' = UnknownTask
         BY <2>1, Zenon DEF Next
     <2>. QED
         BY DEF UnknownTask, vars, SetTaskRetries, StageTasks, RegisteredTask, DiscardTasks,
         AssignTasks, StagedTask, ReleaseTasks, AssignedTask, ProcessTasks, CompleteTasks,
-        SucceededTask, AbortTasks, DiscardedTask, RetryTasks, UnretriedTask, FailedTask,
-        Terminating
+        SucceededTask, AbortTasks, DiscardedTask, RetryTasks, UnretriedTask, FailedTask
 <1>3. TypeOk /\ TaskAttemptsIntegrity /\ FiniteNextAttempts /\ IsDenumerableSet(UnknownTask)
       => \E t \in Task : t \in UnknownTask /\ ~ \E u \in Task: nextAttemptOf[u] = t
     <2>. DEFINE T == {v \in Task: nextAttemptOf[v] \in Task}
@@ -1914,7 +1903,7 @@ THEOREM TP2_AttemptsIsIncreasing == Spec => AttemptsIsIncreasing
             BY <3>1 DEF TaskAttempts
     <2>. QED
         BY <2>6, <2>7, <2>8 DEF TaskAttempts
-<1>. SUFFICES ASSUME [\/ \E T \in SUBSET Task:
+<1>. SUFFICES ASSUME [\E T \in SUBSET Task:
                             \/ RegisterTasks(T)
                             \/ StageTasks(T)
                             \/ DiscardTasks(T)
@@ -1923,16 +1912,14 @@ THEOREM TP2_AttemptsIsIncreasing == Spec => AttemptsIsIncreasing
                             \/ ProcessTasks(T)
                             \/ CompleteTasks(T)
                             \/ AbortTasks(T)
-                            \/ RetryTasks(T)
-                        \/ Terminating]_vars
+                            \/ RetryTasks(T)]_vars
             PROVE UNCHANGED nextAttemptOf
         BY <1>0, <1>1, Zenon DEF Next, TaskAttempts, NextAttempts, PreviousAttempts,
         TransitiveClosureOn
 <1>. QED
     BY DEF vars, RegisterTasks, UnknownTask, StageTasks, RegisteredTask, DiscardTasks,
     AssignTasks, StagedTask, ReleaseTasks, AssignedTask, ProcessTasks, CompleteTasks,
-    SucceededTask, AbortTasks, DiscardedTask, RetryTasks, UnretriedTask, FailedTask,
-    Terminating
+    SucceededTask, AbortTasks, DiscardedTask, RetryTasks, UnretriedTask, FailedTask
 
 (**
  * STEP-LEVEL STABILITY OF TASK STATES. The task lifecycle only moves forward:
@@ -1955,7 +1942,7 @@ LEMMA LemTaskStateStable ==
               => taskState'[t] = taskState[t]
 BY DEF AbortTasks, AssignedTask, AssignTasks, CompleteTasks, DiscardedTask, DiscardTasks,
     FailedTask, Next, ProcessTasks, RegisteredTask, RegisterTasks, ReleaseTasks, RetryTasks,
-    SetTaskRetries, StagedTask, StageTasks, SucceededTask, Terminating, UnknownTask, vars
+    SetTaskRetries, StagedTask, StageTasks, SucceededTask, UnknownTask, vars
 
 (**
  * A recorded next attempt is never overwritten: SetTaskRetries only writes
@@ -1973,7 +1960,7 @@ LEMMA LemNextAttemptFrozen ==
         BY <1>1, <2>1 DEF SetTaskRetries
 <1>. QED
     BY <1>1 DEF AbortTasks, AssignTasks, CompleteTasks, DiscardTasks, Next, ProcessTasks,
-        RegisterTasks, ReleaseTasks, RetryTasks, StageTasks, Terminating, vars
+        RegisterTasks, ReleaseTasks, RetryTasks, StageTasks, vars
 
 (**
  * The SUCCEEDED / DISCARDED status of a task stabilizes: SUCCEEDED exits only
@@ -2026,7 +2013,7 @@ LEMMA LemFailedTaskEventualRetry ==
     UnknownTask, RegisterTasks, StageTasks, RegisteredTask, DiscardTasks, SetTaskRetries,
     Bijection, Injection, Surjection, IsInjective, AssignTasks, StagedTask, ReleaseTasks,
     AssignedTask, ProcessTasks, CompleteTasks, SucceededTask, AbortTasks, DiscardedTask,
-    RetryTasks, Terminating
+    RetryTasks
 <1>2. TaskSafetyInv /\ t \in UnretriedTask
       => ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
         <3>. SUFFICES ASSUME TaskSafetyInv, t \in UnretriedTask
@@ -2085,7 +2072,7 @@ THEOREM TP2_FailedTaskEventualRetry == Spec => FailedTaskEventualRetry
         UnknownTask, RegisterTasks, StageTasks, RegisteredTask, DiscardTasks, SetTaskRetries,
         Bijection, Injection, Surjection, IsInjective, AssignTasks, StagedTask, ReleaseTasks,
         AssignedTask, ProcessTasks, CompleteTasks, SucceededTask, AbortTasks, DiscardedTask,
-        RetryTasks, Terminating
+        RetryTasks
     <2>2. nextAttemptOf[t] \in UnknownTask => ENABLED <<RegisterTasks({nextAttemptOf[t]})>>_vars
         BY ExpandENABLED, FS_Singleton DEF RegisterTasks, TP1!RegisterTasks, vars,
         UnknownTask
@@ -2136,10 +2123,8 @@ THEOREM TP2_FailedTaskEventualRetry == Spec => FailedTaskEventualRetry
         <3>10. ASSUME NEW T \in SUBSET Task, RetryTasks(T)
                PROVE (nextAttemptOf[t] \in RegisteredTask)' \/ (nextAttemptOf[t] \in StagedTask)'
             BY <3>10 DEF RetryTasks, UnretriedTask, FailedTask
-        <3>11. CASE Terminating
-            BY <3>11 DEF Terminating, vars
         <3>. QED
-            BY <3>1, <3>2, <3>3, <3>4, <3>5, <3>6, <3>7, <3>8, <3>9, <3>10, <3>11
+            BY <3>1, <3>2, <3>3, <3>4, <3>5, <3>6, <3>7, <3>8, <3>9, <3>10
             DEF Next
     <2>2. nextAttemptOf[t] \in RegisteredTask => ENABLED <<StageTasks({nextAttemptOf[t]})>>_vars
         BY ExpandENABLED DEF StageTasks, vars, RegisteredTask
@@ -2318,7 +2303,7 @@ LEMMA LemFailedTaskEventualFinalization ==
         RegisterTasks, StageTasks, RegisteredTask, DiscardTasks, SetTaskRetries,
         Bijection, Injection, Surjection, IsInjective, AssignTasks, StagedTask,
         ReleaseTasks, AssignedTask, ProcessTasks, CompleteTasks, SucceededTask,
-        AbortTasks, DiscardedTask, RetryTasks, RetriedTask, Terminating
+        AbortTasks, DiscardedTask, RetryTasks, RetriedTask
     <2>2. t \in FailedTask /\ ~ t \in UnretriedTask => ENABLED <<RetryTasks({t})>>_vars
         BY ExpandENABLED DEF RetryTasks, vars, UnretriedTask, FailedTask, RetriedTask
     <2>3. <<RetryTasks({t})>>_vars => (t \in RetriedTask)'
@@ -2345,7 +2330,7 @@ THEOREM TP2_EventualFinalization == Spec => EventualFinalization
         Bijection, Injection, Surjection, IsInjective, AssignTasks, StagedTask,
         ReleaseTasks, AssignedTask, ProcessTasks, CompleteTasks, SucceededTask,
         AbortTasks, DiscardedTask, RetryTasks, RetriedTask, CompletedTask,
-        AbortedTask, Terminating
+        AbortedTask
     <2>2. t \in SucceededTask => ENABLED <<CompleteTasks({t})>>_vars
         BY ExpandENABLED DEF CompleteTasks, UnretriedTask, SucceededTask,
         FailedTask, DiscardedTask, vars
@@ -2364,7 +2349,7 @@ THEOREM TP2_EventualFinalization == Spec => EventualFinalization
         Bijection, Injection, Surjection, IsInjective, AssignTasks, StagedTask,
         ReleaseTasks, AssignedTask, ProcessTasks, CompleteTasks, SucceededTask,
         AbortTasks, DiscardedTask, RetryTasks, RetriedTask, CompletedTask,
-        AbortedTask, Terminating
+        AbortedTask
     <2>2. t \in DiscardedTask => ENABLED <<AbortTasks({t})>>_vars
         BY ExpandENABLED DEF AbortTasks, UnretriedTask, SucceededTask,
         FailedTask, DiscardedTask, vars
@@ -2419,15 +2404,11 @@ THEOREM TP2_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
     <2>10. ASSUME NEW T \in SUBSET Task, RetryTasks(T)
            PROVE TP1!FinalizeTasks(T)
         BY <2>10 DEF RetryTasks, TP1!FinalizeTasks, FailedTask, TP1!ProcessedTask
-    <2>11. ASSUME Terminating
-           PROVE TP1!Terminating \/ UNCHANGED TP1!vars
-        BY <2>11 DEF Terminating, TP1!Terminating, vars, TP1!vars, AssignedTask,
-        SucceededTask, FailedTask, DiscardedTask, TP1!AssignedTask, TP1!ProcessedTask
-    <2>12. ASSUME UNCHANGED vars
+    <2>11. ASSUME UNCHANGED vars
            PROVE UNCHANGED TP1!vars
-        BY <2>12 DEF vars, TP1!vars
+        BY <2>11 DEF vars, TP1!vars
     <2>. QED
-        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11, <2>12
+        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11
         DEF Next, TP1!Next
 <1>3. []TaskSafetyInv /\ [][Next]_vars /\ Fairness => TP1!Fairness
     <2>. SUFFICES ASSUME NEW t \in Task
@@ -2508,7 +2489,7 @@ THEOREM TP2_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
                     Bijection, Injection, Surjection, IsInjective, AssignTasks, StagedTask,
                     ReleaseTasks, AssignedTask, ProcessTasks, CompleteTasks, SucceededTask,
                     AbortTasks, DiscardedTask, RetryTasks, RetriedTask, CompletedTask,
-                    AbortedTask, Terminating
+                    AbortedTask
                 <5>2. (~ t \in CompletedTask)'
                     <6>1. (t \in SucceededTask \/ t \in DiscardedTask \/ t \in FailedTask)'
                         BY <3>0, PTL
@@ -2527,7 +2508,7 @@ THEOREM TP2_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
                     Bijection, Injection, Surjection, IsInjective, AssignTasks, StagedTask,
                     ReleaseTasks, AssignedTask, ProcessTasks, CompleteTasks, SucceededTask,
                     AbortTasks, DiscardedTask, RetryTasks, RetriedTask, CompletedTask,
-                    AbortedTask, Terminating
+                    AbortedTask
                 <5>2. (~ t \in AbortedTask)'
                     <6>1. (t \in SucceededTask \/ t \in DiscardedTask \/ t \in FailedTask)'
                         BY <3>0, PTL
@@ -2546,7 +2527,7 @@ THEOREM TP2_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
                     RegisterTasks, StageTasks, RegisteredTask, DiscardTasks, SetTaskRetries,
                     Bijection, Injection, Surjection, IsInjective, AssignTasks, StagedTask,
                     ReleaseTasks, AssignedTask, ProcessTasks, CompleteTasks, SucceededTask,
-                    AbortTasks, DiscardedTask, RetryTasks, RetriedTask, Terminating
+                    AbortTasks, DiscardedTask, RetryTasks, RetriedTask
                 <5>2. (~ t \in RetriedTask)'
                     <6>1. (t \in SucceededTask \/ t \in DiscardedTask \/ t \in FailedTask)'
                         BY <3>0, PTL
@@ -2584,7 +2565,7 @@ THEOREM TP2_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
                 BY <3>0 DEF DiscardedTask, AbortedTask, Next, vars, RegisterTasks, UnknownTask,
                 StageTasks, RegisteredTask, DiscardTasks, SetTaskRetries, AssignTasks, StagedTask,
                 ReleaseTasks, AssignedTask, ProcessTasks, CompleteTasks, AbortTasks, RetryTasks,
-                SucceededTask, FailedTask, DiscardedTask, UnretriedTask, Terminating
+                SucceededTask, FailedTask, DiscardedTask, UnretriedTask
             <4>. QED
                 BY <3>0, <4>1, <4>2, <4>3, <4>4, PTL
         <3>6. Fairness => /\ WF_vars(CompleteTasks({t}))

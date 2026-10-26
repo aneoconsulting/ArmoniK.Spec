@@ -177,18 +177,6 @@ RetryTasks(T) ==
         [t \in Task |-> IF t \in T THEN TASK_RETRIED ELSE taskState[t]]
     /\ UNCHANGED nextAttemptOf
 
-(**
- * TERMINAL STATE
- * Stuttering step representing a state where all tasks have reached 
- * terminal states.
- *)
-Terminating ==
-    /\ AssignedTask = {}
-    /\ SucceededTask = {}
-    /\ FailedTask = {}
-    /\ DiscardedTask = {}
-    /\ UNCHANGED vars
-
 -------------------------------------------------------------------------------
 
 (*****************************************************************************)
@@ -200,7 +188,7 @@ Terminating ==
  * Defines all possible atomic transitions of the system.
  *)
 Next ==
-    \/ \E T \in SUBSET Task:
+    \E T \in SUBSET Task:
         \/ RegisterTasks(T)
         \/ StageTasks(T)
         \/ DiscardTasks(T)
@@ -211,7 +199,6 @@ Next ==
         \/ CompleteTasks(T)
         \/ AbortTasks(T)
         \/ RetryTasks(T)
-    \/ Terminating
 
 (**
  * FAIRNESS CONDITIONS

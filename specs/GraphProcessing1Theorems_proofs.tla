@@ -73,13 +73,11 @@ LEMMA LemType == Init /\ [][Next]_vars => []TypeOk
     <2>10. ASSUME NEW T \in SUBSET Task, FinalizeTasks(T) PROVE TypeOk'
         BY <2>10 DEF FinalizeTasks, ProcessedTask, UnknownTask, RegisteredTask,
         StagedTask, AssignedTask, FinalizedTask
-    <2>11. CASE Terminating
-        BY <2>11 DEF Terminating, terminated, vars
-    <2>12. CASE UNCHANGED vars
-        BY <2>12 DEF vars
+    <2>11. CASE UNCHANGED vars
+        BY <2>11 DEF vars
     <2>. QED
         BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10,
-        <2>11, <2>12 DEF Next
+        <2>11 DEF Next
 <1>. QED
     BY <1>1, <1>2, PTL
 
@@ -119,13 +117,11 @@ LEMMA LemDependencyGraphCompliant == Init /\ [][Next]_vars => []DependencyGraphC
         BY <2>9 DEF ProcessTasks
     <2>10. ASSUME NEW T \in SUBSET Task, FinalizeTasks(T) PROVE DependencyGraphCompliant'
         BY <2>10 DEF FinalizeTasks
-    <2>11. CASE Terminating
-        BY <2>11 DEF Terminating, terminated, vars
-    <2>12. CASE UNCHANGED vars
-        BY <2>12 DEF vars
+    <2>11. CASE UNCHANGED vars
+        BY <2>11 DEF vars
     <2>. QED
         BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10,
-        <2>11, <2>12 DEF Next
+        <2>11 DEF Next
 <1>. QED
     BY <1>1, <1>2, PTL
 
@@ -240,12 +236,10 @@ LEMMA LemGraphStateIntegrity == Init /\ [][Next]_vars => []GraphStateIntegrity
         <3>10. ASSUME NEW T \in SUBSET Task, FinalizeTasks(T)
               PROVE (t \in deps.node <=> t \notin UnknownTask)'
             BY <3>10 DEF FinalizeTasks, GraphStateIntegrity, UnknownTask, ProcessedTask
-        <3>11. CASE Terminating
-            BY <3>11 DEF Terminating, terminated, vars, GraphStateIntegrity, UnknownTask
-        <3>12. CASE UNCHANGED vars
-            BY <3>12 DEF vars, GraphStateIntegrity, UnknownTask
+        <3>11. CASE UNCHANGED vars
+            BY <3>11 DEF vars, GraphStateIntegrity, UnknownTask
         <3>. QED
-            BY <3>1, <3>2, <3>3, <3>4, <3>5, <3>6, <3>7, <3>8, <3>9, <3>10, <3>11, <3>12
+            BY <3>1, <3>2, <3>3, <3>4, <3>5, <3>6, <3>7, <3>8, <3>9, <3>10, <3>11
             DEF Next
     \* --- Conjunct 2: o \in deps.node <=> o \notin UnknownObject ---
     <2>b. (\A o \in Object : o \in deps.node <=> o \notin UnknownObject)'
@@ -290,12 +284,10 @@ LEMMA LemGraphStateIntegrity == Init /\ [][Next]_vars => []GraphStateIntegrity
         <3>10. ASSUME NEW T \in SUBSET Task, FinalizeTasks(T)
               PROVE (o \in deps.node <=> o \notin UnknownObject)'
             BY <3>10 DEF FinalizeTasks, GraphStateIntegrity, UnknownObject
-        <3>11. CASE Terminating
-            BY <3>11 DEF Terminating, terminated, vars, GraphStateIntegrity, UnknownObject
-        <3>12. CASE UNCHANGED vars
-            BY <3>12 DEF vars, GraphStateIntegrity, UnknownObject
+        <3>11. CASE UNCHANGED vars
+            BY <3>11 DEF vars, GraphStateIntegrity, UnknownObject
         <3>. QED
-            BY <3>1, <3>2, <3>3, <3>4, <3>5, <3>6, <3>7, <3>8, <3>9, <3>10, <3>11, <3>12
+            BY <3>1, <3>2, <3>3, <3>4, <3>5, <3>6, <3>7, <3>8, <3>9, <3>10, <3>11
             DEF Next
     \* --- Conjunct 3: staged/assigned tasks have finalized inputs ---
     <2>c. (\A t \in Task :
@@ -389,14 +381,11 @@ LEMMA LemGraphStateIntegrity == Init /\ [][Next]_vars => []GraphStateIntegrity
               PROVE (Predecessor(deps, t) \subseteq FinalizedObject)'
             BY <3>10 DEF FinalizeTasks, GraphStateIntegrity, ProcessedTask, StagedTask,
             AssignedTask, FinalizedTask, FinalizedObject, Predecessor
-        <3>11. CASE Terminating
-            BY <3>11 DEF Terminating, terminated, vars, GraphStateIntegrity, StagedTask, AssignedTask,
-            FinalizedObject, Predecessor
-        <3>12. CASE UNCHANGED vars
-            BY <3>12 DEF vars, GraphStateIntegrity, StagedTask, AssignedTask,
+        <3>11. CASE UNCHANGED vars
+            BY <3>11 DEF vars, GraphStateIntegrity, StagedTask, AssignedTask,
             FinalizedObject, Predecessor
         <3>. QED
-            BY <3>1, <3>2, <3>3, <3>4, <3>5, <3>6, <3>7, <3>8, <3>9, <3>10, <3>11, <3>12
+            BY <3>1, <3>2, <3>3, <3>4, <3>5, <3>6, <3>7, <3>8, <3>9, <3>10, <3>11
             DEF Next
     \* --- Conjunct 4: object state implications ---
     <2>d. (\A o \in Object :
@@ -787,16 +776,12 @@ LEMMA LemGraphStateIntegrity == Init /\ [][Next]_vars => []GraphStateIntegrity
                     BY <5>5, <5>6
             <4>. QED
                 BY <4>1, <4>2
-        <3>11. CASE Terminating
-            BY <3>11 DEF GraphStateIntegrity, Terminating, terminated, vars,
-            RegisteredObject, FinalizedObject, ProcessedTask, FinalizedTask,
-            Source, Predecessor
-        <3>12. CASE UNCHANGED vars
-            BY <3>12 DEF GraphStateIntegrity, vars,
+        <3>11. CASE UNCHANGED vars
+            BY <3>11 DEF GraphStateIntegrity, vars,
             RegisteredObject, FinalizedObject, ProcessedTask, FinalizedTask,
             Source, Predecessor
         <3>. QED
-            BY <3>1, <3>2, <3>3, <3>4, <3>5, <3>6, <3>7, <3>8, <3>9, <3>10, <3>11, <3>12
+            BY <3>1, <3>2, <3>3, <3>4, <3>5, <3>6, <3>7, <3>8, <3>9, <3>10, <3>11
             DEF Next
     <2>. QED
         BY <2>a, <2>b, <2>c, <2>d DEF GraphStateIntegrity
@@ -845,13 +830,11 @@ LEMMA LemDependencyGraphFinite == Init /\ [][Next]_vars => []DependencyGraphFini
         BY <2>9 DEF ProcessTasks
     <2>10. ASSUME NEW T \in SUBSET Task, FinalizeTasks(T) PROVE DependencyGraphFinite'
         BY <2>10 DEF FinalizeTasks
-    <2>11. CASE Terminating
-        BY <2>11 DEF Terminating, terminated, vars
-    <2>12. CASE UNCHANGED vars
-        BY <2>12 DEF vars
+    <2>11. CASE UNCHANGED vars
+        BY <2>11 DEF vars
     <2>. QED
         BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10,
-        <2>11, <2>12 DEF Next
+        <2>11 DEF Next
 <1>. QED
     BY <1>1, <1>2, PTL
 
@@ -952,17 +935,15 @@ THEOREM GP1_FinalizedSourcesInvariant == Spec => FinalizedSourcesInvariant
         BY <2>9 DEF ProcessTasks, Source, Predecessor
     <2>10. ASSUME NEW T \in SUBSET Task, FinalizeTasks(T) PROVE (o \in Source(deps))'
         BY <2>10 DEF FinalizeTasks, Source, Predecessor
-    <2>11. CASE Terminating
-        BY <2>11 DEF Terminating, terminated, vars, Source, Predecessor
-    <2>12. CASE UNCHANGED vars
-        BY <2>12 DEF vars, Source, Predecessor
+    <2>11. CASE UNCHANGED vars
+        BY <2>11 DEF vars, Source, Predecessor
     <2>. QED
-        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11, <2>12
+        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11
         DEF Next
 <1>2. TypeOk /\ o \in FinalizedObject /\ [Next]_vars => (o \in FinalizedObject)'
     BY DEF TypeOk, OP1State, Next, vars, RegisterGraph, TargetObjects,
     UntargetObjects, FinalizeObjects, StageTasks, DiscardTasks, AssignTasks,
-    ReleaseTasks, ProcessTasks, FinalizeTasks, Terminating, terminated, FinalizedObject,
+    ReleaseTasks, ProcessTasks, FinalizeTasks, FinalizedObject,
     UnknownObject, RegisteredObject
 <1>. QED
     BY <1>1, <1>2, GP1_Type, GP1_DependencyGraphCompliant, PTL DEF Spec
@@ -1026,17 +1007,15 @@ THEOREM GP1_TaskDataDependenciesInvariant == Spec => TaskDataDependenciesInvaria
         BY <2>9 DEF ProcessTasks
     <2>10. ASSUME NEW T \in SUBSET Task, FinalizeTasks(T) PROVE UNCHANGED deps
         BY <2>10 DEF FinalizeTasks
-    <2>11. CASE Terminating
-        BY <2>11 DEF Terminating, terminated, vars
-    <2>12. CASE UNCHANGED vars
-        BY <2>12 DEF vars
+    <2>11. CASE UNCHANGED vars
+        BY <2>11 DEF vars
     <2>. QED
-        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11, <2>12
+        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11
         DEF Next
 <1>2. TypeOk /\ t \notin UnknownTask /\ [Next]_vars => (t \notin UnknownTask)'
     BY DEF TypeOk, TP1State, Next, vars, RegisterGraph, TargetObjects,
     UntargetObjects, FinalizeObjects, StageTasks, DiscardTasks, AssignTasks,
-    ReleaseTasks, ProcessTasks, FinalizeTasks, Terminating, terminated, UnknownTask
+    ReleaseTasks, ProcessTasks, FinalizeTasks, UnknownTask
 <1>. QED
     BY <1>1, <1>2, GP1_Type, GP1_DependencyGraphCompliant, PTL DEF Spec
 
@@ -1078,7 +1057,7 @@ THEOREM GP1_CommittedObjectsEventualFinalization == Spec => CommittedObjectsEven
     <2>1. (o \notin UnknownObject)'
         BY DEF Next, vars, RegisterGraph, TargetObjects, UntargetObjects, FinalizeObjects,
         StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks, FinalizeTasks,
-        Terminating, terminated, UnknownObject
+        UnknownObject
     <2>2. Predecessor(deps', o) = Predecessor(deps, o)
         \* Only a RegisterGraph step can change o's producers, and the guard forbids
         \* one that produces o; every other step leaves deps untouched.
@@ -1131,10 +1110,8 @@ THEOREM GP1_CommittedObjectsEventualFinalization == Spec => CommittedObjectsEven
             <4>10. ASSUME NEW T \in SUBSET Task, FinalizeTasks(T)
                   PROVE Predecessor(deps', o) = Predecessor(deps, o)
                 BY <4>10 DEF FinalizeTasks, Predecessor
-            <4>11. CASE Terminating
-                BY <4>11 DEF Terminating, terminated, vars, Predecessor
             <4>. QED
-                BY <3>2, <4>1, <4>2, <4>3, <4>4, <4>5, <4>6, <4>7, <4>8, <4>9, <4>10, <4>11
+                BY <3>2, <4>1, <4>2, <4>3, <4>4, <4>5, <4>6, <4>7, <4>8, <4>9, <4>10
                 DEF Next
         <3>. QED
             BY <3>1, <3>2
@@ -1150,7 +1127,7 @@ THEOREM GP1_CommittedObjectsEventualFinalization == Spec => CommittedObjectsEven
             \* a processed/finalized task never leaves Processed \cup Finalized
             BY <3>2, <3>3 DEF Next, vars, RegisterGraph, TargetObjects, UntargetObjects,
             FinalizeObjects, StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks,
-            FinalizeTasks, Terminating, terminated, ProcessedTask, FinalizedTask, UnknownTask, RegisteredTask,
+            FinalizeTasks, ProcessedTask, FinalizedTask, UnknownTask, RegisteredTask,
             StagedTask, AssignedTask
     <2>. QED
         BY <2>1, <2>3
@@ -1228,7 +1205,7 @@ LEMMA LemKnownTaskEdgesStable ==
         BY <2>2, <2>4 DEF GraphUnion, IsDirectedGraph, Predecessor, Successor
 <1>. QED
     BY <1>1 DEF AssignTasks, DiscardTasks, FinalizeObjects, FinalizeTasks, Next, Predecessor,
-        ProcessTasks, ReleaseTasks, StageTasks, Successor, TargetObjects, Terminating,
+        ProcessTasks, ReleaseTasks, StageTasks, Successor, TargetObjects,
         UntargetObjects, vars
 
 (**
@@ -1238,7 +1215,7 @@ LEMMA LemKnownTaskEdgesStable ==
 LEMMA LemDepsMonotone ==
     [Next]_vars => deps.node \subseteq deps'.node /\ deps.edge \subseteq deps'.edge
 BY DEF AssignTasks, DiscardTasks, FinalizeObjects, FinalizeTasks, GraphUnion, Next,
-    ProcessTasks, RegisterGraph, ReleaseTasks, StageTasks, TargetObjects, Terminating,
+    ProcessTasks, RegisterGraph, ReleaseTasks, StageTasks, TargetObjects,
     UntargetObjects, vars
 
 LEMMA LemStableTaskSuccessors ==
@@ -1303,13 +1280,10 @@ LEMMA LemRefineTaskProcessing1Next ==
         BY <2>9 DEF ProcessTasks, TP1!ProcessTasks, AssignedTask, TP1!AssignedTask
     <2>10. ASSUME NEW T \in SUBSET Task, FinalizeTasks(T) PROVE TP1!FinalizeTasks(T)
         BY <2>10 DEF FinalizeTasks, TP1!FinalizeTasks, ProcessedTask, TP1!ProcessedTask
-    <2>11. CASE Terminating
-        BY <2>11 DEF Terminating, terminated, vars, TP1!Terminating, TP1!vars, AssignedTask,
-        ProcessedTask, TP1!AssignedTask, TP1!ProcessedTask
-    <2>12. CASE UNCHANGED vars
-        BY <2>12 DEF vars, TP1!vars
+    <2>11. CASE UNCHANGED vars
+        BY <2>11 DEF vars, TP1!vars
     <2>. QED
-        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11, <2>12
+        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11
         DEF Next, TP1!Next
 <1>. QED
     BY <1>1
@@ -1445,7 +1419,7 @@ LEMMA LemRefineTaskProcessing1Fairness ==
                                 BY DEF TypeOk, TP1State, Next, vars, RegisterGraph,
                                 TargetObjects, UntargetObjects, FinalizeObjects, StageTasks,
                                 DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks,
-                                FinalizeTasks, Terminating, terminated, UnknownTask
+                                FinalizeTasks, UnknownTask
                             <8>. QED
                                 BY <8>1, <8>2, PTL DEF GraphSafetyInv
                         <7>3. ~ t \in UnknownTask /\ S = Succ /\ [Next]_vars => (S = Succ)'
@@ -1560,7 +1534,7 @@ LEMMA LemRefineTaskProcessing1Fairness ==
                           => (o \in FinalizedObject)'
                         BY DEF TypeOk, OP1State, Next, vars, RegisterGraph, TargetObjects,
                         UntargetObjects, FinalizeObjects, StageTasks, DiscardTasks, AssignTasks,
-                        ReleaseTasks, ProcessTasks, FinalizeTasks, Terminating, terminated, FinalizedObject,
+                        ReleaseTasks, ProcessTasks, FinalizeTasks, FinalizedObject,
                         UnknownObject, RegisteredObject
                     <6>. QED
                         BY <6>1, <6>2, <6>3
@@ -1691,9 +1665,9 @@ LEMMA LemTaskTransitions ==
 <1>8. ASSUME NEW T \in SUBSET Task, FinalizeTasks(T)
       PROVE D
     BY <1>8 DEF FinalizeTasks, ProcessedTask, TASK_PROCESSED, TASK_FINALIZED
-<1>9. ASSUME Terminating \/ UNCHANGED vars
+<1>9. ASSUME UNCHANGED vars
       PROVE D
-    BY <1>9 DEF Terminating, terminated, vars
+    BY <1>9 DEF vars
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8, <1>9 DEF Next, vars
 
@@ -1727,9 +1701,9 @@ LEMMA LemObjectTransitions ==
       PROVE D
     BY <1>4 DEF StageTasks, DiscardTasks, AssignTasks, ReleaseTasks,
        ProcessTasks, FinalizeTasks
-<1>5. ASSUME Terminating \/ UNCHANGED vars
+<1>5. ASSUME UNCHANGED vars
       PROVE D
-    BY <1>5 DEF Terminating, terminated, vars
+    BY <1>5 DEF vars
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next, vars
 
@@ -1818,7 +1792,7 @@ LEMMA LemMRootStable ==
     <2>1. deps' = deps \/ \E G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G)
         BY Zenon DEF Next, vars, TargetObjects, UntargetObjects, FinalizeObjects,
            StageTasks, DiscardTasks, AssignTasks, ReleaseTasks,
-           ProcessTasks, FinalizeTasks, Terminating, terminated
+           ProcessTasks, FinalizeTasks
     <2>2. CASE deps' = deps
         BY Zenon, <2>2 DEF Predecessor
     <2>3. CASE \E G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G)
@@ -2549,13 +2523,10 @@ THEOREM GP1_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
     <2>10. ASSUME NEW T \in SUBSET Task
             PROVE FinalizeTasks(T) => UNCHANGED OP1!vars
         BY DEF FinalizeTasks, OP1!vars
-    <2>11. Terminating => OP1!Terminating
-        BY DEF Terminating, terminated, OP1!Terminating, vars, OP1!vars, FinalizedObject,
-        OP1!FinalizedObject
-    <2>12. UNCHANGED vars => UNCHANGED OP1!vars
+    <2>11. UNCHANGED vars => UNCHANGED OP1!vars
         BY DEF vars, OP1!vars
     <2>. QED
-        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11, <2>12
+        BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11
         DEF Next, OP1!Next
 <1>3. []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ OpenUpstreamEventuallyClosed => OP1!Fairness
     <2>. USE GP1Assumptions
@@ -2645,7 +2616,7 @@ THEOREM GP1_EventualTermination == Spec => EventualTermination
         <3>. QED
             BY <3>1 DEF OP1!vars, TP1!NoUserAction, TP1!RegisterTasks, TP1!UnknownTask
     <2>. QED
-        BY <2>1, <2>2 DEF Next, NoUserAction, OP1!vars, Terminating, TP1!vars, vars
+        BY <2>1, <2>2 DEF Next, NoUserAction, OP1!vars, TP1!vars, vars
 (* Frozen object, task and graph components make the whole state stutter. *)
 <1>4. [FALSE]_(OP1!vars) /\ [FALSE]_(TP1!vars) /\ UNCHANGED deps => [FALSE]_vars
     BY DEF OP1!vars, TP1!vars, vars

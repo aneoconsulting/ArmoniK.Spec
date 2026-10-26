@@ -194,13 +194,11 @@ LEMMA LemTypeOk == Init /\ [][Next]_vars => []TypeOk
         BY <2>13 DEF AbortTasks
     <2>14. ASSUME NEW T \in SUBSET Task, RetryTasks(T) PROVE TypeOk'
         BY <2>14 DEF RetryTasks
-    <2>15. CASE Terminating
-        BY <2>15 DEF Terminating, vars
-    <2>16. CASE UNCHANGED vars
-        BY <2>16 DEF vars
+    <2>15. CASE UNCHANGED vars
+        BY <2>15 DEF vars
     <2>. QED
         BY <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10, <2>11, <2>12, <2>13,
-            <2>14, <2>15, <2>16 DEF Next
+            <2>14, <2>15 DEF Next
 <1>. QED
     BY <1>1, <1>2, PTL
 
@@ -297,13 +295,11 @@ LEMMA LemRefineGP1Next == TypeOk /\ [Next]_vars => [GP1!Next]_(GP1!vars)
     <2>. QED
         BY <1>1, <1>13, <2>1, LemGP1BarStates, LemGP1GraphBridges, Zenon DEF AbortTasks,
             CompleteTasks, GP1!FinalizeTasks, GP1!vars, RetryTasks
-<1>14. CASE Terminating
-    BY <1>1, <1>2, <1>14 DEF GP1!vars, Terminating, vars
-<1>15. CASE UNCHANGED vars
-    BY <1>1, <1>2, <1>15 DEF GP1!vars, vars
+<1>14. CASE UNCHANGED vars
+    BY <1>1, <1>2, <1>14 DEF GP1!vars, vars
 <1>. QED
     BY <1>3, <1>4, <1>5, <1>6, <1>7, <1>8, <1>9, <1>10, <1>11, <1>12, <1>13,
-        <1>14, <1>15, Zenon DEF GP1!Next, Next
+        <1>14, Zenon DEF GP1!Next, Next
 
 LEMMA LemRefineGP1InitNext ==
     Init /\ [][Next]_vars => GP1!Init /\ [][GP1!Next]_(GP1!vars)
@@ -393,15 +389,11 @@ LEMMA LemRefineTP2Next == TypeOk /\ [Next]_vars => [TP2!Next]_(TP2!vars)
 <1>14. ASSUME NEW T \in SUBSET Task, RetryTasks(T) PROVE TP2!RetryTasks(T)
     BY <1>14 DEF FailedTask, RetryTasks, TP2!FailedTask, TP2!RetryTasks,
         TP2!UnretriedTask, UnretriedTask
-<1>15. CASE Terminating
-    BY <1>15 DEF AssignedTask, DiscardedTask, FailedTask, SucceededTask, Terminating,
-        TP2!AssignedTask, TP2!DiscardedTask, TP2!FailedTask, TP2!SucceededTask,
-        TP2!Terminating, TP2!vars, vars
-<1>16. CASE UNCHANGED vars
-    BY <1>16 DEF TP2!vars, vars
+<1>15. CASE UNCHANGED vars
+    BY <1>15 DEF TP2!vars, vars
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8, <1>9, <1>10, <1>11, <1>12, <1>13,
-        <1>14, <1>15, <1>16, Zenon DEF Next, TP2!Next
+        <1>14, <1>15, Zenon DEF Next, TP2!Next
 
 LEMMA LemRefineTP2InitNext ==
     Init /\ [][Next]_vars => TP2!Init /\ [][TP2!Next]_(TP2!vars)
@@ -474,14 +466,11 @@ LEMMA LemRefineOP2Next == TypeOk /\ [Next]_vars => [OP2!Next]_(OP2!vars)
     BY <1>13 DEF AbortTasks, OP2!vars
 <1>14. ASSUME NEW T \in SUBSET Task, RetryTasks(T) PROVE UNCHANGED OP2!vars
     BY <1>14 DEF OP2!vars, RetryTasks
-<1>15. CASE Terminating
-    BY <1>15 DEF AbortedObject, CompletedObject, OP2!AbortedObject, OP2!CompletedObject,
-        OP2!Terminating, OP2!vars, Terminating, vars
-<1>16. CASE UNCHANGED vars
-    BY <1>16 DEF OP2!vars, vars
+<1>15. CASE UNCHANGED vars
+    BY <1>15 DEF OP2!vars, vars
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8, <1>9, <1>10, <1>11, <1>12, <1>13,
-        <1>14, <1>15, <1>16, Zenon DEF Next, OP2!Next
+        <1>14, <1>15, Zenon DEF Next, OP2!Next
 
 LEMMA LemRefineOP2InitNext ==
     Init /\ [][Next]_vars => OP2!Init /\ [][OP2!Next]_(OP2!vars)
@@ -618,7 +607,7 @@ LEMMA LemGSITaskPreds == Init /\ [][Next]_vars => []GSI_TaskPreds
             CompletedTask, CompleteObjects, CompleteTasks, DiscardedTask, DiscardTasks,
             FailedTask, GSI_TaskPreds, Next, Predecessor, ProcessTasks, RegisteredTask,
             ReleaseTasks, RetriedTask, RetryTasks, SetTaskRetries, StagedTask, StageTasks,
-            SucceededTask, TargetObjects, Terminating, UntargetObjects, vars
+            SucceededTask, TargetObjects, UntargetObjects, vars
 <1>. QED
     BY <1>1, <1>2, LemDependencyGraphCompliant, LemTypeOk, PTL
 
@@ -952,7 +941,7 @@ LEMMA LemGSIObjPreds == Init /\ [][Next]_vars => []GSI_ObjPreds
     <2>. QED
         BY <2>5, <2>6, <2>7, <2>8 DEF AbortTasks, AssignTasks, CompleteTasks, DiscardTasks,
             Next, ProcessTasks, ReleaseTasks, RetryTasks, SetTaskRetries, StageTasks,
-            TargetObjects, Terminating, UntargetObjects, vars
+            TargetObjects, UntargetObjects, vars
 <1>. QED
     BY <1>1, <1>2, LemDependencyGraphCompliant, LemGSINodes, LemTypeOk, PTL
 
@@ -1363,7 +1352,7 @@ LEMMA LemGSIObjConverse == Init /\ [][Next]_vars => []GSI_ObjConverse
         BY <2>5, <2>6, <2>7, <2>8 DEF AbortedTask, AbortObjects, AssignedTask, AssignTasks,
             CompletedTask, CompleteObjects, DiscardTasks, FailedTask, Next, ProcessTasks,
             RegisteredTask, ReleaseTasks, RetryTasks, SetTaskRetries, StagedTask, StageTasks,
-            TargetObjects, Terminating, UntargetObjects, vars
+            TargetObjects, UntargetObjects, vars
 <1>. QED
     BY <1>1, <1>2, LemDependencyGraphCompliant, LemGSINodes, LemGSIObjPreds, LemTypeOk, PTL
 
@@ -1407,7 +1396,7 @@ THEOREM GP2_AbortedObjectTaskDependenciesInvariant ==
     <2>1. PICK G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G)
         BY DEF AbortObjects, AbortTasks, AssignTasks, CompleteObjects, CompleteTasks,
             DiscardTasks, Next, ProcessTasks, ReleaseTasks, RetryTasks, SetTaskRetries,
-            StageTasks, TargetObjects, Terminating, UntargetObjects, vars
+            StageTasks, TargetObjects, UntargetObjects, vars
     <2>2. deps' = GraphUnion(deps, G)
         BY <2>1 DEF RegisterGraph
     <2>3. IsDirectedGraph(G)
@@ -1520,7 +1509,7 @@ LEMMA LemUnknownAttemptImpliesFailed ==
         BY <2>1, <2>2, <2>3 DEF AbortObjects, AbortTasks, AssignedTask, AssignTasks,
             CompleteObjects, CompleteTasks, DiscardedTask, DiscardTasks, FailedTask, Next,
             ProcessTasks, RegisteredTask, ReleaseTasks, StagedTask, StageTasks,
-            SucceededTask, TargetObjects, Terminating, UnknownAttemptImpliesFailed,
+            SucceededTask, TargetObjects, UnknownAttemptImpliesFailed,
             UnknownTask, UntargetObjects, vars
 <1>. QED
     BY <1>1, <1>2, LemTypeOk, PTL
@@ -1713,10 +1702,10 @@ LEMMA LemRegisteredObjectHasOpenProducer ==
                        TargetObjects(O) \/ UntargetObjects(O)
                        \/ CompleteObjects(O) \/ AbortObjects(O)
                 \/ \E T \in SUBSET Task : \E U \in SUBSET Task : SetTaskRetries(T, U)
-                \/ Terminating \/ UNCHANGED vars
+                \/ UNCHANGED vars
         BY <2>10 DEF AbortedTask, AbortObjects, CompletedTask, CompleteObjects,
             Predecessor, RegisteredObject, RegisteredObjectHasOpenProducer, RetriedTask,
-            SetTaskRetries, TargetObjects, Terminating, UntargetObjects, vars
+            SetTaskRetries, TargetObjects, UntargetObjects, vars
     <2>11. ASSUME NEW T \in SUBSET Task, DiscardTasks(T)
            PROVE  (\E w \in Predecessor(deps, o) :
                        w \notin UNION {CompletedTask, AbortedTask, RetriedTask})'
@@ -1871,7 +1860,7 @@ LEMMA LemRetryDataDependenciesValidity == Init /\ [][Next]_vars => []RetryDataDe
         BY <2>2, <2>3, <2>4 DEF AbortObjects, AbortTasks, AssignedTask, AssignTasks,
             CompleteObjects, CompleteTasks, DiscardedTask, DiscardTasks, FailedTask, Next,
             ProcessTasks, RegisteredTask, ReleaseTasks, RetryTasks, StagedTask, StageTasks,
-            SucceededTask, TargetObjects, Terminating, UnknownTask, UntargetObjects, vars
+            SucceededTask, TargetObjects, UnknownTask, UntargetObjects, vars
 <1>. QED
     BY <1>1, <1>2, LemDependencyGraphCompliant, LemGSINodes, LemNextAttemptKnown, LemTypeOk, PTL
 
@@ -2212,7 +2201,7 @@ LEMMA LemRegisteredObjectHasLiveProducer ==
                     BY <5>1, <5>2, <5>3, <5>4, Zenon
                     DEF AbortTasks, AssignTasks, CompleteTasks, DiscardTasks, Next,
                         ProcessTasks, ReleaseTasks, RetryTasks, SetTaskRetries, StageTasks,
-                        TargetObjects, Terminating, UntargetObjects, vars
+                        TargetObjects, UntargetObjects, vars
             <4>. QED
                 BY <4>1
         <3>3. PICK w \in Predecessor(deps, o) : Live(w)
@@ -2401,9 +2390,9 @@ LEMMA LemRegisteredObjectHasLiveProducer ==
     <2>7. CASE \/ \E O \in SUBSET Object :
                     TargetObjects(O) \/ UntargetObjects(O)
                     \/ CompleteObjects(O) \/ AbortObjects(O)
-               \/ Terminating \/ UNCHANGED vars
+               \/ UNCHANGED vars
         BY <2>7, <2>4, Zenon DEF AbortObjects, CompleteObjects, TargetObjects,
-            Terminating, UntargetObjects, vars
+            UntargetObjects, vars
     <2>8. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task, SetTaskRetries(T, U)
           PROVE  (\E w \in Predecessor(deps, o) : Live(w))'
         <3>1. o \in RegisteredObject /\ Predecessor(deps, o) /= {}
@@ -3729,7 +3718,7 @@ LEMMA LemUnknownExitByRegisterGraph ==
         <2>. QED
             BY <1>1, <1>2, <2>1, <2>2, <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, Zenon
             DEF AbortObjects, CompleteObjects, Next, SetTaskRetries, TargetObjects,
-                Terminating, UntargetObjects, vars
+                UntargetObjects, vars
 
 (* A non-NULL nextAttemptOf entry is frozen: only SetTaskRetries writes the   *)
 (* map, and only at NULL entries (T \subseteq UnretriedTask).                 *)
@@ -4055,7 +4044,7 @@ LEMMA LemFailedProducerEventuallyRetired ==
             BY <3>1, <3>2, <3>3, Zenon
             DEF AbortObjects, AbortTasks, AssignTasks, CompleteObjects, CompleteTasks,
                 DiscardTasks, Next, ProcessTasks, ReleaseTasks, SetTaskRetries,
-                StageTasks, TargetObjects, Terminating, UntargetObjects, vars,
+                StageTasks, TargetObjects, UntargetObjects, vars,
                 FailedTask, RegisteredTask, StagedTask, AssignedTask, SucceededTask,
                 DiscardedTask
     <2>. QED
@@ -4079,7 +4068,7 @@ LEMMA LemFailedProducerEventuallyRetired ==
         BY <2>1, <2>2, Zenon
         DEF AbortObjects, AbortTasks, AssignTasks, CompleteObjects, CompleteTasks,
             DiscardTasks, Next, ProcessTasks, ReleaseTasks, RetryTasks, SetTaskRetries,
-            StageTasks, TargetObjects, Terminating, UntargetObjects, vars, RetriedTask,
+            StageTasks, TargetObjects, UntargetObjects, vars, RetriedTask,
             RegisteredTask, StagedTask, AssignedTask, SucceededTask, DiscardedTask,
             FailedTask
 <1>6. t \in RetriedTask => ~ Pb
@@ -4152,7 +4141,7 @@ LEMMA LemPredsFrozenUnderQuiescence ==
                     BY <3>1, <4>2, Zenon
                     DEF AbortObjects, AbortTasks, AssignTasks, CompleteObjects, CompleteTasks,
                         DiscardTasks, Next, ProcessTasks, ReleaseTasks, RetryTasks, SetTaskRetries,
-                        StageTasks, TargetObjects, Terminating, UntargetObjects, vars
+                        StageTasks, TargetObjects, UntargetObjects, vars
                 <5>2. <<w, o>> \in deps'.edge /\ w \in deps'.node
                     BY Zenon DEF Predecessor
                 <5>3. <<w, o>> \notin deps.edge
@@ -5462,7 +5451,7 @@ LEMMA LemRetryCloneEventuallyRegistered ==
         BY <2>1, <2>2, Zenon
         DEF AbortObjects, AbortTasks, AssignTasks, CompleteObjects, CompleteTasks,
             DiscardTasks, Next, ProcessTasks, RegisterGraph, ReleaseTasks, RetryTasks,
-            StageTasks, TargetObjects, Terminating, UntargetObjects, vars
+            StageTasks, TargetObjects, UntargetObjects, vars
 <1>6. TypeOk /\ C /\ [Next]_vars => C'
     <2>. SUFFICES ASSUME TypeOk, nextAttemptOf[t] /= NULL,
                          nextAttemptOf[t] \notin UnknownTask, [Next]_vars
@@ -5482,7 +5471,7 @@ LEMMA LemRetryCloneEventuallyRegistered ==
     <2>. QED
         BY <2>1, <2>2, <2>3 DEF AbortObjects, AbortTasks, AssignTasks, CompleteObjects,
             CompleteTasks, DiscardTasks, Next, ProcessTasks, ReleaseTasks, RetryTasks,
-            StageTasks, TargetObjects, Terminating, UnknownTask, UntargetObjects, vars
+            StageTasks, TargetObjects, UnknownTask, UntargetObjects, vars
 <1>7. (nextAttemptOf[t] /= NULL /\ nextAttemptOf[t] \in UnknownTask) ~> C
     BY <1>2, <1>5, PTL
 <1>8. t \in UnretriedTask ~> C
@@ -5796,7 +5785,7 @@ LEMMA LemNextAttemptStageWF ==
         BY <2>2, <2>3, Zenon
         DEF AbortObjects, AbortTasks, AssignTasks, CompleteObjects, CompleteTasks,
             DiscardTasks, Next, ProcessTasks, RegisterGraph, ReleaseTasks, RetryTasks,
-            StageTasks, TargetObjects, Terminating, UntargetObjects, vars
+            StageTasks, TargetObjects, UntargetObjects, vars
 \* --- (3) PICK a rigid clone id: registered now, frozen forever ---
 <1>. DEFINE Q(s) == [](nextAttemptOf[u] = s)
 <1>. HIDE DEF Q
@@ -6446,10 +6435,8 @@ LEMMA LemNoRegPredsFrozen ==
         BY <2>3 DEF AbortTasks, AssignTasks, CompleteTasks, DiscardTasks,
             Predecessor, ProcessTasks, ReleaseTasks, RetryTasks, SetTaskRetries,
             StageTasks
-    <2>4. CASE Terminating
-        BY <2>4 DEF Predecessor, Terminating, vars
     <2>. QED
-        BY <1>3, <2>1, <2>2, <2>3, <2>4 DEF Next
+        BY <1>3, <2>1, <2>2, <2>3 DEF Next
 <1>. QED
     BY <1>2, <1>3
 
@@ -6492,7 +6479,7 @@ LEMMA LemCommittedObjectsEventualCompletion ==
                 CompletedTask, CompleteObjects, CompleteTasks, DiscardedTask,
                 DiscardTasks, Next, Predecessor, ProcessTasks, RegisteredObject,
                 RegisterGraph, ReleaseTasks, RetryTasks, SetTaskRetries, Source,
-                StageTasks, SucceededTask, TargetObjects, Terminating, UnknownObject,
+                StageTasks, SucceededTask, TargetObjects, UnknownObject,
                 UntargetObjects, vars
     <2>3. (Predecessor(deps, o) \subseteq (SucceededTask \union CompletedTask))'
         <3>1. SUFFICES ASSUME NEW u \in (Predecessor(deps, o))'
@@ -6510,7 +6497,7 @@ LEMMA LemCommittedObjectsEventualCompletion ==
                 DiscardedTask, DiscardTasks, FailedTask, Next, ProcessTasks,
                 RegisteredTask, RegisterGraph, ReleaseTasks, RetriedTask, RetryTasks,
                 SetTaskRetries, StagedTask, StageTasks, SucceededTask, TargetObjects,
-                Terminating, UnknownTask, UntargetObjects, vars
+                UnknownTask, UntargetObjects, vars
     <2>. QED
         BY <2>1, <2>2, <2>3
 <1>2. <<CompleteObjects({o})>>_vars => (o \in CompletedObject)'
@@ -6615,10 +6602,8 @@ LEMMA LemCommittedObjectsEventualAbortion ==
                        \/ RetryTasks(T)
             BY <3>6 DEF AbortTasks, AssignTasks, CompleteTasks, DiscardTasks, ProcessTasks,
                 RegisteredObject, ReleaseTasks, RetryTasks, SetTaskRetries, StageTasks
-        <3>7. CASE Terminating
-            BY <3>7 DEF RegisteredObject, Terminating, vars
         <3>. QED
-            BY <3>3, <3>4, <3>5, <3>6, <3>7 DEF Next
+            BY <3>3, <3>4, <3>5, <3>6 DEF Next
     <2>3. (Predecessor(deps, o) \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask})'
         <3>1. SUFFICES ASSUME NEW u \in (Predecessor(deps, o))'
                        PROVE  (u \in UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask})'
@@ -6635,7 +6620,7 @@ LEMMA LemCommittedObjectsEventualAbortion ==
                 DiscardedTask, DiscardTasks, FailedTask, Next, ProcessTasks,
                 RegisteredTask, RegisterGraph, ReleaseTasks, RetriedTask, RetryTasks,
                 SetTaskRetries, StagedTask, StageTasks, SucceededTask, TargetObjects,
-                Terminating, UnknownTask, UntargetObjects, vars
+                UnknownTask, UntargetObjects, vars
     <2>4. (\E t \in Predecessor(deps, o) : t \in DiscardedTask)'
         <3>1. PICK t0 \in Predecessor(deps, o) : t0 \in DiscardedTask
             OBVIOUS
@@ -6684,7 +6669,7 @@ LEMMA LemCommittedObjectsEventualAbortion ==
                         DiscardedTask, DiscardTasks, FailedTask, Next, ProcessTasks,
                         RegisteredTask, RegisterGraph, ReleaseTasks, RetriedTask,
                         RetryTasks, SetTaskRetries, StagedTask, StageTasks,
-                        SucceededTask, TargetObjects, Terminating, UnknownTask,
+                        SucceededTask, TargetObjects, UnknownTask,
                         UntargetObjects, vars
                 <5>2. t0 \in (Predecessor(deps, o))'
                     BY <2>1, <3>1 DEF Predecessor
@@ -6911,7 +6896,7 @@ LEMMA LemUnderivableQuiescence ==
                      \/ deps' = deps
     BY DEF AbortObjects, AbortTasks, AssignTasks, CompleteObjects, CompleteTasks,
         DiscardTasks, Next, ProcessTasks, ReleaseTasks, RetryTasks, SetTaskRetries,
-        StageTasks, TargetObjects, Terminating, UntargetObjects, vars
+        StageTasks, TargetObjects, UntargetObjects, vars
 <1>5. TypeOk /\ TypeOk' /\ [Next]_vars /\ [HS]_vars /\ GP2Derivation(o) = {}
       => (GP2Derivation(o) = {})'
     <2> SUFFICES ASSUME TypeOk, TypeOk', [Next]_vars, [HS]_vars,
