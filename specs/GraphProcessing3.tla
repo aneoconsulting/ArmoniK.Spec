@@ -551,6 +551,18 @@ taskStateBar ==
 GP2 == INSTANCE GraphProcessing2Theorems WITH taskState <- taskStateBar
 RefineGraphProcessing2 == GP2!Spec
 
+(**
+ * REFINEMENT
+ * Projecting the graph and task state away exhibits the object sublanguage
+ * of GraphProcessing3 as a behaviour of ObjectProcessing2 (identity on
+ * objectState / objectTargets). The GraphProcessing2 mapping leaves the
+ * object variables untouched, so this is GraphProcessing2's own
+ * ObjectProcessing2 refinement composed with the one above. The instance
+ * targets the theorems module, like the other two.
+ *)
+OP2 == INSTANCE ObjectProcessing2Theorems
+RefineObjectProcessing2 == OP2!Spec
+
 \* TODO: add properties on the global user interaction, i.e. what relates to
 \* sessions in the implementation.
 
