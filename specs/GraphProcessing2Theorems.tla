@@ -500,13 +500,14 @@ LEMMA LemBarStutter ==
     /\ (taskState' = taskState => taskStateBar' = taskStateBar)
     /\ (objectState' = objectState => objectStateBar' = objectStateBar)
 
-(* SF(ProcessTasks) refines SF(GP1!ProcessTasks): the assigned-task guard is  *)
-(* identical under the Bar, and every GP2 ProcessTasks branch projects the    *)
-(* task to PROCESSED(bar). ENABLED of the abstract action inverts the Bar to  *)
-(* taskState[t] = ASSIGNED; the concrete SUCCEEDED branch witnesses ENABLED.  *)
+(* SF(successful ProcessTasks) refines SF(GP1!ProcessTasks): the assigned-    *)
+(* task guard is identical under the Bar, and a successful processing step    *)
+(* projects the task to PROCESSED(bar). ENABLED of the abstract action        *)
+(* inverts the Bar to taskState[t] = ASSIGNED, where the SUCCEEDED outcome    *)
+(* is always possible: the concrete action is then enabled too.               *)
 LEMMA LemRefineGP1SFProcessTasks ==
     ASSUME NEW t \in Task
-    PROVE  []TypeOk /\ SF_vars(ProcessTasks({t}))
+    PROVE  []TypeOk /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
            => SF_(GP1!vars)(GP1!ProcessTasks({t}))
 
 (* Aborted objects and registered-task predecessors are stable, used by the    *)
@@ -1084,14 +1085,14 @@ LEMMA LemRefineGP1WFFinalizeTasks ==
 (* conjunct, assembled by GP2_RefineTaskProcessing2.                         *)
 (*****************************************************************************)
 
-(* SF(ProcessTasks) refines SF(TP2!ProcessTasks). GP2!ProcessTasks is exactly  *)
-(* TP2!ProcessTasks plus UNCHANGED graph variables, so both directions are      *)
-(* immediate: ENABLED of the abstract inverts to taskState[t] = ASSIGNED, which *)
-(* the concrete SUCCEEDED branch witnesses.                                     *)
+(* SF(successful ProcessTasks) refines its TP2 counterpart. GP2!ProcessTasks   *)
+(* is exactly TP2!ProcessTasks plus UNCHANGED graph variables, so both         *)
+(* directions are immediate: ENABLED of the abstract inverts to                *)
+(* taskState[t] = ASSIGNED, which the concrete SUCCEEDED outcome witnesses.    *)
 LEMMA LemRefineTP2SFProcessTasks ==
     ASSUME NEW t \in Task
-    PROVE  []TypeOk /\ SF_vars(ProcessTasks({t}))
-           => SF_(TP2!vars)(TP2!ProcessTasks({t}))
+    PROVE  []TypeOk /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
+           => SF_(TP2!vars)(TP2!ProcessTasks({t}) /\ t \in TP2!SucceededTask')
 
 (* The clone-staging fairness, DERIVED: WF(StageTasks) at the flexible argument  *)
 (* nextAttemptOf[u] follows from the rigid \A t : WF_vars(StageTasks({t})).      *)

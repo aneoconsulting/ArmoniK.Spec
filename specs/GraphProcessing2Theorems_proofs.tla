@@ -2677,7 +2677,7 @@ LEMMA LemFairnessStable == Fairness <=> []Fairness
                 /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
                 /\ WF_vars(StageTasks({t}))
                 /\ WF_vars(Predecessor(deps, t) \intersect AbortedObject /= {} /\ DiscardTasks({t}))
-                /\ SF_vars(ProcessTasks({t}))
+                /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
                 /\ WF_vars(CompleteTasks({t}))
                 /\ WF_vars(AbortTasks({t}))
                 /\ WF_vars(RetryTasks({t}))
@@ -2757,17 +2757,18 @@ LEMMA LemBarStutter ==
     /\ (objectState' = objectState => objectStateBar' = objectStateBar)
 BY DEF objectStateBar, taskStateBar
 
-(* SF(ProcessTasks) refines SF(GP1!ProcessTasks): the assigned-task guard is  *)
-(* identical under the Bar, and every GP2 ProcessTasks branch projects the    *)
-(* task to PROCESSED(bar). ENABLED of the abstract action inverts the Bar to  *)
-(* taskState[t] = ASSIGNED; the concrete SUCCEEDED branch witnesses ENABLED.  *)
+(* SF(successful ProcessTasks) refines SF(GP1!ProcessTasks): the assigned-    *)
+(* task guard is identical under the Bar, and a successful processing step    *)
+(* projects the task to PROCESSED(bar). ENABLED of the abstract action        *)
+(* inverts the Bar to taskState[t] = ASSIGNED, where the SUCCEEDED outcome    *)
+(* is always possible: the concrete action is then enabled too.               *)
 LEMMA LemRefineGP1SFProcessTasks ==
     ASSUME NEW t \in Task
-    PROVE  []TypeOk /\ SF_vars(ProcessTasks({t}))
+    PROVE  []TypeOk /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
            => SF_(GP1!vars)(GP1!ProcessTasks({t}))
 <1>. USE DEF GP1!TASK_ASSIGNED, GP1!TASK_PROCESSED
 <1>1. TypeOk /\ ENABLED <<GP1!ProcessTasks({t})>>_(GP1!vars)
-      => ENABLED <<ProcessTasks({t})>>_vars
+      => ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
     \* (1) Extract the abstract guard from ENABLED by skolemizing the existential
     \*     that ExpandENABLED produces (WITNESS-strategy dual; sidesteps the bar
     \*     soundness checker). Kept as its own implication so its ENABLED hypothesis
@@ -2788,29 +2789,38 @@ LEMMA LemRefineGP1SFProcessTasks ==
         <3>. QED
             BY <3>1, LemGP1BarStates DEF AssignedTask
     \* (2) Prove the concrete ENABLED with an explicit SUCCEEDED-branch witness.
-    <2>2. taskState[t] = TASK_ASSIGNED => ENABLED <<ProcessTasks({t})>>_vars
+    <2>2. taskState[t] = TASK_ASSIGNED => ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
         <3>. SUFFICES ASSUME taskState[t] = TASK_ASSIGNED
-                      PROVE  ENABLED <<ProcessTasks({t})>>_vars
+                      PROVE  ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
             OBVIOUS
-        <3>. DEFINE tsp == [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
-        <3>. SUFFICES \E depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp :
-                        /\ {t} # {}
-                        /\ {t} \subseteq AssignedTask
-                        /\ \/ taskStatep = [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
-                           \/ taskStatep = [x \in Task |-> IF x \in {t} THEN TASK_DISCARDED ELSE taskState[x]]
-                           \/ /\ \A x \in {t} : Cardinality(PreviousAttempts(x)) < MaxRetries
-                              /\ taskStatep = [x \in Task |-> IF x \in {t} THEN TASK_FAILED ELSE taskState[x]]
-                        /\ nextAttemptOfp = nextAttemptOf /\ depsp = deps
-                        /\ objectStatep = objectState /\ objectTargetsp = objectTargets
-                        /\ <<depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp>>
-                           /= <<deps, objectState, objectTargets, taskState, nextAttemptOf>>
-            BY ExpandENABLED, Zenon DEF ProcessTasks, vars
-        <3>. WITNESS deps, objectState, objectTargets, tsp, nextAttemptOf
+        <3>1. <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars <=> ProcessTasks({t}) /\ t \in SucceededTask'
+            BY DEF AssignedTask, ProcessTasks, vars
+        <3>2. ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
+              <=> ENABLED (ProcessTasks({t}) /\ t \in SucceededTask')
+            BY <3>1, ENABLEDaxioms
+        <3>3. ENABLED (ProcessTasks({t}) /\ t \in SucceededTask')
+            <4>. SUFFICES \E objectTargetsp, nextAttemptOfp, depsp, objectStatep, taskStatep :
+                            /\ /\ {t} # {}
+                               /\ {t} \subseteq AssignedTask
+                               /\ \/ taskStatep = [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
+                                  \/ taskStatep = [x \in Task |-> IF x \in {t} THEN TASK_DISCARDED ELSE taskState[x]]
+                                  \/ /\ \A x \in {t} : Cardinality(PreviousAttempts(x)) < MaxRetries
+                                     /\ taskStatep = [x \in Task |-> IF x \in {t} THEN TASK_FAILED ELSE taskState[x]]
+                               /\ /\ nextAttemptOfp = nextAttemptOf
+                                  /\ depsp = deps
+                                  /\ objectStatep = objectState
+                                  /\ objectTargetsp = objectTargets
+                            /\ t \in {x \in Task : taskStatep[x] = TASK_SUCCEEDED}
+                BY ExpandENABLED, SMT DEF ProcessTasks, SucceededTask
+            <4>. WITNESS objectTargets, nextAttemptOf, deps, objectState,
+                         [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
+            <4>. QED
+                BY DEF AssignedTask
         <3>. QED
-            BY DEF AssignedTask
+            BY <3>2, <3>3
     <2>. QED
         BY <2>1, <2>2
-<1>2. <<ProcessTasks({t})>>_vars => <<GP1!ProcessTasks({t})>>_(GP1!vars)
+<1>2. <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars => <<GP1!ProcessTasks({t})>>_(GP1!vars)
     <2>. SUFFICES ASSUME ProcessTasks({t}), vars' /= vars
                   PROVE  GP1!ProcessTasks({t}) /\ GP1!vars' /= GP1!vars
         BY DEF vars
@@ -2829,7 +2839,7 @@ LEMMA LemRefineGP1SFProcessTasks ==
         BY <2>4, <2>5 DEF GP1!vars
 <1>. QED
     <2>1. [](TypeOk /\ ENABLED <<GP1!ProcessTasks({t})>>_(GP1!vars)
-             => ENABLED <<ProcessTasks({t})>>_vars)
+             => ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars)
         BY <1>1, PTL
     <2>. QED
         BY <2>1, <1>2, PTL
@@ -5665,54 +5675,65 @@ LEMMA LemRefineGP1WFFinalizeTasks ==
 (* conjunct, assembled by GP2_RefineTaskProcessing2.                         *)
 (*****************************************************************************)
 
-(* SF(ProcessTasks) refines SF(TP2!ProcessTasks). GP2!ProcessTasks is exactly  *)
-(* TP2!ProcessTasks plus UNCHANGED graph variables, so both directions are      *)
-(* immediate: ENABLED of the abstract inverts to taskState[t] = ASSIGNED, which *)
-(* the concrete SUCCEEDED branch witnesses.                                     *)
+(* SF(successful ProcessTasks) refines its TP2 counterpart. GP2!ProcessTasks   *)
+(* is exactly TP2!ProcessTasks plus UNCHANGED graph variables, so both         *)
+(* directions are immediate: ENABLED of the abstract inverts to                *)
+(* taskState[t] = ASSIGNED, which the concrete SUCCEEDED outcome witnesses.    *)
 LEMMA LemRefineTP2SFProcessTasks ==
     ASSUME NEW t \in Task
-    PROVE  []TypeOk /\ SF_vars(ProcessTasks({t}))
-           => SF_(TP2!vars)(TP2!ProcessTasks({t}))
-<1>1. TypeOk /\ ENABLED <<TP2!ProcessTasks({t})>>_(TP2!vars)
-      => ENABLED <<ProcessTasks({t})>>_vars
-    <2>1. TypeOk /\ ENABLED <<TP2!ProcessTasks({t})>>_(TP2!vars) => taskState[t] = TASK_ASSIGNED
-        <3>. SUFFICES ASSUME TypeOk, ENABLED <<TP2!ProcessTasks({t})>>_(TP2!vars)
+    PROVE  []TypeOk /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
+           => SF_(TP2!vars)(TP2!ProcessTasks({t}) /\ t \in TP2!SucceededTask')
+<1>1. TypeOk /\ ENABLED <<TP2!ProcessTasks({t}) /\ t \in TP2!SucceededTask'>>_(TP2!vars)
+      => ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
+    <2>1. TypeOk /\ ENABLED <<TP2!ProcessTasks({t}) /\ t \in TP2!SucceededTask'>>_(TP2!vars)
+          => taskState[t] = TASK_ASSIGNED
+        <3>. SUFFICES ASSUME TypeOk, ENABLED <<TP2!ProcessTasks({t}) /\ t \in TP2!SucceededTask'>>_(TP2!vars)
                       PROVE  taskState[t] = TASK_ASSIGNED
             OBVIOUS
         <3>1. t \in TP2!AssignedTask
             <4>. SUFFICES ASSUME NEW taskStatep, NEW nextAttemptOfp,
                                  {t} \subseteq TP2!AssignedTask
                           PROVE  t \in TP2!AssignedTask
-                BY ExpandENABLED DEF TP2!ProcessTasks, TP2!vars
+                BY ExpandENABLED DEF TP2!ProcessTasks, TP2!SucceededTask, TP2!vars
             <4>. QED
                 OBVIOUS
         <3>. QED
             BY <3>1 DEF TP2!AssignedTask, TP2!TASK_ASSIGNED
-    <2>2. taskState[t] = TASK_ASSIGNED => ENABLED <<ProcessTasks({t})>>_vars
+    <2>2. taskState[t] = TASK_ASSIGNED => ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
         <3>. SUFFICES ASSUME taskState[t] = TASK_ASSIGNED
-                      PROVE  ENABLED <<ProcessTasks({t})>>_vars
+                      PROVE  ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
             OBVIOUS
-        <3>. DEFINE tsp == [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
-        <3>. SUFFICES \E depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp :
-                        /\ {t} # {}
-                        /\ {t} \subseteq AssignedTask
-                        /\ \/ taskStatep = [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
-                           \/ taskStatep = [x \in Task |-> IF x \in {t} THEN TASK_DISCARDED ELSE taskState[x]]
-                           \/ /\ \A x \in {t} : Cardinality(PreviousAttempts(x)) < MaxRetries
-                              /\ taskStatep = [x \in Task |-> IF x \in {t} THEN TASK_FAILED ELSE taskState[x]]
-                        /\ nextAttemptOfp = nextAttemptOf /\ depsp = deps
-                        /\ objectStatep = objectState /\ objectTargetsp = objectTargets
-                        /\ <<depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp>>
-                           /= <<deps, objectState, objectTargets, taskState, nextAttemptOf>>
-            BY ExpandENABLED, Zenon DEF ProcessTasks, vars
-        <3>. WITNESS deps, objectState, objectTargets, tsp, nextAttemptOf
+        <3>1. <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars <=> ProcessTasks({t}) /\ t \in SucceededTask'
+            BY DEF AssignedTask, ProcessTasks, vars
+        <3>2. ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
+              <=> ENABLED (ProcessTasks({t}) /\ t \in SucceededTask')
+            BY <3>1, ENABLEDaxioms
+        <3>3. ENABLED (ProcessTasks({t}) /\ t \in SucceededTask')
+            <4>. SUFFICES \E objectTargetsp, nextAttemptOfp, depsp, objectStatep, taskStatep :
+                            /\ /\ {t} # {}
+                               /\ {t} \subseteq AssignedTask
+                               /\ \/ taskStatep = [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
+                                  \/ taskStatep = [x \in Task |-> IF x \in {t} THEN TASK_DISCARDED ELSE taskState[x]]
+                                  \/ /\ \A x \in {t} : Cardinality(PreviousAttempts(x)) < MaxRetries
+                                     /\ taskStatep = [x \in Task |-> IF x \in {t} THEN TASK_FAILED ELSE taskState[x]]
+                               /\ /\ nextAttemptOfp = nextAttemptOf
+                                  /\ depsp = deps
+                                  /\ objectStatep = objectState
+                                  /\ objectTargetsp = objectTargets
+                            /\ t \in {x \in Task : taskStatep[x] = TASK_SUCCEEDED}
+                BY ExpandENABLED, SMT DEF ProcessTasks, SucceededTask
+            <4>. WITNESS objectTargets, nextAttemptOf, deps, objectState,
+                         [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
+            <4>. QED
+                BY DEF AssignedTask
         <3>. QED
-            BY DEF AssignedTask
+            BY <3>2, <3>3
     <2>. QED
         BY <2>1, <2>2
-<1>2. <<ProcessTasks({t})>>_vars => <<TP2!ProcessTasks({t})>>_(TP2!vars)
-    <2>. SUFFICES ASSUME ProcessTasks({t}), vars' /= vars
-                  PROVE  TP2!ProcessTasks({t}) /\ TP2!vars' /= TP2!vars
+<1>2. <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
+      => <<TP2!ProcessTasks({t}) /\ t \in TP2!SucceededTask'>>_(TP2!vars)
+    <2>. SUFFICES ASSUME ProcessTasks({t}), t \in SucceededTask', vars' /= vars
+                  PROVE  TP2!ProcessTasks({t}) /\ t \in TP2!SucceededTask' /\ TP2!vars' /= TP2!vars
         BY DEF vars
     <2>1. taskState[t] = TASK_ASSIGNED
         BY DEF AssignedTask, ProcessTasks
@@ -5722,11 +5743,13 @@ LEMMA LemRefineTP2SFProcessTasks ==
             TP2!TASK_DISCARDED, TASK_DISCARDED, TP2!TASK_FAILED, TASK_FAILED
     <2>3. TP2!vars' /= TP2!vars
         BY <2>1 DEF ProcessTasks, TP2!vars, TASK_ASSIGNED
+    <2>4. t \in TP2!SucceededTask'
+        BY DEF SucceededTask, TP2!SucceededTask, TASK_SUCCEEDED, TP2!TASK_SUCCEEDED
     <2>. QED
-        BY <2>2, <2>3
+        BY <2>2, <2>3, <2>4
 <1>. QED
-    <2>1. [](TypeOk /\ ENABLED <<TP2!ProcessTasks({t})>>_(TP2!vars)
-             => ENABLED <<ProcessTasks({t})>>_vars)
+    <2>1. [](TypeOk /\ ENABLED <<TP2!ProcessTasks({t}) /\ t \in TP2!SucceededTask'>>_(TP2!vars)
+             => ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars)
         BY <1>1, PTL
     <2>. QED
         BY <2>1, <1>2, PTL
@@ -6082,7 +6105,7 @@ THEOREM GP2_RefineGraphProcessing1 == Spec => RefineGraphProcessing1
     <2>. SUFFICES ASSUME NEW t \in Task
                   PROVE  SF_(GP1!vars)(GP1!ProcessTasks({t}))
         OBVIOUS
-    <2>1. SF_vars(ProcessTasks({t}))
+    <2>1. SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
         BY <1>2, Isa DEF Fairness
     <2>. QED
         BY <1>3, <2>1, LemRefineGP1SFProcessTasks
@@ -6336,13 +6359,13 @@ THEOREM GP2_RefineTaskProcessing2 == Spec => RefineTaskProcessing2
       PROVE  /\ WF_(TP2!vars)(\E u \in Task : TP2!SetTaskRetries({t}, {u}))
              /\ WF_(TP2!vars)(TP2!RegisterTasks({nextAttemptOf[t]}))
              /\ WF_(TP2!vars)(TP2!StageTasks({nextAttemptOf[t]}))
-             /\ SF_(TP2!vars)(TP2!ProcessTasks({t}))
+             /\ SF_(TP2!vars)(TP2!ProcessTasks({t}) /\ t \in TP2!SucceededTask')
              /\ WF_(TP2!vars)(TP2!CompleteTasks({t}))
              /\ WF_(TP2!vars)(TP2!AbortTasks({t}))
              /\ WF_(TP2!vars)(TP2!RetryTasks({t}))
     <2>1. /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
           /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
-          /\ SF_vars(ProcessTasks({t}))
+          /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
         BY <1>2, Isa DEF Fairness
     <2>2. WF_(TP2!vars)(\E u \in Task : TP2!SetTaskRetries({t}, {u}))
         BY <1>3, <2>1, LemRefineTP2WFSetTaskRetries
@@ -6353,7 +6376,7 @@ THEOREM GP2_RefineTaskProcessing2 == Spec => RefineTaskProcessing2
             BY <1>2, <1>3, LemNextAttemptStageWF
         <3>. QED
             BY <1>1, <3>1, LemRefineTP2WFStageTasks
-    <2>5. SF_(TP2!vars)(TP2!ProcessTasks({t}))
+    <2>5. SF_(TP2!vars)(TP2!ProcessTasks({t}) /\ t \in TP2!SucceededTask')
         BY <1>3, <2>1, LemRefineTP2SFProcessTasks
     <2>6. /\ [](t \in SucceededTask => <>(~ (t \in SucceededTask)))
           /\ [](t \in DiscardedTask => <>(~ (t \in DiscardedTask)))

@@ -2418,11 +2418,11 @@ THEOREM TP2_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
         BY Isa DEF TP1!Fairness
     <2>1. []TaskSafetyInv /\ [][Next]_vars /\ Fairness
           => SF_TP1!vars(TP1!ProcessTasks({t}))
-        <3>. SUFFICES []TaskSafetyInv /\ SF_vars(ProcessTasks({t}))
+        <3>. SUFFICES []TaskSafetyInv /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
                     => SF_TP1!vars(TP1!ProcessTasks({t}))
             BY Isa DEF Fairness
         <3>. DEFINE AbsA(tb) == TP1!ProcessTasks({tb})
-                    A(tb)    == ProcessTasks({tb})
+                    A(tb)    == ProcessTasks({tb}) /\ tb \in SucceededTask'
         <3>1. TaskSafetyInv /\ ENABLED <<AbsA(t)>>_TP1!vars => ENABLED <<A(t)>>_vars
             <4>. SUFFICES ASSUME TaskSafetyInv
                         PROVE ENABLED <<AbsA(t)>>_TP1!vars => ENABLED <<A(t)>>_vars
@@ -2439,13 +2439,25 @@ THEOREM TP2_RefineTaskProcessing1 == Spec => RefineTaskProcessing1
                     BY ExpandENABLED, Zenon DEF TP1!ProcessTasks, TP1!AssignedTask, taskStateBar
                 <5>. QED
                     BY <5>3, <5>4
-            <4>2. ENABLED <<A(t)>>_vars <=> t \in AssignedTask
+            <4>2. t \in AssignedTask => ENABLED <<A(t)>>_vars
                 <5>1. <<A(t)>>_vars <=> A(t)
                     BY DEF ProcessTasks, AssignedTask, vars
                 <5>2. ENABLED <<A(t)>>_vars <=> ENABLED A(t)
                     BY <5>1, ENABLEDaxioms
-                <5>3. ENABLED A(t) <=> t \in AssignedTask
-                    BY ExpandENABLED, Zenon DEF ProcessTasks, AssignedTask
+                <5>3. t \in AssignedTask => ENABLED A(t)
+                    <6>. SUFFICES ASSUME t \in AssignedTask
+                                  PROVE  ENABLED A(t)
+                        OBVIOUS
+                    <6>. SUFFICES \E nextAttemptOfp, taskStatep :
+                                    /\ {t} # {}
+                                    /\ {t} \subseteq AssignedTask
+                                    /\ taskStatep = [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
+                                    /\ nextAttemptOfp = nextAttemptOf
+                                    /\ taskStatep[t] = TASK_SUCCEEDED
+                        BY ExpandENABLED, Zenon DEF ProcessTasks, SucceededTask
+                    <6>. WITNESS nextAttemptOf, [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
+                    <6>. QED
+                        OBVIOUS
                 <5>. QED
                     BY <5>2, <5>3
             <4>. QED
