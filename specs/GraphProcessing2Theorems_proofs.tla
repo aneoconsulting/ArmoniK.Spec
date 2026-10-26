@@ -1720,8 +1720,18 @@ LEMMA LemRegisteredObjectHasOpenProducer ==
     <2>11. ASSUME NEW T \in SUBSET Task, DiscardTasks(T)
            PROVE  (\E w \in Predecessor(deps, o) :
                        w \notin UNION {CompletedTask, AbortedTask, RetriedTask})'
-        BY <2>11 DEF AbortedTask, CompletedTask, DiscardTasks, Predecessor,
-            RegisteredObject, RegisteredObjectHasOpenProducer, RetriedTask
+        <3>1. PICK w \in Predecessor(deps, o) :
+                  w \notin UNION {CompletedTask, AbortedTask, RetriedTask}
+            BY <2>11 DEF DiscardTasks, Predecessor, RegisteredObject,
+                RegisteredObjectHasOpenProducer
+        <3>2. \A x \in Task : taskState'[x] = taskState[x] \/ taskState'[x] = TASK_DISCARDED
+            BY <2>11 DEF DiscardTasks
+        <3>3. (w \in Predecessor(deps, o))'
+            BY <2>11, <3>1 DEF DiscardTasks, Predecessor
+        <3>4. (w \notin UNION {CompletedTask, AbortedTask, RetriedTask})'
+            BY <2>2, <3>1, <3>2, Zenon DEF AbortedTask, CompletedTask, RetriedTask
+        <3>. QED
+            BY <3>3, <3>4
     <2>12. ASSUME NEW T \in SUBSET Task, AssignTasks(T)
            PROVE  (\E w \in Predecessor(deps, o) :
                        w \notin UNION {CompletedTask, AbortedTask, RetriedTask})'
