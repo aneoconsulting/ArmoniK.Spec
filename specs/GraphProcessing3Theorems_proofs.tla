@@ -1228,14 +1228,14 @@ LEMMA LemRefineGP2WFSetTaskRetries ==
                              ~ \E v \in Task : nextAttemptOf[v] = u0
                       PROVE  ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
             BY Zenon
-        <3>1. ENABLED <<SetTaskRetries({t}, {u0})>>_vars
-            <4>. SUFFICES \E depsp, objectStatep, objectTargetsp, taskStatep,
-                             nextAttemptOfp, stoppingRequestedp, pausingRequestedp :
+        <3>. SUFFICES \E depsp, objectStatep, objectTargetsp, taskStatep,
+                         nextAttemptOfp, stoppingRequestedp, pausingRequestedp :
+                         /\ \E u \in Task :
                              /\ {t} # {}
                              /\ {t} \subseteq UnretriedTask
-                             /\ {u0} \subseteq UnknownTask
-                             /\ \A v \in {u0} : ~ \E w \in Task : nextAttemptOf[w] = v
-                             /\ \E f \in Bijection({t}, {u0}) :
+                             /\ {u} \subseteq UnknownTask
+                             /\ \A v \in {u} : ~ \E w \in Task : nextAttemptOf[w] = v
+                             /\ \E f \in Bijection({t}, {u}) :
                                      nextAttemptOfp
                                      = [t_1 \in Task |->
                                          IF t_1 \in {t} THEN f[t_1] ELSE nextAttemptOf[t_1]]
@@ -1245,37 +1245,32 @@ LEMMA LemRefineGP2WFSetTaskRetries ==
                              /\ objectTargetsp = objectTargets
                              /\ stoppingRequestedp = stoppingRequested
                              /\ pausingRequestedp = pausingRequested
-                             /\ ~ (/\ depsp = deps
-                                   /\ objectStatep = objectState
-                                   /\ objectTargetsp = objectTargets
-                                   /\ taskStatep = taskState
-                                   /\ nextAttemptOfp = nextAttemptOf
-                                   /\ stoppingRequestedp = stoppingRequested
-                                   /\ pausingRequestedp = pausingRequested)
-                BY ExpandENABLED, SMT DEF SetTaskRetries, vars
-            <4>. DEFINE g == [x \in {t} |-> u0]
-            <4>1. g \in Bijection({t}, {u0})
-                BY DEF Bijection, Injection, IsInjective, Surjection
-            <4>2. [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]]
-                  /= nextAttemptOf
-                <5>1. nextAttemptOf[t] = NULL
-                    BY DEF FailedTask, UnretriedTask
-                <5>2. [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]][t] = u0
-                    BY DEF Bijection, Injection, Surjection
-                <5>3. u0 /= NULL
-                    BY GP3Assumptions DEF UnknownTask
-                <5>. QED
-                    BY <5>1, <5>2, <5>3
-            <4>3. WITNESS deps, objectState, objectTargets, taskState,
-                          [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]],
-                          stoppingRequested, pausingRequested
-            <4>. QED
-                BY <4>1, <4>2, Zenon
-        <3>2. ENABLED <<SetTaskRetries({t}, {u0})>>_vars
-              => ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
+                         /\ ~ (/\ depsp = deps
+                               /\ objectStatep = objectState
+                               /\ objectTargetsp = objectTargets
+                               /\ taskStatep = taskState
+                               /\ nextAttemptOfp = nextAttemptOf
+                               /\ stoppingRequestedp = stoppingRequested
+                               /\ pausingRequestedp = pausingRequested)
             BY ExpandENABLED, SMT DEF SetTaskRetries, vars
+        <3>. DEFINE g == [x \in {t} |-> u0]
+        <3>1. g \in Bijection({t}, {u0})
+            BY DEF Bijection, Injection, IsInjective, Surjection
+        <3>2. [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]]
+              /= nextAttemptOf
+            <4>1. nextAttemptOf[t] = NULL
+                BY DEF FailedTask, UnretriedTask
+            <4>2. [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]][t] = u0
+                BY DEF Bijection, Injection, Surjection
+            <4>3. u0 /= NULL
+                BY GP3Assumptions DEF UnknownTask
+            <4>. QED
+                BY <4>1, <4>2, <4>3
+        <3>3. WITNESS deps, objectState, objectTargets, taskState,
+                      [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]],
+                      stoppingRequested, pausingRequested
         <3>. QED
-            BY <3>1, <3>2
+            BY <3>1, <3>2, Zenon
     <2>3.  (\E u \in Task : /\ t \in GP2!UnretriedTask
                             /\ u \in GP2!UnknownTask
                             /\ ~ \E v \in Task : nextAttemptOf[v] = u)
@@ -1889,14 +1884,14 @@ LEMMA LemRefineTP3WFSetTaskRetries ==
                              ~ \E v \in Task : nextAttemptOf[v] = u0
                       PROVE  ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
             BY Zenon
-        <3>1. ENABLED <<SetTaskRetries({t}, {u0})>>_vars
-            <4>. SUFFICES \E depsp, objectStatep, objectTargetsp, taskStatep,
-                             nextAttemptOfp, stoppingRequestedp, pausingRequestedp :
+        <3>. SUFFICES \E depsp, objectStatep, objectTargetsp, taskStatep,
+                         nextAttemptOfp, stoppingRequestedp, pausingRequestedp :
+                         /\ \E u \in Task :
                              /\ {t} # {}
                              /\ {t} \subseteq UnretriedTask
-                             /\ {u0} \subseteq UnknownTask
-                             /\ \A v \in {u0} : ~ \E w \in Task : nextAttemptOf[w] = v
-                             /\ \E f \in Bijection({t}, {u0}) :
+                             /\ {u} \subseteq UnknownTask
+                             /\ \A v \in {u} : ~ \E w \in Task : nextAttemptOf[w] = v
+                             /\ \E f \in Bijection({t}, {u}) :
                                      nextAttemptOfp
                                      = [t_1 \in Task |->
                                          IF t_1 \in {t} THEN f[t_1] ELSE nextAttemptOf[t_1]]
@@ -1906,37 +1901,32 @@ LEMMA LemRefineTP3WFSetTaskRetries ==
                              /\ objectTargetsp = objectTargets
                              /\ stoppingRequestedp = stoppingRequested
                              /\ pausingRequestedp = pausingRequested
-                             /\ ~ (/\ depsp = deps
-                                   /\ objectStatep = objectState
-                                   /\ objectTargetsp = objectTargets
-                                   /\ taskStatep = taskState
-                                   /\ nextAttemptOfp = nextAttemptOf
-                                   /\ stoppingRequestedp = stoppingRequested
-                                   /\ pausingRequestedp = pausingRequested)
-                BY ExpandENABLED, SMT DEF SetTaskRetries, vars
-            <4>. DEFINE g == [x \in {t} |-> u0]
-            <4>1. g \in Bijection({t}, {u0})
-                BY DEF Bijection, Injection, IsInjective, Surjection
-            <4>2. [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]]
-                  /= nextAttemptOf
-                <5>1. nextAttemptOf[t] = NULL
-                    BY DEF FailedTask, UnretriedTask
-                <5>2. [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]][t] = u0
-                    BY DEF Bijection, Injection, Surjection
-                <5>3. u0 /= NULL
-                    BY GP3Assumptions DEF UnknownTask
-                <5>. QED
-                    BY <5>1, <5>2, <5>3
-            <4>3. WITNESS deps, objectState, objectTargets, taskState,
-                          [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]],
-                          stoppingRequested, pausingRequested
-            <4>. QED
-                BY <4>1, <4>2, Zenon
-        <3>2. ENABLED <<SetTaskRetries({t}, {u0})>>_vars
-              => ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
+                         /\ ~ (/\ depsp = deps
+                               /\ objectStatep = objectState
+                               /\ objectTargetsp = objectTargets
+                               /\ taskStatep = taskState
+                               /\ nextAttemptOfp = nextAttemptOf
+                               /\ stoppingRequestedp = stoppingRequested
+                               /\ pausingRequestedp = pausingRequested)
             BY ExpandENABLED, SMT DEF SetTaskRetries, vars
+        <3>. DEFINE g == [x \in {t} |-> u0]
+        <3>1. g \in Bijection({t}, {u0})
+            BY DEF Bijection, Injection, IsInjective, Surjection
+        <3>2. [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]]
+              /= nextAttemptOf
+            <4>1. nextAttemptOf[t] = NULL
+                BY DEF FailedTask, UnretriedTask
+            <4>2. [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]][t] = u0
+                BY DEF Bijection, Injection, Surjection
+            <4>3. u0 /= NULL
+                BY GP3Assumptions DEF UnknownTask
+            <4>. QED
+                BY <4>1, <4>2, <4>3
+        <3>3. WITNESS deps, objectState, objectTargets, taskState,
+                      [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]],
+                      stoppingRequested, pausingRequested
         <3>. QED
-            BY <3>1, <3>2
+            BY <3>1, <3>2, Zenon
     <2>. QED
         BY <2>1, <2>2, LemTP3States, Zenon
 <1>2. <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
