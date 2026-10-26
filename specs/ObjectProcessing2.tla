@@ -132,12 +132,13 @@ Next ==
  * FAIRNESS CONDITIONS
  * Ensure that progress is eventually made for actionable objects.
  *   - A targeted object cannot remain indefinitely registered without being
- *     eventually finalized (completed or aborted).
+ *     eventually finalized. Completion alone is required to be fair:
+ *     abortion is a possible outcome, never an obligation, so a registered
+ *     target may be aborted but is otherwise eventually completed.
  *)
 Fairness ==
     \A o \in Object :
-        /\ WF_vars(o \in objectTargets /\ CompleteObjects({o}))
-        /\ WF_vars(o \in objectTargets /\ AbortObjects({o}))
+        WF_vars(o \in objectTargets /\ CompleteObjects({o}))
 
 (**
  * Full system specification.
