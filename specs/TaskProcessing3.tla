@@ -290,7 +290,7 @@ Next ==
  * Ensure that progress is eventually made for tasks that can act.
  *   - A task cannot remain indefinitely failed without being retried.
  *   - A task cannot be assigned an infinite number of times
- *     without eventually being processed.
+ *     without eventually being processed successfully.
  *   - A task cannot remain indefinitely processed without being eventually
  *     finalized (completed, retried or aborted).
  *   - A task whose cancellation (resp. pausing) request can be acknowledged
@@ -301,7 +301,7 @@ Fairness ==
         /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
         /\ WF_vars(RegisterTasks({nextAttemptOf[t]}))
         /\ WF_vars(StageTasks({nextAttemptOf[t]}))
-        /\ SF_vars(ProcessTasks({t}))
+        /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
         /\ WF_vars(CompleteTasks({t}))
         /\ WF_vars(AbortTasks({t}))
         /\ WF_vars(RetryTasks({t}))
