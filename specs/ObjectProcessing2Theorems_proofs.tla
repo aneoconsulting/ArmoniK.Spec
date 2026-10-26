@@ -89,12 +89,10 @@ THEOREM OP2_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
 <1>. USE DEF OP1!OBJECT_UNKNOWN, OP1!OBJECT_REGISTERED, OP1!OBJECT_FINALIZED
 <1>. DEFINE AbsA(o) == o \in objectTargets /\ OP1!FinalizeObjects({o})
             A(o)    == o \in objectTargets /\ CompleteObjects({o})
-            B(o)    == o \in objectTargets /\ AbortObjects({o})
 <1>. SUFFICES ASSUME NEW o \in Object
-                PROVE WF_vars(A(o)) /\ WF_vars(B(o))
-                      => WF_OP1!vars(AbsA(o))
+                PROVE WF_vars(A(o)) => WF_OP1!vars(AbsA(o))
     BY Isa DEF Fairness, OP1!Fairness
-<1>1. ENABLED <<AbsA(o)>>_OP1!vars => ENABLED <<A(o)>>_vars /\ ENABLED <<B(o)>>_vars
+<1>1. ENABLED <<AbsA(o)>>_OP1!vars => ENABLED <<A(o)>>_vars
     <2>1. ENABLED <<AbsA(o)>>_OP1!vars
             <=> o \in objectTargets /\ o \in OP1!RegisteredObject
         <3>1. AbsA(o) => objectStateBar' /= objectStateBar
@@ -111,19 +109,13 @@ THEOREM OP2_RefineObjectProcessing1 == Spec => RefineObjectProcessing1
     <2>2. ENABLED <<A(o)>>_vars
             <=> o \in objectTargets /\ o \in RegisteredObject
         BY ExpandENABLED DEF CompleteObjects, RegisteredObject, vars
-    <2>3. ENABLED <<B(o)>>_vars
-            <=> o \in objectTargets /\ o \in RegisteredObject
-        BY ExpandENABLED DEF AbortObjects, RegisteredObject, vars
     <2>. QED
-        BY <2>1, <2>2, <2>3 DEF OP1!RegisteredObject, RegisteredObject,
+        BY <2>1, <2>2 DEF OP1!RegisteredObject, RegisteredObject,
         objectStateBar
 <1>2. <<A(o)>>_vars => <<AbsA(o)>>_OP1!vars
     BY DEF CompleteObjects, OP1!FinalizeObjects, vars, OP1!vars,
     RegisteredObject, OP1!RegisteredObject, objectStateBar
-<1>3. <<B(o)>>_vars => <<AbsA(o)>>_OP1!vars
-    BY DEF AbortObjects, OP1!FinalizeObjects, vars, OP1!vars,
-    RegisteredObject, OP1!RegisteredObject, objectStateBar
 <1>. QED
-    BY <1>1, <1>2, <1>3, PTL
+    BY <1>1, <1>2, PTL
 
 ================================================================================
