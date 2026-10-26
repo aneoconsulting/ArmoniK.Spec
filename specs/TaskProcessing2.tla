@@ -210,7 +210,7 @@ Next ==
  *   - A new task attempt cannot reamin indefinitely staged without being
  *     eventually staged.
  *   - A task cannot be assigned an infinite number of times
- *     without eventually being processed.
+ *     without eventually being processed successfully.
  *   - A task cannot remain indefinitely succeeded without being eventually
  *     completed.
  *   - A task cannot remain indefinitely crashed without being eventually
@@ -223,7 +223,7 @@ Fairness ==
         /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
         /\ WF_vars(RegisterTasks({nextAttemptOf[t]}))
         /\ WF_vars(StageTasks({nextAttemptOf[t]}))
-        /\ SF_vars(ProcessTasks({t}))
+        /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
         /\ WF_vars(CompleteTasks({t}))
         /\ WF_vars(AbortTasks({t}))
         /\ WF_vars(RetryTasks({t}))
