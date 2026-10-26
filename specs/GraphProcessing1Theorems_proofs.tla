@@ -2407,8 +2407,8 @@ LEMMA LemFairnessStable == Fairness <=> []Fairness
 (* never grows: the finite cardinality C = Cardinality(S) would have to descend  *)
 (* below every bound (LemCardinalityDescent), which is impossible. This is the   *)
 (* engine of the object-finalization fairness refinement; it is reused verbatim  *)
-(* (under the Bar) by GraphProcessing2 to discharge WF(OP2!CompleteObjects) /    *)
-(* WF(OP2!AbortObjects), whose enabled-forever negation reduces to exactly this. *)
+(* (under the Bar) by GraphProcessing2 to discharge WF(OP2!CompleteObjects),     *)
+(* whose enabled-forever negation reduces to exactly this.                       *)
 LEMMA LemTargetedRegisteredImpossible ==
     ASSUME NEW o \in Object
     PROVE LET S == AncestorSubGraph(deps, o, IsOpenNode).node
