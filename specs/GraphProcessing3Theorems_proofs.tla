@@ -1558,22 +1558,35 @@ LEMMA LemRefineGP2SFProcessTasks ==
         BY <2>1, ENABLEDaxioms
     <2>3. ASSUME t \in AssignedTask
           PROVE  ENABLED (ProcessTasks({t}) /\ t \in SucceededTask')
+        <3>. DEFINE Step(depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp,
+                         stoppingRequestedp, pausingRequestedp) ==
+                        /\ {t} /= {} /\ {t} \subseteq AssignedTask
+                        /\ \/ taskStatep =
+                                [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
+                           \/ taskStatep =
+                                [x \in Task |-> IF x \in {t} THEN TASK_DISCARDED ELSE taskState[x]]
+                           \/ /\ \A x \in {t} : Cardinality(PreviousAttempts(x)) < MaxRetries
+                              /\ taskStatep =
+                                    [x \in Task |-> IF x \in {t} THEN TASK_FAILED ELSE taskState[x]]
+                           \/ taskStatep =
+                                [x \in Task |-> IF x \in {t} THEN TASK_STOPPED ELSE taskState[x]]
+                        /\ << nextAttemptOfp, depsp, objectStatep, objectTargetsp,
+                              stoppingRequestedp, pausingRequestedp >>
+                           = << nextAttemptOf, deps, objectState, objectTargets,
+                                stoppingRequested, pausingRequested >>
+                        /\ t \in {x \in Task : taskStatep[x] = TASK_SUCCEEDED}
         <3>. SUFFICES \E depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp,
                          stoppingRequestedp, pausingRequestedp :
-                        /\ {t} # {}
-                        /\ {t} \subseteq AssignedTask
-                        /\ taskStatep = [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
-                        /\ nextAttemptOfp = nextAttemptOf /\ depsp = deps
-                        /\ objectStatep = objectState /\ objectTargetsp = objectTargets
-                        /\ stoppingRequestedp = stoppingRequested
-                        /\ pausingRequestedp = pausingRequested
-                        /\ taskStatep[t] = TASK_SUCCEEDED
-            BY ExpandENABLED, SMT DEF ProcessTasks, SucceededTask
-        <3>. WITNESS deps, objectState, objectTargets,
-                     [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]],
-                     nextAttemptOf, stoppingRequested, pausingRequested
+                        Step(depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp,
+                             stoppingRequestedp, pausingRequestedp)
+            BY ExpandENABLED, SMT DEF ProcessTasks, SucceededTask, Step
+        <3>. HIDE DEF Step
+        <3>1. Step(deps, objectState, objectTargets,
+                   [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]],
+                   nextAttemptOf, stoppingRequested, pausingRequested)
+            BY <2>3, Zenon DEF Step
         <3>. QED
-            BY <2>3 DEF AssignedTask
+            BY <3>1, Zenon
     <2>. QED
         BY <2>2, <2>3
 \* --- a successful processing is a once-per-task event ---
@@ -1986,22 +1999,35 @@ LEMMA LemRefineTP3SFProcessTasks ==
         BY <2>2, ENABLEDaxioms
     <2>4. ASSUME t \in AssignedTask
           PROVE  ENABLED (ProcessTasks({t}) /\ t \in SucceededTask')
+        <3>. DEFINE Step(depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp,
+                         stoppingRequestedp, pausingRequestedp) ==
+                        /\ {t} /= {} /\ {t} \subseteq AssignedTask
+                        /\ \/ taskStatep =
+                                [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
+                           \/ taskStatep =
+                                [x \in Task |-> IF x \in {t} THEN TASK_DISCARDED ELSE taskState[x]]
+                           \/ /\ \A x \in {t} : Cardinality(PreviousAttempts(x)) < MaxRetries
+                              /\ taskStatep =
+                                    [x \in Task |-> IF x \in {t} THEN TASK_FAILED ELSE taskState[x]]
+                           \/ taskStatep =
+                                [x \in Task |-> IF x \in {t} THEN TASK_STOPPED ELSE taskState[x]]
+                        /\ << nextAttemptOfp, depsp, objectStatep, objectTargetsp,
+                              stoppingRequestedp, pausingRequestedp >>
+                           = << nextAttemptOf, deps, objectState, objectTargets,
+                                stoppingRequested, pausingRequested >>
+                        /\ t \in {x \in Task : taskStatep[x] = TASK_SUCCEEDED}
         <3>. SUFFICES \E depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp,
                          stoppingRequestedp, pausingRequestedp :
-                        /\ {t} # {}
-                        /\ {t} \subseteq AssignedTask
-                        /\ taskStatep = [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
-                        /\ nextAttemptOfp = nextAttemptOf /\ depsp = deps
-                        /\ objectStatep = objectState /\ objectTargetsp = objectTargets
-                        /\ stoppingRequestedp = stoppingRequested
-                        /\ pausingRequestedp = pausingRequested
-                        /\ taskStatep[t] = TASK_SUCCEEDED
-            BY ExpandENABLED, SMT DEF ProcessTasks, SucceededTask
-        <3>. WITNESS deps, objectState, objectTargets,
-                     [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]],
-                     nextAttemptOf, stoppingRequested, pausingRequested
+                        Step(depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp,
+                             stoppingRequestedp, pausingRequestedp)
+            BY ExpandENABLED, SMT DEF ProcessTasks, SucceededTask, Step
+        <3>. HIDE DEF Step
+        <3>1. Step(deps, objectState, objectTargets,
+                   [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]],
+                   nextAttemptOf, stoppingRequested, pausingRequested)
+            BY <2>4, Zenon DEF Step
         <3>. QED
-            BY <2>4 DEF AssignedTask
+            BY <3>1, Zenon
     <2>. QED
         BY <2>1, <2>3, <2>4, LemTP3States
 <1>2. <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
