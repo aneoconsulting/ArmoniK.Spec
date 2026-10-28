@@ -357,7 +357,7 @@ THEOREM DDG_DerivationProperties ==
 (* An unblocked ancestry is itself a derivation: if every ancestor of n       *)
 (* satisfies Op, the ancestor-induced subgraph of n is a derivation of n.     *)
 (* This is the graph half of the "crash-free ancestry" sufficient condition   *)
-(* for DerivableObjectsEventualCompletion (GraphProcessing2): an object       *)
+(* for DerivableObjectsEventualCompletion (Graph2): an object                 *)
 (* whose ancestry never meets a crashed node is derivable in every state.     *)
 (******************************************************************************)
 THEOREM DDG_UnblockedAncestryIsDerivation ==
