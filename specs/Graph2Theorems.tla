@@ -693,32 +693,6 @@ LEMMA LemT2NextAttemptFrozen ==
            => nextAttemptOf'[w] = nextAttemptOf[w]
 
 (*****************************************************************************)
-(* FINITE-STABILIZATION INSTANCES                                            *)
-(*                                                                           *)
-(* The liveness proofs combine per-element eventualities over finite, frozen *)
-(* sets (the producers of an object, the outputs of a task) with the rigid   *)
-(* finite conjunction of FiniteStabilization. Each instance fixes the target *)
-(* set T of the conjunction; the frozen set is pinned as a rigid constant P  *)
-(* by LemPredsPinned / LemOutputsPinned. The retained-output target ranges   *)
-(* over (task, object) pairs, since "a strong producer other than the task"  *)
-(* depends on the task.                                                       *)
-(*****************************************************************************)
-
-NotFailed == Task \ FailedTask
-Settled   == Task \ (SucceededTask \union DiscardedTask)
-Retained  == {p \in Task \X Object :
-                 p[2] \in RegisteredObject =>
-                     \E w \in Predecessor(deps, p[2]) \ {p[1]} :
-                         w \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}}
-
-FSTNotFailed == INSTANCE FiniteStabilizationTheorems
-                    WITH D <- Task, S <- deps.node, T <- NotFailed
-FSTSettled   == INSTANCE FiniteStabilizationTheorems
-                    WITH D <- Task, S <- deps.node, T <- Settled
-FSTRetained  == INSTANCE FiniteStabilizationTheorems
-                    WITH D <- Task \X Object, S <- deps.edge, T <- Retained
-
-(*****************************************************************************)
 (* QUIESCENCE COROLLARY: under a quiesced open upstream of a registered      *)
 (* object o, no producer of o can (ever again) sit with a still-unknown      *)
 (* retry clone. The clone-registration engine (LemCloneRegistration)        *)
