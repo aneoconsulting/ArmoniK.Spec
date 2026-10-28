@@ -57,18 +57,23 @@ own, and it is checked against the paths the commit touches.
 
 ### Types
 
-Each type owns a set of paths. Where two rows could claim a file, the more specific location wins:
-`scripts/**` and `.github/workflows/**` are `tooling` and `ci` even for a `.md` file inside them, and
-`.claude/**` is `ai`. Agent instruction files go further: a `CLAUDE.md` or an `AGENTS.md` is `ai`
-wherever it sits, even inside `specs/` or `scripts/`.
+Each type owns a set of paths. The modules live in three flat directories: `specs/` holds the
+specifications, `lib/` the library modules they build on, and `lib/temporal/` the temporal theorems
+the proofs instantiate — one theorem per interface `<X>Theorems.tla`, stated over the module's own
+`VARIABLE` declarations, its constants being parameters of the statement (`ASSUME NEW`), and proved
+in `<X>Theorems_proofs.tla`, a copy of the interface with the proof added. Where two rows could
+claim a file, the more specific location wins: `scripts/**` and `.github/workflows/**` are `tooling`
+and `ci` even for a `.md` file inside them, and `.claude/**` is `ai`. Agent instruction files go
+further: a `CLAUDE.md` or an `AGENTS.md` is `ai` wherever it sits, even inside `specs/` or
+`scripts/`.
 
 | type | owns | the description says |
 |---|---|---|
-| `spec` | `specs/(Graph\|Task\|Object\|Session)Processing<N>.tla` | actions, variables, statuses, assumptions, refinement mapping, declared properties |
-| `lib` | every other plain `specs/*.tla` — `DiGraphs`, `DDGraphs`, `DenumerableSets`, ... — and their `specs/*.java` overrides | operators and definitions added, generalized or removed; what a Java override makes enumerable |
-| `proof` | `specs/*Theorems.tla` and `specs/*Theorems_proofs.tla` | which theorems or lemmas are stated, which are discharged, which are left open |
+| `spec` | `specs/(Graph\|Task\|Object\|Session)<N>.tla` | actions, variables, statuses, assumptions, refinement mapping, declared properties |
+| `lib` | the plain `lib/*.tla` — `DiGraphs`, `DDGraphs`, `DenumerableSets`, ... — and their `lib/*.java` overrides | operators and definitions added, generalized or removed; what a Java override makes enumerable |
+| `proof` | `*Theorems.tla` and `*Theorems_proofs.tla`, in `specs/`, `lib/` or `lib/temporal/` | which theorems or lemmas are stated, which are discharged, which are left open |
 | `model` | `specs/*_mc.tla`, `specs/*.cfg` other than `*Tests.cfg` | constants, invariants, properties checked, overrides, what the instance does not cover |
-| `test` | `specs/*Tests.tla`, `specs/*Tests.cfg` | which operators the assertions cover |
+| `test` | `lib/*Tests.tla`, `lib/*Tests.cfg` | which operators the assertions cover |
 | `tooling` | `scripts/**`, `Makefile` | what the automation now does |
 | `ci` | `.github/workflows/**` | which job or step, and what changes for contributors |
 | `ai` | `.claude/**` — skills, settings, hooks — and every `CLAUDE.md` and `AGENTS.md` | which skill or instruction, and what the agent now does differently |
@@ -79,10 +84,11 @@ Three groupings are deliberate, each because the files are already coupled by a 
 
 * **`proof` covers the theorem interface together with its proof module.** `check_thm_interface`
   requires `<X>Theorems.tla` and `<X>Theorems_proofs.tla` to declare an identical set of theorems with
-  identical comments, so a commit touching one without the other cannot pass CI.
+  identical comments, so a commit touching one without the other cannot pass CI. In `lib/temporal/`,
+  the proof module also repeats the `VARIABLE` declarations of its interface, under the same check.
 * **`test` covers `<X>Tests.tla` together with `<X>Tests.cfg`.** A test configuration is an empty
   model carrying only operator overrides; it has no meaning apart from its module.
-* **`lib` covers a module's Java override.** `specs/DDGraphs.java` implements `DDGraphs.tla`'s
+* **`lib` covers a module's Java override.** `lib/DDGraphs.java` implements `DDGraphs.tla`'s
   operators for TLC; it belongs to the theory it makes executable, not to the build tooling, and its
   scope is the module it overrides.
 
@@ -90,16 +96,18 @@ Reverts and merge commits are exempt: they keep the subject git generates for th
 
 ### Scope
 
-The scope is **mandatory** for `spec`, `lib`, `proof`, `model` and `test`. It is the specification or
-library module the change is *about*, obtained by dropping the `Theorems`, `_proofs`, `_mc` and
-`Tests` suffixes:
+The scope is **mandatory** for `spec`, `lib`, `proof`, `model` and `test`. It is the specification,
+library module or temporal theorem the change is *about*, obtained by dropping the `Theorems`,
+`_proofs`, `_mc` and `Tests` suffixes:
 
 ```
-spec(ObjectProcessing3)  -> specs/ObjectProcessing3.tla
-lib(DDGraphs)            -> specs/DDGraphs.tla, specs/DDGraphs.java
-proof(TaskProcessing2)   -> specs/TaskProcessing2Theorems.tla, specs/TaskProcessing2Theorems_proofs.tla
-model(GraphProcessing1)  -> specs/GraphProcessing1_mc.tla, specs/GraphProcessing1_mc.cfg
-test(DDGraphs)           -> specs/DDGraphsTests.tla, specs/DDGraphsTests.cfg
+spec(Object3)        -> specs/Object3.tla
+lib(DDGraphs)        -> lib/DDGraphs.tla, lib/DDGraphs.java
+proof(Task2)         -> specs/Task2Theorems.tla, specs/Task2Theorems_proofs.tla
+proof(DDGraphs)      -> lib/DDGraphTheorems.tla, lib/DDGraphTheorems_proofs.tla
+proof(EventualStuttering) -> lib/temporal/EventualStutteringTheorems.tla, lib/temporal/EventualStutteringTheorems_proofs.tla
+model(Graph1)        -> specs/Graph1_mc.tla, specs/Graph1_mc.cfg
+test(DDGraphs)       -> lib/DDGraphsTests.tla, lib/DDGraphsTests.cfg
 ```
 
 Three library modules need an alias, because their theorem interface drops the plural:
@@ -133,11 +141,11 @@ lowercase imperative.
 ### Examples
 
 ```
-spec(ObjectProcessing3): add PurgeObjects action and OBJECT_PURGED status
+spec(Object3): add PurgeObjects action and OBJECT_PURGED status
 lib(DiGraphs): fix empty-node-set conjunct of DG_EmptyGraphProperties
-proof(TaskProcessing2): prove TP2_TypeInvariant and 12 supporting lemmas
+proof(Task2): prove T2_TypeInvariant and 12 supporting lemmas
 proof(DDGraphs): weaken hypotheses of DDG_OpenPathInAncestorSubGraph
-model(GraphProcessing1): check GP1_RefineObjectProcessing1 on two tasks
+model(Graph1): check G1_RefineObject1 on two tasks
 test(DiGraphs): add assertions for the reachability operators
 tooling(scripts): check state-space statistics against the model configs
 ci: cache the TLA+ toolchain, keyed by install-tools.sh
@@ -214,9 +222,9 @@ Under this convention it is four commits, each reviewable and verifiable on its 
 
 ```
 lib(ObjectStates): add OBJECT_PURGED to the object status set
-spec(ObjectProcessing3): add PurgeObjects and OP3_ObjectsEventuallyPurged
-model(ObjectProcessing3): add the purged-object constant
-proof(ObjectProcessing3): prove OP3_ObjectsEventuallyPurged
+spec(Object3): add PurgeObjects and O3_ObjectsEventuallyPurged
+model(Object3): add the purged-object constant
+proof(Object3): prove O3_ObjectsEventuallyPurged
 ```
 
 ## Pull-request titles

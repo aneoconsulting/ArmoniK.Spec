@@ -12,7 +12,7 @@ Verification table; a spec PR needs no "how to run it" note).
 ## Summary
 
 <!-- Two to four sentences: what changes, and why. Name the modules involved
-     (GraphProcessing1, DDGraphTheorems, ...) and, for a spec change, the
+     (Graph1, DDGraphTheorems, ...) and, for a spec change, the
      behaviour or property that motivated it. -->
 
 ## Type
