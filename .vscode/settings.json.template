@@ -19,24 +19,24 @@
     // edit this template (not the generated file) and re-run `make install`.
 
     // -cp puts CommunityModules overrides + the compiled Java overrides
-    // (specs/*.class produced by `make build-java`) on TLC's classpath.
-    // The vscode-tlaplus extension preserves our -cp and appends its
-    // bundled tla2tools.jar.
-    "tlaplus.java.options": "-XX:+UseParallelGC -cp __REPO_ROOT__/.tlatools/CommunityModules-deps.jar:__REPO_ROOT__/specs",
+    // (lib/*.class produced by `make build-java`) on TLC's classpath, with
+    // the module directories. The vscode-tlaplus extension preserves our
+    // -cp and appends its bundled tla2tools.jar.
+    "tlaplus.java.options": "-XX:+UseParallelGC -cp __REPO_ROOT__/.tlatools/CommunityModules-deps.jar:__REPO_ROOT__/lib:__REPO_ROOT__/lib/temporal:__REPO_ROOT__/specs",
 
-    // SANY / TLC search path. Includes both the CommunityModules sources
-    // and the tlapm-bundled stdlib (TLAPS.tla, FiniteSetTheorems.tla, etc.)
-    // so specs EXTENDS'ing either can be parsed and model-checked in VSCode.
-    // The extension does not resolve these relative to the workspace, so they
-    // must be absolute.
+    // SANY / TLC search path. Includes the CommunityModules sources, the
+    // tlapm-bundled stdlib (TLAPS.tla, FiniteSetTheorems.tla, etc.) and the
+    // three module directories -- the specifications of specs/ EXTEND the
+    // libraries of lib/, and their proofs INSTANCE the temporal theorems of
+    // lib/temporal/ -- so any module can be parsed and model-checked in
+    // VSCode. The extension does not resolve these relative to the
+    // workspace, so they must be absolute.
     "tlaplus.moduleSearchPaths": [
-<<<<<<< Updated upstream:.vscode/settings.json.template
         "__REPO_ROOT__/.tlatools/CommunityModules/modules",
-        "__REPO_ROOT__/.tlatools/tlapm/lib/tlapm/stdlib"
-=======
-        "/home/qdelamea/projects/ArmoniK.Spec/.tlatools/CommunityModules/modules",
-        "/home/qdelamea/projects/ArmoniK.Spec/.tlatools/tlapm/lib/tlapm/stdlib"
->>>>>>> Stashed changes:.vscode/settings.json
+        "__REPO_ROOT__/.tlatools/tlapm/lib/tlapm/stdlib",
+        "__REPO_ROOT__/lib",
+        "__REPO_ROOT__/lib/temporal",
+        "__REPO_ROOT__/specs"
     ],
 
     "tlaplus.tlc.modelChecker.createOutFiles": true,
@@ -61,7 +61,7 @@
         "--log-to=/tmp/tlapm_lsp.log"
     ],
 
-    // ----- Java (for editing specs/DDGraphs.java overrides) --------------
+    // ----- Java (for editing lib/DDGraphs.java overrides) ----------------
     "java.project.referencedLibraries": [
         "__REPO_ROOT__/.tlatools/tla2tools.jar",
         "__REPO_ROOT__/.tlatools/CommunityModules-deps.jar"
