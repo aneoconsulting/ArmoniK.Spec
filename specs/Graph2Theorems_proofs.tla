@@ -3739,11 +3739,11 @@ LEMMA LemT2NextAttemptFrozen ==
 BY LemRefineT2Next, T2!LemNextAttemptFrozen, LemT2Assumptions
 
 (*****************************************************************************)
-(* FINITE-STABILIZATION INSTANCES                                            *)
+(* JOINT-STABILITY INSTANCES                                                 *)
 (*                                                                           *)
 (* The liveness proofs combine per-element eventualities over finite, frozen *)
 (* sets (the producers of an object, the outputs of a task) with the rigid   *)
-(* finite conjunction of FiniteStabilization. Each instance fixes the target *)
+(* finite conjunction (JointStability). Each instance fixes the target       *)
 (* set T of the conjunction; the frozen set is pinned as a rigid constant P  *)
 (* by LemPredsPinned / LemOutputsPinned. The retained-output target ranges   *)
 (* over (task, object) pairs, since "a strong producer other than the task"  *)
@@ -3757,12 +3757,9 @@ Retained  == {p \in Task \X Object :
                      \E w \in Predecessor(deps, p[2]) \ {p[1]} :
                          w \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}}
 
-FSTNotFailed == INSTANCE FiniteStabilizationTheorems
-                    WITH D <- Task, S <- deps.node, T <- NotFailed
-FSTSettled   == INSTANCE FiniteStabilizationTheorems
-                    WITH D <- Task, S <- deps.node, T <- Settled
-FSTRetained  == INSTANCE FiniteStabilizationTheorems
-                    WITH D <- Task \X Object, S <- deps.edge, T <- Retained
+JointNotFailed == INSTANCE JointStabilityTheorems WITH T <- NotFailed
+JointSettled   == INSTANCE JointStabilityTheorems WITH T <- Settled
+JointRetained  == INSTANCE JointStabilityTheorems WITH T <- Retained
 
 
 (*****************************************************************************)
@@ -4650,7 +4647,7 @@ LEMMA LemNoFailedProducersUnderQuiescence ==
         BY PTL
     <2>. QED
         BY <2>1, LemPredsPinned
-(* (c) The per-producer eventualities combine over P (FiniteStabilization). *)
+(* (c) The per-producer eventualities combine over P (JointStability). *)
 <1>5. \A x \in P : Retired(x)
     <2>. SUFFICES ASSUME NEW t \in P
                   PROVE  Retired(t)
@@ -4664,8 +4661,8 @@ LEMMA LemNoFailedProducersUnderQuiescence ==
     <2>. QED
         BY <1>4, <2>2, <2>3, PTL DEF Retired
 <1>6. (\A x \in P : Retired(x)) => <>[](P \subseteq NotFailed)
-    BY <1>4, FSTNotFailed!FST_RigidConjunction
-    DEF FSTNotFailed!IsFiniteSet, IsFiniteSet, Retired
+    BY <1>4, JointNotFailed!JointStability
+    DEF JointNotFailed!IsFiniteSet, IsFiniteSet, Retired
 <1>7. [](P \subseteq NotFailed /\ Preds = P
           => \A w \in Task : ~ (w \in Preds /\ w \in FailedTask))
     BY <1>2, <1>4
@@ -5021,8 +5018,8 @@ LEMMA LemSPRDischarge ==
         <3>. QED
             BY <3>3, <3>4, PTL DEF Kept
     <2>7. (\A x \in P : Kept(x)) => <>[](P \subseteq Retained)
-        BY <2>5, FSTRetained!FST_RigidConjunction
-        DEF FSTRetained!IsFiniteSet, IsFiniteSet, Kept
+        BY <2>5, JointRetained!JointStability
+        DEF JointRetained!IsFiniteSet, IsFiniteSet, Kept
     <2>8. [](/\ TypeOk /\ DependencyGraphCompliant /\ P \subseteq Retained /\ Out = Q
              => (SD => StrongProducerRetention(t)))
         BY <1>4, <2>4, PTL
@@ -5193,7 +5190,7 @@ LEMMA LemCompleteObjectsFires ==
 <1>7. PICK P \in SUBSET Task : IsFiniteSet(P) /\ <>[](Preds = P)
     BY <1>4, <1>5, LemPredsPinned
 (* (c) Every producer eventually leaves SUCCEEDED / DISCARDED for good; the
-   finite conjunction over P (FiniteStabilization) settles them all. *)
+   finite conjunction over P (JointStability) settles them all. *)
 <1>8. \A x \in P : Settle(x)
     <2>. SUFFICES ASSUME NEW t \in P
                   PROVE  Settle(t)
@@ -5207,7 +5204,7 @@ LEMMA LemCompleteObjectsFires ==
     <2>. QED
         BY <2>2, <2>3, PTL DEF Settle
 <1>9. (\A x \in P : Settle(x)) => <>[](P \subseteq Settled)
-    BY <1>7, FSTSettled!FST_RigidConjunction DEF FSTSettled!IsFiniteSet, IsFiniteSet, Settle
+    BY <1>7, JointSettled!JointStability DEF JointSettled!IsFiniteSet, IsFiniteSet, Settle
 (* (d) With every producer settled and none FAILED, the abstract guard
    collapses to the source branch, where CompleteObjects is enabled. *)
 <1>10. [](/\ P \subseteq Settled /\ Preds = P

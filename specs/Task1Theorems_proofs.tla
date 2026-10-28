@@ -179,13 +179,13 @@ THEOREM T1_EventualQuiescence == Spec => EventualQuiescence
 Settled == {t \in Task : ~ t \in AssignedTask /\ ~ t \in ProcessedTask}
 
 (**
- * Finite-stabilization arguments: the known tasks settle together (Conj) and
- * the registered set ranks the quiescent steps of a settled system (Desc).
+ * Finite-stabilization arguments: the known tasks settle together (Joint) and
+ * the registered set ranks the quiescent steps of a settled system (Stutter).
  *)
-Conj == INSTANCE FiniteStabilizationTheorems
-            WITH D <- Task, S <- Task \ UnknownTask, T <- Settled
-Desc == INSTANCE FiniteStabilizationTheorems
-            WITH D <- Task, S <- RegisteredTask, T <- vars
+Joint == INSTANCE FrozenJointStabilityTheorems
+            WITH S <- Task \ UnknownTask, T <- Settled
+Stutter == INSTANCE EventualStutteringTheorems
+            WITH S <- RegisteredTask, v <- vars
 
 LEMMA LemEventualTermination ==
     []TypeOk /\ []FiniteKnownTasks /\ [][Next]_vars /\ Fairness => EventualTermination
@@ -194,6 +194,10 @@ LEMMA LemEventualTermination ==
    where the spec quantifies over t. *)
 <1>. DEFINE Parked(t) == <>[](t \in Settled)
 <1>. HIDE DEF Parked
+(* The tasks, under the name FrozenJointStability binds its domain to: tlapm
+   matches its temporal conclusion at that name only. *)
+<1>. PICK D : D = Task
+    OBVIOUS
 (* (a) Every task parks: assigned infinitely often it would be processed, and a
    processed task is finalized, permanently and exclusively. *)
 <1>1. []TypeOk /\ [][Next]_vars /\ Fairness => \A x \in Task : Parked(x)
@@ -224,9 +228,9 @@ LEMMA LemEventualTermination ==
 <1>3. /\ <>[]IsFiniteSet(Task \ UnknownTask)
       /\ <>[][FALSE]_(Task \ UnknownTask)
       /\ \A x \in Task : Parked(x)
-      => <>[]((Task \ UnknownTask) \cap Task \subseteq Settled)
-    BY Conj!FST_Conjunction DEF Conj!IsFiniteSet, IsFiniteSet, Parked
-<1>4. (Task \ UnknownTask) \cap Task \subseteq Settled
+      => <>[]((Task \ UnknownTask) \cap D \subseteq Settled)
+    BY Joint!FrozenJointStability DEF Joint!IsFiniteSet, IsFiniteSet, Parked
+<1>4. (Task \ UnknownTask) \cap D \subseteq Settled
       => AssignedTask = {} /\ ProcessedTask = {}
     BY DEF AssignedTask, ProcessedTask, Settled, UnknownTask
 (* (d) In a settled system, a quiescent step can only stage registered tasks: the
@@ -244,7 +248,7 @@ LEMMA LemEventualTermination ==
       /\ <>[][RegisteredTask' \subseteq RegisteredTask]_RegisteredTask
       /\ <>[][RegisteredTask' # RegisteredTask]_vars
       => <>[][FALSE]_vars
-    BY Desc!FST_Descent DEF Desc!IsFiniteSet, IsFiniteSet
+    BY Stutter!EventualStuttering DEF Stutter!IsFiniteSet, IsFiniteSet
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, PTL DEF EventualTermination
 

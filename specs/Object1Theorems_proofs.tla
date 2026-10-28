@@ -133,18 +133,22 @@ Settled == {o \in Object : o \in objectTargets => o \in FinalizedObject}
 
 (**
  * FINITE STABILIZATION ARGUMENTS
- * Conj: finitely many known objects that each eventually settle forever
- *       eventually settle jointly.
- * Desc: the registered objects, finite and never growing under user
- *       quiescence, rank the non-stuttering steps in a well-founded order.
+ * Joint:   finitely many known objects that each eventually settle forever
+ *          eventually settle jointly.
+ * Stutter: the registered objects, finite and never growing under user
+ *          quiescence, rank the non-stuttering steps in a well-founded order.
  *)
-Conj == INSTANCE FiniteStabilizationTheorems
-            WITH D <- Object, S <- Object \ UnknownObject, T <- Settled
-Desc == INSTANCE FiniteStabilizationTheorems
-            WITH D <- Object, S <- RegisteredObject, T <- vars
+Joint == INSTANCE FrozenJointStabilityTheorems
+            WITH S <- Object \ UnknownObject, T <- Settled
+Stutter == INSTANCE EventualStutteringTheorems
+            WITH S <- RegisteredObject, v <- vars
 
 LEMMA LemEventualTermination ==
     []ObjectSafetyInv /\ [][Next]_vars /\ Fairness => EventualTermination
+(* The objects, under the name FrozenJointStability binds its domain to: tlapm
+   matches its temporal conclusion at that name only. *)
+<1>. PICK D : D = Object
+    OBVIOUS
 (* (a) A quiescent step only finalizes registered objects: it freezes the known
        objects and the targets, and shrinks the registered objects unless it
        stutters. *)
@@ -187,9 +191,9 @@ LEMMA LemEventualTermination ==
 <1>3. /\ <>[]IsFiniteSet(Object \ UnknownObject)
       /\ <>[][FALSE]_(Object \ UnknownObject)
       /\ \A x \in Object : <>[](x \in Settled)
-      => <>[]((Object \ UnknownObject) \cap Object \subseteq Settled)
-    BY Conj!FST_Conjunction DEF Conj!IsFiniteSet, IsFiniteSet
-<1>4. ObjectSafetyInv /\ (Object \ UnknownObject) \cap Object \subseteq Settled
+      => <>[]((Object \ UnknownObject) \cap D \subseteq Settled)
+    BY Joint!FrozenJointStability DEF Joint!IsFiniteSet, IsFiniteSet
+<1>4. ObjectSafetyInv /\ (Object \ UnknownObject) \cap D \subseteq Settled
         => objectTargets \subseteq FinalizedObject
     BY DEF ObjectSafetyInv, Settled, TargetValidity, TypeOk
 (* (d) Registered objects are known, hence finitely many; each non-stuttering
@@ -200,7 +204,7 @@ LEMMA LemEventualTermination ==
       /\ <>[][RegisteredObject' \subseteq RegisteredObject]_RegisteredObject
       /\ <>[][RegisteredObject' # RegisteredObject]_vars
       => <>[][FALSE]_vars
-    BY Desc!FST_Descent DEF Desc!IsFiniteSet, IsFiniteSet
+    BY Stutter!EventualStuttering DEF Stutter!IsFiniteSet, IsFiniteSet
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, PTL DEF EventualTermination
 
