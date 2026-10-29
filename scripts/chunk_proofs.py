@@ -1,7 +1,7 @@
 """chunk_proofs: the tlapm runs that check a proof module, as line ranges.
 
 A `<X>Theorems_proofs.tla` is checked by one tlapm run -- unless it is too large
-for one. GraphProcessing2, and the GraphProcessing3/4 to come, exceed what a CI
+for one. Graph2, and the Graph3/4 to come, exceed what a CI
 job can carry with the upstream prover: the runner kills the process long before
 the last obligation. tlapm's `--toolbox <begin> <end>` mode restricts proving to
 the obligations of the proof steps located within those lines, so such a module
@@ -38,12 +38,12 @@ obligations, same exit code.
 The two numbers are far apart because a leaf directive costs the upstream prover
 about ten times more on the INSTANCE-heavy modules -- exactly the ones that need
 splitting -- than on those that fit. The budget sits below the smallest module
-seen not to fit one run: GraphProcessing3, ~550 directives, instantiates
-GraphProcessing2 under a substitution and proves some 3 obligations per minute
-with the upstream prover, about nine hours whole (GraphProcessing2, ~1900, does
-not fit either). The modules between the budget and GraphProcessing1 (~800,
+seen not to fit one run: Graph3, ~550 directives, instantiates
+Graph2 under a substitution and proves some 3 obligations per minute
+with the upstream prover, about nine hours whole (Graph2, ~1900, does
+not fit either). The modules between the budget and Graph1 (~800,
 seen to pass whole) are split as well, for a few more runners. At the measured
-4.4 obligations per minute on GraphProcessing2, a range of fifty directives is
+4.4 obligations per minute on Graph2, a range of fifty directives is
 about 35 minutes of proving. Lower `--max-steps` when a
 range runs out of time, raise it to spend fewer runners; lower `--budget` when a
 whole-file run does.
@@ -61,7 +61,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from .naming import SPECS_DIR, proof_modules
+from .naming import MODULE_DIRS, proof_modules
 
 # A top-level statement of a proof module: no indentation, since a nested step is
 # numbered (<3>1.) and never starts a line with one of these keywords.
@@ -99,7 +99,6 @@ class Chunk:
             "module": self.module,
             "begin": self.begin,
             "end": self.end,
-            "steps": self.steps,
             "name": self.name,
         }
 
@@ -239,10 +238,15 @@ def main() -> int:
         "proofs",
         type=Path,
         nargs="*",
-        help="the *_proofs.tla modules to plan (default: every one under --specs)",
+        help="the *_proofs.tla modules to plan (default: every one under the --dir directories)",
     )
     parser.add_argument(
-        "--specs", type=Path, default=Path(SPECS_DIR), help="directory containing the .tla modules"
+        "--dir",
+        dest="dirs",
+        action="append",
+        type=Path,
+        metavar="DIR",
+        help=f"directory containing .tla modules (repeatable; default: {' '.join(MODULE_DIRS)})",
     )
     parser.add_argument(
         "--budget",
@@ -264,7 +268,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.max_steps > args.budget:
         parser.error("--max-steps must not exceed --budget: a range is a run too")
-    paths = args.proofs or [args.specs / f"{module}.tla" for module in proof_modules(args.specs)]
+    dirs = args.dirs or [Path(directory) for directory in MODULE_DIRS]
+    paths = args.proofs or proof_modules(*dirs)
 
     plans: list[Plan] = []
     for path in paths:

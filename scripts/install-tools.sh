@@ -90,11 +90,11 @@ need() {
 need curl  "install curl"
 need tar   "install tar"
 
-# Java runs SANY, TLC and the specs/*.java overrides; tlapm itself is a native
+# Java runs SANY, TLC and the lib/*.java overrides; tlapm itself is a native
 # binary, so an --only-tlapm-opt install needs no JDK at all.
 if (( WANT_BASE )); then
     need java  "install a JDK >= 17 (e.g. 'sudo apt install default-jdk')"
-    need javac "install a JDK >= 17 (you have a JRE without javac); needed to build specs/DDGraphs.java"
+    need javac "install a JDK >= 17 (you have a JRE without javac); needed to build lib/DDGraphs.java"
     need git   "install git"
     JAVA_MAJOR="$(java -version 2>&1 | awk -F[\".] '/version/ {print $2; exit}')"
     [[ "${JAVA_MAJOR:-0}" -ge 17 ]] || die "JDK >= 17 required (found ${JAVA_MAJOR:-?}); update java/javac."

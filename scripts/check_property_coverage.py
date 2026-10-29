@@ -7,7 +7,7 @@ the companion <Spec>Theorems.tla interface as a theorem
     <Short>_<P> == Spec => []<P>    (safety invariant, box outside)
     <Short>_<P> == Spec => <P>      (temporal property, box inside <P>)
 
-where <Short> abbreviates the module name (GraphProcessing1 -> GP1). That the
+where <Short> abbreviates the module name (Graph1 -> G1). That the
 theorem is *proven* is enforced by tlapm on the proof file; that the proof file
 restates the interface verbatim is enforced by check_thm_interface.
 """

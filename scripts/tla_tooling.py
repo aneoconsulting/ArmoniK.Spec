@@ -152,6 +152,27 @@ def theorems(path: Path) -> dict[str, Theorem]:
     return result
 
 
+def declarations(path: Path) -> dict[str, str]:
+    """The CONSTANT / VARIABLE declarations of a module, name -> keyword, in source order.
+
+    An operator constant keeps its arity in the name, as declared (`Op(_, _)`),
+    so that a proof module declaring a different signature is caught too."""
+    src, module = parse(path)
+    found: dict[str, str] = {}
+    for child in module.children:
+        if child.type == "constant_declaration":
+            keyword = "CONSTANT"
+        elif child.type == "variable_declaration":
+            keyword = "VARIABLE"
+        else:
+            continue
+        for node in child.named_children:
+            if node.type in _COMMENT_TYPES:
+                continue
+            found[_norm(_text(src, node))] = keyword
+    return found
+
+
 def _is_properties_banner(body: str) -> bool:
     words = re.sub(r"[^A-Za-z]+", " ", body).split()
     return " ".join(words).upper() == _PROPERTIES_BANNER
@@ -190,7 +211,7 @@ def properties(path: Path) -> list[str]:
 def short_name(module_name: str) -> str:
     """Abbreviate a spec module name: CamelCase initials + trailing digits.
 
-    TaskProcessing2 -> TP2, GraphProcessing1 -> GP1, SessionProcessing1 -> SP1."""
+    Task2 -> T2, Graph1 -> G1, Session1 -> S1."""
     initials = "".join(w[0] for w in re.findall(r"[A-Z][a-z]*", module_name))
     digits = re.search(r"\d+$", module_name)
     return initials + (digits.group() if digits else "")

@@ -44,12 +44,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .check_state_space import REFERENCE
-from .naming import kind_of, scope_of, scopes, scopes_of
+from .naming import MODULE_DIRS, kind_of, scope_of, scopes, scopes_of
 
 HEADER = re.compile(
     r"^(?P<type>[a-z]+)(?:\((?P<scope>[^()]*)\))?(?P<breaking>!)?: (?P<description>.*)$"
 )
-# Types whose scope must name a module of specs/; the others take a free scope.
+# Types whose scope must name a module of specs/ or lib/; the others take a free scope.
 MODULE_TYPES = ("spec", "lib", "proof", "model", "test")
 FREE_TYPES = ("tooling", "ci", "ai", "docs", "chore")
 TYPES = MODULE_TYPES + FREE_TYPES
@@ -163,7 +163,8 @@ def check_header(header: str, known_scopes: set[str] | None = None) -> list[str]
         if known_scopes is not None and parsed.scope not in known_scopes:
             errors.append(
                 f"unknown module {parsed.scope!r}; scopes are the modules of specs/, "
-                "their Theorems, _proofs, _mc and Tests suffixes dropped"
+                "lib/ and lib/temporal/, their Theorems, _proofs, _mc and Tests suffixes "
+                "dropped"
             )
     elif parsed.scope is not None and not FREE_SCOPE.match(parsed.scope):
         errors.append(f"scope {parsed.scope!r} must be lowercase and hyphenated")
@@ -269,7 +270,7 @@ def check_atomicity(header: Header, paths: list[str], changes: dict[str, list[st
         return [f"the commit changes no file, so nothing supports its {header.type} type"]
 
     # Exception 2: a mechanical rename or signature propagation crosses modules
-    # and kinds, but only within the specs -- never into tooling, ci or docs.
+    # and kinds, but only within the modules -- never into tooling, ci or docs.
     propagation = header.breaking and header.type in MODULE_TYPES
 
     errors: list[str] = []
@@ -350,9 +351,11 @@ def _is_merge(sha: str) -> bool:
     return len(_git("rev-list", "--parents", "-n", "1", sha).split()) > 2
 
 
-def _tree_scopes(sha: str, specs_dir: Path) -> set[str]:
-    """The scopes the modules of `specs_dir` define at the commit `sha`."""
-    listing = _git("ls-tree", "-r", "-z", "--name-only", "--end-of-options", sha, "--", str(specs_dir))
+def _tree_scopes(sha: str, dirs: list[Path]) -> set[str]:
+    """The scopes the modules of the directories `dirs` define at the commit `sha`."""
+    listing = _git(
+        "ls-tree", "-r", "-z", "--name-only", "--end-of-options", sha, "--", *map(str, dirs)
+    )
     return scopes_of(path for path in listing.split("\0") if path)
 
 
@@ -375,7 +378,7 @@ def _changed_lines(sha: str, path: str) -> list[str]:
     return changes
 
 
-def check_range(rev_range: str, specs_dir: Path) -> int:
+def check_range(rev_range: str, dirs: list[Path]) -> int:
     """Check every commit of `rev_range`, reporting to stdout and stderr."""
     failed = 0
     shas = _commits(rev_range)
@@ -395,7 +398,7 @@ def check_range(rev_range: str, specs_dir: Path) -> int:
         paths = _paths(sha)
         # A commit may remove or rename a module, so its own paths extend the
         # vocabulary its tree defines.
-        known = _tree_scopes(sha, specs_dir) | scopes_of(paths)
+        known = _tree_scopes(sha, dirs) | scopes_of(paths)
         errors = check_message(message, known)
         parsed = parse_header(subject)
         if parsed is not None and parsed.type in TYPES:
@@ -414,14 +417,14 @@ def check_range(rev_range: str, specs_dir: Path) -> int:
     return failed
 
 
-def check_title(title: str, specs_dir: Path, scopes_from: str | None) -> int:
+def check_title(title: str, dirs: list[Path], scopes_from: str | None) -> int:
     """Check the pull-request title `title` against the header rules."""
     if scopes_from is None:
-        known = scopes(specs_dir)
+        known = scopes(*dirs)
     else:
         # The title may name a module the series removes, so take the vocabulary
         # from the tip of the range and from everything the series touches.
-        known = _tree_scopes(scopes_from.rsplit("..", 1)[-1], specs_dir)
+        known = _tree_scopes(scopes_from.rsplit("..", 1)[-1], dirs)
         for sha in _commits(scopes_from):
             known |= scopes_of(_paths(sha))
 
@@ -451,9 +454,15 @@ def main() -> int:
         "from the working tree, so the title may name a module the series removes",
     )
     parser.add_argument(
-        "--specs", type=Path, default=Path("specs"), help="directory containing the .tla modules"
+        "--dir",
+        dest="dirs",
+        action="append",
+        type=Path,
+        metavar="DIR",
+        help=f"directory containing .tla modules (repeatable; default: {' '.join(MODULE_DIRS)})",
     )
     args = parser.parse_args()
+    dirs = args.dirs or [Path(directory) for directory in MODULE_DIRS]
 
     # One verdict per run: a bad title and a badly split commit are separate
     # things to fix, and a single exit code cannot report both.
@@ -466,13 +475,14 @@ def main() -> int:
     for option, value in (("--range", args.range), ("--scopes-from", args.scopes_from)):
         if value is not None and not RANGE.fullmatch(value):
             parser.error(f"{option} takes a range, not {value!r}; write <base>..<head>")
-    if not args.specs.is_dir():
-        parser.error(f"{args.specs}: no such directory")
+    for directory in dirs:
+        if not directory.is_dir():
+            parser.error(f"{directory}: no such directory")
 
     try:
         if args.title is not None:
-            return check_title(args.title, args.specs, args.scopes_from)
-        failed = check_range(args.range, args.specs)
+            return check_title(args.title, dirs, args.scopes_from)
+        failed = check_range(args.range, dirs)
     except subprocess.CalledProcessError as exc:  # unknown range, not a repository
         print(exc.stderr.strip(), file=sys.stderr)
         return 1

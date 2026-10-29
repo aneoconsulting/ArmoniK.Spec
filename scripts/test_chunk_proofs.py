@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from .chunk_proofs import plan, statements, strip_comments, tiles
+from .naming import MODULE_DIRS
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -108,7 +109,9 @@ def test_tiles_reports_a_gap(probe: Path):
 
 
 @pytest.mark.parametrize(
-    "proofs", sorted((REPO_ROOT / "specs").glob("*_proofs.tla")), ids=lambda path: path.stem
+    "proofs",
+    sorted(path for directory in MODULE_DIRS for path in (REPO_ROOT / directory).glob("*_proofs.tla")),
+    ids=lambda path: path.stem,
 )
 def test_the_repository_proof_modules_tile(proofs: Path):
     assert tiles(plan(proofs).chunks, proofs) is None
