@@ -16,21 +16,21 @@ from scripts.check_commit import (
 # The scopes the worked examples of .docs/conventions.md name; kept explicit so
 # the table below does not depend on the current content of specs/.
 EXAMPLE_SCOPES = {
-    "ObjectProcessing3",
+    "Object3",
     "DiGraphs",
-    "TaskProcessing2",
+    "Task2",
     "DDGraphs",
-    "GraphProcessing1",
+    "Graph1",
 }
 
 # The worked examples of .docs/conventions.md, verbatim: the document and the
 # checker must accept the same headers.
 CONVENTIONS_EXAMPLES = [
-    "spec(ObjectProcessing3): add PurgeObjects action and OBJECT_PURGED status",
+    "spec(Object3): add PurgeObjects action and OBJECT_PURGED status",
     "lib(DiGraphs): fix empty-node-set conjunct of DG_EmptyGraphProperties",
-    "proof(TaskProcessing2): prove TP2_TypeInvariant and 12 supporting lemmas",
+    "proof(Task2): prove T2_TypeInvariant and 12 supporting lemmas",
     "proof(DDGraphs): weaken hypotheses of DDG_OpenPathInAncestorSubGraph",
-    "model(GraphProcessing1): check GP1_RefineObjectProcessing1 on two tasks",
+    "model(Graph1): check G1_RefineObject1 on two tasks",
     "test(DiGraphs): add assertions for the reachability operators",
     "tooling(scripts): check state-space statistics against the model configs",
     "ci: cache the TLA+ toolchain, keyed by install-tools.sh",
@@ -46,20 +46,20 @@ def test_conventions_examples_pass(header):
 @pytest.mark.parametrize(
     ("message", "expected"),
     [
-        ("spec(TaskProcessing2): added an action", "use the imperative 'add'"),
+        ("spec(Task2): added an action", "use the imperative 'add'"),
         ("docs: updated the intro", "use the imperative 'update'"),  # free types too
-        ("spec(TaskProcessing2): Add an action", "opens with 'Add'"),
-        ("spec(TaskProcessing2): clarify the intro", "opens with 'clarify'"),  # closed list
+        ("spec(Task2): Add an action", "opens with 'Add'"),
+        ("spec(Task2): clarify the intro", "opens with 'clarify'"),  # closed list
         ("docs: 3rd rewrite of the intro", "lowercase imperative verb"),
         ("spec: add an action", "scope is mandatory"),
         ("spec(): add an action", "empty scope"),
         ("spec(NoSuchModule): add an action", "unknown module"),
         ("tooling(Bad_Scope): fix the check", "lowercase and hyphenated"),
         ("ai(TlapsProof): fix the skill", "lowercase and hyphenated"),
-        ("feat(TaskProcessing2): add an action", "unknown type"),
-        ("spec(TaskProcessing2): add an action.", "must not end with a period"),
+        ("feat(Task2): add an action", "unknown type"),
+        ("spec(Task2): add an action.", "must not end with a period"),
         ("no header at all", "<type>[(<scope>)][!]: <verb> <what>"),
-        ("proof(TaskProcessing2)!: rename TP2_Foo to TP2_Bar", "needs a body"),
+        ("proof(Task2)!: rename T2_Foo to T2_Bar", "needs a body"),
     ],
 )
 def test_check_message_rejects(message, expected):
@@ -74,7 +74,7 @@ def test_free_type_accepts_any_imperative():
 def test_comment_lines_are_not_a_body():
     """`git commit` strips #-lines from edited messages, so the checker must not
     let them satisfy a body requirement -- a body of comments is no body."""
-    message = "proof(TaskProcessing2)!: rename TP2_Foo to TP2_Bar\n\n# not a body\n"
+    message = "proof(Task2)!: rename T2_Foo to T2_Bar\n\n# not a body\n"
     errors = check_message(message, EXAMPLE_SCOPES)
     assert any("needs a body" in error for error in errors)
 
@@ -97,30 +97,65 @@ STATE_SPACE_LINE = "\\* state-space: states=10 distinct=5 depth=3"
 
 
 def test_atomicity_state_space_exception():
-    header = Header(type="spec", scope="TaskProcessing2", breaking=False, description="add x")
-    paths = ["specs/TaskProcessing2.tla", "specs/TaskProcessing2_mc.cfg"]
-    reference_only = {"specs/TaskProcessing2_mc.cfg": [STATE_SPACE_LINE, STATE_SPACE_LINE]}
+    header = Header(type="spec", scope="Task2", breaking=False, description="add x")
+    paths = ["specs/Task2.tla", "specs/Task2_mc.cfg"]
+    reference_only = {"specs/Task2_mc.cfg": [STATE_SPACE_LINE, STATE_SPACE_LINE]}
     assert check_atomicity(header, paths, reference_only) == []
 
-    riding_along = {"specs/TaskProcessing2_mc.cfg": [STATE_SPACE_LINE, "INVARIANT Foo"]}
+    riding_along = {"specs/Task2_mc.cfg": [STATE_SPACE_LINE, "INVARIANT Foo"]}
     errors = check_atomicity(header, paths, riding_along)
     assert any("model change in a spec commit" in error for error in errors)
 
 
 def test_atomicity_rejects_foreign_kinds_and_scopes():
-    header = Header(type="spec", scope="TaskProcessing2", breaking=False, description="add x")
+    header = Header(type="spec", scope="Task2", breaking=False, description="add x")
     errors = check_atomicity(header, ["scripts/naming.py"], {})
     assert any("tooling change in a spec commit" in error for error in errors)
 
-    errors = check_atomicity(header, ["specs/TaskProcessing3.tla"], {})
-    assert any("belongs to TaskProcessing3" in error for error in errors)
+    errors = check_atomicity(header, ["specs/Task3.tla"], {})
+    assert any("belongs to Task3" in error for error in errors)
+
+    errors = check_atomicity(header, ["lib/DiGraphs.tla"], {})
+    assert any("lib change in a spec commit" in error for error in errors)
 
     header = Header(type="docs", scope=None, breaking=False, description="add x")
     errors = check_atomicity(header, [".claude/skills/tlaps-proof/SKILL.md"], {})
     assert any("an ai change in a docs commit" in error for error in errors)
 
-    header = Header(type="spec", scope="TaskProcessing2", breaking=False, description="add x")
+    header = Header(type="spec", scope="Task2", breaking=False, description="add x")
     assert check_atomicity(header, [], {}) == ["the commit changes no file, so nothing supports its spec type"]
+
+
+def test_atomicity_accepts_a_temporal_theorem_with_its_proof():
+    header = Header(type="proof", scope="EventualStuttering", breaking=False, description="prove x")
+    pair = ["lib/temporal/EventualStutteringTheorems.tla", "lib/temporal/EventualStutteringTheorems_proofs.tla"]
+    assert check_atomicity(header, pair, {}) == []
+
+    errors = check_atomicity(header, ["lib/temporal/EventualConstancyTheorems.tla"], {})
+    assert any("belongs to EventualConstancy" in error for error in errors)
+
+
+def test_atomicity_accepts_a_library_with_its_override_and_tests_apart():
+    header = Header(type="lib", scope="DDGraphs", breaking=False, description="add x")
+    assert check_atomicity(header, ["lib/DDGraphs.tla", "lib/DDGraphs.java"], {}) == []
+
+    errors = check_atomicity(header, ["lib/DDGraphsTests.tla"], {})
+    assert any("test change in a lib commit" in error for error in errors)
+
+
+def test_atomicity_accepts_the_move_of_the_libraries_as_a_breaking_lib_commit():
+    """git reports both sides of a rename: the source under specs/ keeps its kind."""
+    header = Header(type="lib", scope=None, breaking=True, description="move x")
+    moved = [
+        "specs/DiGraphs.tla", "lib/DiGraphs.tla",
+        "specs/DDGraphs.java", "lib/DDGraphs.java",
+        "specs/DiGraphTheorems_proofs.tla", "lib/DiGraphTheorems_proofs.tla",
+        "specs/DDGraphsTests.cfg", "lib/DDGraphsTests.cfg",
+    ]
+    assert check_atomicity(header, moved, {}) == []
+    # Omitting the scope is for a change spanning several modules only.
+    one = ["specs/DiGraphs.tla", "lib/DiGraphs.tla"]
+    assert any("scope is mandatory" in error for error in check_atomicity(header, one, {}))
 
 
 def _git(cwd, *args):

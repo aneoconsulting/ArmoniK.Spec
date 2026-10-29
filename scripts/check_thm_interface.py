@@ -6,6 +6,11 @@ identical statements and an identical shared comment (the text above a `----`
 separator line inside the comment; proof-specific notes below the separator
 are free).
 
+An interface that declares CONSTANTs and VARIABLEs of its own -- a temporal
+theorem of lib/temporal/, stated over them -- shares them with its proof file,
+which is a copy of the interface with the proof added: the declarations must
+agree too, name for name, or the proof would discharge a different statement.
+
 That every interface has a proof file at all (and vice versa) is enforced
 repo-wide by check_proof_pairing.
 """
@@ -24,8 +29,17 @@ def check_consistency(interface: Path) -> list[str]:
     if not proof.is_file():
         return [f"missing proof file {proof.name}"]
 
+    errors: list[str] = []
+    declared_names, proved_names = tla.declarations(interface), tla.declarations(proof)
+    for name in sorted(declared_names.keys() | proved_names.keys()):
+        if declared_names.get(name) != proved_names.get(name):
+            errors.append(
+                f"{name}: declared as {declared_names.get(name, 'nothing')} in the interface, "
+                f"as {proved_names.get(name, 'nothing')} in {proof.name}"
+            )
+
     declared, proved = tla.theorems(interface), tla.theorems(proof)
-    errors = [
+    errors += [
         f"{name}: declared in the interface but absent from {proof.name}"
         for name in sorted(declared.keys() - proved.keys())
     ]

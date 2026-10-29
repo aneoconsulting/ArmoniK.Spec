@@ -37,6 +37,27 @@ LEMMA Other ==
     assert theorems["Other"].comment == ""
 
 
+def test_declarations_lists_constants_and_variables_in_order(tmp_path):
+    path = _module(
+        tmp_path,
+        "D",
+        """\
+CONSTANT
+    D,      \\* a domain
+    Op(_)
+VARIABLES S, T
+THEOREM X == TRUE
+""",
+    )
+    assert tla.declarations(path) == {
+        "D": "CONSTANT",
+        "Op(_)": "CONSTANT",
+        "S": "VARIABLE",
+        "T": "VARIABLE",
+    }
+    assert tla.declarations(_module(tmp_path, "E", "THEOREM X == TRUE\n")) == {}
+
+
 def test_theorems_refuses_an_unnamed_declaration(tmp_path):
     path = _module(tmp_path, "U", "THEOREM 1 + 1 = 2\n")
     with pytest.raises(ValueError, match="unnamed THEOREM/LEMMA"):
@@ -77,7 +98,7 @@ def test_properties_requires_the_banner(tmp_path):
 
 @pytest.mark.parametrize(
     ("module_name", "short"),
-    [("TaskProcessing2", "TP2"), ("GraphProcessing1", "GP1"), ("SessionProcessing1", "SP1"),
+    [("Task2", "T2"), ("Graph1", "G1"), ("Session1", "S1"),
      ("DDGraphs", "DDG")],
 )
 def test_short_name(module_name, short):
