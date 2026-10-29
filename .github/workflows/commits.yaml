@@ -1,0 +1,79 @@
+name: Commits
+
+# Checks that every commit the event introduces -- and, on a pull request, its
+# title -- follows the convention of .docs/conventions.md. Apart from CI so that
+# a retitle (`edited`) re-runs this check alone.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  commits:
+    name: Commit convention
+    runs-on: ubuntu-latest
+    steps:
+      # The whole history: the range to check spans commits the event pushed,
+      # which a shallow clone does not contain.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # Only the commits the event introduces -- the history predating the
+      # convention is never re-validated. A branch creation has no base, and a
+      # force-push leaves a base that is no longer in the repository: neither
+      # says which commits are new, so there is nothing to check.
+      - id: range
+        name: Resolve the range
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$BASE" == 0000000000000000000000000000000000000000 ]]; then
+            echo "branch creation: no range to check"
+            exit 0
+          fi
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "base $BASE is not in the repository (force-push?): no range to check"
+            exit 0
+          fi
+          # Anything else means the checkout did not bring what the event
+          # describes. Say so: a range that quietly checks nothing is worse than
+          # a red job.
+          if ! git cat-file -e "$HEAD^{commit}" 2>/dev/null; then
+            echo "::error::head $HEAD is not in the repository; the checkout is incomplete"
+            exit 1
+          fi
+          # From the merge base, so a stale base cannot drag foreign commits in.
+          if ! base=$(git merge-base "$BASE" "$HEAD"); then
+            echo "::error::no merge base between $BASE and $HEAD; refusing to check nothing"
+            exit 1
+          fi
+          echo "range=$base..$HEAD" >> "$GITHUB_OUTPUT"
+
+      - name: Check the commits
+        if: steps.range.outputs.range != ''
+        env:
+          RANGE: ${{ steps.range.outputs.range }}
+        run: python3 -m scripts.check_commit --range "$RANGE"
+
+      # Never masked by a failure above: a red title and a red commit are two
+      # separate things to fix, so this step checks the title alone. The title is
+      # untrusted input, hence passed through the environment, and as --title=...
+      # so that a leading dash is not read as an option. The range, when known,
+      # only widens the module vocabulary, so that the title may name a module the
+      # series removes.
+      - name: Check the pull-request title
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          RANGE: ${{ steps.range.outputs.range }}
+        run: |
+          set -euo pipefail
+          python3 -m scripts.check_commit ${RANGE:+--scopes-from "$RANGE"} --title="$TITLE"

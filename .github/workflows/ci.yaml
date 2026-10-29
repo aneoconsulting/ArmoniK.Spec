@@ -1,39 +1,37 @@
 name: CI
 
-# One `verify` job runs per specs/*.tla module; which checks it performs is
-# decided by the module's kind, as scripts/naming.py defines it (the "Classify"
-# step asks that module, so the vocabulary is stated exactly once):
-#   1. SANY parsing                  every module
-#   2. Property coverage             real specifications
-#   3. TLC model checking            modules with a companion .cfg file
-#      + state-space statistics vs the `\* state-space:` reference in the .cfg
-#   4. Interface consistency         theorem interfaces (*Theorems)
-# The proofs (*_proofs) are checked by the `proofs` jobs, one tlapm run per line
-# range that scripts/chunk_proofs.py plans. A module that fits the budget of one
-# run is one range, the whole file -- every module but the largest. Those do not
-# fit a runner's budget with the upstream prover, so the planner splits them at
-# top-level statements into ranges it can carry, and `proofs-optimized` checks
-# each of them whole with the optimized tlapm build (scripts/install-tools.sh)
-# besides. The ranges tile a module and never cut a proof in two, and `--strict`
-# reports only the range it is given, so the jobs of a split module are together
-# exactly as strict as one run over it.
-# The `pairing` job additionally enforces repo-wide that theorem interfaces
-# and proof files come in <X>Theorems.tla / <X>Theorems_proofs.tla pairs and
-# that every model or test module keeps its .cfg; the `tests` job runs the
-# test suite of the scripts/ checkers themselves; and the `commits` job checks
-# that every commit the event introduces -- and, on a pull request, its title
-# -- follows the convention of .docs/conventions.md.
+# One `verify` job runs per module of specs/, lib/ and lib/temporal/; the
+# module's kind, as scripts/naming.py defines it, decides which checks it runs:
+# SANY for every module, property coverage for the specifications, TLC and its
+# state-space statistics for a module with a .cfg, interface consistency for a
+# theorem interface. The `proofs` jobs run tlapm over the ranges that
+# scripts/chunk_proofs.py plans, and `proofs-optimized` checks the modules it
+# splits whole with the optimized tlapm build. The `pairing` job checks that
+# interfaces, proofs and configs come in pairs, and `tests` tests the scripts/
+# checkers. The TLA+ tools run through the Makefile's single-module targets, as
+# they do locally.
+#
+# The `tools` job alone installs the toolchain and saves it to the cache; the
+# other jobs only restore it.
 
 on:
-  # `edited` too: a pull-request title is checked here, so a retitle must re-run.
   pull_request:
-    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
+
+# A new push supersedes the run of the previous one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 # Every job only reads the repository.
 permissions:
   contents: read
+
+# Named explicitly, bash runs with -e and pipefail.
+defaults:
+  run:
+    shell: bash
 
 jobs:
   discover:
@@ -41,94 +39,75 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       specs: ${{ steps.list.outputs.specs }}
-      proofs: ${{ steps.proofs.outputs.plan }}
+      chunks: ${{ steps.proofs.outputs.chunks }}
+      split: ${{ steps.proofs.outputs.split }}
     steps:
       - uses: actions/checkout@v5
 
+      # A name that cannot be a TLA+ module never reaches a shell downstream.
       - id: list
-        name: List specs/*.tla modules
+        name: List the modules of specs/, lib/ and lib/temporal/
         run: |
-          set -euo pipefail
-          # A name that cannot be a TLA+ module never reaches a shell downstream.
-          specs=$(basename -s .tla specs/*.tla \
-            | grep -v '_TTrace_' | grep -xE '[A-Za-z][A-Za-z0-9_]*' | jq -R . | jq -sc .)
-          echo "specs=$specs"
-          echo "specs=$specs" >> "$GITHUB_OUTPUT"
+          specs=$(basename -s .tla specs/*.tla lib/*.tla lib/temporal/*.tla \
+            | grep -v '_TTrace_' | grep -xE '[A-Za-z][A-Za-z0-9_]*' \
+            | jq -Rsc 'split("\n") | map(select(. != ""))')
+          echo "specs=$specs" | tee -a "$GITHUB_OUTPUT"
 
-      # The plan is the ranges of every proof module (matrix of `proofs`) and the
-      # modules split into several (matrix of `proofs-optimized`). The planner
-      # refuses to print ranges that leave a line of a module uncovered, so a
-      # green matrix cannot mean a partially checked file.
+      # The ranges of every proof module, and the modules split into several.
       - id: proofs
         name: Plan the proof checks
         run: |
-          set -euo pipefail
-          python3 -m scripts.chunk_proofs
-          echo "plan=$(python3 -m scripts.chunk_proofs --json)" >> "$GITHUB_OUTPUT"
+          plan=$(python3 -m scripts.chunk_proofs --json)
+          echo "chunks=$(jq -c .chunks <<<"$plan")" | tee -a "$GITHUB_OUTPUT"
+          echo "split=$(jq -c .split <<<"$plan")" | tee -a "$GITHUB_OUTPUT"
 
-  commits:
-    name: Commit convention
+  # The cache of .tlatools is saved before the optimized tlapm is installed into
+  # it, so that it leaves the latter out: only proofs-optimized needs it.
+  tools:
+    name: Install the TLA+ tools
     runs-on: ubuntu-latest
+    outputs:
+      base: ${{ steps.base.outputs.cache-primary-key }}
+      opt: ${{ steps.opt.outputs.cache-primary-key }}
     steps:
-      # The whole history: the range to check spans commits the event pushed,
-      # which a shallow clone does not contain.
       - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
         with:
-          fetch-depth: 0
+          java-version: '17'
+          distribution: 'temurin'
 
-      # Only the commits the event introduces -- the history predating the
-      # convention is never re-validated. A branch creation has no base, and a
-      # force-push leaves a base that is no longer in the repository: neither
-      # says which commits are new, so there is nothing to check.
-      - id: range
-        name: Resolve the range
-        env:
-          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          set -euo pipefail
-          if [[ "$BASE" == 0000000000000000000000000000000000000000 ]]; then
-            echo "branch creation: no range to check"
-            exit 0
-          fi
-          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
-            echo "base $BASE is not in the repository (force-push?): no range to check"
-            exit 0
-          fi
-          # Anything else means the checkout did not bring what the event
-          # describes. Say so: a range that quietly checks nothing is worse than
-          # a red job.
-          if ! git cat-file -e "$HEAD^{commit}" 2>/dev/null; then
-            echo "::error::head $HEAD is not in the repository; the checkout is incomplete"
-            exit 1
-          fi
-          # From the merge base, so a stale base cannot drag foreign commits in.
-          if ! base=$(git merge-base "$BASE" "$HEAD"); then
-            echo "::error::no merge base between $BASE and $HEAD; refusing to check nothing"
-            exit 1
-          fi
-          echo "range=$base..$HEAD" >> "$GITHUB_OUTPUT"
+      - id: base
+        uses: actions/cache/restore@v4
+        with:
+          path: .tlatools
+          key: tlatools-${{ runner.os }}-${{ hashFiles('scripts/install-tools.sh') }}
+          lookup-only: true
 
-      - name: Check the commits
-        if: steps.range.outputs.range != ''
-        env:
-          RANGE: ${{ steps.range.outputs.range }}
-        run: python3 -m scripts.check_commit --range "$RANGE"
+      - if: steps.base.outputs.cache-hit != 'true'
+        run: ./scripts/install-tools.sh --no-tlapm-opt
 
-      # Never masked by a failure above: a red title and a red commit are two
-      # separate things to fix, so this step checks the title alone. The title is
-      # untrusted input, hence passed through the environment, and as --title=...
-      # so that a leading dash is not read as an option. The range, when known,
-      # only widens the module vocabulary, so that the title may name a module the
-      # series removes.
-      - name: Check the pull-request title
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-        env:
-          TITLE: ${{ github.event.pull_request.title }}
-          RANGE: ${{ steps.range.outputs.range }}
-        run: |
-          set -euo pipefail
-          python3 -m scripts.check_commit ${RANGE:+--scopes-from "$RANGE"} --title="$TITLE"
+      - if: steps.base.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .tlatools
+          key: ${{ steps.base.outputs.cache-primary-key }}
+
+      - id: opt
+        uses: actions/cache/restore@v4
+        with:
+          path: .tlatools/tlapm-opt
+          key: tlapm-opt-${{ runner.os }}-${{ hashFiles('scripts/install-tools.sh') }}
+          lookup-only: true
+
+      - if: steps.opt.outputs.cache-hit != 'true'
+        run: make install-tlapm-opt
+
+      - if: steps.opt.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .tlatools/tlapm-opt
+          key: ${{ steps.opt.outputs.cache-primary-key }}
 
   pairing:
     name: Interface / proof pairing
@@ -138,7 +117,7 @@ jobs:
 
       # Standard library only, like the commits job: no venv to build.
       - name: Check interface / proof / config pairing
-        run: python3 -m scripts.check_proof_pairing specs
+        run: python3 -m scripts.check_proof_pairing specs lib lib/temporal
 
   tests:
     name: Script tests
@@ -152,7 +131,7 @@ jobs:
 
   verify:
     name: ${{ matrix.spec }}
-    needs: discover
+    needs: [discover, tools]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -167,200 +146,107 @@ jobs:
         name: Classify ${{ matrix.spec }}
         env:
           SPEC: ${{ matrix.spec }}
-        run: |
-          set -euo pipefail
-          python3 -m scripts.naming "$SPEC" | tee -a "$GITHUB_OUTPUT"
+        run: python3 -m scripts.naming "$SPEC" | tee -a "$GITHUB_OUTPUT"
 
-      - name: Setup JDK
-        uses: actions/setup-java@v5
+      - uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Restore TLA+ tools cache
-        id: cache-tools
-        uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v4
         with:
           path: .tlatools
-          key: tlatools-${{ runner.os }}-${{ hashFiles('scripts/install-tools.sh') }}
-
-      # Without the optimized tlapm: 826 MB only the proofs-optimized jobs need,
-      # cached apart by them.
-      - name: Install TLA+ tools
-        if: steps.cache-tools.outputs.cache-hit != 'true'
-        run: ./scripts/install-tools.sh --no-tlapm-opt
-
-      # Save only after a successful install -- a failed download must never
-      # poison the cache with a partial .tlatools.
-      - name: Save TLA+ tools cache
-        if: steps.cache-tools.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: .tlatools
-          key: tlatools-${{ runner.os }}-${{ hashFiles('scripts/install-tools.sh') }}
+          key: ${{ needs.tools.outputs.base }}
+          fail-on-cache-miss: true
 
       - name: Set up Python environment
-        if: steps.plan.outputs.coverage == 'true' || steps.plan.outputs.interface == 'true' || steps.plan.outputs.tlc == 'true'
         run: make python-env
 
       - name: Parse (SANY)
-        working-directory: specs
         env:
           SPEC: ${{ matrix.spec }}
-        run: |
-          java "-DTLA-Library=../.tlatools/CommunityModules/modules:../.tlatools/tlapm/lib/tlapm/stdlib" \
-            -cp ../.tlatools/tla2tools.jar \
-            tla2sany.SANY -error-codes "$SPEC.tla"
+        run: make sany MODULE="$SPEC"
 
       - name: Check property coverage
         if: steps.plan.outputs.coverage == 'true'
         env:
+          DIR: ${{ steps.plan.outputs.dir }}
           SPEC: ${{ matrix.spec }}
-        run: .venv/bin/python -m scripts.check_property_coverage "specs/$SPEC.tla"
+        run: .venv/bin/python -m scripts.check_property_coverage "$DIR/$SPEC.tla"
 
-      - name: Build Java overrides
-        if: steps.plan.outputs.tlc == 'true'
-        run: make build-java
-
+      # Logs TLC's output to <dir>/<module>.tlc.out for the next step.
       - name: Model-check (TLC)
         if: steps.plan.outputs.tlc == 'true'
-        working-directory: specs
         env:
           SPEC: ${{ matrix.spec }}
-        run: |
-          set -o pipefail
-          java -XX:+UseParallelGC \
-            "-DTLA-Library=../.tlatools/CommunityModules/modules:../.tlatools/tlapm/lib/tlapm/stdlib" \
-            -cp ../.tlatools/tla2tools.jar:../.tlatools/CommunityModules-deps.jar:. \
-            tlc2.TLC -config "$SPEC.cfg" "$SPEC" \
-          | tee "$SPEC.tlc.out"
+        run: make tlc MODULE="$SPEC"
 
       - name: Check state-space statistics
         if: steps.plan.outputs.tlc == 'true'
         env:
+          DIR: ${{ steps.plan.outputs.dir }}
           SPEC: ${{ matrix.spec }}
-        run: |
-          .venv/bin/python -m scripts.check_state_space \
-            "specs/$SPEC.cfg" "specs/$SPEC.tlc.out"
+        run: .venv/bin/python -m scripts.check_state_space "$DIR/$SPEC.cfg" "$DIR/$SPEC.tlc.out"
 
       - name: Check interface consistency
         if: steps.plan.outputs.interface == 'true'
         env:
+          DIR: ${{ steps.plan.outputs.dir }}
           SPEC: ${{ matrix.spec }}
-        run: .venv/bin/python -m scripts.check_thm_interface "specs/$SPEC.tla"
+        run: .venv/bin/python -m scripts.check_thm_interface "$DIR/$SPEC.tla"
 
-  # One job per range of the plan, with the upstream tlapm. A range is named
-  # after its module alone when it is the whole file, and after its position
-  # and first statement otherwise.
+  # A range is named after its module alone when it is the whole file, and
+  # after its position and first statement otherwise.
   proofs:
     name: "tlapm ${{ matrix.chunk.name }}"
-    needs: discover
+    needs: [discover, tools]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        chunk: ${{ fromJSON(needs.discover.outputs.proofs).chunks }}
+        chunk: ${{ fromJSON(needs.discover.outputs.chunks) }}
     steps:
       - uses: actions/checkout@v5
 
-      # The toolchain install compiles nothing here, but still wants a JDK for
-      # the TLC half of the install it shares with the verify jobs.
-      - name: Setup JDK
-        uses: actions/setup-java@v5
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Restore TLA+ tools cache
-        id: cache-tools
-        uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v4
         with:
           path: .tlatools
-          key: tlatools-${{ runner.os }}-${{ hashFiles('scripts/install-tools.sh') }}
+          key: ${{ needs.tools.outputs.base }}
+          fail-on-cache-miss: true
 
-      - name: Install TLA+ tools
-        if: steps.cache-tools.outputs.cache-hit != 'true'
-        run: ./scripts/install-tools.sh --no-tlapm-opt
-
-      # `--toolbox begin end` restricts proving to the obligations of the steps
-      # located in that range; --strict then reports the failed, omitted and
-      # missing proofs of the range alone. Over the whole file, it is a
-      # whole-file run: same obligations, same exit code.
       - name: Check proofs (tlapm --strict)
-        working-directory: specs
         env:
           MODULE: ${{ matrix.chunk.module }}
           BEGIN: ${{ matrix.chunk.begin }}
           END: ${{ matrix.chunk.end }}
-        run: |
-          ../.tlatools/tlapm/bin/tlapm --strict \
-            -I ../.tlatools/CommunityModules/modules \
-            --toolbox "$BEGIN" "$END" "$MODULE.tla"
+        run: make tlapm MODULE="$MODULE" BEGIN="$BEGIN" END="$END"
 
-  # One job per split module, checked whole with the optimized tlapm build.
   proofs-optimized:
     name: "tlapm-opt ${{ matrix.module }}"
-    needs: discover
+    needs: [discover, tools]
     # An empty matrix is not a job GitHub can run.
-    if: ${{ join(fromJSON(needs.discover.outputs.proofs).split) != '' }}
+    if: needs.discover.outputs.split != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        module: ${{ fromJSON(needs.discover.outputs.proofs).split }}
+        module: ${{ fromJSON(needs.discover.outputs.split) }}
     steps:
       - uses: actions/checkout@v5
 
-      - name: Setup JDK
-        uses: actions/setup-java@v5
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Restore TLA+ tools cache
-        id: cache-tools
-        uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v4
         with:
           path: .tlatools
-          key: tlatools-${{ runner.os }}-${{ hashFiles('scripts/install-tools.sh') }}
+          key: ${{ needs.tools.outputs.base }}
+          fail-on-cache-miss: true
 
-      - name: Install TLA+ tools
-        if: steps.cache-tools.outputs.cache-hit != 'true'
-        run: ./scripts/install-tools.sh --no-tlapm-opt
-
-      # Cached apart from the rest of the toolchain: only these jobs need it,
-      # and restoring 826 MB into every other job would cost more than it saves.
-      # Saved only after a successful install, so a failed download cannot
-      # poison the cache with a partial tree.
-      - name: Restore optimized tlapm cache
-        id: cache-tlapm-opt
-        uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v4
         with:
           path: .tlatools/tlapm-opt
-          key: tlapm-opt-${{ runner.os }}-${{ hashFiles('scripts/install-tools.sh') }}
+          key: ${{ needs.tools.outputs.opt }}
+          fail-on-cache-miss: true
 
-      - name: Install the optimized tlapm
-        if: steps.cache-tlapm-opt.outputs.cache-hit != 'true'
-        run: ./scripts/install-tools.sh --only-tlapm-opt
-
-      - name: Save optimized tlapm cache
-        if: steps.cache-tlapm-opt.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: .tlatools/tlapm-opt
-          key: tlapm-opt-${{ runner.os }}-${{ hashFiles('scripts/install-tools.sh') }}
-
-      # --stretch 3: the optimized build reaches the Isabelle-bound obligations
-      # of the liveness proofs far more concurrently than the upstream one, so
-      # they must share a runner instead of having it to themselves. Measured on
-      # GraphProcessing2: two ENABLED obligations Isabelle discharges in 27 s of
-      # its 60 s alone are lost at --stretch 2 under that concurrency, and the
-      # whole module is green at --stretch 3.
       - name: Check proofs (tlapm --strict, optimized)
-        working-directory: specs
         env:
           MODULE: ${{ matrix.module }}
-        run: |
-          ../.tlatools/tlapm-opt/bin/tlapm --strict --stretch 3 \
-            -I ../.tlatools/CommunityModules/modules \
-            "$MODULE.tla"
+        run: make tlapm-opt MODULE="$MODULE"
