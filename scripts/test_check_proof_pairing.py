@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from scripts.check_proof_pairing import check_pairing
+from scripts.check_proof_pairing import check_pairing, check_unique_names
 
 
 def _touch(directory: Path, *names: str) -> Path:
@@ -39,3 +39,13 @@ def test_the_temporal_directory_holds_interfaces_and_proofs_only(tmp_path):
     assert any("EventualStutteringTheorems.tla: orphan interface" in error for error in errors)
     assert any("EventualStuttering.tla: only theorem interfaces and their proofs" in error for error in errors)
     assert any("EventualConstancy.cfg: only theorem interfaces and their proofs" in error for error in errors)
+
+
+def test_a_module_name_is_unique_across_the_directories(tmp_path):
+    specs = _touch(tmp_path / "specs", "Task1.tla", "FooTheorems.tla", "FooTheorems_proofs.tla")
+    lib = _touch(tmp_path / "lib", "DiGraphs.tla", "FooTheorems.tla", "FooTheorems_proofs.tla")
+    assert check_unique_names([tmp_path / "specs", tmp_path / "lib" / "temporal"]) == []
+    errors = check_unique_names([specs, lib])
+    assert any("FooTheorems.tla" in error and "specs" in error and "lib" in error for error in errors)
+    assert any("FooTheorems_proofs.tla" in error for error in errors)
+    assert not any("Task1" in error or "DiGraphs" in error for error in errors)

@@ -29,6 +29,7 @@ class Theorem:
 
     name: str
     statement: str  # assertion source, whitespace-normalized
+    tree: str  # assertion parse tree, the form two copies must share
     comment: str  # shared descriptive comment, normalized ("" if none)
 
 
@@ -107,6 +108,18 @@ def _norm(text: str) -> str:
     return " ".join(text.split())
 
 
+def _tree(src: bytes, node: Node) -> str:
+    """Canonical form of `node`: its parse tree with the leaves' text, comments left out.
+
+    Two copies of a formula equal as text up to whitespace can still parse
+    differently -- the column of a /\\ or \\/ bullet decides which junction list
+    it belongs to -- so the tree, not the text, is what they must share."""
+    if node.child_count == 0:
+        return _text(src, node)
+    parts = (_tree(src, child) for child in node.children if child.type not in _COMMENT_TYPES)
+    return f"({node.type} {' '.join(parts)})"
+
+
 def _comments(src: bytes, module: Node) -> list[tuple[int, int, str]]:
     """(start, end, shared-text) of every block comment outside a proof, byte-ordered.
 
@@ -143,12 +156,13 @@ def theorems(path: Path) -> dict[str, Theorem]:
         name = _text(src, name_node)
         statement_node = child.child_by_field_name("statement")
         statement = "" if statement_node is None else _statement_text(src, statement_node)
+        tree = "" if statement_node is None else _tree(src, statement_node)
         comment = ""
         for _, end, text in comments:
             gap = src[end : child.start_byte]
             if end <= child.start_byte and gap.strip() == b"" and gap.count(b"\n") <= 1:
                 comment = text  # closest preceding comment wins
-        result[name] = Theorem(name, statement, comment)
+        result[name] = Theorem(name, statement, tree, comment)
     return result
 
 
@@ -171,6 +185,47 @@ def declarations(path: Path) -> dict[str, str]:
                 continue
             found[_norm(_text(src, node))] = keyword
     return found
+
+
+_DEFINITION_TYPES = ("operator_definition", "function_definition", "module_definition")
+
+
+def definitions(path: Path) -> dict[str, str]:
+    """The module-level definitions, LOCAL ones included: name -> parse tree."""
+    src, module = parse(path)
+    found: dict[str, str] = {}
+    for child in module.children:
+        node = child
+        if child.type == "local_definition":  # also wraps a LOCAL INSTANCE, which names nothing
+            node = next((n for n in child.named_children if n.type in _DEFINITION_TYPES), child)
+        name_node = node.child_by_field_name("name")
+        if node.type in _DEFINITION_TYPES and name_node is not None:
+            found[_text(src, name_node)] = _tree(src, child)
+    return found
+
+
+def assumptions(path: Path) -> list[tuple[str, str]]:
+    """The ASSUME / AXIOM units of a module: (parse tree, whitespace-normalized text)."""
+    src, module = parse(path)
+    return [
+        (_tree(src, child), _statement_text(src, child))
+        for child in module.children
+        if child.type == "assumption"
+    ]
+
+
+def extends(path: Path) -> list[str]:
+    """The modules `path` EXTENDS.
+
+    Lenient, unlike the other helpers: it also reads the library modules of the
+    toolchain, which this grammar need not parse in full."""
+    src = Path(path).read_bytes()
+    root = Parser(_LANGUAGE).parse(src).root_node
+    for module in (n for n in root.children if n.type == "module"):
+        for child in module.children:
+            if child.type == "extends":
+                return [_text(src, n) for n in child.named_children if n.type == "identifier_ref"]
+    return []
 
 
 def _is_properties_banner(body: str) -> bool:
