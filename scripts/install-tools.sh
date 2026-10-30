@@ -73,6 +73,13 @@ done
 log()  { printf '\033[1;34m::\033[0m %s\n' "$*"; }
 die()  { printf '\033[1;31mxx\033[0m %s\n' "$*" >&2; exit 1; }
 
+# A check verifies what was installed, and an install may have left the
+# optimized tlapm out: it is checked only when present, or asked for alone.
+if [[ "$MODE" == "check" ]] && (( WANT_BASE && WANT_TLAPM_OPT )) && [[ ! -e "${TLAPM_OPT_DIR}" ]]; then
+    log "optimized tlapm not installed (make install-tlapm-opt): not checked"
+    WANT_TLAPM_OPT=0
+fi
+
 # Render .vscode/settings.json from the template, substituting the repo's
 # absolute path for __REPO_ROOT__ (the TLA+ extension needs absolute paths).
 render_vscode_settings() {
@@ -138,15 +145,16 @@ curl -fL --retry 3 -o "${TOOLS_DIR}/CommunityModules-deps.jar" \
     "https://github.com/tlaplus/CommunityModules/releases/download/${COMMUNITY_MODULES_REF}/CommunityModules-deps.jar"
 
 # ----- CommunityModules sources (for tlapm -I) --------------------------------
+# The pinned tag itself is fetched, however far the default branch has moved on.
 CM_SRC="${TOOLS_DIR}/CommunityModules"
 if [[ ! -d "${CM_SRC}/.git" ]]; then
     log "cloning CommunityModules sources"
     rm -rf "${CM_SRC}"
-    git clone --quiet --depth 50 \
+    git clone --quiet --depth 1 --branch "${COMMUNITY_MODULES_REF}" \
         https://github.com/tlaplus/CommunityModules.git "${CM_SRC}"
 else
     log "updating CommunityModules sources"
-    git -C "${CM_SRC}" fetch --quiet --depth 50 origin
+    git -C "${CM_SRC}" fetch --quiet --depth 1 origin tag "${COMMUNITY_MODULES_REF}"
 fi
 git -C "${CM_SRC}" -c advice.detachedHead=false checkout --quiet "${COMMUNITY_MODULES_REF}"
 
