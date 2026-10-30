@@ -48,6 +48,9 @@ from scripts.naming import (
         ("Makefile", "tooling"),
         (".github/workflows/ci.yaml", "ci"),
         ("README.md", "docs"),
+        ("specs/README.md", "docs"),  # *.md is docs in the module directories too
+        ("lib/README.md", "docs"),
+        ("lib/temporal/README.md", "docs"),
         (".claude/skills/tlaps-proof/SKILL.md", "ai"),  # .claude/ wins over *.md
         (".claude/skills/tlaps-proof/prove.py", "ai"),
         (".claude/settings.json", "ai"),
