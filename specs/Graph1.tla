@@ -282,7 +282,9 @@ Next ==
  * These conditions guarantee eventual progress for all eligible objects
  * and tasks in the system:
  *   - Every object that becomes eligible for finalization is eventually finalized.
- *   - Every registered task whose input objects are finalized is eventually staged.
+ *   - Every registered task whose input objects are finalized and that lies
+ *     persistently in the open ancestry of a given target object is
+ *     eventually staged.
  *   - Every task that lies persistently in the open ancestry of a given
  *     target object is eventually assigned.
  *   - Every assigned task is eventually processed.
@@ -293,11 +295,14 @@ Fairness ==
     /\ \A o \in Object :
         WF_vars(FinalizeObjects({o}))
     /\ \A t \in Task :
-        /\ WF_vars(StageTasks({t}))
         /\ SF_vars(ProcessTasks({t}))
         /\ WF_vars(FinalizeTasks({t}))
     /\ \A t \in Task, o \in Object :
-        WF_vars(
+        /\ WF_vars(
+            /\ o \in objectTargets
+            /\ t \in OA(o).node
+            /\ StageTasks({t}))
+        /\ WF_vars(
             /\ o \in objectTargets
             /\ t \in OA(o).node
             /\ AssignTasks({t}))
