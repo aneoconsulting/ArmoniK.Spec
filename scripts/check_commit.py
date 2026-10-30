@@ -75,8 +75,9 @@ MAX_BODY_LINE = 72
 # which silently checks nothing.
 RANGE = re.compile(r"[^.].*\.{2,3}[^.].*")
 
-# Reverts keep the subject git generates for them; merges are recognized by shape.
-REVERT = re.compile(r'^Revert ".*"$')
+# Reverts keep the subject git generates for them -- `Reapply` for the revert of a
+# revert, since git 2.43; merges are recognized by shape.
+REVERT = re.compile(r'^(Revert|Reapply) ".*"$')
 REVERTS_COMMIT = "This reverts commit "
 # `git commit` keeps comment lines, and hides everything below the scissors line.
 SCISSORS = re.compile(r"^# -+ >8 -+")
@@ -110,9 +111,13 @@ def _stems(word: str) -> list[str]:
     """The imperatives `word` could be an inflected form of.
 
     Beyond dropping the inflection, restore the `e` an `-ing` or `-ed` form drops
-    (removing -> remove) and undo the doubled consonant (splitting -> split).
+    (removing -> remove), undo the doubled consonant (splitting -> split) and
+    the `y` turned into `i` (simplified -> simplify).
     """
     candidates: list[str] = []
+    for inflection in ("ies", "ied"):
+        if word.endswith(inflection):
+            candidates.append(word.removesuffix(inflection) + "y")
     for inflection in ("s", "es", "ed", "d", "ing"):
         stem = word.removesuffix(inflection)
         if stem == word:
@@ -171,6 +176,8 @@ def check_header(header: str, known_scopes: set[str] | None = None) -> list[str]
 
     if not parsed.description.split():
         return errors + ["empty description"]
+    if parsed.description[0].isspace():
+        errors.append("a single space follows the colon")
     if (verb_error := _verb_error(parsed.type, parsed.description)) is not None:
         errors.append(verb_error)
     if len(parsed.description) > MAX_DESCRIPTION:
@@ -184,15 +191,25 @@ def check_header(header: str, known_scopes: set[str] | None = None) -> list[str]
 
 
 def _body(lines: list[str]) -> list[str]:
-    """The body among the message `lines`, as `git commit --cleanup=strip` leaves it."""
-    body: list[str] = []
+    """The body among the message `lines`, as `git commit --cleanup=strip` leaves it,
+    without the trailers that close it.
+
+    As for `git interpret-trailers`, the trailers are the last paragraph when every
+    line of it reads `Key: value`; such a line elsewhere is prose."""
+    paragraphs: list[list[str]] = [[]]
     for line in lines[2:]:
         if SCISSORS.match(line):
             break
-        if line.startswith("#") or not line.strip():
+        if line.startswith("#"):
             continue
-        body.append(line)
-    return body
+        if not line.strip():
+            paragraphs.append([])
+        else:
+            paragraphs[-1].append(line)
+    paragraphs = [paragraph for paragraph in paragraphs if paragraph]
+    if paragraphs and all(TRAILER.match(line) for line in paragraphs[-1]):
+        paragraphs.pop()
+    return [line for paragraph in paragraphs for line in paragraph]
 
 
 def check_body(header: Header, lines: list[str]) -> list[str]:
@@ -208,7 +225,7 @@ def check_body(header: Header, lines: list[str]) -> list[str]:
 
     errors: list[str] = []
     body = _body(lines)
-    if not [line for line in body if not TRAILER.match(line)]:
+    if not body:
         if header.breaking:
             errors.append("a breaking change needs a body saying what dependents must do")
         if header.type in MODULE_TYPES and header.scope is None:
@@ -221,11 +238,7 @@ def check_body(header: Header, lines: list[str]) -> list[str]:
     for line in body:
         # A line is only unwrapped if it could have been wrapped: a long
         # identifier or URL has to overflow, and trailers are never wrapped.
-        if (
-            len(line) > MAX_BODY_LINE
-            and max(len(word) for word in line.split()) <= MAX_BODY_LINE
-            and not TRAILER.match(line)
-        ):
+        if len(line) > MAX_BODY_LINE and max(len(word) for word in line.split()) <= MAX_BODY_LINE:
             errors.append(f"body line is {len(line)} characters, wrap at {MAX_BODY_LINE}: {line}")
     return errors
 
@@ -303,6 +316,14 @@ def check_atomicity(header: Header, paths: list[str], changes: dict[str, list[st
                 f"{path}: belongs to {scope}, not to {header.scope}; "
                 "a rename across modules is a `!` commit"
             )
+
+    # The exceptions let foreign files ride along a change of the commit's kind,
+    # never stand in for it. (A free type's scope names no module.)
+    if header.type in MODULE_TYPES and not any(
+        kind_of(path) == header.type and header.scope in (None, scope_of(path)) for path in paths
+    ):
+        target = f"{header.type} change" + ("" if header.scope is None else f" to {header.scope}")
+        errors.append(f"the commit makes no {target}, which its header announces")
 
     if header.type in MODULE_TYPES and header.scope is None:
         touched = {

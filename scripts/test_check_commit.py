@@ -5,6 +5,7 @@ import subprocess
 import pytest
 
 from scripts.check_commit import (
+    REVERT,
     Header,
     _paths,
     _stems,
@@ -60,6 +61,11 @@ def test_conventions_examples_pass(header):
         ("spec(Task2): add an action.", "must not end with a period"),
         ("no header at all", "<type>[(<scope>)][!]: <verb> <what>"),
         ("proof(Task2)!: rename T2_Foo to T2_Bar", "needs a body"),
+        ("docs: simplified the intro", "use the imperative 'simplify'"),
+        ("docs: simplifies the intro", "use the imperative 'simplify'"),
+        ("spec(Task2):  add an action", "a single space"),
+        # A `Key: value` line is a trailer only in the closing paragraph.
+        ("docs: fix the intro\n\nWarning: " + "x " * 40 + "\n\nRefs: #12", "wrap at 72"),
     ],
 )
 def test_check_message_rejects(message, expected):
@@ -69,6 +75,11 @@ def test_check_message_rejects(message, expected):
 
 def test_free_type_accepts_any_imperative():
     assert check_message("docs: clarify the refinement rationale", EXAMPLE_SCOPES) == []
+
+
+def test_prose_opening_with_a_key_is_a_body():
+    message = "proof(Task2)!: rename T2_Foo to T2_Bar\n\nNote: dependents rename T2_Foo.\n\nRefs: #12\n"
+    assert check_message(message, EXAMPLE_SCOPES) == []
 
 
 def test_comment_lines_are_not_a_body():
@@ -86,6 +97,13 @@ def test_comment_lines_are_not_a_body():
 )
 def test_stems_recover_the_imperative(word, stem):
     assert stem in _stems(word)
+
+
+def test_reverts_and_reapplies_keep_the_subject_given_them():
+    # The revert of a revert is titled `Reapply "..."` since git 2.43.
+    assert REVERT.match('Revert "spec(Task2): add an action"')
+    assert REVERT.match('Reapply "spec(Task2): add an action"')
+    assert not REVERT.match("Revert the action")
 
 
 def test_verb_error_lets_unlisted_imperatives_through_for_free_types():
@@ -124,6 +142,18 @@ def test_atomicity_rejects_foreign_kinds_and_scopes():
 
     header = Header(type="spec", scope="Task2", breaking=False, description="add x")
     assert check_atomicity(header, [], {}) == ["the commit changes no file, so nothing supports its spec type"]
+
+
+def test_atomicity_requires_a_file_of_the_commit_type_and_scope():
+    # The exceptions let foreign files ride along a change, never replace it.
+    header = Header(type="lib", scope="DDGraphs", breaking=True, description="rename x")
+    errors = check_atomicity(header, ["specs/Task2.tla", "specs/Graph2Theorems_proofs.tla"], {})
+    assert any("no lib change to DDGraphs" in error for error in errors)
+    assert check_atomicity(header, ["lib/DDGraphs.tla", "specs/Task2.tla"], {}) == []
+
+    header = Header(type="spec", scope="Task1", breaking=False, description="fix x")
+    errors = check_atomicity(header, ["specs/Task1_mc.cfg"], {"specs/Task1_mc.cfg": [STATE_SPACE_LINE]})
+    assert any("no spec change to Task1" in error for error in errors)
 
 
 def test_atomicity_accepts_a_temporal_theorem_with_its_proof():

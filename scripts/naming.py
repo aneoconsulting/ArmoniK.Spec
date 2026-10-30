@@ -110,6 +110,9 @@ def kind_of(path: str | Path) -> str | None:
     # Agent files are of kind ai wherever they sit, even inside scripts/ or specs/.
     if parts[:1] == (AI_DIR,) or path.name in AI_INSTRUCTIONS:
         return "ai"
+    # Documentation is docs in the module directories too.
+    if path.suffix == ".md" and parts[:1] in ((SPECS_DIR,), (LIB_DIR,)):
+        return "docs"
     if parts[:-1] == Path(TEMPORAL_DIR).parts:
         return "proof" if _file_kind(path) == "proof" else None
     # The module directories are flat: a module inside a subdirectory is not one.
