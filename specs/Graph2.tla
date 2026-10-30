@@ -52,13 +52,12 @@ IsOpenNode(n) ==
        \/ n \in CompletedObject \/ n \in AbortedObject)
 
 (**
- * Returns TRUE iff task 't' is upstream of an unfinalized target object 'o'
- * via an open path, i.e., 't' can still (directly or indirectly) contribute
- * to producing 'o'.
+ * The open ancestry of object 'o': the subgraph spanning 'o' and its
+ * ancestors reachable through open nodes, i.e. the part of the graph that
+ * can still (directly or indirectly) contribute to producing 'o'. It is
+ * empty unless 'o' is an open node of the graph.
  *)
-IsTaskUpstreamOnOpenPathToTarget(t, o) ==
-    /\ o \in objectTargets
-    /\ \E p \in OpenPath(deps, o, IsOpenNode): p[1] = t
+OA(o) == AncestorSubGraph(deps, o, IsOpenNode)
 
 -------------------------------------------------------------------------------
 
@@ -272,23 +271,22 @@ Fairness ==
         /\ WF_vars(RetryTasks({t}))
     /\ \A t \in Task, o \in Object :
         WF_vars(
-            /\ IsTaskUpstreamOnOpenPathToTarget(t, o)
+            /\ o \in objectTargets
+            /\ t \in OA(o).node
             /\ AssignTasks({t}))
 
 (**
  * LIVENESS CONSTRAINT
- * For every object, the open upstream eventually becomes closed under
+ * For every object, the open ancestry eventually becomes closed under
  * additions, i.e. it never gains another node or edge (it may still
  * shrink). Combined with the fairness conditions above, this ensures every
  * targeted object is eventually finalized (the Object1 refinement)
  * and, being unconditional, makes the object-finalization fairness of
- * Graph1 refinable as well: after an object's upstream quiesces,
+ * Graph1 refinable as well: after an object's open ancestry quiesces,
  * its producers' retry chains can no longer be revived indefinitely.
  *)
-OpenUpstreamEventuallyClosed ==
-    LET G(o) == AncestorSubGraph(deps, o, IsOpenNode)
-    IN \A o \in Object :
-        <>[][G(o)' \in DirectedSubgraph(G(o))]_(G(o))
+UpstreamStabilization ==
+    \A o \in Object : <>[][OA(o)' \in DirectedSubgraph(OA(o))]_(OA(o))
 
 (**
  * Full system specification.
@@ -297,7 +295,7 @@ Spec ==
     /\ Init
     /\ [][Next]_vars
     /\ Fairness
-    /\ OpenUpstreamEventuallyClosed
+    /\ UpstreamStabilization
 
 -------------------------------------------------------------------------------
 

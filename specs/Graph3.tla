@@ -58,13 +58,12 @@ IsOpenNode(n) ==
        \/ n \in CompletedObject \/ n \in AbortedObject)
 
 (**
- * Returns TRUE iff task 't' is upstream of an unfinalized target object 'o'
- * via an open path, i.e., 't' can still (directly or indirectly) contribute
- * to producing 'o'.
+ * The open ancestry of object 'o': the subgraph spanning 'o' and its
+ * ancestors reachable through open nodes, i.e. the part of the graph that
+ * can still (directly or indirectly) contribute to producing 'o'. It is
+ * empty unless 'o' is an open node of the graph.
  *)
-IsTaskUpstreamOnOpenPathToTarget(t, o) ==
-    /\ o \in objectTargets
-    /\ \E p \in OpenPath(deps, o, IsOpenNode): p[1] = t
+OA(o) == AncestorSubGraph(deps, o, IsOpenNode)
 
 (**
  * The set of derivations of an object 'o' under the Graph3
@@ -452,10 +451,10 @@ Next ==
  *     stopped (resp. paused);
  *   - per (task, object) pair, assignment fairness is strengthened from weak
  *     to strong: repeated pausing/resuming makes assignability flicker, and
- *     only strong fairness guarantees that a task persistently upstream of a
- *     given target is eventually assigned;
- *   - a paused or stopped task standing persistently on an open path to a
- *     given live target is eventually resumed (resp. discarded), so parked
+ *     only strong fairness guarantees that a task persistently in the open
+ *     ancestry of a given target is eventually assigned;
+ *   - a paused or stopped task standing persistently in the open ancestry of
+ *     a given target is eventually resumed (resp. discarded), so parked
  *     tasks never block a target forever; tasks not in any target's way may
  *     stay parked.
  *)
@@ -476,27 +475,28 @@ Fairness ==
         /\ WF_vars(PauseTasks({t}))
     /\ \A t \in Task, o \in Object :
         /\ SF_vars(
-            /\ IsTaskUpstreamOnOpenPathToTarget(t, o)
+            /\ o \in objectTargets
+            /\ t \in OA(o).node
             /\ AssignTasks({t}))
         /\ WF_vars(
-            /\ IsTaskUpstreamOnOpenPathToTarget(t, o)
+            /\ o \in objectTargets
+            /\ t \in OA(o).node
             /\ ResumeTasks({t}))
         /\ WF_vars(
-            /\ IsTaskUpstreamOnOpenPathToTarget(t, o)
+            /\ o \in objectTargets
+            /\ t \in OA(o).node
             /\ t \in StoppedTask
             /\ DiscardTasks({t}))
 
 (**
  * LIVENESS CONSTRAINT
- * For every object, the open upstream eventually becomes closed under
+ * For every object, the open ancestry eventually becomes closed under
  * additions, i.e. its node set never gains another node (it may still
  * shrink). Inherited unchanged (and unconditional, exactly as in
  * Graph2, whose refinement requires it verbatim).
  *)
-OpenUpstreamEventuallyClosed ==
-    LET G(o) == AncestorSubGraph(deps, o, IsOpenNode)
-    IN \A o \in Object :
-        <>[][G(o)' \in DirectedSubgraph(G(o))]_(G(o))
+UpstreamStabilization ==
+    \A o \in Object : <>[][OA(o)' \in DirectedSubgraph(OA(o))]_(OA(o))
 
 (**
  * Full system specification.
@@ -505,7 +505,7 @@ Spec ==
     /\ Init
     /\ [][Next]_vars
     /\ Fairness
-    /\ OpenUpstreamEventuallyClosed
+    /\ UpstreamStabilization
 
 -------------------------------------------------------------------------------
 

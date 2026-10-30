@@ -75,13 +75,12 @@ IsOpenNode(n) ==
     ~ (n \in FinalizedTask \/ n \in FinalizedObject)
 
 (**
- * Returns TRUE iff task 't' is upstream of an unfinalized target object 'o'
- * via an open path, i.e., 't' can still (directly or indirectly) contribute
- * to producing 'o'.
+ * The open ancestry of object 'o': the subgraph spanning 'o' and its
+ * ancestors reachable through open nodes, i.e. the part of the graph that
+ * can still (directly or indirectly) contribute to producing 'o'. It is
+ * empty unless 'o' is an open node of the graph.
  *)
-IsTaskUpstreamOnOpenPathToTarget(t, o) ==
-    /\ o \in objectTargets
-    /\ \E p \in OpenPath(deps, o, IsOpenNode): p[1] = t
+OA(o) == AncestorSubGraph(deps, o, IsOpenNode)
 
 -------------------------------------------------------------------------------
 
@@ -284,8 +283,8 @@ Next ==
  * and tasks in the system:
  *   - Every object that becomes eligible for finalization is eventually finalized.
  *   - Every registered task whose input objects are finalized is eventually staged.
- *   - Every task that lies persistently upstream on an open path toward a
- *     given unfinalized target object is eventually assigned.
+ *   - Every task that lies persistently in the open ancestry of a given
+ *     target object is eventually assigned.
  *   - Every assigned task is eventually processed.
  *   - Every processed task whose outputs become eligible for finalization is
  *     eventually finalized.
@@ -299,21 +298,21 @@ Fairness ==
         /\ WF_vars(FinalizeTasks({t}))
     /\ \A t \in Task, o \in Object :
         WF_vars(
-            /\ IsTaskUpstreamOnOpenPathToTarget(t, o)
+            /\ o \in objectTargets
+            /\ t \in OA(o).node
             /\ AssignTasks({t}))
 
 (**
  * LIVENESS CONSTRAINT
- * For every object that is currently a target, the open upstream eventually
+ * For every object that is currently a target, the open ancestry eventually
  * becomes closed under additions, i.e. it never gains another node or edge
  * (it may still shrink). Combined with the fairness conditions above,
  * this ensures every targeted object is eventually finalized, and thus
  * establishes the refinement of Object1.
  *)
-OpenUpstreamEventuallyClosed ==
-    LET G(o) == AncestorSubGraph(deps, o, IsOpenNode)
-    IN \A o \in Object :
-        []([](o \in objectTargets) => <>[][G(o)' \in DirectedSubgraph(G(o))]_(G(o)))
+UpstreamStabilization ==
+    \A o \in Object :
+        []([](o \in objectTargets) => <>[][OA(o)' \in DirectedSubgraph(OA(o))]_(OA(o)))
 
 (**
  * Full system specification.
@@ -322,7 +321,7 @@ Spec ==
     /\ Init
     /\ [][Next]_vars
     /\ Fairness
-    /\ OpenUpstreamEventuallyClosed
+    /\ UpstreamStabilization
 
 -------------------------------------------------------------------------------
 
