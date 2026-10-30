@@ -383,10 +383,8 @@ THEOREM G2_CompletedObjectHasDerivation == Spec => []CompletedObjectHasDerivatio
 (*****************************************************************************)
 (* LIVENESS PROPERTIES                                                       *)
 (*                                                                           *)
-(* CommittedObjectsEventualFinalization is proved at the END of this module  *)
-(* (after the stability helper lemmas it cites), mirroring G1's WF1 proof.   *)
 (* DerivableObjectsEventualCompletion, UnderivableObjectsEventualAbortion    *)
-(* and UnderivableQuiescence are PROVED there as well: the                   *)
+(* and UnderivableQuiescence are PROVED at the END of this module: the       *)
 (* EventualTargetFinalization lift through the Object2 refinement            *)
 (* plus the derivability-limit contradiction, and the viable-ancestry        *)
 (* antitonicity engine (DDG_AncestorSubGraphMono / DDG_DerivationAntitone).  *)
@@ -1228,52 +1226,6 @@ THEOREM G2_RefineObject2 == Spec => RefineObject2
 (* refinement (LemProcessedStatesEventuallyLeft).                            *)
 (*****************************************************************************)
 THEOREM G2_RefineTask2 == Spec => RefineTask2
-
-(*****************************************************************************)
-(* LIVENESS PROPERTIES (reformulated -- see Graph2)                          *)
-(*                                                                           *)
-(* CommittedObjectsEventualFinalization: a registered non-source object      *)
-(* whose producers are all committed and that gains no new producer          *)
-(* eventually finalizes. Each branch is a weak-fairness lattice step (WF1)    *)
-(* on CompleteObjects / AbortObjects, mirroring                              *)
-(* G1_CommittedObjectsEventualFinalization. NoNewPredecessor(o) supplies      *)
-(* [][NoReg]_vars so the producer set is frozen.                             *)
-(*****************************************************************************)
-
-(* Under no-new-producer steps ([Next /\ no registration into o]_vars), o's   *)
-(* producer set is frozen. Shared by both WF1 branches of                      *)
-(* G2_CommittedObjectsEventualFinalization.                                    *)
-LEMMA LemNoRegPredsFrozen ==
-    ASSUME NEW o \in Object
-    PROVE  TypeOk
-           /\ [Next /\ ~ \E G \in DirectedGraphOf(Task \union Object) :
-                             (\E t \in G.node : o \in Successor(G, t)) /\ RegisterGraph(G)]_vars
-           => Predecessor(deps', o) = Predecessor(deps, o)
-
-(* The completion branch of CommittedObjectsEventualFinalization: a weak-      *)
-(* fairness lattice step (WF1) on CompleteObjects.                            *)
-LEMMA LemCommittedObjectsEventualCompletion ==
-    ASSUME NEW o \in Object
-    PROVE  /\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness
-           => ( ( /\ o \in RegisteredObject
-                  /\ Predecessor(deps, o) /= {}
-                  /\ Predecessor(deps, o) \subseteq (SucceededTask \union CompletedTask)
-                  /\ NoNewPredecessor(o) )
-                ~> o \in CompletedObject )
-
-(* The abortion branch of CommittedObjectsEventualFinalization: a weak-fairness *)
-(* lattice step (WF1) on AbortObjects.                                         *)
-LEMMA LemCommittedObjectsEventualAbortion ==
-    ASSUME NEW o \in Object
-    PROVE  /\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness
-           => ( ( /\ o \in RegisteredObject
-                  /\ \E t \in Predecessor(deps, o) : t \in DiscardedTask
-                  /\ Predecessor(deps, o) \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
-                  /\ NoNewPredecessor(o) )
-                ~> o \in AbortedObject )
-
-THEOREM G2_CommittedObjectsEventualFinalization ==
-    Spec => CommittedObjectsEventualFinalization
 
 (*****************************************************************************)
 (* DerivableObjectsEventualCompletion / UnderivableObjectsEventualAbortion   *)
