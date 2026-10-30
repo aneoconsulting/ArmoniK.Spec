@@ -41,7 +41,7 @@ MCNext ==
 
 (**
  * Model-checking specification used for the safety invariants. As in
- * Graph2_mc, the OpenUpstreamEventuallyClosed liveness constraint is
+ * Graph2_mc, the UpstreamStabilization liveness constraint is
  * dropped here -- it is only needed to discharge the refinement / liveness
  * obligations, not the state invariants.
  *)
@@ -52,7 +52,7 @@ MCSpec ==
 
 (**
  * MC-checkable form of the Graph2 refinement. As in
- * Graph1_mc, the open-upstream liveness conjunct of the target Spec
+ * Graph1_mc, the UpstreamStabilization liveness conjunct of the target Spec
  * is dropped: TLC rejects its <>[][A]_G shape as a property, and it is a
  * spec-level assumption discharged separately (by proof), not part of the
  * step/fairness refinement we exercise here.
