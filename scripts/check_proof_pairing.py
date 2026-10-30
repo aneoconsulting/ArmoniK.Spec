@@ -12,7 +12,8 @@ exist too -- without it, CI silently skips the module. (A plain specification's
 instead -- so its absence cannot be flagged here.)
 
 lib/temporal/ holds nothing else: every file there is a theorem interface or
-its proof.
+its proof. And a module name is unique across the directories given, since
+the tools locate a module by name.
 
 The declaration-level consistency of each pair is enforced separately by
 check_thm_interface.
@@ -59,6 +60,22 @@ def check_pairing(specs_dir: Path) -> list[str]:
     return errors
 
 
+def check_unique_names(dirs: list[Path]) -> list[str]:
+    """Return every module name that more than one of `dirs` holds.
+
+    The tools locate a module by its name alone, so of two homonyms one would
+    shadow the other and never be checked."""
+    holders: dict[str, list[Path]] = {}
+    for directory in dirs:
+        for path in sorted(directory.glob("*.tla")):
+            holders.setdefault(path.name, []).append(directory)
+    return [
+        f"{name}: in {' and '.join(str(d) for d in where)}; a module name must be unique"
+        for name, where in sorted(holders.items())
+        if len(where) > 1
+    ]
+
+
 def _check_temporal_contents(temporal_dir: Path) -> list[str]:
     """Return every file of `temporal_dir` that is neither an interface nor its proof."""
     return [
@@ -92,6 +109,9 @@ def main() -> int:
         if not errors:
             print(f"{directory}: OK")
         failed = failed or bool(errors)
+    for error in check_unique_names(dirs):
+        print(error, file=sys.stderr)
+        failed = True
     return 1 if failed else 0
 
 
