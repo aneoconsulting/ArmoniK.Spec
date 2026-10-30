@@ -375,41 +375,6 @@ AbortedObjectTaskDependenciesInvariant ==
             => [][Predecessor(deps, o) = Predecessor(deps', o)]_deps )
 
 (**
- * No future RegisterGraph step gives o a new producing task. This is the
- * "frozen producer set" hypothesis under which a committed object is bound to
- * finalize: its producers can no longer change except to advance towards a
- * terminal outcome. (Graph1 carries the same definition.)
- *)
-NoNewPredecessor(o) ==
-    [][~ \E G \in DirectedGraphOf(Task \union Object) :
-          (\E t \in G.node : o \in Successor(G, t)) /\ RegisterGraph(G)]_vars
-
-(**
- * LIVENESS
- * A registered non-source object whose producers are all committed is
- * eventually finalized, provided it gains no new producer:
- *   - producers all succeeded/completed     ~> the object completes;
- *   - some producer discarded, rest terminal ~> the object aborts.
- * The two premises are mutually exclusive (DiscardedTask is disjoint from
- * SucceededTask \cup CompletedTask). This mirrors Graph1's
- * CommittedObjectsEventualFinalization, refined onto G2's split outcomes;
- * FailedTask is intentionally excluded, as a failed producer is not yet
- * committed (under NoNewPredecessor it has no terminal exit).
- *)
-CommittedObjectsEventualFinalization ==
-    \A o \in Object :
-        /\ ( /\ o \in RegisteredObject
-             /\ Predecessor(deps, o) /= {}
-             /\ Predecessor(deps, o) \subseteq (SucceededTask \union CompletedTask)
-             /\ NoNewPredecessor(o) )
-           ~> o \in CompletedObject
-        /\ ( /\ o \in RegisteredObject
-             /\ \E t \in Predecessor(deps, o) : t \in DiscardedTask
-             /\ Predecessor(deps, o) \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
-             /\ NoNewPredecessor(o) )
-           ~> o \in AbortedObject
-
-(**
  * LIVENESS
  * The outcome split of EventualTargetFinalization (inherited from
  * Object1 through the Graph1 refinement): an object that

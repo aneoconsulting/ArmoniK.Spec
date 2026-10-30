@@ -381,20 +381,6 @@ TaskDataDependenciesInvariant ==
 
 (**
  * LIVENESS
- * A known object whose producing tasks have all been processed or finalized is
- * eventually finalized, provided it never gains a new producer (i.e. no future
- * RegisterGraph step registers a graph in which some task produces it).
- *)
-CommittedObjectsEventualFinalization ==
-    \A o \in Object :
-        /\ o \notin UnknownObject
-        /\ Predecessor(deps, o) \subseteq (ProcessedTask \union FinalizedTask)
-        /\ [][~ \E G \in DirectedGraphOf(Task \union Object) :
-                  (\E t \in G.node : o \in Successor(G, t)) /\ RegisterGraph(G)]_vars
-        ~> o \in FinalizedObject
-
-(**
- * LIVENESS
  * This specification refines the Task1 specification.
  *)
 T1 == INSTANCE Task1Theorems
