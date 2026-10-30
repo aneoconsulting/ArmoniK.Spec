@@ -256,6 +256,26 @@ Next ==
         \/ AbortTasks(T)
         \/ RetryTasks(T)
 
+(**
+ * FAIRNESS CONDITIONS
+ *   - Every object whose completion (resp. abortion) is enabled is
+ *     eventually completed (resp. aborted).
+ *   - Every task is eventually given a next attempt, whose retry subgraph
+ *     is eventually registered once that is enabled.
+ *   - Every registered task whose input objects are completed is eventually
+ *     staged, whether or not it is in the way of a target.
+ *   - Abortion is propagated lazily: a registered or staged task with an
+ *     aborted input is eventually discarded only if it lies persistently in
+ *     the open ancestry of a given target object. Elsewhere it may stay
+ *     registered forever, so the model forces abortion only where it
+ *     matters for a target. Graph1 guards its staging fairness in the same
+ *     way, which is what keeps this specification a refinement of Graph1.
+ *   - Every task that lies persistently in the open ancestry of a given
+ *     target object is eventually assigned.
+ *   - A task that is assigned infinitely often eventually succeeds.
+ *   - Every succeeded (resp. discarded, failed) task that can be completed
+ *     (resp. aborted, retried) eventually is.
+ *)
 Fairness ==
     /\ \A o \in Object:
         /\ WF_vars(CompleteObjects({o}))
@@ -264,13 +284,17 @@ Fairness ==
         /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
         /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
         /\ WF_vars(StageTasks({t}))
-        /\ WF_vars(Predecessor(deps, t) \intersect AbortedObject /= {} /\ DiscardTasks({t}))
         /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
         /\ WF_vars(CompleteTasks({t}))
         /\ WF_vars(AbortTasks({t}))
         /\ WF_vars(RetryTasks({t}))
     /\ \A t \in Task, o \in Object :
-        WF_vars(
+        /\ WF_vars(
+            /\ o \in objectTargets
+            /\ t \in OA(o).node
+            /\ Predecessor(deps, t) \intersect AbortedObject /= {}
+            /\ DiscardTasks({t}))
+        /\ WF_vars(
             /\ o \in objectTargets
             /\ t \in OA(o).node
             /\ AssignTasks({t}))

@@ -457,6 +457,9 @@ Next ==
  *     a given target is eventually resumed (resp. discarded), so parked
  *     tasks never block a target forever; tasks not in any target's way may
  *     stay parked.
+ * Abortion propagates lazily, as in Graph2: a task with an aborted input is
+ * eventually discarded only if it stands persistently in the open ancestry
+ * of a given target.
  *)
 Fairness ==
     /\ \A o \in Object:
@@ -466,7 +469,6 @@ Fairness ==
         /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
         /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
         /\ WF_vars(StageTasks({t}))
-        /\ WF_vars(Predecessor(deps, t) \intersect AbortedObject /= {} /\ DiscardTasks({t}))
         /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
         /\ WF_vars(CompleteTasks({t}))
         /\ WF_vars(AbortTasks({t}))
@@ -482,6 +484,11 @@ Fairness ==
             /\ o \in objectTargets
             /\ t \in OA(o).node
             /\ ResumeTasks({t}))
+        /\ WF_vars(
+            /\ o \in objectTargets
+            /\ t \in OA(o).node
+            /\ Predecessor(deps, t) \intersect AbortedObject /= {}
+            /\ DiscardTasks({t}))
         /\ WF_vars(
             /\ o \in objectTargets
             /\ t \in OA(o).node
