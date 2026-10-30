@@ -108,6 +108,24 @@ def test_tiles_reports_a_gap(probe: Path):
     assert tiles(complete[1:], probe) is not None  # the head is missing
 
 
+@pytest.mark.parametrize("separator", ["\f", " ", "\x85"])
+def test_lines_are_counted_as_tlapm_counts_them(tmp_path: Path, separator: str):
+    """Only a newline ends a line: Python's other line boundaries, in a comment or
+    in a proof, must neither break the tiling nor shift a range."""
+    module = MODULE.replace("and closing here.", f"and closing{separator}here.").replace(
+        "<1>1. 2 + 2 = 4 BY SMT", f"<1>1. 2 + 2 = 4{separator}BY SMT"
+    )
+    path = tmp_path / "Probe_proofs.tla"
+    path.write_text(module, encoding="utf-8")
+    chunks = plan(path, budget=STEPS - 1, max_steps=1).chunks
+    assert tiles(chunks, path) is None
+    lines = module.split("\n")
+    assert [lines[chunk.begin - 1].split(" ==")[0] for chunk in chunks[1:]] == [
+        "THEOREM ThmTwo",
+        "LEMMA LemThree",
+    ]
+
+
 @pytest.mark.parametrize(
     "proofs",
     sorted(path for directory in MODULE_DIRS for path in (REPO_ROOT / directory).glob("*_proofs.tla")),

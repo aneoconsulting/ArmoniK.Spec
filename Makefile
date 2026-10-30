@@ -61,7 +61,7 @@ TLAPM_OPT_OPTS := $(TLAPM_OPTS) --stretch 3
 CHUNK_OPTS ?=
 # Optional line range for the tlapm / tlapm-opt targets: empty checks the whole
 # module, BEGIN/END restrict the run to that range (see `make chunks`).
-TOOLBOX     = $(if $(BEGIN),$(if $(END),--toolbox $(BEGIN) $(END),$(error BEGIN needs a matching END)))
+TOOLBOX     = $(if $(BEGIN)$(END),$(if $(and $(BEGIN),$(END)),--toolbox $(BEGIN) $(END),$(error BEGIN and END go together)))
 
 JAVA_SRCS    := $(wildcard $(LIB_DIR)/*.java)
 JAVA_CLASSES := $(JAVA_SRCS:.java=.class)
@@ -175,7 +175,7 @@ tlapm-opt: $(TLAPM_OPT)
 	$(TLAPM_OPT) $(TLAPM_OPT_OPTS) $(TOOLBOX) $(MODULE_DIR)/$(MODULE).tla
 
 chunks:
-	@test -z "$(MODULE)" || $(call locate)
+	@test -z "$(MODULE)" || { $(call locate); }
 	python3 -m scripts.chunk_proofs $(CHUNK_OPTS) $(if $(MODULE),$(MODULE_DIR)/$(MODULE).tla)
 
 # A .class lands next to its .java.

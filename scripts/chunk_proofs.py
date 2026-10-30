@@ -168,13 +168,19 @@ def statements(lines: list[str]) -> list[tuple[int, str]]:
     return found
 
 
+def _lines(text: str) -> list[str]:
+    """The lines of `text` as tlapm numbers them: only a newline ends one, unlike
+    str.splitlines, which also splits at a form feed or a Unicode line separator."""
+    return text.removesuffix("\n").split("\n")
+
+
 def plan(path: Path, budget: int = DEFAULT_BUDGET, max_steps: int = DEFAULT_MAX_STEPS) -> Plan:
     """The runs that check `path`: the whole file when it fits `budget`, else a tiling.
 
     A range never starts inside a statement, and the ranges cover every line of
     the file exactly once.
     """
-    lines = strip_comments(path.read_text(encoding="utf-8")).splitlines()
+    lines = _lines(strip_comments(path.read_text(encoding="utf-8")))
     starts = statements(lines)
     # Leaf directives of [start, next start), so that a range's weight is the sum
     # over the statements it groups.
@@ -221,7 +227,7 @@ def tiles(chunks: list[Chunk], path: Path) -> str | None:
     A gap between two ranges is obligations no job checks -- a green CI that
     verified nothing -- so it is checked rather than trusted.
     """
-    lines = len(path.read_text(encoding="utf-8").splitlines())
+    lines = len(_lines(path.read_text(encoding="utf-8")))
     expected = 1
     for chunk in chunks:
         if chunk.begin != expected:
