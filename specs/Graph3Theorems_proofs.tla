@@ -104,17 +104,12 @@ BY Zenon DEF Bijection, Cardinality, G2!Bijection, G2!Cardinality,
 (* openness only tests the finalized classes (completed/aborted/retried task, *)
 (* completed/aborted object), all of which the Bar preserves -- parked        *)
 (* STOPPED/PAUSED tasks are open on both sides. Hence the open-induced        *)
-(* ancestor subgraphs, the open-path sets and the upstream-target conditions  *)
-(* are mapping-independent.                                                   *)
+(* ancestor subgraphs, and so the open ancestries, are mapping-independent.   *)
 LEMMA LemG2OpenNodeBridge ==
     /\ \A n : IsOpenNode(n) <=> G2!IsOpenNode(n)
     /\ \A o : AncestorSubGraph(deps, o, IsOpenNode)
               = G2!AncestorSubGraph(deps, o, G2!IsOpenNode)
-    /\ \A o : OpenPath(deps, o, IsOpenNode)
-              = G2!OpenPath(deps, o, G2!IsOpenNode)
-    /\ \A t \in Task, o \in Object :
-           IsTaskUpstreamOnOpenPathToTarget(t, o)
-           <=> G2!IsTaskUpstreamOnOpenPathToTarget(t, o)
+    /\ \A o : OA(o) = G2!OA(o)
 <1>1. \A n : IsOpenNode(n) <=> G2!IsOpenNode(n)
     BY LemG2BarStates DEF G2!IsOpenNode, IsOpenNode
 <1>2. ASSUME NEW o
@@ -130,20 +125,10 @@ LEMMA LemG2OpenNodeBridge ==
     <2>. QED
         BY <2>1, <2>2
 <1>3. ASSUME NEW o
-      PROVE  OpenPath(deps, o, IsOpenNode) = G2!OpenPath(deps, o, G2!IsOpenNode)
-    <2>1. G2!OpenPath(deps, o, G2!IsOpenNode) = OpenPath(deps, o, G2!IsOpenNode)
-        BY DEF G2!OpenPath, OpenPath, G2!SimplePath, SimplePath, G2!Path, Path,
-            G2!IsInjective, IsInjective
-    <2>2. OpenPath(deps, o, G2!IsOpenNode) = OpenPath(deps, o, IsOpenNode)
-        BY <1>1 DEF OpenPath
-    <2>. QED
-        BY <2>1, <2>2
-<1>4. ASSUME NEW t \in Task, NEW o \in Object
-      PROVE  IsTaskUpstreamOnOpenPathToTarget(t, o)
-             <=> G2!IsTaskUpstreamOnOpenPathToTarget(t, o)
-    BY <1>3 DEF IsTaskUpstreamOnOpenPathToTarget, G2!IsTaskUpstreamOnOpenPathToTarget
+      PROVE  OA(o) = G2!OA(o)
+    BY <1>2 DEF OA, G2!OA
 <1>. QED
-    BY <1>1, <1>2, <1>3, <1>4
+    BY <1>1, <1>2, <1>3
 
 (* Task3 (identity mapping) -- every state set coincides.                     *)
 LEMMA LemT3States ==
@@ -737,13 +722,14 @@ DiscardOnAbortedInput(t) ==
     Predecessor(deps, t) \intersect AbortedObject /= {} /\ DiscardTasks({t})
 
 AssignUpstream(t, o) ==
-    IsTaskUpstreamOnOpenPathToTarget(t, o) /\ AssignTasks({t})
+    o \in objectTargets /\ t \in OA(o).node /\ AssignTasks({t})
 
 ResumeUpstream(t, o) ==
-    IsTaskUpstreamOnOpenPathToTarget(t, o) /\ ResumeTasks({t})
+    o \in objectTargets /\ t \in OA(o).node /\ ResumeTasks({t})
 
 DiscardStoppedUpstream(t, o) ==
-    /\ IsTaskUpstreamOnOpenPathToTarget(t, o)
+    /\ o \in objectTargets
+    /\ t \in OA(o).node
     /\ t \in StoppedTask
     /\ DiscardTasks({t})
 
@@ -1618,7 +1604,7 @@ LEMMA LemRefineG2WFAssignTasks ==
            /\ WF_vars(ResumeUpstream(t, o))
            /\ WF_vars(DiscardStoppedUpstream(t, o))
            => WF_(G2!vars)(G2!AssignUpstream(t, o))
-<1>. DEFINE Up == IsTaskUpstreamOnOpenPathToTarget(t, o)
+<1>. DEFINE Up == o \in objectTargets /\ t \in OA(o).node
 <1>. SUFFICES /\ []TypeOk /\ []T3!TaskSafetyInv /\ [][Next]_vars
               /\ SF_vars(AssignUpstream(t, o))
               /\ WF_vars(StopTasks({t}))
@@ -1638,7 +1624,7 @@ LEMMA LemRefineG2WFAssignTasks ==
     <2>3. ENABLED <<G2!AssignUpstream(t, o)>>_(G2!vars) <=> ENABLED G2!AssignUpstream(t, o)
         BY <2>2, ENABLEDaxioms
     <2>4. ENABLED G2!AssignUpstream(t, o)
-          <=> G2!IsTaskUpstreamOnOpenPathToTarget(t, o) /\ t \in G2!StagedTask
+          <=> o \in objectTargets /\ t \in G2!OA(o).node /\ t \in G2!StagedTask
         BY ExpandENABLED, Zenon
         DEF G2!AssignUpstream, G2!AssignTasks, G2!StagedTask, taskStateBar
     <2>. QED
@@ -1709,7 +1695,7 @@ LEMMA LemRefineG2WFAssignTasks ==
             BY LemG2BarStates DEF AssignTasks, AssignUpstream
         <3>. QED
             BY <2>1, <3>1 DEF AssignTasks, AssignUpstream, G2!AssignTasks
-    <2>3. G2!IsTaskUpstreamOnOpenPathToTarget(t, o)
+    <2>3. o \in objectTargets /\ t \in G2!OA(o).node
         BY LemG2OpenNodeBridge DEF AssignUpstream
     <2>4. taskStateBar' /= taskStateBar
         BY <2>1 DEF AssignTasks, AssignUpstream, StagedTask, taskStateBar
@@ -1765,16 +1751,16 @@ LEMMA LemRefineG2WFAssignTasks ==
 <1>. QED
     BY <1>1, <1>6, <1>13, <1>14, <1>15, <1>16, PTL
 
-(* G2's open-upstream constraint: the open ancestor subgraph and the          *)
+(* G2's UpstreamStabilization: the open ancestor subgraph and the             *)
 (* subgraph relation are mapping-independent, so each per-object conjunct     *)
 (* transfers through the boxed bridge (a subscript change on a stable value). *)
-LEMMA LemRefineG2OpenUpstreamEventuallyClosed ==
-    OpenUpstreamEventuallyClosed => G2!OpenUpstreamEventuallyClosed
+LEMMA LemRefineG2UpstreamStabilization ==
+    UpstreamStabilization => G2!UpstreamStabilization
 <1>. DEFINE A(x) == AncestorSubGraph(deps, x, IsOpenNode)
             B(x) == G2!AncestorSubGraph(deps, x, G2!IsOpenNode)
-<1>. USE DEF OpenUpstreamEventuallyClosed, G2!OpenUpstreamEventuallyClosed
+<1>. USE DEF UpstreamStabilization, G2!UpstreamStabilization, OA, G2!OA
 <1>. SUFFICES ASSUME NEW o \in Object
-              PROVE  OpenUpstreamEventuallyClosed
+              PROVE  UpstreamStabilization
                      => <>[][B(o)' \in G2!DirectedSubgraph(B(o))]_(B(o))
     BY Isa
 \* --- the open ancestor subgraphs coincide in every state, boxed in the clean
@@ -1788,7 +1774,7 @@ LEMMA LemRefineG2OpenUpstreamEventuallyClosed ==
       => ([A(o)' \in DirectedSubgraph(A(o))]_(A(o))
           => [B(o)' \in G2!DirectedSubgraph(B(o))]_(B(o)))
     BY LemG2GraphBridges
-<1>3. OpenUpstreamEventuallyClosed
+<1>3. UpstreamStabilization
       => <>[][A(o)' \in DirectedSubgraph(A(o))]_(A(o))
     BY Isa
 <1>. QED
@@ -1804,13 +1790,13 @@ THEOREM G3_RefineGraph2 == Spec => RefineGraph2
     BY DEF RefineGraph2
 <1>1. []TypeOk /\ []T3!TaskSafetyInv
     BY LemTypeOk, LemT3TaskSafetyInv DEF Spec
-<1>2. [][Next]_vars /\ Fairness /\ OpenUpstreamEventuallyClosed
+<1>2. [][Next]_vars /\ Fairness /\ UpstreamStabilization
     BY DEF Spec
-(* Initial state, step simulation and the open-upstream constraint. *)
+(* Initial state, step simulation and UpstreamStabilization.        *)
 <1>3. G2!Init /\ [][G2!Next]_(G2!vars)
     BY LemRefineG2InitNext DEF Spec
-<1>4. G2!OpenUpstreamEventuallyClosed
-    BY <1>2, LemRefineG2OpenUpstreamEventuallyClosed
+<1>4. G2!UpstreamStabilization
+    BY <1>2, LemRefineG2UpstreamStabilization
 (* Object fairness, conjunct by conjunct. *)
 <1>5. \A o \in Object : /\ WF_(G2!vars)(G2!CompleteObjects({o}))
                        /\ WF_(G2!vars)(G2!AbortObjects({o}))

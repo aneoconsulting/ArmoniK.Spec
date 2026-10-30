@@ -100,8 +100,8 @@ BY Assumptions DEF Bijection, ExistsBijection, G1!Bijection, G1!ExistsBijection,
 (* G2's IsOpenNode (corrected to exclude completed/aborted/retried tasks and     *)
 (* completed/aborted objects) coincides pointwise with G1!IsOpenNode under the   *)
 (* Bar mapping (LemG1BarStates), so the open-induced ancestor subgraph and the set  *)
-(* of open paths are mapping-independent. Used by the OpenUpstreamEventuallyClosed *)
-(* refinement and the upstream-guarded AssignTasks fairness conjunct.            *)
+(* of open paths are mapping-independent. Used by the UpstreamStabilization       *)
+(* refinement and the open-ancestry-guarded AssignTasks fairness conjunct.       *)
 LEMMA LemG1OpenNodeBridge ==
     ASSUME TypeOk
     PROVE  /\ \A n : IsOpenNode(n) <=> G1!IsOpenNode(n)
@@ -2633,7 +2633,7 @@ THEOREM G2_O2TypeOk == Spec => []O2!TypeOk
 (*                                                                           *)
 (* GraphSafetyInv bundles every invariant the liveness proofs rely on, so    *)
 (* that they can be stated over []GraphSafetyInv /\ [][Next]_vars /\ Fairness  *)
-(* (/\ OpenUpstreamEventuallyClosed), mirroring Graph1's                      *)
+(* (/\ UpstreamStabilization), mirroring Graph1's                             *)
 (* GraphSafetyInv. LemFairnessStable lets a liveness proof box Fairness and   *)
 (* extract any of its conjuncts at any suffix.                               *)
 (*****************************************************************************)
@@ -2681,7 +2681,8 @@ LEMMA LemFairnessStable == Fairness <=> []Fairness
                 /\ WF_vars(RetryTasks({t}))
             PairFairness(t, o) ==
                 WF_vars(
-                    /\ IsTaskUpstreamOnOpenPathToTarget(t, o)
+                    /\ o \in objectTargets
+                    /\ t \in OA(o).node
                     /\ AssignTasks({t}))
 <1>1. (\A o \in Object : ObjectFairness(o)) <=> [](\A o \in Object : ObjectFairness(o))
     <2>1. [](\A o \in Object : ObjectFairness(o)) <=> \A o \in Object : []ObjectFairness(o)
@@ -2717,8 +2718,8 @@ LEMMA LemFairnessStable == Fairness <=> []Fairness
 (*                                                                           *)
 (* Each conjunct of G1!Fairness is discharged by its own lemma               *)
 (* LemRefineG1<WF|SF><Action> (StageTasks, AssignTasks, ProcessTasks,        *)
-(* FinalizeObjects, FinalizeTasks), G1!OpenUpstreamEventuallyClosed by       *)
-(* LemRefineG1OpenUpstreamEventuallyClosed, and G2_RefineGraph1              *)
+(* FinalizeObjects, FinalizeTasks), G1!UpstreamStabilization by              *)
+(* LemRefineG1UpstreamStabilization, and G2_RefineGraph1                     *)
 (* assembles them with the step simulation.                                  *)
 (*                                                                           *)
 (* The conjuncts matched by a G2 fairness conjunct follow the ENABLED +      *)
@@ -2731,7 +2732,7 @@ LEMMA LemFairnessStable == Fairness <=> []Fairness
 (*                                                                           *)
 (* WF(G1!FinalizeObjects) has no matching G2 conjunct: it is proved by a     *)
 (* post-quiescence drain (LemRefineG1WFFinalizeObjects). Under the           *)
-(* unconditional OpenUpstreamEventuallyClosed, the producers of an object o  *)
+(* unconditional UpstreamStabilization, the producers of an object o         *)
 (* eventually leave SUCCEEDED/DISCARDED permanently (their own finalization  *)
 (* fairness, fed by the discharged StrongProducerRetention, LemSPRDischarge) *)
 (* and FAILED permanently (the clone-registration engine), so the abstract   *)
@@ -2873,12 +2874,12 @@ LEMMA LemG1StablePredecessor ==
 DiscardOnAbortedInput(t) ==
     Predecessor(deps, t) \intersect AbortedObject /= {} /\ DiscardTasks({t})
 
-(* The upstream-guarded assignment action as a named operator (same role as     *)
+(* The open-ancestry-guarded assignment as a named operator (same role as       *)
 (* DiscardOnAbortedInput: lets ExpandENABLED treat <<AssignUpstream(t, o)>>_vars *)
 (* as a single action). This is the G2 fairness action whose WF refines G1's     *)
-(* per-(task, object) WF(upstream-to-o /\ AssignTasks).                          *)
+(* per-(task, object) WF(open-ancestry-guarded AssignTasks).                      *)
 AssignUpstream(t, o) ==
-    IsTaskUpstreamOnOpenPathToTarget(t, o) /\ AssignTasks({t})
+    o \in objectTargets /\ t \in OA(o).node /\ AssignTasks({t})
 
 (* A registered task with an aborted input is discarded by the discard-on-   *)
 (* abort fairness, which leaves REGISTERED: so a task that eventually stays   *)
@@ -3089,14 +3090,14 @@ LEMMA LemRefineG1WFStageTasks ==
     <2>. QED
         BY <1>4, <2>1, <1>2, <1>3, PTL
 
-(* G1!OpenUpstreamEventuallyClosed refinement. G2's IsOpenNode matches        *)
+(* G1!UpstreamStabilization refinement. G2's IsOpenNode matches               *)
 (* G1!IsOpenNode under the Bar (LemG1OpenNodeBridge), so the open-induced         *)
 (* ancestor subgraphs coincide under []TypeOk, and the two constraints differ  *)
 (* only by G1's outer target guard ([](o \in targets) => ...), which G2's      *)
 (* unconditional constraint trivially satisfies. The boxed bridge below is     *)
 (* proved at clean lemma level (its PTL necessitation must not sit in a        *)
 (* context polluted by the non-box temporal hypothesis                        *)
-(* OpenUpstreamEventuallyClosed).                                              *)
+(* UpstreamStabilization).                                                     *)
 LEMMA LemG1OpenAncestryBar ==
     ASSUME NEW o \in Object
     PROVE  [](TypeOk => G1!AncestorSubGraph(deps, o, G1!IsOpenNode)
@@ -3107,9 +3108,9 @@ LEMMA LemG1OpenAncestryBar ==
 <1>. QED
     BY <1>1, PTL
 
-(* One step of G2's open-upstream constraint is one step of G1's, once the    *)
+(* One step of G2's UpstreamStabilization is one step of G1's, once the       *)
 (* two open ancestor subgraphs coincide before and after the step.            *)
-LEMMA LemG1OpenUpstreamStep ==
+LEMMA LemG1UpstreamStabilizationStep ==
     ASSUME NEW o \in Object
     PROVE  /\ G1!AncestorSubGraph(deps, o, G1!IsOpenNode)
               = AncestorSubGraph(deps, o, IsOpenNode)
@@ -3123,10 +3124,10 @@ LEMMA LemG1OpenUpstreamStep ==
                   ]_(G1!AncestorSubGraph(deps, o, G1!IsOpenNode)))
 BY LemG1GraphBridges
 
-LEMMA LemRefineG1OpenUpstreamEventuallyClosed ==
-    []TypeOk /\ OpenUpstreamEventuallyClosed => G1!OpenUpstreamEventuallyClosed
-<1>. USE DEF OpenUpstreamEventuallyClosed, G1!OpenUpstreamEventuallyClosed
-<1>. SUFFICES ASSUME []TypeOk, OpenUpstreamEventuallyClosed, NEW o \in Object
+LEMMA LemRefineG1UpstreamStabilization ==
+    []TypeOk /\ UpstreamStabilization => G1!UpstreamStabilization
+<1>. USE DEF UpstreamStabilization, G1!UpstreamStabilization, OA, G1!OA
+<1>. SUFFICES ASSUME []TypeOk, UpstreamStabilization, NEW o \in Object
               PROVE  []( [](o \in objectTargets)
                         => <>[][ (G1!AncestorSubGraph(deps, o, G1!IsOpenNode))'
                                  \in G1!DirectedSubgraph(G1!AncestorSubGraph(deps, o, G1!IsOpenNode))
@@ -3140,34 +3141,34 @@ LEMMA LemRefineG1OpenUpstreamEventuallyClosed ==
           = AncestorSubGraph(deps, o, IsOpenNode))
     BY LemG1OpenAncestryBar, PTL
 <1>. QED
-    BY <1>1, <1>2, LemG1OpenUpstreamStep, PTL
+    BY <1>1, <1>2, LemG1UpstreamStabilizationStep, PTL
 
-(* Node-set projection of the open-upstream constraint: a subgraph inclusion   *)
+(* Node-set projection of UpstreamStabilization: a subgraph inclusion          *)
 (* implies the inclusion of the node sets, so the subgraph form of             *)
-(* OpenUpstreamEventuallyClosed yields, per object, the eventual node-set      *)
+(* UpstreamStabilization yields, per object, the eventual node-set             *)
 (* stabilization on which the cardinality measures below are built.            *)
-LEMMA LemOpenUpstreamNodeSets ==
+LEMMA LemUpstreamStabilizationNodeSets ==
     ASSUME NEW o \in Object
-    PROVE  OpenUpstreamEventuallyClosed
+    PROVE  UpstreamStabilization
            => <>[][(AncestorSubGraph(deps, o, IsOpenNode).node)'
                    \subseteq AncestorSubGraph(deps, o, IsOpenNode).node]_vars
 <1>. DEFINE G == AncestorSubGraph(deps, o, IsOpenNode)
 <1>1. [G' \in DirectedSubgraph(G)]_(G) => [(G.node)' \subseteq G.node]_vars
     BY Zenon DEF DirectedSubgraph
-<1>2. OpenUpstreamEventuallyClosed => <>[][G' \in DirectedSubgraph(G)]_(G)
-    BY Isa DEF OpenUpstreamEventuallyClosed
+<1>2. UpstreamStabilization => <>[][G' \in DirectedSubgraph(G)]_(G)
+    BY Isa DEF UpstreamStabilization, OA
 <1>. QED
     BY <1>1, <1>2, PTL
 
-(* The open-upstream constraint is a conjunction of <>[]-formulas, hence      *)
+(* UpstreamStabilization is a conjunction of <>[]-formulas, hence             *)
 (* suffix-stable: it is its own [].                                           *)
-LEMMA LemOpenUpstreamStable ==
-    OpenUpstreamEventuallyClosed <=> []OpenUpstreamEventuallyClosed
+LEMMA LemUpstreamStabilizationStable ==
+    UpstreamStabilization <=> []UpstreamStabilization
 <1>. DEFINE Closed(o) == <>[][(AncestorSubGraph(deps, o, IsOpenNode))'
                                  \in DirectedSubgraph(AncestorSubGraph(deps, o, IsOpenNode))
                                 ]_(AncestorSubGraph(deps, o, IsOpenNode))
-<1>1. OpenUpstreamEventuallyClosed <=> \A o \in Object : Closed(o)
-    BY Isa DEF OpenUpstreamEventuallyClosed
+<1>1. UpstreamStabilization <=> \A o \in Object : Closed(o)
+    BY Isa DEF UpstreamStabilization, OA
 <1>2. (\A o \in Object : Closed(o)) <=> [](\A o \in Object : Closed(o))
     <2>1. [](\A o \in Object : Closed(o)) <=> \A o \in Object : []Closed(o)
         OBVIOUS
@@ -3179,32 +3180,22 @@ LEMMA LemOpenUpstreamStable ==
 <1>. QED
     BY <1>1, <1>2, PTL
 
-(* The upstream-open-path guard coincides with G1's under the Bar: both       *)
-(* test the target set and the open paths, which match via                    *)
-(* LemG1OpenNodeBridge.                                                        *)
-LEMMA LemUpstreamBridge ==
-    ASSUME TypeOk, NEW t \in Task, NEW o \in Object
-    PROVE  IsTaskUpstreamOnOpenPathToTarget(t, o)
-           <=> G1!IsTaskUpstreamOnOpenPathToTarget(t, o)
-<1>1. OpenPath(deps, o, IsOpenNode) = G1!OpenPath(deps, o, G1!IsOpenNode)
-    BY LemG1OpenNodeBridge
-<1>. QED
-    BY <1>1 DEF IsTaskUpstreamOnOpenPathToTarget, G1!IsTaskUpstreamOnOpenPathToTarget
-
-(* WF(G1!AssignTasks) -- upstream-guarded, per (task, object) pair. WF=>WF       *)
-(* refinement needs only the ENABLED-lift and the step-refinement. The upstream *)
-(* guard matches G1's via LemUpstreamBridge, and G2!AssignTasks projects onto    *)
-(* G1!AssignTasks under the Bar.                                                *)
+(* WF(G1!AssignTasks) -- open-ancestry-guarded, per (task, object) pair.        *)
+(* WF=>WF refinement needs only the ENABLED-lift and the step-refinement. The   *)
+(* open ancestry matches G1's under the Bar (LemG1OpenNodeBridge), and          *)
+(* G2!AssignTasks projects onto G1!AssignTasks under the Bar.                   *)
 LEMMA LemRefineG1WFAssignTasks ==
     ASSUME NEW t \in Task, NEW o \in Object
     PROVE  /\ []TypeOk /\ WF_vars(AssignUpstream(t, o))
-           => WF_(G1!vars)(/\ G1!IsTaskUpstreamOnOpenPathToTarget(t, o)
+           => WF_(G1!vars)(/\ o \in objectTargets
+                           /\ t \in G1!OA(o).node
                            /\ G1!AssignTasks({t}))
-<1>. DEFINE AbsA == /\ G1!IsTaskUpstreamOnOpenPathToTarget(t, o)
+<1>. DEFINE AbsA == /\ o \in objectTargets
+                    /\ t \in G1!OA(o).node
                     /\ G1!AssignTasks({t})
-\* --- (0) G2-side enabledness of the upstream-guarded assignment ---
+\* --- (0) G2-side enabledness of the open-ancestry-guarded assignment ---
 <1>0. ENABLED <<AssignUpstream(t, o)>>_vars
-      <=> IsTaskUpstreamOnOpenPathToTarget(t, o) /\ t \in StagedTask
+      <=> o \in objectTargets /\ t \in OA(o).node /\ t \in StagedTask
     <2>1. AssignUpstream(t, o) => taskState' /= taskState
         BY DEF AssignUpstream, AssignTasks, StagedTask
     <2>2. <<AssignUpstream(t, o)>>_vars <=> AssignUpstream(t, o)
@@ -3212,7 +3203,7 @@ LEMMA LemRefineG1WFAssignTasks ==
     <2>3. (ENABLED <<AssignUpstream(t, o)>>_vars) <=> (ENABLED AssignUpstream(t, o))
         BY <2>2, ENABLEDaxioms
     <2>4. ENABLED AssignUpstream(t, o)
-          <=> IsTaskUpstreamOnOpenPathToTarget(t, o) /\ t \in StagedTask
+          <=> o \in objectTargets /\ t \in OA(o).node /\ t \in StagedTask
         BY ExpandENABLED, Zenon DEF AssignUpstream, AssignTasks, StagedTask
     <2>. QED
         BY <2>3, <2>4
@@ -3220,27 +3211,27 @@ LEMMA LemRefineG1WFAssignTasks ==
 <1>1. TypeOk /\ ENABLED <<AbsA>>_(G1!vars)
       => ENABLED <<AssignUpstream(t, o)>>_vars
     <2>1. TypeOk /\ ENABLED <<AbsA>>_(G1!vars)
-          => IsTaskUpstreamOnOpenPathToTarget(t, o) /\ t \in StagedTask
+          => o \in objectTargets /\ t \in OA(o).node /\ t \in StagedTask
         <3>. SUFFICES ASSUME TypeOk, ENABLED <<AbsA>>_(G1!vars)
-                      PROVE  IsTaskUpstreamOnOpenPathToTarget(t, o) /\ t \in StagedTask
+                      PROVE  o \in objectTargets /\ t \in OA(o).node /\ t \in StagedTask
             OBVIOUS
-        <3>1. G1!IsTaskUpstreamOnOpenPathToTarget(t, o) /\ t \in G1!StagedTask
+        <3>1. o \in objectTargets /\ t \in G1!OA(o).node /\ t \in G1!StagedTask
             <4>. SUFFICES ASSUME NEW depsp, NEW objectStatep, NEW objectTargetsp,
                                  NEW taskStatep, NEW nextAttemptOfp,
-                                 G1!IsTaskUpstreamOnOpenPathToTarget(t, o),
+                                 o \in objectTargets, t \in G1!OA(o).node,
                                  {t} \subseteq G1!StagedTask
-                          PROVE  G1!IsTaskUpstreamOnOpenPathToTarget(t, o)
+                          PROVE  o \in objectTargets /\ t \in G1!OA(o).node
                                  /\ t \in G1!StagedTask
                 BY ExpandENABLED DEF G1!AssignTasks, G1!vars, taskStateBar, objectStateBar
             <4>. QED
                 OBVIOUS
         <3>2. t \in StagedTask
             BY <3>1, LemG1BarStates
-        <3>3. IsTaskUpstreamOnOpenPathToTarget(t, o)
-            BY <3>1, LemUpstreamBridge
+        <3>3. o \in objectTargets /\ t \in OA(o).node
+            BY <3>1, LemG1OpenNodeBridge DEF OA, G1!OA
         <3>. QED
             BY <3>2, <3>3
-    <2>2. IsTaskUpstreamOnOpenPathToTarget(t, o) /\ t \in StagedTask
+    <2>2. o \in objectTargets /\ t \in OA(o).node /\ t \in StagedTask
           => ENABLED <<AssignUpstream(t, o)>>_vars
         BY <1>0
     <2>. QED
@@ -3256,8 +3247,8 @@ LEMMA LemRefineG1WFAssignTasks ==
         BY DEF AssignUpstream, AssignTasks, taskStateBar
     <2>3. objectStateBar' = objectStateBar
         BY LemBarStutter DEF AssignUpstream, AssignTasks
-    <2>4. G1!IsTaskUpstreamOnOpenPathToTarget(t, o)
-        BY LemUpstreamBridge DEF AssignUpstream
+    <2>4. o \in objectTargets /\ t \in G1!OA(o).node
+        BY LemG1OpenNodeBridge DEF AssignUpstream, OA, G1!OA
     <2>5. G1!AssignTasks({t})
         BY <2>1, <2>2, <2>3, LemG1BarStates
         DEF AssignUpstream, AssignTasks, G1!AssignTasks, G1!vars, StagedTask,
@@ -3761,7 +3752,7 @@ JointRetained  == INSTANCE JointStabilityTheorems WITH T <- Retained
 
 
 (*****************************************************************************)
-(* QUIESCENCE COROLLARY: under a quiesced open upstream of a registered      *)
+(* QUIESCENCE COROLLARY: under a quiesced open ancestry of a registered      *)
 (* object o, no producer of o can (ever again) sit with a still-unknown      *)
 (* retry clone. The clone-registration engine (LemCloneRegistration)        *)
 (* eventually registers the clone -- but any step registering the clone     *)
@@ -4879,7 +4870,7 @@ LEMMA LemOutputsPinned ==
 (* strong producer other than t.                                                *)
 LEMMA LemOutputRetained ==
     ASSUME NEW o \in Object, NEW t \in Task
-    PROVE  /\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ OpenUpstreamEventuallyClosed
+    PROVE  /\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ UpstreamStabilization
            /\ <>[](t \in Predecessor(deps, o))
            /\ (<>[](t \in SucceededTask) \/ <>[](t \in DiscardedTask))
            => <>[](o \in RegisteredObject =>
@@ -4888,7 +4879,7 @@ LEMMA LemOutputRetained ==
 <1>. DEFINE Witness == o \in RegisteredObject =>
                            \E w \in Predecessor(deps, o) \ {t} :
                                w \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}
-<1>. SUFFICES ASSUME []GraphSafetyInv, [][Next]_vars, []Fairness, OpenUpstreamEventuallyClosed,
+<1>. SUFFICES ASSUME []GraphSafetyInv, [][Next]_vars, []Fairness, UpstreamStabilization,
                      <>[](t \in Predecessor(deps, o)),
                      <>[](t \in SucceededTask) \/ <>[](t \in DiscardedTask)
               PROVE  <>[](Witness)
@@ -4900,7 +4891,7 @@ LEMMA LemOutputRetained ==
         BY <2>1, Isa DEF Fairness
 <1>2. <>[][(AncestorSubGraph(deps, o, IsOpenNode).node)'
            \subseteq AncestorSubGraph(deps, o, IsOpenNode).node]_vars
-    BY LemOpenUpstreamNodeSets
+    BY LemUpstreamStabilizationNodeSets
 (* S-case: the completion fairness drives o out of REGISTERED for good. *)
 <1>3. <>[](t \in SucceededTask) => <>[](Witness)
     <2>1. <>[](t \in SucceededTask) => <>[](~ (o \in RegisteredObject))
@@ -4921,7 +4912,7 @@ LEMMA LemOutputRetained ==
 
 (* Permanent StrongProducerRetention of a permanently SUCCEEDED / DISCARDED  *)
 (* task, from the invariants, the fairness conjuncts and the (unconditional) *)
-(* OpenUpstreamEventuallyClosed constraint. The task's S/D status            *)
+(* UpstreamStabilization constraint. The task's S/D status                   *)
 (* stabilizes; a permanently SUCCEEDED producer completes its registered     *)
 (* outputs (S-case), and a permanently DISCARDED one keeps a second strong   *)
 (* witness on every registered output via the post-quiescence engine         *)
@@ -4929,7 +4920,7 @@ LEMMA LemOutputRetained ==
 (* conjoins the per-output eventualities.                                    *)
 LEMMA LemSPRDischarge ==
     ASSUME NEW t \in Task
-    PROVE  /\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ OpenUpstreamEventuallyClosed
+    PROVE  /\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ UpstreamStabilization
            => <>[]((t \in SucceededTask \/ t \in DiscardedTask)
                        => StrongProducerRetention(t))
 <1>. DEFINE Out == Successor(deps, t)
@@ -4967,10 +4958,10 @@ LEMMA LemSPRDischarge ==
     <2>. QED
         BY <2>1, <2>2 DEF Retained
 <1>. HIDE DEF Kept
-<1>. SUFFICES ASSUME []GraphSafetyInv, [][Next]_vars, []Fairness, []OpenUpstreamEventuallyClosed
+<1>. SUFFICES ASSUME []GraphSafetyInv, [][Next]_vars, []Fairness, []UpstreamStabilization
               PROVE  <>[](SD => StrongProducerRetention(t))
-    BY LemFairnessStable, LemOpenUpstreamStable
-<1>5. []TypeOk /\ []DependencyGraphCompliant /\ Fairness /\ OpenUpstreamEventuallyClosed
+    BY LemFairnessStable, LemUpstreamStabilizationStable
+<1>5. []TypeOk /\ []DependencyGraphCompliant /\ Fairness /\ UpstreamStabilization
     BY PTL DEF GraphSafetyInv
 (* (a) The SUCCEEDED / DISCARDED status of t stabilizes; a permanently
    non-S/D task retains vacuously. *)
@@ -5032,7 +5023,7 @@ LEMMA LemSPRDischarge ==
 (* CompleteTasks / AbortTasks, so weak fairness finalizes it (terminal).     *)
 LEMMA LemTaskSDDrain ==
     ASSUME NEW t \in Task
-    PROVE  /\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ OpenUpstreamEventuallyClosed
+    PROVE  /\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ UpstreamStabilization
            => <>[](~ (t \in SucceededTask) /\ ~ (t \in DiscardedTask))
 \* Task-finalization enabledness from StrongProducerRetention, in the clean
 \* context: SPR is exactly the witness guard of CompleteTasks / AbortTasks.
@@ -5050,10 +5041,10 @@ LEMMA LemTaskSDDrain ==
         BY ExpandENABLED DEF AbortTasks, vars, DiscardedTask, StrongProducerRetention
     <2>. QED
         BY <2>1, Zenon
-<1>. SUFFICES ASSUME []GraphSafetyInv, [][Next]_vars, []Fairness, []OpenUpstreamEventuallyClosed
+<1>. SUFFICES ASSUME []GraphSafetyInv, [][Next]_vars, []Fairness, []UpstreamStabilization
               PROVE  <>[](~ (t \in SucceededTask) /\ ~ (t \in DiscardedTask))
-    BY LemFairnessStable, LemOpenUpstreamStable
-<1>1. []TypeOk /\ Fairness /\ OpenUpstreamEventuallyClosed
+    BY LemFairnessStable, LemUpstreamStabilizationStable
+<1>1. []TypeOk /\ Fairness /\ UpstreamStabilization
     BY PTL DEF GraphSafetyInv
 <1>2. WF_vars(CompleteTasks({t})) /\ WF_vars(AbortTasks({t}))
     BY <1>1, Isa DEF Fairness
@@ -5134,7 +5125,7 @@ LEMMA LemG1FinalizeObjectsStep ==
 (* the source branch and WF(CompleteObjects({o})) fires.                     *)
 LEMMA LemCompleteObjectsFires ==
     ASSUME NEW o \in Object
-    PROVE  /\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ OpenUpstreamEventuallyClosed
+    PROVE  /\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ UpstreamStabilization
            /\ [](o \in RegisteredObject)
            /\ [](\/ o \in Source(deps)
                  \/ \E p \in Predecessor(deps, o) :
@@ -5162,22 +5153,22 @@ LEMMA LemCompleteObjectsFires ==
     <2>. QED
         BY ExpandENABLED DEF CompleteObjects, RegisteredObject, vars
 <1>. HIDE DEF Settle
-<1>. SUFFICES ASSUME []GraphSafetyInv, [][Next]_vars, []Fairness, []OpenUpstreamEventuallyClosed,
+<1>. SUFFICES ASSUME []GraphSafetyInv, [][Next]_vars, []Fairness, []UpstreamStabilization,
                      [](o \in RegisteredObject),
                      [](\/ o \in Source(deps)
                         \/ \E p \in Preds : p \in SucceededTask \/ p \in DiscardedTask \/ p \in FailedTask)
               PROVE  <><<CompleteObjects({o})>>_vars
-    BY LemFairnessStable, LemOpenUpstreamStable
-<1>3. []TypeOk /\ Fairness /\ OpenUpstreamEventuallyClosed
+    BY LemFairnessStable, LemUpstreamStabilizationStable
+<1>3. []TypeOk /\ Fairness /\ UpstreamStabilization
     BY PTL DEF GraphSafetyInv
 <1>4. /\ [](o \in RegisteredObject)
       /\ [](\/ o \in Source(deps)
             \/ \E p \in Preds : p \in SucceededTask \/ p \in DiscardedTask \/ p \in FailedTask)
     OBVIOUS
-(* (b) Quiescence of o's open upstream: no producer stays FAILED, and the
+(* (b) Quiescence of o's open ancestry: no producer stays FAILED, and the
    producer set is pinned to a rigid finite P. *)
 <1>5. <>[][S' \subseteq S]_vars
-    BY <1>3, LemOpenUpstreamNodeSets
+    BY <1>3, LemUpstreamStabilizationNodeSets
 <1>6. <>[](\A w \in Task : ~ (w \in Preds /\ w \in FailedTask))
     <2>1. [](/\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness
               /\ [](o \in RegisteredObject) /\ [][S' \subseteq S]_vars
@@ -5228,7 +5219,7 @@ LEMMA LemCompleteObjectsFires ==
 (* are boxed) turns []ENABLED |- <>fire into weak fairness.                  *)
 LEMMA LemRefineG1WFFinalizeObjects ==
     ASSUME NEW o \in Object
-    PROVE  /\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ OpenUpstreamEventuallyClosed
+    PROVE  /\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ UpstreamStabilization
            => WF_(G1!vars)(G1!FinalizeObjects({o}))
 \* the Bar-ENABLED inversion, in the clean context
 <1>0. TypeOk /\ ENABLED <<G1!FinalizeObjects({o})>>_(G1!vars)
@@ -5267,10 +5258,10 @@ LEMMA LemRefineG1WFFinalizeObjects ==
         BY <2>1, LemG1BarStates, LemG1GraphBridges DEF G1!ProcessedTask
     <2>. QED
         BY <2>2, <2>3
-<1>. SUFFICES ASSUME []GraphSafetyInv, [][Next]_vars, []Fairness, []OpenUpstreamEventuallyClosed
+<1>. SUFFICES ASSUME []GraphSafetyInv, [][Next]_vars, []Fairness, []UpstreamStabilization
               PROVE  WF_(G1!vars)(G1!FinalizeObjects({o}))
-    BY LemFairnessStable, LemOpenUpstreamStable
-<1>1. [](/\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ OpenUpstreamEventuallyClosed
+    BY LemFairnessStable, LemUpstreamStabilizationStable
+<1>1. [](/\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ UpstreamStabilization
           /\ [](o \in RegisteredObject)
           /\ [](\/ o \in Source(deps)
                 \/ \E p \in Predecessor(deps, o) :
@@ -5490,13 +5481,13 @@ LEMMA LemRetryCloneEventuallyRegistered ==
 (* by one of G2's CompleteTasks / AbortTasks / RetryTasks. The FAILED branch     *)
 (* needs a registered clone (LemRetryCloneEventuallyRegistered); the SUCCEEDED / *)
 (* DISCARDED branches need the strengthened witness of CompleteTasks /          *)
-(* AbortTasks, which the open-upstream constraint eventually provides forever    *)
+(* AbortTasks, which UpstreamStabilization eventually provides forever           *)
 (* (LemSPRDischarge). Both conditions are eventually permanent, so the abstract  *)
 (* enabledness eventually enables a matching G2 action forever, and G2's weak    *)
 (* fairness fires it.                                                            *)
 LEMMA LemRefineG1WFFinalizeTasks ==
     ASSUME NEW t \in Task
-    PROVE  /\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ OpenUpstreamEventuallyClosed
+    PROVE  /\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ UpstreamStabilization
            => WF_(G1!vars)(G1!FinalizeTasks({t}))
 <1>. DEFINE C   == nextAttemptOf[t] /= NULL /\ nextAttemptOf[t] \notin UnknownTask
             Pf  == t \in FailedTask => C
@@ -5506,10 +5497,10 @@ LEMMA LemRefineG1WFFinalizeTasks ==
                   o \in RegisteredObject
                   => \E w \in (Predecessor(deps, o) \ {t}) :
                          w \notin UNION {CompletedTask, AbortedTask, RetriedTask}
-<1>. SUFFICES ASSUME []GraphSafetyInv, [][Next]_vars, []Fairness, []OpenUpstreamEventuallyClosed
+<1>. SUFFICES ASSUME []GraphSafetyInv, [][Next]_vars, []Fairness, []UpstreamStabilization
               PROVE  WF_(G1!vars)(G1!FinalizeTasks({t}))
-    BY LemFairnessStable, LemOpenUpstreamStable
-<1>0. []TypeOk /\ []T2!TaskSafetyInv /\ Fairness /\ OpenUpstreamEventuallyClosed
+    BY LemFairnessStable, LemUpstreamStabilizationStable
+<1>0. []TypeOk /\ []T2!TaskSafetyInv /\ Fairness /\ UpstreamStabilization
     BY PTL DEF GraphSafetyInv
 \* (0) the abstract finalize fires on a processed task and exposes the weak guard
 <1>1. TypeOk /\ ENABLED <<G1!FinalizeTasks({t})>>_(G1!vars)
@@ -6067,10 +6058,10 @@ LEMMA LemRefineT2WFRetryTasks ==
 (*****************************************************************************)
 (* REFINEMENT OF Graph1 -- THE FULL THEOREM                                  *)
 (*                                                                           *)
-(* Spec => G1!Spec: the step simulation, the open-upstream constraint and    *)
+(* Spec => G1!Spec: the step simulation, UpstreamStabilization and           *)
 (* every conjunct of G1!Fairness, each discharged by its LemRefineG1*        *)
 (* lemma from the safety bundle, G2's fairness and the unconditional         *)
-(* OpenUpstreamEventuallyClosed constraint.                                  *)
+(* UpstreamStabilization constraint.                                         *)
 (*****************************************************************************)
 THEOREM G2_RefineGraph1 == Spec => RefineGraph1
 <1>. SUFFICES ASSUME Spec
@@ -6078,15 +6069,15 @@ THEOREM G2_RefineGraph1 == Spec => RefineGraph1
     BY DEF RefineGraph1
 <1>1. []GraphSafetyInv
     BY G2_GraphSafetyInv
-<1>2. [][Next]_vars /\ Fairness /\ OpenUpstreamEventuallyClosed
+<1>2. [][Next]_vars /\ Fairness /\ UpstreamStabilization
     BY DEF Spec
 <1>3. []TypeOk /\ []GSI_Nodes
     BY <1>1, PTL DEF GraphSafetyInv
-(* Initial state, step simulation and the open-upstream constraint. *)
+(* Initial state, step simulation and UpstreamStabilization.        *)
 <1>4. G1!Init /\ [][G1!Next]_(G1!vars)
     BY LemRefineG1InitNext DEF Spec
-<1>5. G1!OpenUpstreamEventuallyClosed
-    BY <1>2, <1>3, LemRefineG1OpenUpstreamEventuallyClosed
+<1>5. G1!UpstreamStabilization
+    BY <1>2, <1>3, LemRefineG1UpstreamStabilization
 (* Task fairness, conjunct by conjunct. *)
 <1>6. \A t \in Task : WF_(G1!vars)(G1!StageTasks({t}))
     <2>. SUFFICES ASSUME NEW t \in Task
@@ -6111,10 +6102,12 @@ THEOREM G2_RefineGraph1 == Spec => RefineGraph1
     <2>. QED
         BY <1>1, <1>2, LemRefineG1WFFinalizeTasks
 <1>9. \A t \in Task, o \in Object :
-          WF_(G1!vars)(/\ G1!IsTaskUpstreamOnOpenPathToTarget(t, o)
+          WF_(G1!vars)(/\ o \in objectTargets
+                       /\ t \in G1!OA(o).node
                        /\ G1!AssignTasks({t}))
     <2>. SUFFICES ASSUME NEW t \in Task, NEW o \in Object
-                  PROVE  WF_(G1!vars)(/\ G1!IsTaskUpstreamOnOpenPathToTarget(t, o)
+                  PROVE  WF_(G1!vars)(/\ o \in objectTargets
+                                      /\ t \in G1!OA(o).node
                                       /\ G1!AssignTasks({t}))
         OBVIOUS
     <2>1. WF_vars(AssignUpstream(t, o))
@@ -6141,8 +6134,8 @@ THEOREM G2_RefineGraph1 == Spec => RefineGraph1
 (* cardinality would descend below every bound -- which is precisely        *)
 (* G1!LemTargetedRegisteredImpossible. Its G1-side hypotheses               *)
 (* (GraphSafetyInv / Next / Fairness) come from the G1 refinement; the      *)
-(* open-ancestor measure from G1!OpenUpstreamEventuallyClosed, which G2     *)
-(* supplies via LemRefineG1OpenUpstreamEventuallyClosed. The whole          *)
+(* open-ancestor measure from G1!UpstreamStabilization, which G2            *)
+(* supplies via LemRefineG1UpstreamStabilization. The whole                 *)
 (* object-finalization engine is thus lifted verbatim from Graph1.           *)
 (*****************************************************************************)
 
@@ -6210,22 +6203,22 @@ LEMMA LemRefineO2WFCompleteObjects ==
 <1>. QED
     BY G1!LemTargetedRegisteredImpossible, LemG1Assumptions, Isa
 
-(* G1's open-upstream constraint projected onto the node set of the open     *)
+(* G1's UpstreamStabilization projected onto the node set of the open        *)
 (* ancestor subgraph -- the cardinality measure of                            *)
 (* LemRefineO2WFCompleteObjects. Clean lemma level, so that PTL may box the  *)
 (* action-level bridge (subgraph inclusion => node-set inclusion).           *)
-LEMMA LemG1OpenUpstreamNodeSets ==
+LEMMA LemG1UpstreamStabilizationNodeSets ==
     ASSUME NEW o \in Object
-    PROVE  G1!OpenUpstreamEventuallyClosed
+    PROVE  G1!UpstreamStabilization
            => LET S == G1!AncestorSubGraph(deps, o, G1!IsOpenNode).node
               IN  []([](o \in objectTargets) => <>[][S' \subseteq S]_S)
 <1>. DEFINE AG == G1!AncestorSubGraph(deps, o, G1!IsOpenNode)
             S  == AG.node
 <1>1. [AG' \in G1!DirectedSubgraph(AG)]_(AG) => [S' \subseteq S]_S
     BY Zenon DEF G1!DirectedSubgraph
-<1>2. G1!OpenUpstreamEventuallyClosed
+<1>2. G1!UpstreamStabilization
       => []([](o \in objectTargets) => <>[][AG' \in G1!DirectedSubgraph(AG)]_(AG))
-    BY Isa DEF G1!OpenUpstreamEventuallyClosed
+    BY Isa DEF G1!UpstreamStabilization, G1!OA
 <1>. QED
     BY <1>1, <1>2, PTL
 
@@ -6249,15 +6242,15 @@ THEOREM G2_RefineObject2 == Spec => RefineObject2
             BY <1>1 DEF G1!Spec
         <3>. QED
             BY <3>1, G1!LemFairnessStable, LemG1Assumptions, Isa
-    <2>5. G1!OpenUpstreamEventuallyClosed
-        BY <2>1, LemRefineG1OpenUpstreamEventuallyClosed DEF Spec
+    <2>5. G1!UpstreamStabilization
+        BY <2>1, LemRefineG1UpstreamStabilization DEF Spec
     <2>. SUFFICES ASSUME NEW o \in Object
                   PROVE  WF_(O2!vars)(o \in objectTargets /\ O2!CompleteObjects({o}))
         BY DEF O2!Fairness
     <2>. DEFINE S == G1!AncestorSubGraph(deps, o, G1!IsOpenNode).node
     \* the open-ancestor measure for o, instantiated from G1!OUEC
     <2>6. []([](o \in objectTargets) => <>[][S' \subseteq S]_S)
-        BY <2>5, LemG1OpenUpstreamNodeSets
+        BY <2>5, LemG1UpstreamStabilizationNodeSets
     \* The WF conjunct is discharged by its clean module-level reduction lemma:
     \* supply the four G1-side temporal hypotheses (from the assumed G1
     \* refinement plus the open-ancestor measure) and the lemma delivers WF.

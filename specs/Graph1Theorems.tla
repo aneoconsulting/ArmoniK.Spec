@@ -142,8 +142,8 @@ LEMMA LemObjectTransitions ==
             \/ objectState[x] = OBJECT_REGISTERED /\ objectState'[x] = OBJECT_FINALIZED
 
 (**
- * STABILITY OF MAXIMAL-OPEN-PATH ROOTS. While r stays upstream of o on an
- * open path, being the root of a maximal open path to o is preserved by every
+ * STABILITY OF MAXIMAL-OPEN-PATH ROOTS. While r stays in the open ancestry
+ * of o, being the root of a maximal open path to o is preserved by every
  * system step, provided the open ancestor set S of o never gains a node.
  * Indeed the only threat is RegisterGraph attaching a new producing task
  * above r: that task is freshly registered (hence open) and, r being an open
@@ -157,7 +157,7 @@ LEMMA LemMRootStable ==
           IN /\ GraphSafetyInv /\ GraphSafetyInv'
              /\ [Next]_vars /\ [S' \subseteq S]_S
              /\ \E p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r
-             /\ IsTaskUpstreamOnOpenPathToTarget(r, o)'
+             /\ (r \in S)'
              => (\E p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r)'
 
 LEMMA LemRootProgress ==

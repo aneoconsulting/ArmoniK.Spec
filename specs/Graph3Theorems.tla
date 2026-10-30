@@ -20,8 +20,9 @@
 (*                              the step simulation LemRefine<Abs>Next or the *)
 (*                              refinement G3_Refine<Abs>.                    *)
 (*   LEMMA LemRefine<Abs>...    the refinement of Abs: Next / InitNext, the   *)
-(*                              open-upstream constraint and one lemma per    *)
-(*                              fairness conjunct, LemRefine<Abs><WF|SF><A>.  *)
+(*                              UpstreamStabilization assumption and one      *)
+(*                              lemma per fairness conjunct,                  *)
+(*                              LemRefine<Abs><WF|SF><A>.                     *)
 (*   LEMMA Lem<Abs>Bridges, Lem<Abs>Assumptions, Lem<Abs>BarStates, LemBar...  *)
 (*                              definition and assumption bridges across the  *)
 (*                              INSTANCE renaming, and the Bar algebra.       *)
@@ -89,17 +90,12 @@ LEMMA LemG2Bridges ==
 (* openness only tests the finalized classes (completed/aborted/retried task, *)
 (* completed/aborted object), all of which the Bar preserves -- parked        *)
 (* STOPPED/PAUSED tasks are open on both sides. Hence the open-induced        *)
-(* ancestor subgraphs, the open-path sets and the upstream-target conditions  *)
-(* are mapping-independent.                                                   *)
+(* ancestor subgraphs, and so the open ancestries, are mapping-independent.   *)
 LEMMA LemG2OpenNodeBridge ==
     /\ \A n : IsOpenNode(n) <=> G2!IsOpenNode(n)
     /\ \A o : AncestorSubGraph(deps, o, IsOpenNode)
               = G2!AncestorSubGraph(deps, o, G2!IsOpenNode)
-    /\ \A o : OpenPath(deps, o, IsOpenNode)
-              = G2!OpenPath(deps, o, G2!IsOpenNode)
-    /\ \A t \in Task, o \in Object :
-           IsTaskUpstreamOnOpenPathToTarget(t, o)
-           <=> G2!IsTaskUpstreamOnOpenPathToTarget(t, o)
+    /\ \A o : OA(o) = G2!OA(o)
 
 (* Task3 (identity mapping) -- every state set coincides.                     *)
 LEMMA LemT3States ==
@@ -265,13 +261,14 @@ DiscardOnAbortedInput(t) ==
     Predecessor(deps, t) \intersect AbortedObject /= {} /\ DiscardTasks({t})
 
 AssignUpstream(t, o) ==
-    IsTaskUpstreamOnOpenPathToTarget(t, o) /\ AssignTasks({t})
+    o \in objectTargets /\ t \in OA(o).node /\ AssignTasks({t})
 
 ResumeUpstream(t, o) ==
-    IsTaskUpstreamOnOpenPathToTarget(t, o) /\ ResumeTasks({t})
+    o \in objectTargets /\ t \in OA(o).node /\ ResumeTasks({t})
 
 DiscardStoppedUpstream(t, o) ==
-    /\ IsTaskUpstreamOnOpenPathToTarget(t, o)
+    /\ o \in objectTargets
+    /\ t \in OA(o).node
     /\ t \in StoppedTask
     /\ DiscardTasks({t})
 
@@ -364,11 +361,11 @@ LEMMA LemRefineG2WFAssignTasks ==
            /\ WF_vars(DiscardStoppedUpstream(t, o))
            => WF_(G2!vars)(G2!AssignUpstream(t, o))
 
-(* G2's open-upstream constraint: the open ancestor subgraph and the          *)
+(* G2's UpstreamStabilization: the open ancestor subgraph and the             *)
 (* subgraph relation are mapping-independent, so each per-object conjunct     *)
 (* transfers through the boxed bridge (a subscript change on a stable value). *)
-LEMMA LemRefineG2OpenUpstreamEventuallyClosed ==
-    OpenUpstreamEventuallyClosed => G2!OpenUpstreamEventuallyClosed
+LEMMA LemRefineG2UpstreamStabilization ==
+    UpstreamStabilization => G2!UpstreamStabilization
 
 (*****************************************************************************)
 (* REFINEMENT OF Graph2 -- THE FULL THEOREM                                  *)
