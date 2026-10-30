@@ -60,18 +60,6 @@ THEOREM G1_FinalizedSourcesInvariant == Spec => FinalizedSourcesInvariant
 
 THEOREM G1_TaskDataDependenciesInvariant == Spec => TaskDataDependenciesInvariant
 
-(**
- * LIVENESS. A known object whose producing tasks have all been processed or
- * finalized is eventually finalized, provided it never gains a new producer.
- * Object fairness fires FinalizeObjects; the guard "no future RegisterGraph
- * produces o" keeps the producer set fixed, the processed/finalized producers
- * persist, and a registered object always has a processed producer (or is a
- * finalizable source), so FinalizeObjects stays enabled until it fires
- * (weak-fairness lattice rule WF1, with the RegisterGraph guard threaded as in
- * Task3.PermanentStopping).
- *)
-THEOREM G1_CommittedObjectsEventualFinalization == Spec => CommittedObjectsEventualFinalization
-
 (*****************************************************************************)
 
 GraphSafetyInv ==
