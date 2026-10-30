@@ -519,11 +519,15 @@ LEMMA LemG1StablePredecessor ==
     PROVE  ~ t \in UnknownTask /\ S = Predecessor(deps, t) /\ [Next]_vars
            => (S = Predecessor(deps, t))'
 
-(* The discard-on-abort action as a named operator. Wrapping it lets           *)
-(* ExpandENABLED treat <<DiscardOnAbortedInput(t)>>_vars like any single action  *)
-(* (it expands <<Op(_)>>_v cleanly, but not a raw <<P /\ Q>>_v conjunction).     *)
-DiscardOnAbortedInput(t) ==
-    Predecessor(deps, t) \intersect AbortedObject /= {} /\ DiscardTasks({t})
+(* The open-ancestry-guarded discard-on-abort action as a named operator.      *)
+(* Wrapping it lets ExpandENABLED treat <<DiscardOnAbortedInput(t, o)>>_vars     *)
+(* like any single action (it expands <<Op(_)>>_v cleanly, but not a raw         *)
+(* <<P /\ Q>>_v conjunction).                                                    *)
+DiscardOnAbortedInput(t, o) ==
+    /\ o \in objectTargets
+    /\ t \in OA(o).node
+    /\ Predecessor(deps, t) \intersect AbortedObject /= {}
+    /\ DiscardTasks({t})
 
 (* The open-ancestry-guarded assignment as a named operator (same role as       *)
 (* DiscardOnAbortedInput: lets ExpandENABLED treat <<AssignUpstream(t, o)>>_vars *)
@@ -532,28 +536,34 @@ DiscardOnAbortedInput(t) ==
 AssignUpstream(t, o) ==
     o \in objectTargets /\ t \in OA(o).node /\ AssignTasks({t})
 
-(* A registered task with an aborted input is discarded by the discard-on-   *)
-(* abort fairness, which leaves REGISTERED: so a task that eventually stays   *)
-(* registered eventually has no aborted input.                                *)
+(* A registered task with an aborted input that stands in the open ancestry  *)
+(* of a target is discarded by the discard-on-abort fairness, which leaves     *)
+(* REGISTERED: so a task that eventually stays registered in the open ancestry *)
+(* of a target eventually has no aborted input.                                *)
 LEMMA LemNoAbortedInputUnderStaging ==
-    ASSUME NEW t \in Task
+    ASSUME NEW t \in Task, NEW o \in Object
     PROVE  /\ []GraphSafetyInv /\ [][Next]_vars
-           /\ WF_vars(DiscardOnAbortedInput(t))
-           /\ <>[](t \in RegisteredTask)
+           /\ WF_vars(DiscardOnAbortedInput(t, o))
+           /\ <>[](o \in objectTargets /\ t \in OA(o).node /\ t \in RegisteredTask)
            => <>[](Predecessor(deps, t) \intersect AbortedObject = {})
 
-(* WF(G1!StageTasks). G2!StageTasks requires all inputs COMPLETED, while        *)
-(* G1!StageTasks(bar) allows them FINALIZED (completed or aborted). The gap is   *)
-(* closed by <>[](no aborted input): a registered task with an aborted input is  *)
-(* discarded (G2's discard-on-abort fairness), which would leave                 *)
-(* G1!RegisteredTask -- impossible while G1!StageTasks stays enabled. The G1     *)
-(* instance renames Predecessor -> G1!Predecessor, bridged via LemG1GraphBridges.   *)
+(* WF(G1!StageTasks) -- open-ancestry-guarded, per (task, object) pair.         *)
+(* G2!StageTasks requires all inputs COMPLETED, while G1!StageTasks(bar) allows  *)
+(* them FINALIZED (completed or aborted). The gap is closed by <>[](no aborted   *)
+(* input): a registered task of the open ancestry of a target with an aborted    *)
+(* input is discarded (G2's discard-on-abort fairness, under the same guard),    *)
+(* which would leave G1!RegisteredTask -- impossible while the guarded           *)
+(* G1!StageTasks stays enabled. The open ancestry matches G1's under the Bar     *)
+(* (LemG1OpenNodeBridge); the G1 instance renames Predecessor -> G1!Predecessor, *)
+(* bridged via LemG1GraphBridges.                                                *)
 LEMMA LemRefineG1WFStageTasks ==
-    ASSUME NEW t \in Task
+    ASSUME NEW t \in Task, NEW o \in Object
     PROVE  /\ []GraphSafetyInv /\ [][Next]_vars
            /\ WF_vars(StageTasks({t}))
-           /\ WF_vars(DiscardOnAbortedInput(t))
-           => WF_(G1!vars)(G1!StageTasks({t}))
+           /\ WF_vars(DiscardOnAbortedInput(t, o))
+           => WF_(G1!vars)(/\ o \in objectTargets
+                           /\ t \in G1!OA(o).node
+                           /\ G1!StageTasks({t}))
 
 (* G1!UpstreamStabilization refinement. G2's IsOpenNode matches               *)
 (* G1!IsOpenNode under the Bar (LemG1OpenNodeBridge), so the open-induced         *)

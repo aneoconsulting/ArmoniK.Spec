@@ -2674,13 +2674,17 @@ LEMMA LemFairnessStable == Fairness <=> []Fairness
                 /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
                 /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
                 /\ WF_vars(StageTasks({t}))
-                /\ WF_vars(Predecessor(deps, t) \intersect AbortedObject /= {} /\ DiscardTasks({t}))
                 /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
                 /\ WF_vars(CompleteTasks({t}))
                 /\ WF_vars(AbortTasks({t}))
                 /\ WF_vars(RetryTasks({t}))
             PairFairness(t, o) ==
-                WF_vars(
+                /\ WF_vars(
+                    /\ o \in objectTargets
+                    /\ t \in OA(o).node
+                    /\ Predecessor(deps, t) \intersect AbortedObject /= {}
+                    /\ DiscardTasks({t}))
+                /\ WF_vars(
                     /\ o \in objectTargets
                     /\ t \in OA(o).node
                     /\ AssignTasks({t}))
@@ -2868,11 +2872,15 @@ LEMMA LemG1StablePredecessor ==
 <1>. QED
     BY <1>4, LemG1GraphBridges
 
-(* The discard-on-abort action as a named operator. Wrapping it lets           *)
-(* ExpandENABLED treat <<DiscardOnAbortedInput(t)>>_vars like any single action  *)
-(* (it expands <<Op(_)>>_v cleanly, but not a raw <<P /\ Q>>_v conjunction).     *)
-DiscardOnAbortedInput(t) ==
-    Predecessor(deps, t) \intersect AbortedObject /= {} /\ DiscardTasks({t})
+(* The open-ancestry-guarded discard-on-abort action as a named operator.      *)
+(* Wrapping it lets ExpandENABLED treat <<DiscardOnAbortedInput(t, o)>>_vars     *)
+(* like any single action (it expands <<Op(_)>>_v cleanly, but not a raw         *)
+(* <<P /\ Q>>_v conjunction).                                                    *)
+DiscardOnAbortedInput(t, o) ==
+    /\ o \in objectTargets
+    /\ t \in OA(o).node
+    /\ Predecessor(deps, t) \intersect AbortedObject /= {}
+    /\ DiscardTasks({t})
 
 (* The open-ancestry-guarded assignment as a named operator (same role as       *)
 (* DiscardOnAbortedInput: lets ExpandENABLED treat <<AssignUpstream(t, o)>>_vars *)
@@ -2881,37 +2889,42 @@ DiscardOnAbortedInput(t) ==
 AssignUpstream(t, o) ==
     o \in objectTargets /\ t \in OA(o).node /\ AssignTasks({t})
 
-(* A registered task with an aborted input is discarded by the discard-on-   *)
-(* abort fairness, which leaves REGISTERED: so a task that eventually stays   *)
-(* registered eventually has no aborted input.                                *)
+(* A registered task with an aborted input that stands in the open ancestry  *)
+(* of a target is discarded by the discard-on-abort fairness, which leaves     *)
+(* REGISTERED: so a task that eventually stays registered in the open ancestry *)
+(* of a target eventually has no aborted input.                                *)
 LEMMA LemNoAbortedInputUnderStaging ==
-    ASSUME NEW t \in Task
+    ASSUME NEW t \in Task, NEW o \in Object
     PROVE  /\ []GraphSafetyInv /\ [][Next]_vars
-           /\ WF_vars(DiscardOnAbortedInput(t))
-           /\ <>[](t \in RegisteredTask)
+           /\ WF_vars(DiscardOnAbortedInput(t, o))
+           /\ <>[](o \in objectTargets /\ t \in OA(o).node /\ t \in RegisteredTask)
            => <>[](Predecessor(deps, t) \intersect AbortedObject = {})
 \* the enabledness of the discard-on-abort action, in the clean context
-<1>0. ENABLED <<DiscardOnAbortedInput(t)>>_vars
-      <=> Predecessor(deps, t) \intersect AbortedObject /= {}
+<1>0. ENABLED <<DiscardOnAbortedInput(t, o)>>_vars
+      <=> /\ o \in objectTargets
+          /\ t \in OA(o).node
+          /\ Predecessor(deps, t) \intersect AbortedObject /= {}
           /\ t \in (RegisteredTask \union StagedTask)
-    <2>1. DiscardOnAbortedInput(t) => taskState' /= taskState
+    <2>1. DiscardOnAbortedInput(t, o) => taskState' /= taskState
         BY DEF DiscardOnAbortedInput, DiscardTasks, RegisteredTask, StagedTask, DiscardedTask
-    <2>2. <<DiscardOnAbortedInput(t)>>_vars <=> DiscardOnAbortedInput(t)
+    <2>2. <<DiscardOnAbortedInput(t, o)>>_vars <=> DiscardOnAbortedInput(t, o)
         BY <2>1 DEF vars
-    <2>3. (ENABLED <<DiscardOnAbortedInput(t)>>_vars) <=> (ENABLED DiscardOnAbortedInput(t))
+    <2>3. (ENABLED <<DiscardOnAbortedInput(t, o)>>_vars) <=> (ENABLED DiscardOnAbortedInput(t, o))
         BY <2>2, ENABLEDaxioms
-    <2>4. ENABLED DiscardOnAbortedInput(t)
-          <=> Predecessor(deps, t) \intersect AbortedObject /= {}
+    <2>4. ENABLED DiscardOnAbortedInput(t, o)
+          <=> /\ o \in objectTargets
+              /\ t \in OA(o).node
+              /\ Predecessor(deps, t) \intersect AbortedObject /= {}
               /\ t \in (RegisteredTask \union StagedTask)
         BY ExpandENABLED, Zenon DEF DiscardOnAbortedInput, DiscardTasks, RegisteredTask, StagedTask
     <2>. QED
         BY <2>3, <2>4
 <1>. SUFFICES ASSUME []GraphSafetyInv, []TypeOk, []DependencyGraphCompliant, [][Next]_vars,
-                     WF_vars(DiscardOnAbortedInput(t))
-              PROVE  <>[](t \in RegisteredTask)
+                     WF_vars(DiscardOnAbortedInput(t, o))
+              PROVE  <>[](o \in objectTargets /\ t \in OA(o).node /\ t \in RegisteredTask)
                      => <>[](Predecessor(deps, t) \intersect AbortedObject = {})
     BY PTL DEF GraphSafetyInv
-<1>2. <<DiscardOnAbortedInput(t)>>_vars
+<1>2. <<DiscardOnAbortedInput(t, o)>>_vars
        => (t \in DiscardedTask)'
     BY DEF DiscardOnAbortedInput, DiscardTasks, vars, DiscardedTask
 <1>3. TypeOk /\ DependencyGraphCompliant /\ Predecessor(deps, t) \intersect AbortedObject /= {}
@@ -2926,26 +2939,28 @@ LEMMA LemNoAbortedInputUnderStaging ==
         BY DEF RegisteredTask, UnknownTask
     <2>2. Predecessor(deps, t) = Predecessor(deps, t)'
         BY <2>1, LemG1StablePredecessor
-    <2>3. PICK o \in Object : o \in Predecessor(deps, t) /\ o \in AbortedObject
+    <2>3. PICK x \in Object : x \in Predecessor(deps, t) /\ x \in AbortedObject
         BY DEF AbortedObject, Predecessor
-    <2>4. (o \in AbortedObject)'
+    <2>4. (x \in AbortedObject)'
         BY <2>3, LemAbortedObjectStable
-    <2>5. (o \in Predecessor(deps, t))'
+    <2>5. (x \in Predecessor(deps, t))'
         BY <2>2, <2>3
     <2>. QED
         BY <2>4, <2>5
 \* boxed facts for the temporal contradiction
-<1>5. <<DiscardOnAbortedInput(t)>>_vars
+<1>5. <<DiscardOnAbortedInput(t, o)>>_vars
        => ~ (t \in RegisteredTask)'
     <2>1. (t \in DiscardedTask)' => ~ (t \in RegisteredTask)'
         BY DEF DiscardedTask, RegisteredTask
     <2>. QED
         BY <1>2, <2>1
-<1>6. [](ENABLED <<DiscardOnAbortedInput(t)>>_vars
-          <=> Predecessor(deps, t) \intersect AbortedObject /= {}
+<1>6. [](ENABLED <<DiscardOnAbortedInput(t, o)>>_vars
+          <=> /\ o \in objectTargets
+              /\ t \in OA(o).node
+              /\ Predecessor(deps, t) \intersect AbortedObject /= {}
               /\ t \in (RegisteredTask \union StagedTask))
     BY <1>0, PTL
-<1>7. WF_vars(DiscardOnAbortedInput(t))
+<1>7. WF_vars(DiscardOnAbortedInput(t, o))
     OBVIOUS
 <1>8. [][Next]_vars
     OBVIOUS
@@ -2962,57 +2977,77 @@ LEMMA LemNoAbortedInputUnderStaging ==
     <2>. QED
         BY <2>1, PTL
 \* contradiction chain (kept as implications; <>[]E stays in the goal)
-<1>12. <>[](t \in RegisteredTask) /\ ~ <>[](Predecessor(deps, t) \intersect AbortedObject = {})
-      => <>[](Predecessor(deps, t) \intersect AbortedObject /= {} /\ t \in RegisteredTask)
+<1>12. <>[](o \in objectTargets /\ t \in OA(o).node /\ t \in RegisteredTask)
+       /\ ~ <>[](Predecessor(deps, t) \intersect AbortedObject = {})
+      => <>[](/\ Predecessor(deps, t) \intersect AbortedObject /= {}
+              /\ o \in objectTargets /\ t \in OA(o).node /\ t \in RegisteredTask)
     BY <1>3, <1>8, <1>10, PTL
-<1>13. <>[](Predecessor(deps, t) \intersect AbortedObject /= {} /\ t \in RegisteredTask)
-      => []<>(<<DiscardOnAbortedInput(t)>>_vars)
-    <2>1. <>[](Predecessor(deps, t) \intersect AbortedObject /= {} /\ t \in RegisteredTask)
-          => <>[](ENABLED <<DiscardOnAbortedInput(t)>>_vars)
+<1>13. <>[](/\ Predecessor(deps, t) \intersect AbortedObject /= {}
+            /\ o \in objectTargets /\ t \in OA(o).node /\ t \in RegisteredTask)
+      => []<>(<<DiscardOnAbortedInput(t, o)>>_vars)
+    <2>1. <>[](/\ Predecessor(deps, t) \intersect AbortedObject /= {}
+               /\ o \in objectTargets /\ t \in OA(o).node /\ t \in RegisteredTask)
+          => <>[](ENABLED <<DiscardOnAbortedInput(t, o)>>_vars)
         BY <1>6, <1>9, PTL
     <2>. QED
         BY <2>1, <1>7, PTL
-<1>14. []<>(<<DiscardOnAbortedInput(t)>>_vars)
-      /\ <>[](t \in RegisteredTask) => FALSE
+<1>14. []<>(<<DiscardOnAbortedInput(t, o)>>_vars)
+      /\ <>[](o \in objectTargets /\ t \in OA(o).node /\ t \in RegisteredTask) => FALSE
     BY <1>5, PTL
 <1>. QED
     BY <1>12, <1>13, <1>14, PTL
 
-(* WF(G1!StageTasks). G2!StageTasks requires all inputs COMPLETED, while        *)
-(* G1!StageTasks(bar) allows them FINALIZED (completed or aborted). The gap is   *)
-(* closed by <>[](no aborted input): a registered task with an aborted input is  *)
-(* discarded (G2's discard-on-abort fairness), which would leave                 *)
-(* G1!RegisteredTask -- impossible while G1!StageTasks stays enabled. The G1     *)
-(* instance renames Predecessor -> G1!Predecessor, bridged via LemG1GraphBridges.   *)
+(* WF(G1!StageTasks) -- open-ancestry-guarded, per (task, object) pair.         *)
+(* G2!StageTasks requires all inputs COMPLETED, while G1!StageTasks(bar) allows  *)
+(* them FINALIZED (completed or aborted). The gap is closed by <>[](no aborted   *)
+(* input): a registered task of the open ancestry of a target with an aborted    *)
+(* input is discarded (G2's discard-on-abort fairness, under the same guard),    *)
+(* which would leave G1!RegisteredTask -- impossible while the guarded           *)
+(* G1!StageTasks stays enabled. The open ancestry matches G1's under the Bar     *)
+(* (LemG1OpenNodeBridge); the G1 instance renames Predecessor -> G1!Predecessor, *)
+(* bridged via LemG1GraphBridges.                                                *)
 LEMMA LemRefineG1WFStageTasks ==
-    ASSUME NEW t \in Task
+    ASSUME NEW t \in Task, NEW o \in Object
     PROVE  /\ []GraphSafetyInv /\ [][Next]_vars
            /\ WF_vars(StageTasks({t}))
-           /\ WF_vars(DiscardOnAbortedInput(t))
-           => WF_(G1!vars)(G1!StageTasks({t}))
-\* --- (0) the abstract enabledness keeps t registered ---
-<1>0. TypeOk /\ ENABLED <<G1!StageTasks({t})>>_(G1!vars) => t \in RegisteredTask
-    <2>. SUFFICES ASSUME TypeOk, ENABLED <<G1!StageTasks({t})>>_(G1!vars)
-                  PROVE  t \in RegisteredTask
+           /\ WF_vars(DiscardOnAbortedInput(t, o))
+           => WF_(G1!vars)(/\ o \in objectTargets
+                           /\ t \in G1!OA(o).node
+                           /\ G1!StageTasks({t}))
+<1>. DEFINE AbsS == /\ o \in objectTargets
+                    /\ t \in G1!OA(o).node
+                    /\ G1!StageTasks({t})
+\* --- (0) the abstract enabledness keeps t registered in the open ancestry of o ---
+<1>0. TypeOk /\ ENABLED <<AbsS>>_(G1!vars)
+      => o \in objectTargets /\ t \in OA(o).node /\ t \in RegisteredTask
+    <2>. SUFFICES ASSUME TypeOk, ENABLED <<AbsS>>_(G1!vars)
+                  PROVE  o \in objectTargets /\ t \in OA(o).node /\ t \in RegisteredTask
         OBVIOUS
-    <2>1. t \in G1!RegisteredTask
+    <2>1. o \in objectTargets /\ t \in G1!OA(o).node /\ t \in G1!RegisteredTask
         <3>. SUFFICES ASSUME NEW depsp, NEW objectStatep, NEW objectTargetsp,
-                             NEW taskStatep, NEW nextAttemptOfp, {t} \subseteq G1!RegisteredTask
-                      PROVE  t \in G1!RegisteredTask
+                             NEW taskStatep, NEW nextAttemptOfp,
+                             o \in objectTargets, t \in G1!OA(o).node,
+                             {t} \subseteq G1!RegisteredTask
+                      PROVE  o \in objectTargets /\ t \in G1!OA(o).node
+                             /\ t \in G1!RegisteredTask
             BY ExpandENABLED DEF G1!StageTasks, G1!vars, taskStateBar, objectStateBar
         <3>. QED
             OBVIOUS
-    <2>. QED
+    <2>2. t \in RegisteredTask
         BY <2>1, LemG1BarStates DEF RegisteredTask
+    <2>3. t \in OA(o).node
+        BY <2>1, LemG1OpenNodeBridge DEF OA, G1!OA
+    <2>. QED
+        BY <2>1, <2>2, <2>3
 \* --- (1) enabledness lift (needs no aborted input) ---
 <1>1. TypeOk /\ Predecessor(deps, t) \intersect AbortedObject = {}
-      /\ ENABLED <<G1!StageTasks({t})>>_(G1!vars)
+      /\ ENABLED <<AbsS>>_(G1!vars)
       => ENABLED <<StageTasks({t})>>_vars
     <2>1. TypeOk /\ Predecessor(deps, t) \intersect AbortedObject = {}
-          /\ ENABLED <<G1!StageTasks({t})>>_(G1!vars)
+          /\ ENABLED <<AbsS>>_(G1!vars)
           => t \in RegisteredTask /\ Predecessor(deps, t) \subseteq CompletedObject
         <3>. SUFFICES ASSUME TypeOk, Predecessor(deps, t) \intersect AbortedObject = {},
-                             ENABLED <<G1!StageTasks({t})>>_(G1!vars)
+                             ENABLED <<AbsS>>_(G1!vars)
                       PROVE  t \in RegisteredTask /\ Predecessor(deps, t) \subseteq CompletedObject
             OBVIOUS
         <3>1. t \in G1!RegisteredTask /\ G1!Predecessor(deps, t) \subseteq G1!FinalizedObject
@@ -3044,10 +3079,12 @@ LEMMA LemRefineG1WFStageTasks ==
             BY <3>1, ExpandENABLED DEF StageTasks, vars, RegisteredTask
     <2>. QED
         BY <2>1, <2>2
-\* --- (2) step refinement ---
-<1>2. <<StageTasks({t})>>_vars => <<G1!StageTasks({t})>>_(G1!vars)
-    <2>. SUFFICES ASSUME StageTasks({t}), vars' /= vars
-                  PROVE  G1!StageTasks({t}) /\ G1!vars' /= G1!vars
+\* --- (2) step refinement, while t stands in the open ancestry of a target o ---
+<1>2. TypeOk /\ o \in objectTargets /\ t \in OA(o).node /\ <<StageTasks({t})>>_vars
+      => <<AbsS>>_(G1!vars)
+    <2>. SUFFICES ASSUME TypeOk, o \in objectTargets, t \in OA(o).node,
+                         StageTasks({t}), vars' /= vars
+                  PROVE  AbsS /\ G1!vars' /= G1!vars
         BY DEF vars
     <2>1. taskState[t] = TASK_REGISTERED
         BY DEF StageTasks, RegisteredTask
@@ -3067,28 +3104,34 @@ LEMMA LemRefineG1WFStageTasks ==
         DEF StageTasks, G1!StageTasks, G1!vars, RegisteredTask, G1!RegisteredTask, taskStateBar
     <2>7. taskStateBar' /= taskStateBar
         BY <2>1, <2>2 DEF taskStateBar
+    <2>8. t \in G1!OA(o).node
+        BY LemG1OpenNodeBridge DEF OA, G1!OA
     <2>. QED
-        BY <2>6, <2>7 DEF G1!vars
+        BY <2>6, <2>7, <2>8 DEF G1!vars
 <1>. SUFFICES ASSUME []GraphSafetyInv, [][Next]_vars,
-                     WF_vars(StageTasks({t})), WF_vars(DiscardOnAbortedInput(t))
-              PROVE  WF_(G1!vars)(G1!StageTasks({t}))
+                     WF_vars(StageTasks({t})), WF_vars(DiscardOnAbortedInput(t, o))
+              PROVE  WF_(G1!vars)(AbsS)
     OBVIOUS
 <1>4. []TypeOk
     BY PTL DEF GraphSafetyInv
 \* --- (3) eventually no aborted input ---
-<1>3. <>[](ENABLED <<G1!StageTasks({t})>>_(G1!vars))
+<1>3. <>[](ENABLED <<AbsS>>_(G1!vars))
       => <>[](Predecessor(deps, t) \intersect AbortedObject = {})
-    <2>1. [](TypeOk /\ ENABLED <<G1!StageTasks({t})>>_(G1!vars) => t \in RegisteredTask)
+    <2>1. [](TypeOk /\ ENABLED <<AbsS>>_(G1!vars)
+             => o \in objectTargets /\ t \in OA(o).node /\ t \in RegisteredTask)
         BY <1>0, PTL
     <2>. QED
         BY <1>4, <2>1, LemNoAbortedInputUnderStaging, PTL
 <1>. QED
     <2>1. [](TypeOk /\ Predecessor(deps, t) \intersect AbortedObject = {}
-             /\ ENABLED <<G1!StageTasks({t})>>_(G1!vars)
+             /\ ENABLED <<AbsS>>_(G1!vars)
              => ENABLED <<StageTasks({t})>>_vars)
         BY <1>1, PTL
+    <2>2. [](TypeOk /\ ENABLED <<AbsS>>_(G1!vars)
+             => o \in objectTargets /\ t \in OA(o).node /\ t \in RegisteredTask)
+        BY <1>0, PTL
     <2>. QED
-        BY <1>4, <2>1, <1>2, <1>3, PTL
+        BY <1>4, <2>1, <2>2, <1>2, <1>3, PTL
 
 (* G1!UpstreamStabilization refinement. G2's IsOpenNode matches               *)
 (* G1!IsOpenNode under the Bar (LemG1OpenNodeBridge), so the open-induced         *)
@@ -6079,11 +6122,16 @@ THEOREM G2_RefineGraph1 == Spec => RefineGraph1
 <1>5. G1!UpstreamStabilization
     BY <1>2, <1>3, LemRefineG1UpstreamStabilization
 (* Task fairness, conjunct by conjunct. *)
-<1>6. \A t \in Task : WF_(G1!vars)(G1!StageTasks({t}))
-    <2>. SUFFICES ASSUME NEW t \in Task
-                  PROVE  WF_(G1!vars)(G1!StageTasks({t}))
+<1>6. \A t \in Task, o \in Object :
+          WF_(G1!vars)(/\ o \in objectTargets
+                       /\ t \in G1!OA(o).node
+                       /\ G1!StageTasks({t}))
+    <2>. SUFFICES ASSUME NEW t \in Task, NEW o \in Object
+                  PROVE  WF_(G1!vars)(/\ o \in objectTargets
+                                      /\ t \in G1!OA(o).node
+                                      /\ G1!StageTasks({t}))
         OBVIOUS
-    <2>1. WF_vars(StageTasks({t})) /\ WF_vars(DiscardOnAbortedInput(t))
+    <2>1. WF_vars(StageTasks({t})) /\ WF_vars(DiscardOnAbortedInput(t, o))
         BY <1>2, Isa DEF Fairness, DiscardOnAbortedInput
     <2>. QED
         BY <1>1, <1>2, <2>1, LemRefineG1WFStageTasks

@@ -1936,9 +1936,16 @@ LEMMA LemRootProgress ==
                     BY Zenon, <5>1, <5>2 DEF RegisteredTask, StagedTask, ProcessedTask
             <4>. QED
                 BY Zenon, <4>1, <4>2
-        <3>2. GraphSafetyInv /\ r \in RegisteredTask /\ IsMRoot(o, r) => ENABLED <<StageTasks({r})>>_vars
-            <4>. SUFFICES ASSUME GraphSafetyInv, r \in RegisteredTask, IsMRoot(o, r)
-                          PROVE  ENABLED <<StageTasks({r})>>_vars
+        <3>2. /\ GraphSafetyInv /\ r \in RegisteredTask /\ IsMRoot(o, r)
+              /\ o \in objectTargets /\ r \in OA(o).node
+              => ENABLED <</\ o \in objectTargets
+                           /\ r \in OA(o).node
+                           /\ StageTasks({r})>>_vars
+            <4>. SUFFICES ASSUME GraphSafetyInv, r \in RegisteredTask, IsMRoot(o, r),
+                                 o \in objectTargets, r \in OA(o).node
+                          PROVE  ENABLED <</\ o \in objectTargets
+                                           /\ r \in OA(o).node
+                                           /\ StageTasks({r})>>_vars
                 OBVIOUS
             <4>1. PICK p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r
                 OBVIOUS
@@ -1961,9 +1968,15 @@ LEMMA LemRootProgress ==
             <4>. QED
                 BY <4>8, ExpandENABLED
                    DEF StageTasks, vars, RegisteredTask, TASK_REGISTERED, TASK_STAGED
-        <3>3. <<StageTasks({r})>>_vars => (r \in StagedTask)'
+        <3>3. <</\ o \in objectTargets
+                /\ r \in OA(o).node
+                /\ StageTasks({r})>>_vars
+              => (r \in StagedTask)'
             BY DEF StageTasks, vars, StagedTask, RegisteredTask
-        <3>4. r \in RegisteredTask /\ Fairness => WF_vars(StageTasks({r}))
+        <3>4. r \in RegisteredTask /\ Fairness
+              => WF_vars(/\ o \in objectTargets
+                         /\ r \in OA(o).node
+                         /\ StageTasks({r}))
             BY Isa DEF Fairness, RegisteredTask
         <3>. QED
             BY <3>1, <3>2, <3>3, <3>4, PTL
@@ -2213,7 +2226,6 @@ LEMMA LemFairnessStable == Fairness <=> []Fairness
     <2>. QED
         BY <2>1, <2>2, Isa
 <1>. DEFINE TaskFairness(t) ==
-                /\ WF_vars(StageTasks({t}))
                 /\ SF_vars(ProcessTasks({t}))
                 /\ WF_vars(FinalizeTasks({t}))
 <1>2. (\A t \in Task : TaskFairness(t))
@@ -2228,7 +2240,11 @@ LEMMA LemFairnessStable == Fairness <=> []Fairness
     <2>. QED
         BY <2>1, <2>2, Isa
 <1>. DEFINE PairFairness(t, o) ==
-                WF_vars(
+                /\ WF_vars(
+                    /\ o \in objectTargets
+                    /\ t \in OA(o).node
+                    /\ StageTasks({t}))
+                /\ WF_vars(
                     /\ o \in objectTargets
                     /\ t \in OA(o).node
                     /\ AssignTasks({t}))
