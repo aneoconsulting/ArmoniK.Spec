@@ -11,7 +11,7 @@
 (* invariants remain consistent across this refinement.                      *)
 (*****************************************************************************)
 
-EXTENDS DenumerableSets, FiniteSets
+EXTENDS DenumerableSets, FiniteSets, TLAPS
 
 CONSTANTS
     Object  \* Abstract set of all objects
