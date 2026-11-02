@@ -1295,42 +1295,42 @@ LEMMA LemRefineTask1Fairness ==
 <1>1. [][Next]_vars /\ []GraphSafetyInv /\ Fairness => T1!Fairness
     <2>. SUFFICES ASSUME NEW t \in Task
                   PROVE /\ SF_vars(ProcessTasks({t}))
-                           => SF_T1!vars(T1!ProcessTasks({t}))
+                           => T1!FairProcessTasks(t)
                         /\ /\ []GraphSafetyInv
                            /\ [][Next]_vars
                            /\ WF_vars(FinalizeTasks({t}))
                            /\ \A o \in Object : WF_vars(FinalizeObjects({o}))
-                           => WF_T1!vars(T1!FinalizeTasks({t}))
-        BY Isa DEF Fairness, T1!Fairness
-    <2>1. SF_vars(ProcessTasks({t})) => SF_T1!vars(T1!ProcessTasks({t}))
+                           => T1!FairFinalizeTasks(t)
+        BY SameAssumptions, T1!LemFairnessEnabledFree, Isa DEF Fairness
+    <2>1. SF_vars(ProcessTasks({t})) => T1!FairProcessTasks(t)
         <3>. DEFINE AbsA == T1!ProcessTasks({t})
                     A    == ProcessTasks({t})
-        <3>1. ENABLED <<AbsA>>_T1!vars => ENABLED <<A>>_vars
-            BY ExpandENABLED DEF ProcessTasks, vars, T1!vars, T1!ProcessTasks,
-            AssignedTask, T1!AssignedTask
+        <3>1. T1!EnabledProcessTasks(t) => ENABLED <<A>>_vars
+            BY ExpandENABLED DEF ProcessTasks, vars, AssignedTask, T1!AssignedTask,
+            T1!EnabledProcessTasks
         <3>2. <<A>>_vars => <<AbsA>>_T1!vars
             BY DEF ProcessTasks, T1!ProcessTasks, AssignedTask, T1!AssignedTask,
             vars, T1!vars
         <3>. QED
-            BY <3>1, <3>2, PTL
+            BY <3>1, <3>2, PTL DEF T1!FairProcessTasks
     <2>2. /\ []GraphSafetyInv
           /\ [][Next]_vars
           /\ WF_vars(FinalizeTasks({t}))
           /\ \A o \in Object : WF_vars(FinalizeObjects({o}))
-          => WF_T1!vars(T1!FinalizeTasks({t}))
+          => T1!FairFinalizeTasks(t)
         <3>. DEFINE Q(o) == o \in RegisteredObject
                                 => \E u \in (Predecessor(deps, o) \ {t}) :
                                     u \notin FinalizedTask
                     P    == \A o \in UNION {Successor(deps, u): u \in {t}} : Q(o)
-        <3>1. P /\ GraphSafetyInv /\ ENABLED <<T1!FinalizeTasks({t})>>_T1!vars
+        <3>1. P /\ GraphSafetyInv /\ T1!EnabledFinalizeTasks(t)
               => ENABLED <<FinalizeTasks({t})>>_vars
             <4>. SUFFICES ASSUME DependencyGraphCompliant
-                          PROVE P /\ ENABLED <<T1!FinalizeTasks({t})>>_T1!vars
+                          PROVE P /\ T1!EnabledFinalizeTasks(t)
                                     => ENABLED <<FinalizeTasks({t})>>_vars
                 BY DEF GraphSafetyInv
-            <4>1. ENABLED <<T1!FinalizeTasks({t})>>_T1!vars
+            <4>1. T1!EnabledFinalizeTasks(t)
                     <=> t \in T1!ProcessedTask
-                BY ExpandENABLED DEF T1!FinalizeTasks, T1!vars, T1!ProcessedTask
+                BY DEF T1!EnabledFinalizeTasks
             <4>2. t \in ProcessedTask /\ P
                   => ENABLED <<FinalizeTasks({t})>>_vars
                 <5>1. UNION {Successor(deps, u): u \in {t}} \subseteq Object
@@ -1346,14 +1346,14 @@ LEMMA LemRefineTask1Fairness ==
         <3>3. /\ [][Next]_vars
               /\ []GraphSafetyInv
               /\ (\A o \in Object : WF_vars(FinalizeObjects({o})))
-              /\ <>[](ENABLED <<T1!FinalizeTasks({t})>>_T1!vars)
+              /\ <>[](T1!EnabledFinalizeTasks(t))
               => <>[]P
             <4>. DEFINE Succ    == UNION {Successor(deps, u): u \in {t}}
                         A(S)    == IsFiniteSet(S) /\ S = Succ /\ t \in ProcessedTask
                         B(S)    == S = Succ /\ \A o \in S: Q(o)
                         C(S, o) == S = Succ /\ Q(o)
-            <4>1. ENABLED <<T1!FinalizeTasks({t})>>_T1!vars => t \in ProcessedTask
-                BY ExpandENABLED DEF T1!FinalizeTasks, T1!vars, T1!ProcessedTask, ProcessedTask
+            <4>1. T1!EnabledFinalizeTasks(t) => t \in ProcessedTask
+                BY DEF T1!EnabledFinalizeTasks, T1!ProcessedTask, ProcessedTask
             <4>2. GraphSafetyInv /\ t \in ProcessedTask => \E S \in SUBSET Object: A(S)
                 <5>. SUFFICES ASSUME GraphSafetyInv, t \in ProcessedTask
                             PROVE \E S \in SUBSET Object: A(S)
@@ -1557,7 +1557,7 @@ LEMMA LemRefineTask1Fairness ==
             <4>. QED
                 BY <4>1, <4>2, <4>3, <4>4, <4>5, <4>6, PTL
         <3>. QED
-            BY <3>1, <3>2, <3>3, PTL
+            BY <3>1, <3>2, <3>3, PTL DEF T1!FairFinalizeTasks
     <2>. QED
         BY <2>1, <2>2, Isa
 <1>. QED
@@ -2538,8 +2538,9 @@ THEOREM G1_RefineObject1 == Spec => RefineObject1
                         /\ [][Next]_vars
                         /\ Fairness
                         /\ []([](o \in objectTargets) => <>[][AG(o)' \in DirectedSubgraph(AG(o))]_(AG(o)))
-                        => WF_O1!vars(o \in objectTargets /\ O1!FinalizeObjects({o}))
-        BY Isa DEF O1!Fairness, OpenUpstreamEventuallyClosed
+                        => O1!FairFinalizeObjects(o)
+        BY SameObjectAssumptions, O1!LemFairnessEnabledFree, Isa
+        DEF OpenUpstreamEventuallyClosed
     <2>. DEFINE S == AG(o).node
                 C == Cardinality(S)
     <2>. SUFFICES /\ []GraphSafetyInv
@@ -2553,11 +2554,11 @@ THEOREM G1_RefineObject1 == Spec => RefineObject1
         <3>1. []([](o \in objectTargets) => <>[][AG(o)' \in DirectedSubgraph(AG(o))]_(AG(o)))
               => ([](o \in objectTargets) => <>[][S' \subseteq S]_S)
             BY <3>0, PTL
-        <3>2. ENABLED <<o \in objectTargets /\ O1!FinalizeObjects({o})>>_O1!vars
+        <3>2. O1!EnabledFinalizeObjects(o)
               => o \in objectTargets /\ o \in RegisteredObject
-            BY ExpandENABLED DEF O1!FinalizeObjects, O1!vars, RegisteredObject, O1!RegisteredObject
+            BY DEF O1!EnabledFinalizeObjects, RegisteredObject, O1!RegisteredObject
         <3>. QED
-            BY <3>1, <3>2, <2>0, PTL DEF OpenUpstreamEventuallyClosed
+            BY <3>1, <3>2, <2>0, PTL DEF O1!FairFinalizeObjects, OpenUpstreamEventuallyClosed
     \* The core contradiction (a target cannot stay registered forever while its
     \* open-ancestor subgraph never grows) is now the standalone lemma
     \* LemTargetedRegisteredImpossible, reusable -- under the Bar -- by G2.
@@ -2622,5 +2623,109 @@ THEOREM G1_EventualTermination == Spec => EventualTermination
     BY DEF O1!vars, T1!vars, vars
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, PTL DEF EventualTermination, Spec, terminated
+
+(**
+ * ENABLED-FREE FAIRNESS
+ * Fairness restated without ENABLED, each action guarded by a state
+ * predicate that its enabledness implies. Substitution does not distribute
+ * over ENABLED, hence not over WF and SF, but it does over this form: a
+ * refinement proves the instantiated FairnessEnabledFree, where it only has
+ * to enable its own actions under the instantiated predicates, and recovers
+ * the instantiated Fairness through LemFairnessEnabledFree.
+ *)
+EnabledFinalizeObjects(o) ==
+    /\ o \in RegisteredObject
+    /\ \/ o \in Source(deps)
+       \/ \E t \in Predecessor(deps, o): t \in ProcessedTask
+
+EnabledStageTasks(t) ==
+    /\ Predecessor(deps, t) \subseteq FinalizedObject
+    /\ t \in RegisteredTask
+
+EnabledProcessTasks(t) == t \in AssignedTask
+
+EnabledFinalizeTasks(t) ==
+    /\ t \in ProcessedTask
+    /\ \A o \in UNION {Successor(deps, s): s \in {t}} :
+        o \in RegisteredObject
+            => \E u \in (Predecessor(deps, o) \ {t}) : u \notin FinalizedTask
+
+EnabledAssignTasks(t, o) ==
+    /\ IsTaskUpstreamOnOpenPathToTarget(t, o)
+    /\ t \in StagedTask
+
+FairnessEnabledFree ==
+    /\ \A o \in Object :
+        <>[]EnabledFinalizeObjects(o) => []<><<FinalizeObjects({o})>>_vars
+    /\ \A t \in Task :
+        /\ <>[]EnabledStageTasks(t) => []<><<StageTasks({t})>>_vars
+        /\ []<>EnabledProcessTasks(t) => []<><<ProcessTasks({t})>>_vars
+        /\ <>[]EnabledFinalizeTasks(t) => []<><<FinalizeTasks({t})>>_vars
+    /\ \A t \in Task, o \in Object :
+        <>[]EnabledAssignTasks(t, o)
+            => []<><<
+                /\ IsTaskUpstreamOnOpenPathToTarget(t, o)
+                /\ AssignTasks({t})>>_vars
+
+LEMMA LemFairnessEnabledFree == FairnessEnabledFree => Fairness
+<1>. DEFINE EO(o) ==
+                <>[]EnabledFinalizeObjects(o) => []<><<FinalizeObjects({o})>>_vars
+            FO(o) == WF_vars(FinalizeObjects({o}))
+            ET(t) ==
+                /\ <>[]EnabledStageTasks(t) => []<><<StageTasks({t})>>_vars
+                /\ []<>EnabledProcessTasks(t) => []<><<ProcessTasks({t})>>_vars
+                /\ <>[]EnabledFinalizeTasks(t) => []<><<FinalizeTasks({t})>>_vars
+            FT(t) ==
+                /\ WF_vars(StageTasks({t}))
+                /\ SF_vars(ProcessTasks({t}))
+                /\ WF_vars(FinalizeTasks({t}))
+            ETO(t, o) ==
+                <>[]EnabledAssignTasks(t, o)
+                    => []<><<
+                        /\ IsTaskUpstreamOnOpenPathToTarget(t, o)
+                        /\ AssignTasks({t})>>_vars
+            FTO(t, o) ==
+                WF_vars(
+                    /\ IsTaskUpstreamOnOpenPathToTarget(t, o)
+                    /\ AssignTasks({t}))
+<1>1. FairnessEnabledFree
+        <=> /\ \A o \in Object : EO(o)
+            /\ \A t \in Task : ET(t)
+            /\ \A t \in Task, o \in Object : ETO(t, o)
+    BY DEF FairnessEnabledFree
+<1>2. Fairness
+        <=> /\ \A o \in Object : FO(o)
+            /\ \A t \in Task : FT(t)
+            /\ \A t \in Task, o \in Object : FTO(t, o)
+    BY DEF Fairness
+<1>3. ASSUME NEW o \in Object
+      PROVE  EO(o) => FO(o)
+    <2>1. (ENABLED <<FinalizeObjects({o})>>_vars) => EnabledFinalizeObjects(o)
+        BY ExpandENABLED, Zenon DEF EnabledFinalizeObjects, FinalizeObjects, vars
+    <2>. QED
+        BY <2>1, PTL
+<1>4. ASSUME NEW t \in Task
+      PROVE  ET(t) => FT(t)
+    <2>1. (ENABLED <<StageTasks({t})>>_vars) => EnabledStageTasks(t)
+        BY ExpandENABLED, Zenon DEF EnabledStageTasks, StageTasks, vars
+    <2>2. (ENABLED <<ProcessTasks({t})>>_vars) => EnabledProcessTasks(t)
+        BY ExpandENABLED DEF EnabledProcessTasks, ProcessTasks, vars
+    <2>3. (ENABLED <<FinalizeTasks({t})>>_vars) => EnabledFinalizeTasks(t)
+        BY ExpandENABLED, Zenon DEF EnabledFinalizeTasks, FinalizeTasks, vars
+    <2>. QED
+        BY <2>1, <2>2, <2>3, PTL
+<1>5. ASSUME NEW t \in Task, NEW o \in Object
+      PROVE  ETO(t, o) => FTO(t, o)
+    <2>1. (ENABLED <<
+                /\ IsTaskUpstreamOnOpenPathToTarget(t, o)
+                /\ AssignTasks({t})>>_vars)
+            => EnabledAssignTasks(t, o)
+        BY ExpandENABLED, Zenon DEF AssignTasks, EnabledAssignTasks,
+        IsTaskUpstreamOnOpenPathToTarget, vars
+    <2>. QED
+        BY <2>1, PTL
+<1>. HIDE DEF EO, FO, ET, FT, ETO, FTO
+<1>. QED
+    BY <1>1, <1>2, <1>3, <1>4, <1>5, Zenon
 
 ================================================================================

@@ -721,11 +721,12 @@ BY LemGraphStateIntegrity DEF Spec
 (*****************************************************************************)
 (* REFINEMENT OF Graph2 -- FAIRNESS                                          *)
 (*                                                                           *)
-(* Each G2 fairness conjunct is transferred from Graph3's                    *)
-(* fairness by its own lemma LemRefineG2<WF|SF><Action>. Most follow the     *)
-(* ENABLED + action-implication pattern: the Bar-side ENABLED inverts to a   *)
-(* state condition on Bar-invariant classes, which re-establishes the        *)
-(* concrete ENABLED, and a concrete step is a Bar step of the same action.   *)
+(* Each conjunct of G2!FairnessEnabledFree, the restatement of Graph2's      *)
+(* fairness without ENABLED, is transferred from Graph3's fairness by its    *)
+(* own lemma LemRefineG2<WF|SF><Action>. Most follow the enabling-condition  *)
+(* + action-implication pattern: the instantiated predicate is a state       *)
+(* condition on Bar-invariant classes, which re-establishes the concrete     *)
+(* ENABLED, and a concrete step is a Bar step of the same action.            *)
 (* Two need a temporal argument: SF(ProcessTasks), vacuous because a task    *)
 (* is processed successfully at most once, and WF(AssignTasks), whose        *)
 (* Bar-enabledness includes the parked tasks. The guarded actions are        *)
@@ -751,14 +752,14 @@ DiscardStoppedUpstream(t, o) ==
 (* Bar-invariant task classes, so enabledness and steps transfer verbatim.    *)
 LEMMA LemRefineG2WFCompleteObjects ==
     ASSUME NEW o \in Object
-    PROVE  WF_vars(CompleteObjects({o})) => WF_(G2!vars)(G2!CompleteObjects({o}))
-<1>1. ENABLED <<G2!CompleteObjects({o})>>_(G2!vars) => ENABLED <<CompleteObjects({o})>>_vars
-    <2>1. ENABLED <<G2!CompleteObjects({o})>>_(G2!vars)
+    PROVE  WF_vars(CompleteObjects({o})) => (<>[]G2!EnabledCompleteObjects(o) => []<><<G2!CompleteObjects({o})>>_(G2!vars))
+<1>1. G2!EnabledCompleteObjects(o) => ENABLED <<CompleteObjects({o})>>_vars
+    <2>1. G2!EnabledCompleteObjects(o)
           => /\ {o} \subseteq G2!RegisteredObject
              /\ \/ {o} \subseteq G2!Source(deps)
                 \/ \A oo \in {o} : \E p \in G2!Predecessor(deps, oo) :
                        p \in G2!SucceededTask
-        BY ExpandENABLED DEF G2!CompleteObjects, G2!vars, taskStateBar
+        BY Zenon DEF G2!EnabledCompleteObjects
     <2>2.  /\ {o} \subseteq G2!RegisteredObject
            /\ \/ {o} \subseteq G2!Source(deps)
               \/ \A oo \in {o} : \E p \in G2!Predecessor(deps, oo) :
@@ -804,17 +805,15 @@ LEMMA LemRefineG2WFCompleteObjects ==
 (* never Bar-DISCARDED, so the abort guard is Bar-invariant.                  *)
 LEMMA LemRefineG2WFAbortObjects ==
     ASSUME NEW o \in Object
-    PROVE  WF_vars(AbortObjects({o})) => WF_(G2!vars)(G2!AbortObjects({o}))
-<1>1. ENABLED <<G2!AbortObjects({o})>>_(G2!vars) => ENABLED <<AbortObjects({o})>>_vars
-    <2>1. ENABLED <<G2!AbortObjects({o})>>_(G2!vars)
+    PROVE  WF_vars(AbortObjects({o})) => (<>[]G2!EnabledAbortObjects(o) => []<><<G2!AbortObjects({o})>>_(G2!vars))
+<1>1. G2!EnabledAbortObjects(o) => ENABLED <<AbortObjects({o})>>_vars
+    <2>1. G2!EnabledAbortObjects(o)
           => /\ o \in RegisteredObject
              /\ \/ {o} \subseteq Source(deps)
                 \/ /\ Predecessor(deps, o)
                       \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
                    /\ \E p \in Predecessor(deps, o) : p \in DiscardedTask
-        <3>. SUFFICES ASSUME NEW depsp, NEW objectStatep, NEW objectTargetsp,
-                             NEW taskStatep, NEW nextAttemptOfp,
-                             {o} \subseteq G2!RegisteredObject,
+        <3>. SUFFICES ASSUME {o} \subseteq G2!RegisteredObject,
                              \/ {o} \subseteq G2!Source(deps)
                              \/ \A oo \in {o} :
                                     /\ G2!Predecessor(deps, oo)
@@ -827,7 +826,7 @@ LEMMA LemRefineG2WFAbortObjects ==
                                       \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask,
                                                        RetriedTask}
                                    /\ \E p \in Predecessor(deps, o) : p \in DiscardedTask
-            BY ExpandENABLED DEF G2!AbortObjects, G2!vars, taskStateBar
+            BY Zenon DEF G2!EnabledAbortObjects
         <3>. QED
             BY LemG2BarStates, LemG2GraphBridges, Zenon
     <2>2. /\ o \in RegisteredObject
@@ -871,18 +870,16 @@ LEMMA LemRefineG2WFAbortObjects ==
 (* exactly when the task is registered with completed inputs.                 *)
 LEMMA LemRefineG2WFStageTasks ==
     ASSUME NEW t \in Task
-    PROVE  WF_vars(StageTasks({t})) => WF_(G2!vars)(G2!StageTasks({t}))
-<1>1. ENABLED <<G2!StageTasks({t})>>_(G2!vars) => ENABLED <<StageTasks({t})>>_vars
-    <2>1. ENABLED <<G2!StageTasks({t})>>_(G2!vars)
+    PROVE  WF_vars(StageTasks({t})) => (<>[]G2!EnabledStageTasks(t) => []<><<G2!StageTasks({t})>>_(G2!vars))
+<1>1. G2!EnabledStageTasks(t) => ENABLED <<StageTasks({t})>>_vars
+    <2>1. G2!EnabledStageTasks(t)
           => /\ t \in RegisteredTask
              /\ UNION {Predecessor(deps, s) : s \in {t}} \subseteq CompletedObject
-        <3>. SUFFICES ASSUME NEW depsp, NEW objectStatep, NEW objectTargetsp,
-                             NEW taskStatep, NEW nextAttemptOfp,
-                             {t} \subseteq G2!RegisteredTask,
+        <3>. SUFFICES ASSUME {t} \subseteq G2!RegisteredTask,
                              UNION {G2!Predecessor(deps, s) : s \in {t}} \subseteq G2!CompletedObject
                       PROVE  /\ t \in RegisteredTask
                              /\ UNION {Predecessor(deps, s) : s \in {t}} \subseteq CompletedObject
-            BY ExpandENABLED DEF G2!StageTasks, G2!vars, taskStateBar
+            BY Zenon DEF G2!EnabledStageTasks
         <3>. QED
             BY LemG2BarStates, LemG2GraphBridges, Zenon
     <2>2. /\ t \in RegisteredTask
@@ -926,19 +923,16 @@ LEMMA LemRefineG2WFStageTasks ==
 (* enabledness conditions coincide.                                           *)
 LEMMA LemRefineG2WFDiscardOnAbortedInput ==
     ASSUME NEW t \in Task
-    PROVE  WF_vars(DiscardOnAbortedInput(t)) => WF_(G2!vars)(G2!DiscardOnAbortedInput(t))
-<1>1. ENABLED <<G2!DiscardOnAbortedInput(t)>>_(G2!vars) => ENABLED <<DiscardOnAbortedInput(t)>>_vars
-    <2>1. ENABLED <<G2!DiscardOnAbortedInput(t)>>_(G2!vars)
+    PROVE  WF_vars(DiscardOnAbortedInput(t)) => (<>[]G2!EnabledDiscardOnAbortedInput(t) => []<><<G2!DiscardOnAbortedInput(t)>>_(G2!vars))
+<1>1. G2!EnabledDiscardOnAbortedInput(t) => ENABLED <<DiscardOnAbortedInput(t)>>_vars
+    <2>1. G2!EnabledDiscardOnAbortedInput(t)
           => /\ Predecessor(deps, t) \intersect AbortedObject /= {}
              /\ t \in UNION {RegisteredTask, StagedTask, PausedTask, StoppedTask}
-        <3>. SUFFICES ASSUME NEW depsp, NEW objectStatep, NEW objectTargetsp,
-                             NEW taskStatep, NEW nextAttemptOfp,
-                             G2!Predecessor(deps, t) \intersect G2!AbortedObject /= {},
+        <3>. SUFFICES ASSUME G2!Predecessor(deps, t) \intersect G2!AbortedObject /= {},
                              {t} \subseteq G2!RegisteredTask \union G2!StagedTask
                       PROVE  /\ Predecessor(deps, t) \intersect AbortedObject /= {}
                              /\ t \in UNION {RegisteredTask, StagedTask, PausedTask, StoppedTask}
-            BY ExpandENABLED
-            DEF G2!DiscardOnAbortedInput, G2!DiscardTasks, G2!vars, taskStateBar
+            BY Zenon DEF G2!EnabledDiscardOnAbortedInput
         <3>. QED
             BY LemG2BarStates, LemG2GraphBridges, Zenon
     <2>2. /\ Predecessor(deps, t) \intersect AbortedObject /= {}
@@ -993,17 +987,15 @@ LEMMA LemRefineG2WFDiscardOnAbortedInput ==
 (* Bar-STAGED -- still outside the exclusions.                                *)
 LEMMA LemRefineG2WFCompleteTasks ==
     ASSUME NEW t \in Task
-    PROVE  WF_vars(CompleteTasks({t})) => WF_(G2!vars)(G2!CompleteTasks({t}))
-<1>1. ENABLED <<G2!CompleteTasks({t})>>_(G2!vars) => ENABLED <<CompleteTasks({t})>>_vars
-    <2>1. ENABLED <<G2!CompleteTasks({t})>>_(G2!vars)
+    PROVE  WF_vars(CompleteTasks({t})) => (<>[]G2!EnabledCompleteTasks(t) => []<><<G2!CompleteTasks({t})>>_(G2!vars))
+<1>1. G2!EnabledCompleteTasks(t) => ENABLED <<CompleteTasks({t})>>_vars
+    <2>1. G2!EnabledCompleteTasks(t)
           => /\ t \in SucceededTask
              /\ \A oo \in UNION {Successor(deps, s) : s \in {t}} :
                     oo \in RegisteredObject
                     => \E w \in (Predecessor(deps, oo) \ {t}) :
                            w \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}
-        <3>. SUFFICES ASSUME NEW depsp, NEW objectStatep, NEW objectTargetsp,
-                             NEW taskStatep, NEW nextAttemptOfp,
-                             {t} \subseteq G2!SucceededTask,
+        <3>. SUFFICES ASSUME {t} \subseteq G2!SucceededTask,
                              \A oo \in UNION {G2!Successor(deps, s) : s \in {t}} :
                                  oo \in G2!RegisteredObject
                                  => \E w \in (G2!Predecessor(deps, oo) \ {t}) :
@@ -1014,7 +1006,7 @@ LEMMA LemRefineG2WFCompleteTasks ==
                                     oo \in RegisteredObject
                                     => \E w \in (Predecessor(deps, oo) \ {t}) :
                                            w \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}
-            BY ExpandENABLED DEF G2!CompleteTasks, G2!vars, taskStateBar
+            BY Zenon DEF G2!EnabledCompleteTasks
         <3>. QED
             BY LemG2BarStates, LemG2GraphBridges, Zenon
     <2>2. /\ t \in SucceededTask
@@ -1062,17 +1054,15 @@ LEMMA LemRefineG2WFCompleteTasks ==
 (* WF(G2!AbortTasks): as CompleteTasks (Bar-DISCARDED = DISCARDED).           *)
 LEMMA LemRefineG2WFAbortTasks ==
     ASSUME NEW t \in Task
-    PROVE  WF_vars(AbortTasks({t})) => WF_(G2!vars)(G2!AbortTasks({t}))
-<1>1. ENABLED <<G2!AbortTasks({t})>>_(G2!vars) => ENABLED <<AbortTasks({t})>>_vars
-    <2>1. ENABLED <<G2!AbortTasks({t})>>_(G2!vars)
+    PROVE  WF_vars(AbortTasks({t})) => (<>[]G2!EnabledAbortTasks(t) => []<><<G2!AbortTasks({t})>>_(G2!vars))
+<1>1. G2!EnabledAbortTasks(t) => ENABLED <<AbortTasks({t})>>_vars
+    <2>1. G2!EnabledAbortTasks(t)
           => /\ t \in DiscardedTask
              /\ \A oo \in UNION {Successor(deps, s) : s \in {t}} :
                     oo \in RegisteredObject
                     => \E w \in (Predecessor(deps, oo) \ {t}) :
                            w \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}
-        <3>. SUFFICES ASSUME NEW depsp, NEW objectStatep, NEW objectTargetsp,
-                             NEW taskStatep, NEW nextAttemptOfp,
-                             {t} \subseteq G2!DiscardedTask,
+        <3>. SUFFICES ASSUME {t} \subseteq G2!DiscardedTask,
                              \A oo \in UNION {G2!Successor(deps, s) : s \in {t}} :
                                  oo \in G2!RegisteredObject
                                  => \E w \in (G2!Predecessor(deps, oo) \ {t}) :
@@ -1083,7 +1073,7 @@ LEMMA LemRefineG2WFAbortTasks ==
                                     oo \in RegisteredObject
                                     => \E w \in (Predecessor(deps, oo) \ {t}) :
                                            w \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}
-            BY ExpandENABLED DEF G2!AbortTasks, G2!vars, taskStateBar
+            BY Zenon DEF G2!EnabledAbortTasks
         <3>. QED
             BY LemG2BarStates, LemG2GraphBridges, Zenon
     <2>2. /\ t \in DiscardedTask
@@ -1132,18 +1122,16 @@ LEMMA LemRefineG2WFAbortTasks ==
 (* Bar-invariant.                                                             *)
 LEMMA LemRefineG2WFRetryTasks ==
     ASSUME NEW t \in Task
-    PROVE  WF_vars(RetryTasks({t})) => WF_(G2!vars)(G2!RetryTasks({t}))
-<1>1. ENABLED <<G2!RetryTasks({t})>>_(G2!vars) => ENABLED <<RetryTasks({t})>>_vars
-    <2>1. ENABLED <<G2!RetryTasks({t})>>_(G2!vars)
+    PROVE  WF_vars(RetryTasks({t})) => (<>[]G2!EnabledRetryTasks(t) => []<><<G2!RetryTasks({t})>>_(G2!vars))
+<1>1. G2!EnabledRetryTasks(t) => ENABLED <<RetryTasks({t})>>_vars
+    <2>1. G2!EnabledRetryTasks(t)
           => /\ t \in FailedTask
              /\ \A s \in {t} : nextAttemptOf[s] \notin UnknownTask \union {NULL}
              /\ \A oo \in UNION {Successor(deps, s) : s \in {t}} :
                     oo \in RegisteredObject
                     => \E w \in (Predecessor(deps, oo) \ {t}) :
                            w \notin UNION {CompletedTask, AbortedTask, RetriedTask}
-        <3>. SUFFICES ASSUME NEW depsp, NEW objectStatep, NEW objectTargetsp,
-                             NEW taskStatep, NEW nextAttemptOfp,
-                             {t} \subseteq G2!FailedTask,
+        <3>. SUFFICES ASSUME {t} \subseteq G2!FailedTask,
                              \A s \in {t} : nextAttemptOf[s] \notin G2!UnknownTask \union {NULL},
                              \A oo \in UNION {G2!Successor(deps, s) : s \in {t}} :
                                  oo \in G2!RegisteredObject
@@ -1155,7 +1143,7 @@ LEMMA LemRefineG2WFRetryTasks ==
                                     oo \in RegisteredObject
                                     => \E w \in (Predecessor(deps, oo) \ {t}) :
                                            w \notin UNION {CompletedTask, AbortedTask, RetriedTask}
-            BY ExpandENABLED DEF G2!RetryTasks, G2!vars, taskStateBar
+            BY Zenon DEF G2!EnabledRetryTasks
         <3>. QED
             BY LemG2BarStates, LemG2GraphBridges, Zenon
     <2>2. /\ t \in FailedTask
@@ -1207,14 +1195,14 @@ LEMMA LemRefineG2WFRetryTasks ==
 LEMMA LemRefineG2WFSetTaskRetries ==
     ASSUME NEW t \in Task
     PROVE  WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
-           => WF_(G2!vars)(\E u \in Task : G2!SetTaskRetries({t}, {u}))
-<1>1. ENABLED <<\E u \in Task : G2!SetTaskRetries({t}, {u})>>_(G2!vars)
+           => (<>[]G2!EnabledSetTaskRetries(t) => []<><<\E u \in Task : G2!SetTaskRetries({t}, {u})>>_(G2!vars))
+<1>1. G2!EnabledSetTaskRetries(t)
       => ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
-    <2>1. ENABLED <<\E u \in Task : G2!SetTaskRetries({t}, {u})>>_(G2!vars)
+    <2>1. G2!EnabledSetTaskRetries(t)
           => \E u \in Task : /\ t \in G2!UnretriedTask
                              /\ u \in G2!UnknownTask
                              /\ ~ \E v \in Task : nextAttemptOf[v] = u
-        BY ExpandENABLED DEF G2!SetTaskRetries, G2!vars, taskStateBar
+        BY Zenon DEF G2!EnabledSetTaskRetries, G2!UnknownTask
     <2>2. (\E u \in Task : /\ t \in UnretriedTask
                            /\ u \in UnknownTask
                            /\ ~ \E v \in Task : nextAttemptOf[v] = u)
@@ -1251,7 +1239,7 @@ LEMMA LemRefineG2WFSetTaskRetries ==
                          nextAttemptOfp, stoppingRequestedp, pausingRequestedp :
                          Step(depsp, objectStatep, objectTargetsp, taskStatep,
                               nextAttemptOfp, stoppingRequestedp, pausingRequestedp)
-            BY ExpandENABLED, SMT DEF SetTaskRetries, vars, Step
+            BY ExpandENABLED, SMTT(30) DEF SetTaskRetries, vars, Step
         <3>. HIDE DEF Step
         <3>. DEFINE g == [x \in {t} |-> u0]
         <3>1. g \in Bijection({t}, {u0})
@@ -1313,7 +1301,7 @@ LEMMA LemRefineG2WFRegisterRetrySubGraph ==
     ASSUME NEW t \in Task
     PROVE  /\ []TypeOk
            /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
-           => WF_(G2!vars)(G2!RegisterGraph(G2!RetrySubGraph(deps, t, nextAttemptOf[t])))
+           => (<>[]G2!EnabledRegisterRetrySubGraph(t) => []<><<G2!RegisterGraph(G2!RetrySubGraph(deps, t, nextAttemptOf[t]))>>_(G2!vars))
 <1>. DEFINE G  == RetrySubGraph(deps, t, nextAttemptOf[t])
             ND == GraphUnion(deps, G)
             OU == [o \in Object |->
@@ -1325,9 +1313,9 @@ LEMMA LemRefineG2WFRegisterRetrySubGraph ==
 <1>. HIDE DEF G, ND, OU, TU
 <1>1. G2!RetrySubGraph(deps, t, nextAttemptOf[t]) = G
     BY LemG2GraphBridges, Zenon DEF G
-<1>2. ENABLED <<G2!RegisterGraph(G2!RetrySubGraph(deps, t, nextAttemptOf[t]))>>_(G2!vars)
+<1>2. G2!EnabledRegisterRetrySubGraph(t)
       => ENABLED <<RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t]))>>_vars
-    <2>1. ENABLED <<G2!RegisterGraph(G2!RetrySubGraph(deps, t, nextAttemptOf[t]))>>_(G2!vars)
+    <2>1. G2!EnabledRegisterRetrySubGraph(t)
           => /\ G /= G2!EmptyGraph
              /\ G2!IsFiniteSet(G.node)
              /\ G.node \cap Task \subseteq G2!UnknownTask
@@ -1348,8 +1336,7 @@ LEMMA LemRefineG2WFRegisterRetrySubGraph ==
                 \/ [s \in Task |->
                        IF s \in G.node THEN G2!TASK_REGISTERED ELSE taskStateBar[s]]
                    /= taskStateBar
-        BY <1>1, ExpandENABLED, Zenon
-        DEF G2!RegisterGraph, G2!vars, taskStateBar
+        BY <1>1, Zenon DEF G2!EnabledRegisterRetrySubGraph
     <2>2. /\ G /= G2!EmptyGraph
           /\ G2!IsFiniteSet(G.node)
           /\ G.node \cap Task \subseteq G2!UnknownTask
@@ -1536,18 +1523,17 @@ LEMMA LemRefineG2WFRegisterRetrySubGraph ==
 LEMMA LemRefineG2SFProcessTasks ==
     ASSUME NEW t \in Task
     PROVE  []TypeOk /\ [][Next]_vars /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
-           => SF_(G2!vars)(G2!ProcessTasks({t}) /\ t \in G2!SucceededTask')
+           => ([]<>G2!EnabledProcessTasks(t) => []<><<G2!ProcessTasks({t}) /\ t \in G2!SucceededTask'>>_(G2!vars))
 <1>. DEFINE Succeeded == taskState[t] \in {TASK_SUCCEEDED, TASK_COMPLETED}
 <1>. SUFFICES []TypeOk /\ [][Next]_vars /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
-              /\ []<>ENABLED <<G2!ProcessTasks({t}) /\ t \in G2!SucceededTask'>>_(G2!vars)
+              /\ []<>G2!EnabledProcessTasks(t)
               => FALSE
     BY PTL
 \* --- enabledness: t ASSIGNED, on both sides ---
-<1>1. ENABLED <<G2!ProcessTasks({t}) /\ t \in G2!SucceededTask'>>_(G2!vars) => t \in AssignedTask
-    <2>1. ENABLED <<G2!ProcessTasks({t}) /\ t \in G2!SucceededTask'>>_(G2!vars)
+<1>1. G2!EnabledProcessTasks(t) => t \in AssignedTask
+    <2>1. G2!EnabledProcessTasks(t)
           => t \in G2!AssignedTask
-        BY ExpandENABLED, Zenon DEF G2!AssignedTask, G2!ProcessTasks, G2!SucceededTask,
-            G2!vars, taskStateBar
+        BY DEF G2!EnabledProcessTasks
     <2>. QED
         BY <2>1, LemG2BarStates
 <1>2. t \in AssignedTask => ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
@@ -1617,32 +1603,26 @@ LEMMA LemRefineG2WFAssignTasks ==
            /\ WF_vars(StopTasks({t}))
            /\ WF_vars(ResumeUpstream(t, o))
            /\ WF_vars(DiscardStoppedUpstream(t, o))
-           => WF_(G2!vars)(G2!AssignUpstream(t, o))
+           => (<>[]G2!EnabledAssignTasks(t, o)
+                  => []<><<
+                       /\ G2!IsTaskUpstreamOnOpenPathToTarget(t, o)
+                       /\ G2!AssignTasks({t})>>_(G2!vars))
 <1>. DEFINE Up == IsTaskUpstreamOnOpenPathToTarget(t, o)
+            AbsA == /\ G2!IsTaskUpstreamOnOpenPathToTarget(t, o)
+                    /\ G2!AssignTasks({t})
 <1>. SUFFICES /\ []TypeOk /\ []T3!TaskSafetyInv /\ [][Next]_vars
               /\ SF_vars(AssignUpstream(t, o))
               /\ WF_vars(StopTasks({t}))
               /\ WF_vars(ResumeUpstream(t, o))
               /\ WF_vars(DiscardStoppedUpstream(t, o))
-              /\ <>[]ENABLED <<G2!AssignUpstream(t, o)>>_(G2!vars)
-              /\ <>[][~ G2!AssignUpstream(t, o)]_(G2!vars)
+              /\ <>[]G2!EnabledAssignTasks(t, o)
+              /\ <>[][~ AbsA]_(G2!vars)
               => FALSE
     BY PTL
 \* --- ENABLED characterizations ---
-<1>1. ENABLED <<G2!AssignUpstream(t, o)>>_(G2!vars)
+<1>1. G2!EnabledAssignTasks(t, o)
       <=> Up /\ (t \in StagedTask \/ t \in PausedTask \/ t \in StoppedTask)
-    <2>1. G2!AssignUpstream(t, o) => taskStateBar' /= taskStateBar
-        BY DEF G2!AssignTasks, G2!AssignUpstream, G2!StagedTask, taskStateBar
-    <2>2. <<G2!AssignUpstream(t, o)>>_(G2!vars) <=> G2!AssignUpstream(t, o)
-        BY <2>1 DEF G2!vars
-    <2>3. ENABLED <<G2!AssignUpstream(t, o)>>_(G2!vars) <=> ENABLED G2!AssignUpstream(t, o)
-        BY <2>2, ENABLEDaxioms
-    <2>4. ENABLED G2!AssignUpstream(t, o)
-          <=> G2!IsTaskUpstreamOnOpenPathToTarget(t, o) /\ t \in G2!StagedTask
-        BY ExpandENABLED, Zenon
-        DEF G2!AssignUpstream, G2!AssignTasks, G2!StagedTask, taskStateBar
-    <2>. QED
-        BY <2>3, <2>4, LemG2BarStates, LemG2OpenNodeBridge
+    BY LemG2BarStates, LemG2OpenNodeBridge DEF G2!EnabledAssignTasks
 <1>2. ENABLED <<StopTasks({t})>>_vars
       <=> t \in stoppingRequested /\ (t \in StagedTask \/ t \in PausedTask)
     <2>1. StopTasks({t}) => taskState' /= taskState
@@ -1694,9 +1674,9 @@ LEMMA LemRefineG2WFAssignTasks ==
     <2>. QED
         BY <2>3, <2>4
 \* --- step refinement and firing effects ---
-<1>6. <<AssignUpstream(t, o)>>_vars => <<G2!AssignUpstream(t, o)>>_(G2!vars)
+<1>6. <<AssignUpstream(t, o)>>_vars => <<AbsA>>_(G2!vars)
     <2>. SUFFICES ASSUME AssignUpstream(t, o)
-                  PROVE  G2!AssignUpstream(t, o) /\ G2!vars' /= G2!vars
+                  PROVE  AbsA /\ G2!vars' /= G2!vars
         BY DEF vars
     <2>1. taskStateBar' = [s \in Task |-> IF s \in {t} THEN TASK_ASSIGNED ELSE taskStateBar[s]]
         <3>. SUFFICES ASSUME NEW u \in Task
@@ -1714,7 +1694,7 @@ LEMMA LemRefineG2WFAssignTasks ==
     <2>4. taskStateBar' /= taskStateBar
         BY <2>1 DEF AssignTasks, AssignUpstream, StagedTask, taskStateBar
     <2>. QED
-        BY <2>2, <2>3, <2>4, Zenon DEF G2!AssignUpstream, G2!vars
+        BY <2>2, <2>3, <2>4, Zenon DEF AbsA, G2!vars
 <1>7. (t \in StagedTask \/ t \in PausedTask) /\ <<StopTasks({t})>>_vars
       => (t \in StoppedTask)'
     BY Zenon DEF StoppedTask, StopTasks, vars
@@ -1812,11 +1792,11 @@ THEOREM G3_RefineGraph2 == Spec => RefineGraph2
 <1>4. G2!OpenUpstreamEventuallyClosed
     BY <1>2, LemRefineG2OpenUpstreamEventuallyClosed
 (* Object fairness, conjunct by conjunct. *)
-<1>5. \A o \in Object : /\ WF_(G2!vars)(G2!CompleteObjects({o}))
-                       /\ WF_(G2!vars)(G2!AbortObjects({o}))
+<1>5. \A o \in Object : /\ (<>[]G2!EnabledCompleteObjects(o) => []<><<G2!CompleteObjects({o})>>_(G2!vars))
+                       /\ (<>[]G2!EnabledAbortObjects(o) => []<><<G2!AbortObjects({o})>>_(G2!vars))
     <2>. SUFFICES ASSUME NEW o \in Object
-                  PROVE  /\ WF_(G2!vars)(G2!CompleteObjects({o}))
-                         /\ WF_(G2!vars)(G2!AbortObjects({o}))
+                  PROVE  /\ (<>[]G2!EnabledCompleteObjects(o) => []<><<G2!CompleteObjects({o})>>_(G2!vars))
+                         /\ (<>[]G2!EnabledAbortObjects(o) => []<><<G2!AbortObjects({o})>>_(G2!vars))
         OBVIOUS
     <2>1. WF_vars(CompleteObjects({o})) /\ WF_vars(AbortObjects({o}))
         BY <1>2, Isa DEF Fairness
@@ -1824,14 +1804,14 @@ THEOREM G3_RefineGraph2 == Spec => RefineGraph2
         BY <2>1, LemRefineG2WFCompleteObjects, LemRefineG2WFAbortObjects
 (* Task fairness, conjunct by conjunct. *)
 <1>6. ASSUME NEW t \in Task
-      PROVE  /\ WF_(G2!vars)(\E u \in Task : G2!SetTaskRetries({t}, {u}))
-             /\ WF_(G2!vars)(G2!RegisterGraph(G2!RetrySubGraph(deps, t, nextAttemptOf[t])))
-             /\ WF_(G2!vars)(G2!StageTasks({t}))
-             /\ WF_(G2!vars)(G2!DiscardOnAbortedInput(t))
-             /\ SF_(G2!vars)(G2!ProcessTasks({t}) /\ t \in G2!SucceededTask')
-             /\ WF_(G2!vars)(G2!CompleteTasks({t}))
-             /\ WF_(G2!vars)(G2!AbortTasks({t}))
-             /\ WF_(G2!vars)(G2!RetryTasks({t}))
+      PROVE  /\ (<>[]G2!EnabledSetTaskRetries(t) => []<><<\E u \in Task : G2!SetTaskRetries({t}, {u})>>_(G2!vars))
+             /\ (<>[]G2!EnabledRegisterRetrySubGraph(t) => []<><<G2!RegisterGraph(G2!RetrySubGraph(deps, t, nextAttemptOf[t]))>>_(G2!vars))
+             /\ (<>[]G2!EnabledStageTasks(t) => []<><<G2!StageTasks({t})>>_(G2!vars))
+             /\ (<>[]G2!EnabledDiscardOnAbortedInput(t) => []<><<G2!DiscardOnAbortedInput(t)>>_(G2!vars))
+             /\ ([]<>G2!EnabledProcessTasks(t) => []<><<G2!ProcessTasks({t}) /\ t \in G2!SucceededTask'>>_(G2!vars))
+             /\ (<>[]G2!EnabledCompleteTasks(t) => []<><<G2!CompleteTasks({t})>>_(G2!vars))
+             /\ (<>[]G2!EnabledAbortTasks(t) => []<><<G2!AbortTasks({t})>>_(G2!vars))
+             /\ (<>[]G2!EnabledRetryTasks(t) => []<><<G2!RetryTasks({t})>>_(G2!vars))
     <2>1. /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
           /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
           /\ WF_vars(StageTasks({t}))
@@ -1848,7 +1828,10 @@ THEOREM G3_RefineGraph2 == Spec => RefineGraph2
            LemRefineG2WFRetryTasks
 (* Assignment fairness, per (task, object) pair. *)
 <1>7. ASSUME NEW t \in Task, NEW o \in Object
-      PROVE  WF_(G2!vars)(G2!AssignUpstream(t, o))
+      PROVE  (<>[]G2!EnabledAssignTasks(t, o)
+                 => []<><<
+                      /\ G2!IsTaskUpstreamOnOpenPathToTarget(t, o)
+                      /\ G2!AssignTasks({t})>>_(G2!vars))
     <2>1. /\ SF_vars(AssignUpstream(t, o))
           /\ WF_vars(StopTasks({t}))
           /\ WF_vars(ResumeUpstream(t, o))
@@ -1856,11 +1839,13 @@ THEOREM G3_RefineGraph2 == Spec => RefineGraph2
         BY <1>2, Isa DEF Fairness, AssignUpstream, ResumeUpstream, DiscardStoppedUpstream
     <2>. QED
         BY <1>1, <1>2, <2>1, LemRefineG2WFAssignTasks
-<1>8. G2!Fairness
+<1>8. G2!FairnessEnabledFree
     BY <1>5, <1>6, <1>7, Isa
-    DEF G2!Fairness, G2!DiscardOnAbortedInput, G2!AssignUpstream
+    DEF G2!FairnessEnabledFree, G2!DiscardOnAbortedInput, G2!AssignUpstream
+<1>9. G2!Fairness
+    BY <1>8, G2!LemFairnessEnabledFree, LemG2Assumptions
 <1>. QED
-    BY <1>3, <1>4, <1>8 DEF G2!Spec
+    BY <1>3, <1>4, <1>9 DEF G2!Spec
 
 (*****************************************************************************)
 (* REFINEMENT OF Task3 -- FAIRNESS                                           *)
@@ -1890,14 +1875,14 @@ LEMMA LemG2RefineTask2 == Spec => G2!RefineTask2
 LEMMA LemRefineT3WFSetTaskRetries ==
     ASSUME NEW t \in Task
     PROVE  WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
-           => WF_(T3!vars)(\E u \in Task : T3!SetTaskRetries({t}, {u}))
-<1>1. ENABLED <<\E u \in Task : T3!SetTaskRetries({t}, {u})>>_(T3!vars)
+           => (<>[]T3!EnabledSetTaskRetries(t) => []<><<\E u \in Task : T3!SetTaskRetries({t}, {u})>>_(T3!vars))
+<1>1. T3!EnabledSetTaskRetries(t)
       => ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
-    <2>1. ENABLED <<\E u \in Task : T3!SetTaskRetries({t}, {u})>>_(T3!vars)
+    <2>1. T3!EnabledSetTaskRetries(t)
           => \E u \in Task : /\ t \in T3!UnretriedTask
                              /\ u \in T3!UnknownTask
                              /\ ~ \E v \in Task : nextAttemptOf[v] = u
-        BY ExpandENABLED DEF T3!SetTaskRetries, T3!vars
+        BY Zenon DEF T3!EnabledSetTaskRetries, T3!UnknownTask
     <2>2. (\E u \in Task : /\ t \in UnretriedTask
                            /\ u \in UnknownTask
                            /\ ~ \E v \in Task : nextAttemptOf[v] = u)
@@ -1934,7 +1919,7 @@ LEMMA LemRefineT3WFSetTaskRetries ==
                          nextAttemptOfp, stoppingRequestedp, pausingRequestedp :
                          Step(depsp, objectStatep, objectTargetsp, taskStatep,
                               nextAttemptOfp, stoppingRequestedp, pausingRequestedp)
-            BY ExpandENABLED, SMT DEF SetTaskRetries, vars, Step
+            BY ExpandENABLED, SMTT(30) DEF SetTaskRetries, vars, Step
         <3>. HIDE DEF Step
         <3>. DEFINE g == [x \in {t} |-> u0]
         <3>1. g \in Bijection({t}, {u0})
@@ -1985,13 +1970,12 @@ LEMMA LemRefineT3WFSetTaskRetries ==
 LEMMA LemRefineT3SFProcessTasks ==
     ASSUME NEW t \in Task
     PROVE  SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
-           => SF_(T3!vars)(T3!ProcessTasks({t}) /\ t \in T3!SucceededTask')
-<1>1. ENABLED <<T3!ProcessTasks({t}) /\ t \in T3!SucceededTask'>>_(T3!vars)
+           => ([]<>T3!EnabledProcessTasks(t) => []<><<T3!ProcessTasks({t}) /\ t \in T3!SucceededTask'>>_(T3!vars))
+<1>1. T3!EnabledProcessTasks(t)
       => ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
-    <2>1. ENABLED <<T3!ProcessTasks({t}) /\ t \in T3!SucceededTask'>>_(T3!vars)
+    <2>1. T3!EnabledProcessTasks(t)
           => t \in T3!AssignedTask
-        BY ExpandENABLED, Zenon DEF T3!AssignedTask, T3!ProcessTasks, T3!SucceededTask,
-            T3!vars
+        BY DEF T3!EnabledProcessTasks
     <2>2. <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars <=> ProcessTasks({t}) /\ t \in SucceededTask'
         BY Zenon DEF AssignedTask, ProcessTasks, vars
     <2>3. ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
@@ -2054,15 +2038,13 @@ LEMMA LemRefineT3SFProcessTasks ==
 (* acknowledgments coincide under the identity mapping.                       *)
 LEMMA LemRefineT3WFStopTasks ==
     ASSUME NEW t \in Task
-    PROVE  WF_vars(StopTasks({t})) => WF_(T3!vars)(T3!StopTasks({t}))
-<1>1. ENABLED <<T3!StopTasks({t})>>_(T3!vars) => ENABLED <<StopTasks({t})>>_vars
-    <2>1. ENABLED <<T3!StopTasks({t})>>_(T3!vars) => t \in stoppingRequested /\ t \in StagedTask \union PausedTask
-        <3>. SUFFICES ASSUME NEW taskStatep, NEW nextAttemptOfp,
-                             NEW stoppingRequestedp, NEW pausingRequestedp,
-                             {t} \subseteq stoppingRequested,
+    PROVE  WF_vars(StopTasks({t})) => (<>[]T3!EnabledStopTasks(t) => []<><<T3!StopTasks({t})>>_(T3!vars))
+<1>1. T3!EnabledStopTasks(t) => ENABLED <<StopTasks({t})>>_vars
+    <2>1. T3!EnabledStopTasks(t) => t \in stoppingRequested /\ t \in StagedTask \union PausedTask
+        <3>. SUFFICES ASSUME {t} \subseteq stoppingRequested,
                              {t} \subseteq T3!StagedTask \union T3!PausedTask
                       PROVE  t \in stoppingRequested /\ t \in StagedTask \union PausedTask
-            BY ExpandENABLED DEF T3!StopTasks, T3!vars
+            BY Zenon DEF T3!EnabledStopTasks
         <3>. QED
             BY LemT3States
     <2>2. t \in stoppingRequested /\ t \in StagedTask \union PausedTask => ENABLED <<StopTasks({t})>>_vars
@@ -2093,15 +2075,13 @@ LEMMA LemRefineT3WFStopTasks ==
 
 LEMMA LemRefineT3WFPauseTasks ==
     ASSUME NEW t \in Task
-    PROVE  WF_vars(PauseTasks({t})) => WF_(T3!vars)(T3!PauseTasks({t}))
-<1>1. ENABLED <<T3!PauseTasks({t})>>_(T3!vars) => ENABLED <<PauseTasks({t})>>_vars
-    <2>1. ENABLED <<T3!PauseTasks({t})>>_(T3!vars) => t \in pausingRequested /\ t \in StagedTask
-        <3>. SUFFICES ASSUME NEW taskStatep, NEW nextAttemptOfp,
-                             NEW stoppingRequestedp, NEW pausingRequestedp,
-                             {t} \subseteq pausingRequested,
+    PROVE  WF_vars(PauseTasks({t})) => (<>[]T3!EnabledPauseTasks(t) => []<><<T3!PauseTasks({t})>>_(T3!vars))
+<1>1. T3!EnabledPauseTasks(t) => ENABLED <<PauseTasks({t})>>_vars
+    <2>1. T3!EnabledPauseTasks(t) => t \in pausingRequested /\ t \in StagedTask
+        <3>. SUFFICES ASSUME {t} \subseteq pausingRequested,
                              {t} \subseteq T3!StagedTask
                       PROVE  t \in pausingRequested /\ t \in StagedTask
-            BY ExpandENABLED DEF T3!PauseTasks, T3!vars
+            BY Zenon DEF T3!EnabledPauseTasks
         <3>. QED
             BY LemT3States
     <2>2. t \in pausingRequested /\ t \in StagedTask => ENABLED <<PauseTasks({t})>>_vars
@@ -2136,30 +2116,11 @@ LEMMA LemRefineT3WFPauseTasks ==
 LEMMA LemRefineT3WFCompleteTasks ==
     ASSUME NEW t \in Task
     PROVE  /\ []TypeOk /\ [][Next]_vars
-           /\ WF_(G2!T2!vars)(G2!T2!CompleteTasks({t}))
-           => WF_(T3!vars)(T3!CompleteTasks({t}))
-<1>1. ENABLED <<T3!CompleteTasks({t})>>_(T3!vars)
-      => ENABLED <<G2!T2!CompleteTasks({t})>>_(G2!T2!vars)
-    <2>1. T3!CompleteTasks({t}) => taskState' /= taskState
-        BY DEF T3!CompleteTasks, T3!SucceededTask
-    <2>2. <<T3!CompleteTasks({t})>>_(T3!vars) <=> T3!CompleteTasks({t})
-        BY <2>1 DEF T3!vars
-    <2>3. ENABLED <<T3!CompleteTasks({t})>>_(T3!vars) <=> ENABLED T3!CompleteTasks({t})
-        BY <2>2, ENABLEDaxioms
-    <2>4. ENABLED T3!CompleteTasks({t}) <=> t \in T3!SucceededTask
-        BY ExpandENABLED, Zenon DEF T3!CompleteTasks, T3!SucceededTask
-    <2>5. G2!T2!CompleteTasks({t}) => taskStateBar' /= taskStateBar
-        BY DEF G2!T2!CompleteTasks, G2!T2!SucceededTask, taskStateBar
-    <2>6. <<G2!T2!CompleteTasks({t})>>_(G2!T2!vars) <=> G2!T2!CompleteTasks({t})
-        BY <2>5 DEF G2!T2!vars
-    <2>7. ENABLED <<G2!T2!CompleteTasks({t})>>_(G2!T2!vars)
-          <=> ENABLED G2!T2!CompleteTasks({t})
-        BY <2>6, ENABLEDaxioms
-    <2>8. ENABLED G2!T2!CompleteTasks({t}) <=> t \in G2!T2!SucceededTask
-        BY ExpandENABLED, Zenon
-        DEF G2!T2!CompleteTasks, G2!T2!SucceededTask, taskStateBar
-    <2>. QED
-        BY <2>3, <2>4, <2>7, <2>8, LemG2T2BarStates, LemT3States, Zenon
+           /\ (<>[]G2!T2!EnabledCompleteTasks(t) => []<><<G2!T2!CompleteTasks({t})>>_(G2!T2!vars))
+           => (<>[]T3!EnabledCompleteTasks(t) => []<><<T3!CompleteTasks({t})>>_(T3!vars))
+<1>1. T3!EnabledCompleteTasks(t)
+      => G2!T2!EnabledCompleteTasks(t)
+    BY LemG2T2BarStates, LemT3States, Zenon DEF T3!EnabledCompleteTasks, G2!T2!EnabledCompleteTasks
 <1>2. TypeOk /\ [Next]_vars /\ <<G2!T2!CompleteTasks({t})>>_(G2!T2!vars)
       => <<T3!CompleteTasks({t})>>_(T3!vars)
     <2>. SUFFICES ASSUME TypeOk, [Next]_vars, <<G2!T2!CompleteTasks({t})>>_(G2!T2!vars)
@@ -2177,30 +2138,11 @@ LEMMA LemRefineT3WFCompleteTasks ==
 LEMMA LemRefineT3WFAbortTasks ==
     ASSUME NEW t \in Task
     PROVE  /\ []TypeOk /\ [][Next]_vars
-           /\ WF_(G2!T2!vars)(G2!T2!AbortTasks({t}))
-           => WF_(T3!vars)(T3!AbortTasks({t}))
-<1>1. ENABLED <<T3!AbortTasks({t})>>_(T3!vars)
-      => ENABLED <<G2!T2!AbortTasks({t})>>_(G2!T2!vars)
-    <2>1. T3!AbortTasks({t}) => taskState' /= taskState
-        BY DEF T3!AbortTasks, T3!DiscardedTask
-    <2>2. <<T3!AbortTasks({t})>>_(T3!vars) <=> T3!AbortTasks({t})
-        BY <2>1 DEF T3!vars
-    <2>3. ENABLED <<T3!AbortTasks({t})>>_(T3!vars) <=> ENABLED T3!AbortTasks({t})
-        BY <2>2, ENABLEDaxioms
-    <2>4. ENABLED T3!AbortTasks({t}) <=> t \in T3!DiscardedTask
-        BY ExpandENABLED, Zenon DEF T3!AbortTasks, T3!DiscardedTask
-    <2>5. G2!T2!AbortTasks({t}) => taskStateBar' /= taskStateBar
-        BY DEF G2!T2!AbortTasks, G2!T2!DiscardedTask, taskStateBar
-    <2>6. <<G2!T2!AbortTasks({t})>>_(G2!T2!vars) <=> G2!T2!AbortTasks({t})
-        BY <2>5 DEF G2!T2!vars
-    <2>7. ENABLED <<G2!T2!AbortTasks({t})>>_(G2!T2!vars)
-          <=> ENABLED G2!T2!AbortTasks({t})
-        BY <2>6, ENABLEDaxioms
-    <2>8. ENABLED G2!T2!AbortTasks({t}) <=> t \in G2!T2!DiscardedTask
-        BY ExpandENABLED, Zenon
-        DEF G2!T2!AbortTasks, G2!T2!DiscardedTask, taskStateBar
-    <2>. QED
-        BY <2>3, <2>4, <2>7, <2>8, LemG2T2BarStates, LemT3States, Zenon
+           /\ (<>[]G2!T2!EnabledAbortTasks(t) => []<><<G2!T2!AbortTasks({t})>>_(G2!T2!vars))
+           => (<>[]T3!EnabledAbortTasks(t) => []<><<T3!AbortTasks({t})>>_(T3!vars))
+<1>1. T3!EnabledAbortTasks(t)
+      => G2!T2!EnabledAbortTasks(t)
+    BY LemG2T2BarStates, LemT3States, Zenon DEF T3!EnabledAbortTasks, G2!T2!EnabledAbortTasks
 <1>2. TypeOk /\ [Next]_vars /\ <<G2!T2!AbortTasks({t})>>_(G2!T2!vars)
       => <<T3!AbortTasks({t})>>_(T3!vars)
     <2>. SUFFICES ASSUME TypeOk, [Next]_vars, <<G2!T2!AbortTasks({t})>>_(G2!T2!vars)
@@ -2218,32 +2160,11 @@ LEMMA LemRefineT3WFAbortTasks ==
 LEMMA LemRefineT3WFRetryTasks ==
     ASSUME NEW t \in Task
     PROVE  /\ []TypeOk /\ [][Next]_vars
-           /\ WF_(G2!T2!vars)(G2!T2!RetryTasks({t}))
-           => WF_(T3!vars)(T3!RetryTasks({t}))
-<1>1. ENABLED <<T3!RetryTasks({t})>>_(T3!vars)
-      => ENABLED <<G2!T2!RetryTasks({t})>>_(G2!T2!vars)
-    <2>1. T3!RetryTasks({t}) => taskState' /= taskState
-        BY DEF T3!FailedTask, T3!RetryTasks
-    <2>2. <<T3!RetryTasks({t})>>_(T3!vars) <=> T3!RetryTasks({t})
-        BY <2>1 DEF T3!vars
-    <2>3. ENABLED <<T3!RetryTasks({t})>>_(T3!vars) <=> ENABLED T3!RetryTasks({t})
-        BY <2>2, ENABLEDaxioms
-    <2>4. ENABLED T3!RetryTasks({t})
-          <=> t \in T3!FailedTask /\ ~ (t \in T3!UnretriedTask)
-        BY ExpandENABLED, Zenon DEF T3!FailedTask, T3!RetryTasks, T3!UnretriedTask
-    <2>5. G2!T2!RetryTasks({t}) => taskStateBar' /= taskStateBar
-        BY DEF G2!T2!FailedTask, G2!T2!RetryTasks, taskStateBar
-    <2>6. <<G2!T2!RetryTasks({t})>>_(G2!T2!vars) <=> G2!T2!RetryTasks({t})
-        BY <2>5 DEF G2!T2!vars
-    <2>7. ENABLED <<G2!T2!RetryTasks({t})>>_(G2!T2!vars)
-          <=> ENABLED G2!T2!RetryTasks({t})
-        BY <2>6, ENABLEDaxioms
-    <2>8. ENABLED G2!T2!RetryTasks({t})
-          <=> t \in G2!T2!FailedTask /\ ~ (t \in G2!T2!UnretriedTask)
-        BY ExpandENABLED, Zenon
-        DEF G2!T2!RetryTasks, G2!T2!FailedTask, G2!T2!UnretriedTask, taskStateBar
-    <2>. QED
-        BY <2>3, <2>4, <2>7, <2>8, LemG2T2BarStates, LemT3States, Zenon
+           /\ (<>[]G2!T2!EnabledRetryTasks(t) => []<><<G2!T2!RetryTasks({t})>>_(G2!T2!vars))
+           => (<>[]T3!EnabledRetryTasks(t) => []<><<T3!RetryTasks({t})>>_(T3!vars))
+<1>1. T3!EnabledRetryTasks(t)
+      => G2!T2!EnabledRetryTasks(t)
+    BY LemG2T2BarStates, LemT3States, Zenon DEF T3!EnabledRetryTasks, G2!T2!EnabledRetryTasks, T3!UnretriedTask, G2!T2!UnretriedTask, T3!FailedTask, G2!T2!FailedTask
 <1>2. TypeOk /\ [Next]_vars /\ <<G2!T2!RetryTasks({t})>>_(G2!T2!vars)
       => <<T3!RetryTasks({t})>>_(T3!vars)
     <2>. SUFFICES ASSUME TypeOk, [Next]_vars, <<G2!T2!RetryTasks({t})>>_(G2!T2!vars)
@@ -2261,35 +2182,11 @@ LEMMA LemRefineT3WFRetryTasks ==
 LEMMA LemRefineT3WFRegisterTasks ==
     ASSUME NEW t \in Task
     PROVE  /\ []TypeOk /\ [][Next]_vars
-           /\ WF_(G2!T2!vars)(G2!T2!RegisterTasks({nextAttemptOf[t]}))
-           => WF_(T3!vars)(T3!RegisterTasks({nextAttemptOf[t]}))
-<1>1. ENABLED <<T3!RegisterTasks({nextAttemptOf[t]})>>_(T3!vars)
-      => ENABLED <<G2!T2!RegisterTasks({nextAttemptOf[t]})>>_(G2!T2!vars)
-    <2>1. T3!RegisterTasks({nextAttemptOf[t]}) => taskState' /= taskState
-        BY Zenon DEF T3!RegisterTasks, T3!UnknownTask
-    <2>2. <<T3!RegisterTasks({nextAttemptOf[t]})>>_(T3!vars) <=> T3!RegisterTasks({nextAttemptOf[t]})
-        BY <2>1 DEF T3!vars
-    <2>3. ENABLED <<T3!RegisterTasks({nextAttemptOf[t]})>>_(T3!vars) <=> ENABLED T3!RegisterTasks({nextAttemptOf[t]})
-        BY <2>2, ENABLEDaxioms
-    <2>4. T3!IsFiniteSet({nextAttemptOf[t]}) <=> IsFiniteSet({nextAttemptOf[t]})
-        BY DEF IsFiniteSet, T3!IsFiniteSet
-    <2>5. ENABLED T3!RegisterTasks({nextAttemptOf[t]}) <=> nextAttemptOf[t] \in T3!UnknownTask
-        BY <2>4, FS_Singleton, ExpandENABLED, Zenon
-        DEF T3!RegisterTasks, T3!UnknownTask
-    <2>6. G2!T2!RegisterTasks({nextAttemptOf[t]}) => taskStateBar' /= taskStateBar
-        BY Zenon DEF G2!T2!RegisterTasks, G2!T2!UnknownTask, taskStateBar
-    <2>7. <<G2!T2!RegisterTasks({nextAttemptOf[t]})>>_(G2!T2!vars) <=> G2!T2!RegisterTasks({nextAttemptOf[t]})
-        BY <2>6 DEF G2!T2!vars
-    <2>8. ENABLED <<G2!T2!RegisterTasks({nextAttemptOf[t]})>>_(G2!T2!vars)
-          <=> ENABLED G2!T2!RegisterTasks({nextAttemptOf[t]})
-        BY <2>7, ENABLEDaxioms
-    <2>9. G2!T2!IsFiniteSet({nextAttemptOf[t]}) <=> IsFiniteSet({nextAttemptOf[t]})
-        BY DEF G2!T2!IsFiniteSet, IsFiniteSet
-    <2>10. ENABLED G2!T2!RegisterTasks({nextAttemptOf[t]}) <=> nextAttemptOf[t] \in G2!T2!UnknownTask
-        BY <2>9, FS_Singleton, ExpandENABLED, Zenon
-        DEF G2!T2!RegisterTasks, G2!T2!UnknownTask, taskStateBar
-    <2>. QED
-        BY <2>3, <2>5, <2>8, <2>10, LemG2T2BarStates, LemT3States, Zenon
+           /\ (<>[]G2!T2!EnabledRegisterTasks(t) => []<><<G2!T2!RegisterTasks({nextAttemptOf[t]})>>_(G2!T2!vars))
+           => (<>[]T3!EnabledRegisterTasks(t) => []<><<T3!RegisterTasks({nextAttemptOf[t]})>>_(T3!vars))
+<1>1. T3!EnabledRegisterTasks(t)
+      => G2!T2!EnabledRegisterTasks(t)
+    BY LemG2T2BarStates, LemT3States, Zenon DEF T3!EnabledRegisterTasks, G2!T2!EnabledRegisterTasks
 <1>2. TypeOk /\ [Next]_vars /\ <<G2!T2!RegisterTasks({nextAttemptOf[t]})>>_(G2!T2!vars)
       => <<T3!RegisterTasks({nextAttemptOf[t]})>>_(T3!vars)
     <2>. SUFFICES ASSUME TypeOk, [Next]_vars, <<G2!T2!RegisterTasks({nextAttemptOf[t]})>>_(G2!T2!vars)
@@ -2307,30 +2204,11 @@ LEMMA LemRefineT3WFRegisterTasks ==
 LEMMA LemRefineT3WFStageTasks ==
     ASSUME NEW t \in Task
     PROVE  /\ []TypeOk /\ [][Next]_vars
-           /\ WF_(G2!T2!vars)(G2!T2!StageTasks({nextAttemptOf[t]}))
-           => WF_(T3!vars)(T3!StageTasks({nextAttemptOf[t]}))
-<1>1. ENABLED <<T3!StageTasks({nextAttemptOf[t]})>>_(T3!vars)
-      => ENABLED <<G2!T2!StageTasks({nextAttemptOf[t]})>>_(G2!T2!vars)
-    <2>1. T3!StageTasks({nextAttemptOf[t]}) => taskState' /= taskState
-        BY DEF T3!RegisteredTask, T3!StageTasks
-    <2>2. <<T3!StageTasks({nextAttemptOf[t]})>>_(T3!vars) <=> T3!StageTasks({nextAttemptOf[t]})
-        BY <2>1 DEF T3!vars
-    <2>3. ENABLED <<T3!StageTasks({nextAttemptOf[t]})>>_(T3!vars) <=> ENABLED T3!StageTasks({nextAttemptOf[t]})
-        BY <2>2, ENABLEDaxioms
-    <2>4. ENABLED T3!StageTasks({nextAttemptOf[t]}) <=> nextAttemptOf[t] \in T3!RegisteredTask
-        BY ExpandENABLED, Zenon DEF T3!RegisteredTask, T3!StageTasks
-    <2>5. G2!T2!StageTasks({nextAttemptOf[t]}) => taskStateBar' /= taskStateBar
-        BY DEF G2!T2!RegisteredTask, G2!T2!StageTasks, taskStateBar
-    <2>6. <<G2!T2!StageTasks({nextAttemptOf[t]})>>_(G2!T2!vars) <=> G2!T2!StageTasks({nextAttemptOf[t]})
-        BY <2>5 DEF G2!T2!vars
-    <2>7. ENABLED <<G2!T2!StageTasks({nextAttemptOf[t]})>>_(G2!T2!vars)
-          <=> ENABLED G2!T2!StageTasks({nextAttemptOf[t]})
-        BY <2>6, ENABLEDaxioms
-    <2>8. ENABLED G2!T2!StageTasks({nextAttemptOf[t]}) <=> nextAttemptOf[t] \in G2!T2!RegisteredTask
-        BY ExpandENABLED, Zenon
-        DEF G2!T2!StageTasks, G2!T2!RegisteredTask, taskStateBar
-    <2>. QED
-        BY <2>3, <2>4, <2>7, <2>8, LemG2T2BarStates, LemT3States, Zenon
+           /\ (<>[]G2!T2!EnabledStageTasks(t) => []<><<G2!T2!StageTasks({nextAttemptOf[t]})>>_(G2!T2!vars))
+           => (<>[]T3!EnabledStageTasks(t) => []<><<T3!StageTasks({nextAttemptOf[t]})>>_(T3!vars))
+<1>1. T3!EnabledStageTasks(t)
+      => G2!T2!EnabledStageTasks(t)
+    BY LemG2T2BarStates, LemT3States, Zenon DEF T3!EnabledStageTasks, G2!T2!EnabledStageTasks
 <1>2. TypeOk /\ [Next]_vars /\ <<G2!T2!StageTasks({nextAttemptOf[t]})>>_(G2!T2!vars)
       => <<T3!StageTasks({nextAttemptOf[t]})>>_(T3!vars)
     <2>. SUFFICES ASSUME TypeOk, [Next]_vars, <<G2!T2!StageTasks({nextAttemptOf[t]})>>_(G2!T2!vars)
@@ -2369,48 +2247,51 @@ THEOREM G3_RefineTask3 == Spec => RefineTask3
         BY <2>1 DEF G2!T2!Spec
 (* T3's fairness, conjunct by conjunct.  *)
 <1>5. ASSUME NEW t \in Task
-      PROVE  /\ WF_(T3!vars)(\E u \in Task : T3!SetTaskRetries({t}, {u}))
-             /\ WF_(T3!vars)(T3!RegisterTasks({nextAttemptOf[t]}))
-             /\ WF_(T3!vars)(T3!StageTasks({nextAttemptOf[t]}))
-             /\ SF_(T3!vars)(T3!ProcessTasks({t}) /\ t \in T3!SucceededTask')
-             /\ WF_(T3!vars)(T3!CompleteTasks({t}))
-             /\ WF_(T3!vars)(T3!AbortTasks({t}))
-             /\ WF_(T3!vars)(T3!RetryTasks({t}))
-             /\ WF_(T3!vars)(T3!StopTasks({t}))
-             /\ WF_(T3!vars)(T3!PauseTasks({t}))
+      PROVE  /\ (<>[]T3!EnabledSetTaskRetries(t) => []<><<\E u \in Task : T3!SetTaskRetries({t}, {u})>>_(T3!vars))
+             /\ (<>[]T3!EnabledRegisterTasks(t) => []<><<T3!RegisterTasks({nextAttemptOf[t]})>>_(T3!vars))
+             /\ (<>[]T3!EnabledStageTasks(t) => []<><<T3!StageTasks({nextAttemptOf[t]})>>_(T3!vars))
+             /\ ([]<>T3!EnabledProcessTasks(t) => []<><<T3!ProcessTasks({t}) /\ t \in T3!SucceededTask'>>_(T3!vars))
+             /\ (<>[]T3!EnabledCompleteTasks(t) => []<><<T3!CompleteTasks({t})>>_(T3!vars))
+             /\ (<>[]T3!EnabledAbortTasks(t) => []<><<T3!AbortTasks({t})>>_(T3!vars))
+             /\ (<>[]T3!EnabledRetryTasks(t) => []<><<T3!RetryTasks({t})>>_(T3!vars))
+             /\ (<>[]T3!EnabledStopTasks(t) => []<><<T3!StopTasks({t})>>_(T3!vars))
+             /\ (<>[]T3!EnabledPauseTasks(t) => []<><<T3!PauseTasks({t})>>_(T3!vars))
     <2>1. /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
           /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
           /\ WF_vars(StopTasks({t}))
           /\ WF_vars(PauseTasks({t}))
         BY <1>2, Isa DEF Fairness
-    <2>2. /\ WF_(G2!T2!vars)(G2!T2!RegisterTasks({nextAttemptOf[t]}))
-          /\ WF_(G2!T2!vars)(G2!T2!StageTasks({nextAttemptOf[t]}))
-          /\ WF_(G2!T2!vars)(G2!T2!CompleteTasks({t}))
-          /\ WF_(G2!T2!vars)(G2!T2!AbortTasks({t}))
-          /\ WF_(G2!T2!vars)(G2!T2!RetryTasks({t}))
-        BY <1>4, Isa DEF G2!T2!Fairness
-    <2>3. WF_(T3!vars)(\E u \in Task : T3!SetTaskRetries({t}, {u}))
+    <2>2. /\ (<>[]G2!T2!EnabledRegisterTasks(t) => []<><<G2!T2!RegisterTasks({nextAttemptOf[t]})>>_(G2!T2!vars))
+          /\ (<>[]G2!T2!EnabledStageTasks(t) => []<><<G2!T2!StageTasks({nextAttemptOf[t]})>>_(G2!T2!vars))
+          /\ (<>[]G2!T2!EnabledCompleteTasks(t) => []<><<G2!T2!CompleteTasks({t})>>_(G2!T2!vars))
+          /\ (<>[]G2!T2!EnabledAbortTasks(t) => []<><<G2!T2!AbortTasks({t})>>_(G2!T2!vars))
+          /\ (<>[]G2!T2!EnabledRetryTasks(t) => []<><<G2!T2!RetryTasks({t})>>_(G2!T2!vars))
+        BY <1>4, G2!T2!LemFairnessEnabledFree, G2!LemT2Assumptions, LemG2Assumptions, Isa
+        DEF G2!T2!FairnessEnabledFree
+    <2>3. (<>[]T3!EnabledSetTaskRetries(t) => []<><<\E u \in Task : T3!SetTaskRetries({t}, {u})>>_(T3!vars))
         BY <2>1, LemRefineT3WFSetTaskRetries
-    <2>4. SF_(T3!vars)(T3!ProcessTasks({t}) /\ t \in T3!SucceededTask')
+    <2>4. ([]<>T3!EnabledProcessTasks(t) => []<><<T3!ProcessTasks({t}) /\ t \in T3!SucceededTask'>>_(T3!vars))
         BY <2>1, LemRefineT3SFProcessTasks
-    <2>5. WF_(T3!vars)(T3!StopTasks({t})) /\ WF_(T3!vars)(T3!PauseTasks({t}))
+    <2>5. (<>[]T3!EnabledStopTasks(t) => []<><<T3!StopTasks({t})>>_(T3!vars)) /\ (<>[]T3!EnabledPauseTasks(t) => []<><<T3!PauseTasks({t})>>_(T3!vars))
         BY <2>1, LemRefineT3WFStopTasks, LemRefineT3WFPauseTasks
-    <2>6. WF_(T3!vars)(T3!RegisterTasks({nextAttemptOf[t]}))
+    <2>6. (<>[]T3!EnabledRegisterTasks(t) => []<><<T3!RegisterTasks({nextAttemptOf[t]})>>_(T3!vars))
         BY <1>1, <1>2, <2>2, LemRefineT3WFRegisterTasks
-    <2>7. WF_(T3!vars)(T3!StageTasks({nextAttemptOf[t]}))
+    <2>7. (<>[]T3!EnabledStageTasks(t) => []<><<T3!StageTasks({nextAttemptOf[t]})>>_(T3!vars))
         BY <1>1, <1>2, <2>2, LemRefineT3WFStageTasks
-    <2>8. WF_(T3!vars)(T3!CompleteTasks({t}))
+    <2>8. (<>[]T3!EnabledCompleteTasks(t) => []<><<T3!CompleteTasks({t})>>_(T3!vars))
         BY <1>1, <1>2, <2>2, LemRefineT3WFCompleteTasks
-    <2>9. WF_(T3!vars)(T3!AbortTasks({t}))
+    <2>9. (<>[]T3!EnabledAbortTasks(t) => []<><<T3!AbortTasks({t})>>_(T3!vars))
         BY <1>1, <1>2, <2>2, LemRefineT3WFAbortTasks
-    <2>10. WF_(T3!vars)(T3!RetryTasks({t}))
+    <2>10. (<>[]T3!EnabledRetryTasks(t) => []<><<T3!RetryTasks({t})>>_(T3!vars))
         BY <1>1, <1>2, <2>2, LemRefineT3WFRetryTasks
     <2>. QED
         BY <2>3, <2>4, <2>5, <2>6, <2>7, <2>8, <2>9, <2>10
-<1>6. T3!Fairness
-    BY <1>5, Isa DEF T3!Fairness
+<1>6. T3!FairnessEnabledFree
+    BY <1>5, Isa DEF T3!FairnessEnabledFree
+<1>7. T3!Fairness
+    BY <1>6, T3!LemFairnessEnabledFree, LemT3Assumptions
 <1>. QED
-    BY <1>3, <1>6 DEF T3!Spec
+    BY <1>3, <1>7 DEF T3!Spec
 
 (*****************************************************************************)
 (* REFINEMENT OF Object2                                                     *)
@@ -2426,23 +2307,44 @@ THEOREM G3_RefineObject2 == Spec => RefineObject2
     BY G3_RefineGraph2 DEF RefineGraph2
 <1>2. G2!Spec => G2!RefineObject2
     BY G2!G2_RefineObject2, LemG2Assumptions, Isa
-(* The two copies of Object2 coincide once unfolded down to the           *)
-(* variables: the Graph2 mapping leaves the object state alone.            *)
-<1>3. G2!RefineObject2 <=> RefineObject2
-    BY DEF G2!RefineObject2, RefineObject2,
-           G2!O2!Spec, G2!O2!Init, G2!O2!Next, G2!O2!Fairness, G2!O2!vars,
+(* The two copies of Object2 coincide on their initial states and steps once *)
+(* unfolded down to the variables: the Graph2 mapping leaves the object      *)
+(* state alone. Their fairness is compared in its ENABLED-free form, over   *)
+(* which the instantiations distribute.                                     *)
+<1>3. G2!O2!Init /\ [][G2!O2!Next]_(G2!O2!vars) => O2!Init /\ [][O2!Next]_(O2!vars)
+    BY DEF G2!O2!Init, G2!O2!Next, G2!O2!vars,
            G2!O2!RegisterObjects, G2!O2!TargetObjects, G2!O2!UntargetObjects,
            G2!O2!CompleteObjects, G2!O2!AbortObjects, G2!O2!IsFiniteSet,
            G2!O2!UnknownObject, G2!O2!RegisteredObject, G2!O2!CompletedObject,
            G2!O2!AbortedObject, G2!O2!OBJECT_UNKNOWN, G2!O2!OBJECT_REGISTERED,
            G2!O2!OBJECT_COMPLETED, G2!O2!OBJECT_ABORTED,
-           O2!Spec, O2!Init, O2!Next, O2!Fairness, O2!vars,
+           O2!Init, O2!Next, O2!vars,
            O2!RegisterObjects, O2!TargetObjects, O2!UntargetObjects,
            O2!CompleteObjects, O2!AbortObjects, O2!IsFiniteSet,
            O2!UnknownObject, O2!RegisteredObject, O2!CompletedObject,
            O2!AbortedObject, O2!OBJECT_UNKNOWN, O2!OBJECT_REGISTERED,
            O2!OBJECT_COMPLETED, O2!OBJECT_ABORTED
+<1>4. G2!O2!Fairness => O2!Fairness
+    <2>1. O2!Assumptions
+        BY Assumptions DEF Bijection, ExistsBijection, Assumptions, Injection,
+            IsDenumerableSet, IsInjective, O2!Bijection, O2!ExistsBijection,
+            O2!Injection, O2!IsDenumerableSet, O2!IsInjective, O2!Assumptions,
+            O2!Surjection, Surjection
+    <2>2. G2!O2!Fairness => \A o \in Object : G2!O2!FairCompleteObjects(o)
+        BY G2!O2!LemFairnessEnabledFree, G2!LemO2Assumptions, LemG2Assumptions
+    <2>3. ASSUME NEW o \in Object
+          PROVE  G2!O2!FairCompleteObjects(o) => O2!FairCompleteObjects(o)
+        BY DEF G2!O2!FairCompleteObjects, G2!O2!EnabledCompleteObjects,
+               G2!O2!CompleteObjects, G2!O2!RegisteredObject, G2!O2!vars,
+               G2!O2!OBJECT_REGISTERED, G2!O2!OBJECT_COMPLETED,
+               O2!FairCompleteObjects, O2!EnabledCompleteObjects,
+               O2!CompleteObjects, O2!RegisteredObject, O2!vars,
+               O2!OBJECT_REGISTERED, O2!OBJECT_COMPLETED
+    <2>4. (\A o \in Object : O2!FairCompleteObjects(o)) => O2!Fairness
+        BY <2>1, O2!LemFairnessEnabledFree
+    <2>. QED
+        BY <2>2, <2>3, <2>4, Isa
 <1>. QED
-    BY <1>1, <1>2, <1>3
+    BY <1>1, <1>2, <1>3, <1>4 DEF G2!RefineObject2, RefineObject2, G2!O2!Spec, O2!Spec
 
 ================================================================================
