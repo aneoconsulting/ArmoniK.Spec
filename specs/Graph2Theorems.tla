@@ -461,19 +461,21 @@ LEMMA LemFairnessStable == Fairness <=> []Fairness
 (*****************************************************************************)
 (* FAIRNESS REFINEMENT OF Graph1                                             *)
 (*                                                                           *)
-(* Each conjunct of G1!Fairness is discharged by its own lemma               *)
+(* Each conjunct of G1!FairnessEnabledFree, the restatement of Graph1's      *)
+(* fairness without ENABLED, is discharged by its own lemma                  *)
 (* LemRefineG1<WF|SF><Action> (StageTasks, AssignTasks, ProcessTasks,        *)
 (* FinalizeObjects, FinalizeTasks), G1!OpenUpstreamEventuallyClosed by       *)
 (* LemRefineG1OpenUpstreamEventuallyClosed, and G2_RefineGraph1              *)
-(* assembles them with the step simulation.                                  *)
+(* assembles them with the step simulation and recovers G1!Fairness through  *)
+(* G1!LemFairnessEnabledFree. Substitution does not distribute over          *)
+(* ENABLED, so each lemma concludes the instantiated restatement of its      *)
+(* conjunct, whose enabling condition is a state predicate of Graph1.        *)
 (*                                                                           *)
-(* The conjuncts matched by a G2 fairness conjunct follow the ENABLED +      *)
-(* action-implication + <>[]P pattern of Graph1's own                        *)
-(* LemRefineTask1Fairness, with two difficulties specific to G2:             *)
-(* (a) ENABLED must invert the *Bar functions (O2!RefineObject1              *)
-(* idiom: action-changes-bar-var => <<A>>_v <=> A via ENABLEDaxioms, then    *)
-(* ExpandENABLED on the bare action); (b) the multi-branch ProcessTasks      *)
-(* needs an explicit SUCCEEDED witness for ENABLED.                          *)
+(* The conjuncts matched by a G2 fairness conjunct follow the enabling-      *)
+(* condition + action-implication + <>[]P pattern of Graph1's own            *)
+(* LemRefineTask1Fairness: the instantiated predicate re-establishes the     *)
+(* concrete ENABLED, where the multi-branch ProcessTasks needs an explicit   *)
+(* SUCCEEDED witness, and a concrete step is a Bar step of the action.       *)
 (*                                                                           *)
 (* WF(G1!FinalizeObjects) has no matching G2 conjunct: it is proved by a     *)
 (* post-quiescence drain (LemRefineG1WFFinalizeObjects). Under the           *)
@@ -508,7 +510,7 @@ LEMMA LemBarStutter ==
 LEMMA LemRefineG1SFProcessTasks ==
     ASSUME NEW t \in Task
     PROVE  []TypeOk /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
-           => SF_(G1!vars)(G1!ProcessTasks({t}))
+           => ([]<>G1!EnabledProcessTasks(t) => []<><<G1!ProcessTasks({t})>>_(G1!vars))
 
 (* Aborted objects and registered-task predecessors are stable, used by the    *)
 (* StageTasks <>[]P argument below.                                             *)
@@ -555,7 +557,7 @@ LEMMA LemRefineG1WFStageTasks ==
     PROVE  /\ []GraphSafetyInv /\ [][Next]_vars
            /\ WF_vars(StageTasks({t}))
            /\ WF_vars(DiscardOnAbortedInput(t))
-           => WF_(G1!vars)(G1!StageTasks({t}))
+           => (<>[]G1!EnabledStageTasks(t) => []<><<G1!StageTasks({t})>>_(G1!vars))
 
 (* G1!OpenUpstreamEventuallyClosed refinement. G2's IsOpenNode matches        *)
 (* G1!IsOpenNode under the Bar (LemG1OpenNodeBridge), so the open-induced         *)
@@ -618,8 +620,10 @@ LEMMA LemUpstreamBridge ==
 LEMMA LemRefineG1WFAssignTasks ==
     ASSUME NEW t \in Task, NEW o \in Object
     PROVE  /\ []TypeOk /\ WF_vars(AssignUpstream(t, o))
-           => WF_(G1!vars)(/\ G1!IsTaskUpstreamOnOpenPathToTarget(t, o)
-                           /\ G1!AssignTasks({t}))
+           => (<>[]G1!EnabledAssignTasks(t, o)
+               => []<><<
+                    /\ G1!IsTaskUpstreamOnOpenPathToTarget(t, o)
+                    /\ G1!AssignTasks({t})>>_(G1!vars))
 
 (* G2 refines T2's SetTaskRetries fairness. G2's SetTaskRetries is T2's          *)
 (* (identity task mapping) conjoined with UNCHANGED object variables, so the     *)
@@ -629,7 +633,7 @@ LEMMA LemRefineG1WFAssignTasks ==
 LEMMA LemRefineT2WFSetTaskRetries ==
     ASSUME NEW t \in Task
     PROVE  []T2!TaskSafetyInv /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
-           => WF_(T2!vars)(\E u \in Task : T2!SetTaskRetries({t}, {u}))
+           => (<>[]T2!EnabledSetTaskRetries(t) => []<><<\E u \in Task : T2!SetTaskRetries({t}, {u})>>_(T2!vars))
 
 (* G2's own eventual-retry leads-to. Re-proved directly rather than retrieved   *)
 (* through T2!LemFailedTaskEventualRetry: an INSTANCE cannot rebind that         *)
@@ -999,7 +1003,7 @@ LEMMA LemCompleteObjectsFires ==
 LEMMA LemRefineG1WFFinalizeObjects ==
     ASSUME NEW o \in Object
     PROVE  /\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ OpenUpstreamEventuallyClosed
-           => WF_(G1!vars)(G1!FinalizeObjects({o}))
+           => (<>[]G1!EnabledFinalizeObjects(o) => []<><<G1!FinalizeObjects({o})>>_(G1!vars))
 
 (* WF(T2!RegisterTasks) on the recorded clone, from G2's retry-subgraph       *)
 (* registration fairness. T2!RegisterTasks({nextAttemptOf[t]}) is only       *)
@@ -1009,7 +1013,7 @@ LEMMA LemRefineT2WFRegisterTasks ==
     ASSUME NEW t \in Task
     PROVE  /\ []GraphSafetyInv /\ [][Next]_vars
            /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
-           => WF_(T2!vars)(T2!RegisterTasks({nextAttemptOf[t]}))
+           => (<>[]T2!EnabledRegisterTasks(t) => []<><<T2!RegisterTasks({nextAttemptOf[t]})>>_(T2!vars))
 
 (* Each of G2's three finalizing task actions is a bar-FinalizeTasks step.      *)
 LEMMA LemG1FinalizeTasksStep ==
@@ -1043,7 +1047,7 @@ LEMMA LemRetryCloneEventuallyRegistered ==
 LEMMA LemRefineG1WFFinalizeTasks ==
     ASSUME NEW t \in Task
     PROVE  /\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness /\ OpenUpstreamEventuallyClosed
-           => WF_(G1!vars)(G1!FinalizeTasks({t}))
+           => (<>[]G1!EnabledFinalizeTasks(t) => []<><<G1!FinalizeTasks({t})>>_(G1!vars))
 
 (*****************************************************************************)
 (* REFINEMENT OF TASKPROCESSING2 (T2) -- FAIRNESS                             *)
@@ -1066,7 +1070,7 @@ LEMMA LemRefineG1WFFinalizeTasks ==
 LEMMA LemRefineT2SFProcessTasks ==
     ASSUME NEW t \in Task
     PROVE  []TypeOk /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
-           => SF_(T2!vars)(T2!ProcessTasks({t}) /\ t \in T2!SucceededTask')
+           => ([]<>T2!EnabledProcessTasks(t) => []<><<T2!ProcessTasks({t}) /\ t \in T2!SucceededTask'>>_(T2!vars))
 
 (* The clone-staging fairness, DERIVED: WF(StageTasks) at the flexible argument  *)
 (* nextAttemptOf[u] follows from the rigid \A t : WF_vars(StageTasks({t})).      *)
@@ -1092,7 +1096,7 @@ LEMMA LemNextAttemptStageWF ==
 LEMMA LemRefineT2WFStageTasks ==
     ASSUME NEW t \in Task
     PROVE  /\ []GraphSafetyInv /\ WF_vars(StageTasks({nextAttemptOf[t]}))
-           => WF_(T2!vars)(T2!StageTasks({nextAttemptOf[t]}))
+           => (<>[]T2!EnabledStageTasks(t) => []<><<T2!StageTasks({nextAttemptOf[t]})>>_(T2!vars))
 
 (*****************************************************************************)
 (* The three finalizing task actions (Complete / Abort / Retry). Their WF     *)
@@ -1140,17 +1144,17 @@ LEMMA LemProcessedStatesEventuallyLeft ==
 LEMMA LemRefineT2WFCompleteTasks ==
     ASSUME NEW t \in Task
     PROVE  [](t \in SucceededTask => <>(~ (t \in SucceededTask)))
-           => WF_(T2!vars)(T2!CompleteTasks({t}))
+           => (<>[]T2!EnabledCompleteTasks(t) => []<><<T2!CompleteTasks({t})>>_(T2!vars))
 
 LEMMA LemRefineT2WFAbortTasks ==
     ASSUME NEW t \in Task
     PROVE  [](t \in DiscardedTask => <>(~ (t \in DiscardedTask)))
-           => WF_(T2!vars)(T2!AbortTasks({t}))
+           => (<>[]T2!EnabledAbortTasks(t) => []<><<T2!AbortTasks({t})>>_(T2!vars))
 
 LEMMA LemRefineT2WFRetryTasks ==
     ASSUME NEW t \in Task
     PROVE  [](t \in FailedTask => <>(~ (t \in FailedTask)))
-           => WF_(T2!vars)(T2!RetryTasks({t}))
+           => (<>[]T2!EnabledRetryTasks(t) => []<><<T2!RetryTasks({t})>>_(T2!vars))
 
 (*****************************************************************************)
 (* REFINEMENT OF Graph1 -- THE FULL THEOREM                                  *)
@@ -1203,7 +1207,7 @@ LEMMA LemRefineO2WFCompleteObjects ==
     PROVE  LET S == G1!AncestorSubGraph(deps, o, G1!IsOpenNode).node
            IN /\ []G1!GraphSafetyInv /\ [][G1!Next]_(G1!vars) /\ []G1!Fairness
               /\ []([](o \in objectTargets) => <>[][S' \subseteq S]_S)
-              => WF_(O2!vars)(o \in objectTargets /\ O2!CompleteObjects({o}))
+              => (<>[]O2!EnabledCompleteObjects(o) => []<><<o \in objectTargets /\ O2!CompleteObjects({o})>>_(O2!vars))
 
 (* G1's open-upstream constraint projected onto the node set of the open     *)
 (* ancestor subgraph -- the cardinality measure of                            *)
@@ -1365,4 +1369,118 @@ LEMMA LemUnderivableQuiescence ==
                => [](G2Derivation(o) = {} => [](G2Derivation(o) = {})))
 
 THEOREM G2_UnderivableQuiescence == Spec => UnderivableQuiescence
+
+(**
+ * ENABLED-FREE FAIRNESS
+ * Fairness restated without ENABLED, each action guarded by a state
+ * predicate that its enabledness implies. Substitution does not distribute
+ * over ENABLED, hence not over WF and SF, but it does over this form: a
+ * refinement proves the instantiated FairnessEnabledFree, where it only has
+ * to enable its own actions under the instantiated predicates, and recovers
+ * the instantiated Fairness through LemFairnessEnabledFree.
+ *)
+EnabledCompleteObjects(o) ==
+    /\ o \in RegisteredObject
+    /\ \/ o \in Source(deps)
+       \/ \E t \in Predecessor(deps, o) : t \in SucceededTask
+
+EnabledAbortObjects(o) ==
+    /\ o \in RegisteredObject
+    /\ \/ o \in Source(deps)
+       \/ /\ Predecessor(deps, o)
+                \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask, RetriedTask}
+          /\ \E t \in Predecessor(deps, o) : t \in DiscardedTask
+
+EnabledSetTaskRetries(t) ==
+    /\ t \in UnretriedTask
+    /\ \E u \in UnknownTask : ~ \E w \in Task : nextAttemptOf[w] = u
+
+EnabledRegisterRetrySubGraph(t) ==
+    LET G == RetrySubGraph(deps, t, nextAttemptOf[t])
+    IN  /\ G /= EmptyGraph
+        /\ IsFiniteSet(G.node)
+        /\ G.node \cap Task \subseteq UnknownTask
+        /\ \A s \in G.node \cap Task :
+               /\ Successor(G, s) \intersect AbortedObject = {}
+               /\ Successor(G, s) \intersect Source(deps) \intersect CompletedObject = {}
+        /\ IsDDGraph(GraphUnion(deps, G), Task, Object)
+        /\ \A s \in Task :
+               nextAttemptOf[s] /= NULL /\ nextAttemptOf[s] \in G.node =>
+                   /\ Predecessor(G, nextAttemptOf[s]) = Predecessor(deps, s)
+                   /\ Successor(G, nextAttemptOf[s]) = Successor(deps, s)
+        /\ \/ GraphUnion(deps, G) /= deps
+           \/ [o \in Object |->
+                  IF o \in G.node \intersect UnknownObject
+                      THEN OBJECT_REGISTERED
+                      ELSE objectState[o]] /= objectState
+           \/ [s \in Task |->
+                  IF s \in G.node THEN TASK_REGISTERED ELSE taskState[s]] /= taskState
+
+EnabledStageTasks(t) ==
+    /\ t \in RegisteredTask
+    /\ UNION {Predecessor(deps, s) : s \in {t}} \subseteq CompletedObject
+
+EnabledDiscardOnAbortedInput(t) ==
+    /\ Predecessor(deps, t) \intersect AbortedObject /= {}
+    /\ t \in RegisteredTask \union StagedTask
+
+EnabledProcessTasks(t) == t \in AssignedTask
+
+EnabledCompleteTasks(t) ==
+    /\ t \in SucceededTask
+    /\ \A o \in UNION {Successor(deps, s) : s \in {t}} :
+           o \in RegisteredObject
+               => \E u \in (Predecessor(deps, o) \ {t}) :
+                      u \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}
+
+EnabledAbortTasks(t) ==
+    /\ t \in DiscardedTask
+    /\ \A o \in UNION {Successor(deps, s) : s \in {t}} :
+           o \in RegisteredObject
+               => \E u \in (Predecessor(deps, o) \ {t}) :
+                      u \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}
+
+EnabledRetryTasks(t) ==
+    /\ t \in FailedTask
+    /\ nextAttemptOf[t] \notin UnknownTask \union {NULL}
+    /\ \A o \in UNION {Successor(deps, s) : s \in {t}} :
+           o \in RegisteredObject
+               => \E u \in (Predecessor(deps, o) \ {t}) :
+                      u \notin UNION {CompletedTask, AbortedTask, RetriedTask}
+
+EnabledAssignTasks(t, o) ==
+    /\ IsTaskUpstreamOnOpenPathToTarget(t, o)
+    /\ t \in StagedTask
+
+FairnessEnabledFree ==
+    /\ \A o \in Object :
+           /\ <>[]EnabledCompleteObjects(o)
+              => []<><<CompleteObjects({o})>>_vars
+           /\ <>[]EnabledAbortObjects(o)
+              => []<><<AbortObjects({o})>>_vars
+    /\ \A t \in Task :
+           /\ <>[]EnabledSetTaskRetries(t)
+              => []<><<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
+           /\ <>[]EnabledRegisterRetrySubGraph(t)
+              => []<><<RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t]))>>_vars
+           /\ <>[]EnabledStageTasks(t)
+              => []<><<StageTasks({t})>>_vars
+           /\ <>[]EnabledDiscardOnAbortedInput(t)
+              => []<><<Predecessor(deps, t) \intersect AbortedObject /= {} /\ DiscardTasks({t})>>_vars
+           /\ []<>EnabledProcessTasks(t)
+              => []<><<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
+           /\ <>[]EnabledCompleteTasks(t)
+              => []<><<CompleteTasks({t})>>_vars
+           /\ <>[]EnabledAbortTasks(t)
+              => []<><<AbortTasks({t})>>_vars
+           /\ <>[]EnabledRetryTasks(t)
+              => []<><<RetryTasks({t})>>_vars
+    /\ \A t \in Task, o \in Object :
+           <>[]EnabledAssignTasks(t, o)
+           => []<><<
+                      /\ IsTaskUpstreamOnOpenPathToTarget(t, o)
+                      /\ AssignTasks({t})>>_vars
+
+LEMMA LemFairnessEnabledFree == FairnessEnabledFree => Fairness
+
 ================================================================================

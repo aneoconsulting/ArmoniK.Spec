@@ -215,4 +215,49 @@ THEOREM G1_RefineObject1 == Spec => RefineObject1
 
 THEOREM G1_EventualTermination == Spec => EventualTermination
 
+(**
+ * ENABLED-FREE FAIRNESS
+ * Fairness restated without ENABLED, each action guarded by a state
+ * predicate that its enabledness implies. Substitution does not distribute
+ * over ENABLED, hence not over WF and SF, but it does over this form: a
+ * refinement proves the instantiated FairnessEnabledFree, where it only has
+ * to enable its own actions under the instantiated predicates, and recovers
+ * the instantiated Fairness through LemFairnessEnabledFree.
+ *)
+EnabledFinalizeObjects(o) ==
+    /\ o \in RegisteredObject
+    /\ \/ o \in Source(deps)
+       \/ \E t \in Predecessor(deps, o): t \in ProcessedTask
+
+EnabledStageTasks(t) ==
+    /\ Predecessor(deps, t) \subseteq FinalizedObject
+    /\ t \in RegisteredTask
+
+EnabledProcessTasks(t) == t \in AssignedTask
+
+EnabledFinalizeTasks(t) ==
+    /\ t \in ProcessedTask
+    /\ \A o \in UNION {Successor(deps, s): s \in {t}} :
+        o \in RegisteredObject
+            => \E u \in (Predecessor(deps, o) \ {t}) : u \notin FinalizedTask
+
+EnabledAssignTasks(t, o) ==
+    /\ IsTaskUpstreamOnOpenPathToTarget(t, o)
+    /\ t \in StagedTask
+
+FairnessEnabledFree ==
+    /\ \A o \in Object :
+        <>[]EnabledFinalizeObjects(o) => []<><<FinalizeObjects({o})>>_vars
+    /\ \A t \in Task :
+        /\ <>[]EnabledStageTasks(t) => []<><<StageTasks({t})>>_vars
+        /\ []<>EnabledProcessTasks(t) => []<><<ProcessTasks({t})>>_vars
+        /\ <>[]EnabledFinalizeTasks(t) => []<><<FinalizeTasks({t})>>_vars
+    /\ \A t \in Task, o \in Object :
+        <>[]EnabledAssignTasks(t, o)
+            => []<><<
+                /\ IsTaskUpstreamOnOpenPathToTarget(t, o)
+                /\ AssignTasks({t})>>_vars
+
+LEMMA LemFairnessEnabledFree == FairnessEnabledFree => Fairness
+
 ================================================================================

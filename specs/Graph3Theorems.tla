@@ -249,11 +249,12 @@ THEOREM G3_GraphStateIntegrity == Spec => []GraphStateIntegrity
 (*****************************************************************************)
 (* REFINEMENT OF Graph2 -- FAIRNESS                                          *)
 (*                                                                           *)
-(* Each G2 fairness conjunct is transferred from Graph3's                    *)
-(* fairness by its own lemma LemRefineG2<WF|SF><Action>. Most follow the     *)
-(* ENABLED + action-implication pattern: the Bar-side ENABLED inverts to a   *)
-(* state condition on Bar-invariant classes, which re-establishes the        *)
-(* concrete ENABLED, and a concrete step is a Bar step of the same action.   *)
+(* Each conjunct of G2!FairnessEnabledFree, the restatement of Graph2's      *)
+(* fairness without ENABLED, is transferred from Graph3's fairness by its    *)
+(* own lemma LemRefineG2<WF|SF><Action>. Most follow the enabling-condition  *)
+(* + action-implication pattern: the instantiated predicate is a state       *)
+(* condition on Bar-invariant classes, which re-establishes the concrete     *)
+(* ENABLED, and a concrete step is a Bar step of the same action.            *)
 (* Two need a temporal argument: SF(ProcessTasks), vacuous because a task    *)
 (* is processed successfully at most once, and WF(AssignTasks), whose        *)
 (* Bar-enabledness includes the parked tasks. The guarded actions are        *)
@@ -279,51 +280,51 @@ DiscardStoppedUpstream(t, o) ==
 (* Bar-invariant task classes, so enabledness and steps transfer verbatim.    *)
 LEMMA LemRefineG2WFCompleteObjects ==
     ASSUME NEW o \in Object
-    PROVE  WF_vars(CompleteObjects({o})) => WF_(G2!vars)(G2!CompleteObjects({o}))
+    PROVE  WF_vars(CompleteObjects({o})) => (<>[]G2!EnabledCompleteObjects(o) => []<><<G2!CompleteObjects({o})>>_(G2!vars))
 
 (* WF(G2!AbortObjects): as CompleteObjects; a parked producer is Bar-STAGED,  *)
 (* never Bar-DISCARDED, so the abort guard is Bar-invariant.                  *)
 LEMMA LemRefineG2WFAbortObjects ==
     ASSUME NEW o \in Object
-    PROVE  WF_vars(AbortObjects({o})) => WF_(G2!vars)(G2!AbortObjects({o}))
+    PROVE  WF_vars(AbortObjects({o})) => (<>[]G2!EnabledAbortObjects(o) => []<><<G2!AbortObjects({o})>>_(G2!vars))
 
 (* WF(G2!StageTasks): Bar-REGISTERED = REGISTERED, so both sides are enabled  *)
 (* exactly when the task is registered with completed inputs.                 *)
 LEMMA LemRefineG2WFStageTasks ==
     ASSUME NEW t \in Task
-    PROVE  WF_vars(StageTasks({t})) => WF_(G2!vars)(G2!StageTasks({t}))
+    PROVE  WF_vars(StageTasks({t})) => (<>[]G2!EnabledStageTasks(t) => []<><<G2!StageTasks({t})>>_(G2!vars))
 
 (* WF(G2!DiscardOnAbortedInput): G3's discard domain (registered, staged,     *)
 (* paused, stopped) Bar-maps exactly onto G2's (registered, staged), so the   *)
 (* enabledness conditions coincide.                                           *)
 LEMMA LemRefineG2WFDiscardOnAbortedInput ==
     ASSUME NEW t \in Task
-    PROVE  WF_vars(DiscardOnAbortedInput(t)) => WF_(G2!vars)(G2!DiscardOnAbortedInput(t))
+    PROVE  WF_vars(DiscardOnAbortedInput(t)) => (<>[]G2!EnabledDiscardOnAbortedInput(t) => []<><<G2!DiscardOnAbortedInput(t)>>_(G2!vars))
 
 (* WF(G2!CompleteTasks): the retention guard's excluded classes (completed,   *)
 (* aborted, retried, failed) are Bar-invariant, and a parked witness is       *)
 (* Bar-STAGED -- still outside the exclusions.                                *)
 LEMMA LemRefineG2WFCompleteTasks ==
     ASSUME NEW t \in Task
-    PROVE  WF_vars(CompleteTasks({t})) => WF_(G2!vars)(G2!CompleteTasks({t}))
+    PROVE  WF_vars(CompleteTasks({t})) => (<>[]G2!EnabledCompleteTasks(t) => []<><<G2!CompleteTasks({t})>>_(G2!vars))
 
 (* WF(G2!AbortTasks): as CompleteTasks (Bar-DISCARDED = DISCARDED).           *)
 LEMMA LemRefineG2WFAbortTasks ==
     ASSUME NEW t \in Task
-    PROVE  WF_vars(AbortTasks({t})) => WF_(G2!vars)(G2!AbortTasks({t}))
+    PROVE  WF_vars(AbortTasks({t})) => (<>[]G2!EnabledAbortTasks(t) => []<><<G2!AbortTasks({t})>>_(G2!vars))
 
 (* WF(G2!RetryTasks): the retry guard and the retention classes are           *)
 (* Bar-invariant.                                                             *)
 LEMMA LemRefineG2WFRetryTasks ==
     ASSUME NEW t \in Task
-    PROVE  WF_vars(RetryTasks({t})) => WF_(G2!vars)(G2!RetryTasks({t}))
+    PROVE  WF_vars(RetryTasks({t})) => (<>[]G2!EnabledRetryTasks(t) => []<><<G2!RetryTasks({t})>>_(G2!vars))
 
 (* WF(G2!SetTaskRetries): the retry bookkeeping involves only nextAttemptOf   *)
 (* and Bar-invariant classes; the clone witness transfers verbatim.           *)
 LEMMA LemRefineG2WFSetTaskRetries ==
     ASSUME NEW t \in Task
     PROVE  WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
-           => WF_(G2!vars)(\E u \in Task : G2!SetTaskRetries({t}, {u}))
+           => (<>[]G2!EnabledSetTaskRetries(t) => []<><<\E u \in Task : G2!SetTaskRetries({t}, {u})>>_(G2!vars))
 
 (* WF(G2!RegisterGraph(RetrySubGraph)): the retry subgraph and every guard    *)
 (* of the registration involve only deps, objectState, nextAttemptOf and the  *)
@@ -334,7 +335,7 @@ LEMMA LemRefineG2WFRegisterRetrySubGraph ==
     ASSUME NEW t \in Task
     PROVE  /\ []TypeOk
            /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
-           => WF_(G2!vars)(G2!RegisterGraph(G2!RetrySubGraph(deps, t, nextAttemptOf[t])))
+           => (<>[]G2!EnabledRegisterRetrySubGraph(t) => []<><<G2!RegisterGraph(G2!RetrySubGraph(deps, t, nextAttemptOf[t]))>>_(G2!vars))
 
 (* SF(G2!ProcessTasks /\ succeeded): the Bar-side enabledness is exactly t    *)
 (* ASSIGNED, as G3's. Processing is a once-per-task event: after a            *)
@@ -344,7 +345,7 @@ LEMMA LemRefineG2WFRegisterRetrySubGraph ==
 LEMMA LemRefineG2SFProcessTasks ==
     ASSUME NEW t \in Task
     PROVE  []TypeOk /\ [][Next]_vars /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
-           => SF_(G2!vars)(G2!ProcessTasks({t}) /\ t \in G2!SucceededTask')
+           => ([]<>G2!EnabledProcessTasks(t) => []<><<G2!ProcessTasks({t}) /\ t \in G2!SucceededTask'>>_(G2!vars))
 
 (* WF(G2!AssignUpstream(t, o)) -- the centerpiece. G2 sees a parked task as   *)
 (* STAGED, so its assignment fairness demands progress whenever the task sits *)
@@ -362,7 +363,10 @@ LEMMA LemRefineG2WFAssignTasks ==
            /\ WF_vars(StopTasks({t}))
            /\ WF_vars(ResumeUpstream(t, o))
            /\ WF_vars(DiscardStoppedUpstream(t, o))
-           => WF_(G2!vars)(G2!AssignUpstream(t, o))
+           => (<>[]G2!EnabledAssignTasks(t, o)
+                  => []<><<
+                       /\ G2!IsTaskUpstreamOnOpenPathToTarget(t, o)
+                       /\ G2!AssignTasks({t})>>_(G2!vars))
 
 (* G2's open-upstream constraint: the open ancestor subgraph and the          *)
 (* subgraph relation are mapping-independent, so each per-object conjunct     *)
@@ -398,24 +402,24 @@ LEMMA LemG2RefineTask2 == Spec => G2!RefineTask2
 LEMMA LemRefineT3WFSetTaskRetries ==
     ASSUME NEW t \in Task
     PROVE  WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
-           => WF_(T3!vars)(\E u \in Task : T3!SetTaskRetries({t}, {u}))
+           => (<>[]T3!EnabledSetTaskRetries(t) => []<><<\E u \in Task : T3!SetTaskRetries({t}, {u})>>_(T3!vars))
 
 (* SF(T3!ProcessTasks /\ succeeded): direct transfer (identical action on     *)
 (* the task variables, enabled exactly when the task is assigned).            *)
 LEMMA LemRefineT3SFProcessTasks ==
     ASSUME NEW t \in Task
     PROVE  SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
-           => SF_(T3!vars)(T3!ProcessTasks({t}) /\ t \in T3!SucceededTask')
+           => ([]<>T3!EnabledProcessTasks(t) => []<><<T3!ProcessTasks({t}) /\ t \in T3!SucceededTask'>>_(T3!vars))
 
 (* WF(T3!StopTasks), WF(T3!PauseTasks): direct transfer -- stop and pause     *)
 (* acknowledgments coincide under the identity mapping.                       *)
 LEMMA LemRefineT3WFStopTasks ==
     ASSUME NEW t \in Task
-    PROVE  WF_vars(StopTasks({t})) => WF_(T3!vars)(T3!StopTasks({t}))
+    PROVE  WF_vars(StopTasks({t})) => (<>[]T3!EnabledStopTasks(t) => []<><<T3!StopTasks({t})>>_(T3!vars))
 
 LEMMA LemRefineT3WFPauseTasks ==
     ASSUME NEW t \in Task
-    PROVE  WF_vars(PauseTasks({t})) => WF_(T3!vars)(T3!PauseTasks({t}))
+    PROVE  WF_vars(PauseTasks({t})) => (<>[]T3!EnabledPauseTasks(t) => []<><<T3!PauseTasks({t})>>_(T3!vars))
 
 (* The finalization trio and the clone registration / staging: both sides are *)
 (* enabled on the same state class, and a Bar step of the Task2               *)
@@ -423,32 +427,32 @@ LEMMA LemRefineT3WFPauseTasks ==
 LEMMA LemRefineT3WFCompleteTasks ==
     ASSUME NEW t \in Task
     PROVE  /\ []TypeOk /\ [][Next]_vars
-           /\ WF_(G2!T2!vars)(G2!T2!CompleteTasks({t}))
-           => WF_(T3!vars)(T3!CompleteTasks({t}))
+           /\ (<>[]G2!T2!EnabledCompleteTasks(t) => []<><<G2!T2!CompleteTasks({t})>>_(G2!T2!vars))
+           => (<>[]T3!EnabledCompleteTasks(t) => []<><<T3!CompleteTasks({t})>>_(T3!vars))
 
 LEMMA LemRefineT3WFAbortTasks ==
     ASSUME NEW t \in Task
     PROVE  /\ []TypeOk /\ [][Next]_vars
-           /\ WF_(G2!T2!vars)(G2!T2!AbortTasks({t}))
-           => WF_(T3!vars)(T3!AbortTasks({t}))
+           /\ (<>[]G2!T2!EnabledAbortTasks(t) => []<><<G2!T2!AbortTasks({t})>>_(G2!T2!vars))
+           => (<>[]T3!EnabledAbortTasks(t) => []<><<T3!AbortTasks({t})>>_(T3!vars))
 
 LEMMA LemRefineT3WFRetryTasks ==
     ASSUME NEW t \in Task
     PROVE  /\ []TypeOk /\ [][Next]_vars
-           /\ WF_(G2!T2!vars)(G2!T2!RetryTasks({t}))
-           => WF_(T3!vars)(T3!RetryTasks({t}))
+           /\ (<>[]G2!T2!EnabledRetryTasks(t) => []<><<G2!T2!RetryTasks({t})>>_(G2!T2!vars))
+           => (<>[]T3!EnabledRetryTasks(t) => []<><<T3!RetryTasks({t})>>_(T3!vars))
 
 LEMMA LemRefineT3WFRegisterTasks ==
     ASSUME NEW t \in Task
     PROVE  /\ []TypeOk /\ [][Next]_vars
-           /\ WF_(G2!T2!vars)(G2!T2!RegisterTasks({nextAttemptOf[t]}))
-           => WF_(T3!vars)(T3!RegisterTasks({nextAttemptOf[t]}))
+           /\ (<>[]G2!T2!EnabledRegisterTasks(t) => []<><<G2!T2!RegisterTasks({nextAttemptOf[t]})>>_(G2!T2!vars))
+           => (<>[]T3!EnabledRegisterTasks(t) => []<><<T3!RegisterTasks({nextAttemptOf[t]})>>_(T3!vars))
 
 LEMMA LemRefineT3WFStageTasks ==
     ASSUME NEW t \in Task
     PROVE  /\ []TypeOk /\ [][Next]_vars
-           /\ WF_(G2!T2!vars)(G2!T2!StageTasks({nextAttemptOf[t]}))
-           => WF_(T3!vars)(T3!StageTasks({nextAttemptOf[t]}))
+           /\ (<>[]G2!T2!EnabledStageTasks(t) => []<><<G2!T2!StageTasks({nextAttemptOf[t]})>>_(G2!T2!vars))
+           => (<>[]T3!EnabledStageTasks(t) => []<><<T3!StageTasks({nextAttemptOf[t]})>>_(T3!vars))
 
 (*****************************************************************************)
 (* REFINEMENT OF Task3 -- THE FULL THEOREM                                   *)
