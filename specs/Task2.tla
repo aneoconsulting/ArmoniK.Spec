@@ -332,7 +332,7 @@ taskStateBar ==
           [] OTHER                         -> taskState[t]
     ]
 T1 ==
-    INSTANCE Task1
+    INSTANCE Task1Theorems
         WITH taskState <- taskStateBar
 RefineTask1 == T1!Spec
 

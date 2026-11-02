@@ -16,7 +16,7 @@
 (* 'Task2', ensuring safety and liveness across the abstraction.              *)
 (******************************************************************************)
 
-EXTENDS DenumerableSets, FiniteSets, Functions, Naturals
+EXTENDS DenumerableSets, FiniteSets, Functions, Naturals, TLAPS
 
 CONSTANTS
     Task,     \* Set of task identifiers
@@ -375,7 +375,7 @@ taskStateBar ==
           [] OTHER                         -> taskState[t]
     ]
 T2 ==
-    INSTANCE Task2
+    INSTANCE Task2Theorems
         WITH taskState <- taskStateBar
 RefineTask2 == T2!Spec
 

@@ -1,6 +1,6 @@
 -------------------------------- MODULE Graph2 ---------------------------------
 
-EXTENDS DDGraphs, DenumerableSets, FiniteSets
+EXTENDS DDGraphs, DenumerableSets, FiniteSets, TLAPS
 
 CONSTANTS
     Object,   \* Set of object identifiers
