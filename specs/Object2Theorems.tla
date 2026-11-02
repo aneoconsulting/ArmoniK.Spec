@@ -25,4 +25,22 @@ LEMMA LemFinalizedObjectStable ==
 THEOREM O2_PermanentFinalization == Spec => PermanentFinalization
 
 THEOREM O2_RefineObject1 == Spec => RefineObject1
+
+(**
+ * ENABLED-FREE FAIRNESS
+ * Fairness restated without ENABLED: completing a targeted object is enabled
+ * exactly when the object is registered. Substitution does not distribute
+ * over ENABLED, hence not over WF, but it does over this form: a refinement
+ * proves the instantiated FairCompleteObjects(o) and recovers the
+ * instantiated Fairness through LemFairnessEnabledFree.
+ *)
+EnabledCompleteObjects(o) == o \in objectTargets /\ o \in RegisteredObject
+
+FairCompleteObjects(o) ==
+    <>[]EnabledCompleteObjects(o)
+        => []<><<o \in objectTargets /\ CompleteObjects({o})>>_vars
+
+LEMMA LemFairnessEnabledFree ==
+    Fairness <=> \A o \in Object : FairCompleteObjects(o)
+
 ================================================================================

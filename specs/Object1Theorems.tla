@@ -37,4 +37,21 @@ LEMMA LemEventualTermination ==
 
 THEOREM O1_EventualTermination == Spec => EventualTermination
 
+(**
+ * ENABLED-FREE FAIRNESS
+ * Fairness restated without ENABLED: finalizing a targeted object is enabled
+ * exactly when the object is registered. Substitution does not distribute
+ * over ENABLED, hence not over WF, but it does over this form: a refinement
+ * proves the instantiated FairFinalizeObjects(o) and recovers the
+ * instantiated Fairness through LemFairnessEnabledFree.
+ *)
+EnabledFinalizeObjects(o) == o \in objectTargets /\ o \in RegisteredObject
+
+FairFinalizeObjects(o) ==
+    <>[]EnabledFinalizeObjects(o)
+        => []<><<o \in objectTargets /\ FinalizeObjects({o})>>_vars
+
+LEMMA LemFairnessEnabledFree ==
+    Fairness <=> \A o \in Object : FairFinalizeObjects(o)
+
 ================================================================================

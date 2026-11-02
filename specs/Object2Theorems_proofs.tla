@@ -90,32 +90,46 @@ THEOREM O2_RefineObject1 == Spec => RefineObject1
 <1>. DEFINE AbsA(o) == o \in objectTargets /\ O1!FinalizeObjects({o})
             A(o)    == o \in objectTargets /\ CompleteObjects({o})
 <1>. SUFFICES ASSUME NEW o \in Object
-                PROVE WF_vars(A(o)) => WF_O1!vars(AbsA(o))
-    BY Isa DEF Fairness, O1!Fairness
-<1>1. ENABLED <<AbsA(o)>>_O1!vars => ENABLED <<A(o)>>_vars
-    <2>1. ENABLED <<AbsA(o)>>_O1!vars
-            <=> o \in objectTargets /\ o \in O1!RegisteredObject
-        <3>1. AbsA(o) => objectStateBar' /= objectStateBar
-            BY DEF O1!FinalizeObjects, O1!RegisteredObject
-        <3>2. <<AbsA(o)>>_(O1!vars) <=> AbsA(o)
-            BY <3>1 DEF O1!vars
-        <3>3. (ENABLED <<AbsA(o)>>_(O1!vars)) <=> (ENABLED AbsA(o))
-            BY <3>2, ENABLEDaxioms
-        <3>4. ENABLED AbsA(o)
-                <=> o \in O1!RegisteredObject /\ o \in objectTargets
-            BY ExpandENABLED, Zenon DEF objectStateBar, O1!FinalizeObjects
-        <3>. QED
-            BY <3>3, <3>4
-    <2>2. ENABLED <<A(o)>>_vars
+              PROVE  WF_vars(A(o)) => O1!FairFinalizeObjects(o)
+    BY Assumptions, O1!LemFairnessEnabledFree, SameAssumptions, Isa
+    DEF Fairness, O1!Assumptions
+<1>1. O1!EnabledFinalizeObjects(o) => ENABLED <<A(o)>>_vars
+    <2>1. ENABLED <<A(o)>>_vars
             <=> o \in objectTargets /\ o \in RegisteredObject
         BY ExpandENABLED DEF CompleteObjects, RegisteredObject, vars
     <2>. QED
-        BY <2>1, <2>2 DEF O1!RegisteredObject, RegisteredObject,
+        BY <2>1 DEF O1!EnabledFinalizeObjects, O1!RegisteredObject, RegisteredObject,
         objectStateBar
 <1>2. <<A(o)>>_vars => <<AbsA(o)>>_O1!vars
     BY DEF CompleteObjects, O1!FinalizeObjects, vars, O1!vars,
     RegisteredObject, O1!RegisteredObject, objectStateBar
 <1>. QED
-    BY <1>1, <1>2, PTL
+    BY <1>1, <1>2, PTL DEF O1!FairFinalizeObjects
+
+(**
+ * ENABLED-FREE FAIRNESS
+ * Fairness restated without ENABLED: completing a targeted object is enabled
+ * exactly when the object is registered. Substitution does not distribute
+ * over ENABLED, hence not over WF, but it does over this form: a refinement
+ * proves the instantiated FairCompleteObjects(o) and recovers the
+ * instantiated Fairness through LemFairnessEnabledFree.
+ *)
+EnabledCompleteObjects(o) == o \in objectTargets /\ o \in RegisteredObject
+
+FairCompleteObjects(o) ==
+    <>[]EnabledCompleteObjects(o)
+        => []<><<o \in objectTargets /\ CompleteObjects({o})>>_vars
+
+LEMMA LemFairnessEnabledFree ==
+    Fairness <=> \A o \in Object : FairCompleteObjects(o)
+<1>. SUFFICES ASSUME NEW o \in Object
+              PROVE  WF_vars(o \in objectTargets /\ CompleteObjects({o}))
+                     <=> FairCompleteObjects(o)
+    BY Isa DEF Fairness
+<1>1. (ENABLED <<o \in objectTargets /\ CompleteObjects({o})>>_vars)
+        <=> EnabledCompleteObjects(o)
+    BY ExpandENABLED DEF CompleteObjects, EnabledCompleteObjects, RegisteredObject, vars
+<1>. QED
+    BY <1>1, PTL DEF FairCompleteObjects
 
 ================================================================================
