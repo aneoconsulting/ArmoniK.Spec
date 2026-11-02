@@ -1,7 +1,7 @@
 # Everyday entrypoints for the ArmoniK.Spec TLA+ project.
 #
-# Run `make install` once after cloning, and again after bumping the pinned
-# versions in scripts/install-tools.sh. Verify a single module with the sany /
+# Run `make install` once after cloning, and again to update the toolchain: it
+# installs the latest upstream builds. Verify a single module with the sany /
 # tlc / tlapm / tlapm-opt targets, which CI runs too, or use the exposed
 # variables (TLA_CP, TLA_LIB, TLAPM, TLAPM_OPT, JAVA_OPTS, TLAPM_OPTS,
 # TLAPM_OPT_OPTS) for ad-hoc invocations from the shell.
