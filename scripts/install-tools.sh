@@ -14,6 +14,13 @@
 #                                          (same layout, ~1.6 GB unpacked)
 #   .tlatools/VERSIONS                   resolved versions of the above
 #
+# The upstream tools are installed at their latest builds, never at a pinned
+# version: the latest builds fix bugs, and a proof they break is to be known at
+# once. tla2tools and tlapm come from their rolling releases, which upstream
+# rebuilds in place on every commit, and CommunityModules from its latest
+# release. Re-run the install to update. The optimized tlapm, our own fork, is
+# installed at the release tag set below.
+#
 # It also renders .vscode/settings.json from .vscode/settings.json.template,
 # substituting this repo's absolute path for the __REPO_ROOT__ token (the TLA+
 # extension's moduleSearchPaths require absolute paths). The generated file is
@@ -36,10 +43,9 @@
 
 set -euo pipefail
 
-# ----- pinned versions (bump to update) ---------------------------------------
-TLA2TOOLS_VERSION="1.8.0"
-COMMUNITY_MODULES_REF="202604221529"   # CommunityModules release tag
-TLAPM_RELEASE_TAG="1.6.0-pre"          # prebuilt tarball tag
+# ----- releases ---------------------------------------------------------------
+TLA2TOOLS_RELEASE_TAG="rolling"        # rebuilt from master on every commit
+TLAPM_RELEASE_TAG="1.6.0-pre"          # rebuilt from main on every commit
 TLAPM_OPT_REPO="qdelamea-aneo/tlapm"   # fork carrying the performance patches
 TLAPM_OPT_RELEASE_TAG="v1.6.0-instopt.2"
 # ------------------------------------------------------------------------------
@@ -60,7 +66,7 @@ for arg in "$@"; do
         --no-tlapm-opt) WANT_TLAPM_OPT=0 ;;
         --only-tlapm-opt) WANT_BASE=0 ;;
         -h|--help)
-            sed -n '2,35p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,42p' "$0" | sed 's/^# \{0,1\}//'
             exit 0 ;;
         *)
             echo "error: unknown flag '$arg' (try --help)" >&2
@@ -135,17 +141,23 @@ mkdir -p "${TOOLS_DIR}"
 if (( WANT_BASE )); then
 
 # ----- tla2tools.jar ----------------------------------------------------------
-log "downloading tla2tools.jar v${TLA2TOOLS_VERSION}"
+log "downloading tla2tools.jar (${TLA2TOOLS_RELEASE_TAG})"
 curl -fL --retry 3 -o "${TOOLS_DIR}/tla2tools.jar" \
-    "https://github.com/tlaplus/tlaplus/releases/download/v${TLA2TOOLS_VERSION}/tla2tools.jar"
+    "https://github.com/tlaplus/tlaplus/releases/download/${TLA2TOOLS_RELEASE_TAG}/tla2tools.jar"
 
 # ----- CommunityModules-deps.jar ----------------------------------------------
+# The latest release, named by the tag GitHub redirects releases/latest to, so
+# that the sources below come from the same release as the jar.
+COMMUNITY_MODULES_REF="$(curl -fsS --retry 3 -o /dev/null -w '%{redirect_url}' \
+    https://github.com/tlaplus/CommunityModules/releases/latest)"
+COMMUNITY_MODULES_REF="${COMMUNITY_MODULES_REF##*/}"
+[[ -n "${COMMUNITY_MODULES_REF}" ]] || die "cannot resolve the latest CommunityModules release"
 log "downloading CommunityModules-deps.jar (${COMMUNITY_MODULES_REF})"
 curl -fL --retry 3 -o "${TOOLS_DIR}/CommunityModules-deps.jar" \
     "https://github.com/tlaplus/CommunityModules/releases/download/${COMMUNITY_MODULES_REF}/CommunityModules-deps.jar"
 
 # ----- CommunityModules sources (for tlapm -I) --------------------------------
-# The pinned tag itself is fetched, however far the default branch has moved on.
+# The release's tag itself is fetched, wherever the default branch stands.
 CM_SRC="${TOOLS_DIR}/CommunityModules"
 if [[ ! -d "${CM_SRC}/.git" ]]; then
     log "cloning CommunityModules sources"
@@ -200,7 +212,7 @@ fi
 # (--only-tlapm-opt) describes the whole of .tlatools rather than itself.
 {
     if [[ -d "${TOOLS_DIR}/CommunityModules" ]]; then
-        echo "TLA2TOOLS_VERSION=${TLA2TOOLS_VERSION}"
+        echo "TLA2TOOLS_RELEASE_TAG=${TLA2TOOLS_RELEASE_TAG}"
         echo "COMMUNITY_MODULES_REF=${COMMUNITY_MODULES_REF} ($(git -C "${TOOLS_DIR}/CommunityModules" rev-parse --short HEAD))"
     fi
     if [[ -x "${TLAPM_DIR}/bin/tlapm" ]]; then

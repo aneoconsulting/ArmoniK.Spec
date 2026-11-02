@@ -1,10 +1,10 @@
 # Everyday entrypoints for the ArmoniK.Spec TLA+ project.
 #
-# Run `make install` once after cloning, and again after bumping the pinned
-# versions in scripts/install-tools.sh. Verify a single module with the sany /
+# Run `make install` once after cloning, and again to update the toolchain: it
+# installs the latest upstream builds. Verify a single module with the sany /
 # tlc / tlapm / tlapm-opt targets, which CI runs too, or use the exposed
 # variables (TLA_CP, TLA_LIB, TLAPM, TLAPM_OPT, JAVA_OPTS, TLAPM_OPTS,
-# TLAPM_OPT_OPTS) for ad-hoc invocations from the shell.
+# TLAPM_OPT_OPTS, TLAPM_GC) for ad-hoc invocations from the shell.
 #
 # The modules live in three flat directories: specs/ holds the specifications,
 # lib/ the library modules they build on, lib/temporal/ the temporal theorems
@@ -55,6 +55,8 @@ TLAPM_OPTS := --strict -I $(CURDIR)/$(COMMUNITY_MODULES_SRC) -I $(CURDIR)/$(LIB_
 # Graph2: two obligations Isabelle discharges in 27 s of its 60 s alone
 # are lost at --stretch 2 under that concurrency, and the module is green at 3.
 TLAPM_OPT_OPTS := $(TLAPM_OPTS) --stretch 3
+# GC settings of the upstream tlapm: a larger minor heap, ~2.5x faster on Graph2.
+TLAPM_GC ?= s=32M,o=200
 # Options of scripts/chunk_proofs.py for the chunks target, e.g.
 # CHUNK_OPTS="--budget 800 --max-steps 30". Empty means the script's defaults,
 # which it owns.
@@ -168,7 +170,7 @@ tlc: $(TLA2TOOLS_JAR) $(COMMUNITY_MODULES_JAR) build-java
 
 tlapm: $(TLAPM)
 	@$(call locate, [BEGIN=<line> END=<line>])
-	$(TLAPM) $(TLAPM_OPTS) $(TOOLBOX) $(MODULE_DIR)/$(MODULE).tla
+	OCAMLRUNPARAM="$(TLAPM_GC)" $(TLAPM) $(TLAPM_OPTS) $(TOOLBOX) $(MODULE_DIR)/$(MODULE).tla
 
 tlapm-opt: $(TLAPM_OPT)
 	@$(call locate, [BEGIN=<line> END=<line>])
