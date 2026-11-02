@@ -211,4 +211,30 @@ LEMMA LemEventualTermination ==
 THEOREM O1_EventualTermination == Spec => EventualTermination
 BY LemEventualTermination, O1_ObjectSafetyInv, PTL DEF Spec
 
+(**
+ * ENABLED-FREE FAIRNESS
+ * Fairness restated without ENABLED: finalizing a targeted object is enabled
+ * exactly when the object is registered. Substitution does not distribute
+ * over ENABLED, hence not over WF, but it does over this form: a refinement
+ * proves the instantiated FairFinalizeObjects(o) and recovers the
+ * instantiated Fairness through LemFairnessEnabledFree.
+ *)
+EnabledFinalizeObjects(o) == o \in objectTargets /\ o \in RegisteredObject
+
+FairFinalizeObjects(o) ==
+    <>[]EnabledFinalizeObjects(o)
+        => []<><<o \in objectTargets /\ FinalizeObjects({o})>>_vars
+
+LEMMA LemFairnessEnabledFree ==
+    Fairness <=> \A o \in Object : FairFinalizeObjects(o)
+<1>. SUFFICES ASSUME NEW o \in Object
+              PROVE  WF_vars(o \in objectTargets /\ FinalizeObjects({o}))
+                     <=> FairFinalizeObjects(o)
+    BY Isa DEF Fairness
+<1>1. (ENABLED <<o \in objectTargets /\ FinalizeObjects({o})>>_vars)
+        <=> EnabledFinalizeObjects(o)
+    BY ExpandENABLED DEF EnabledFinalizeObjects, FinalizeObjects, RegisteredObject, vars
+<1>. QED
+    BY <1>1, PTL DEF FairFinalizeObjects
+
 ================================================================================
