@@ -97,4 +97,57 @@ THEOREM T3_RequestedStoppingEventualAcknowledgment ==
     Spec => RequestedStoppingEventualAcknowledgment
 
 THEOREM T3_RefineTask2 == Spec => RefineTask2
+
+(**
+ * ENABLED-FREE FAIRNESS
+ * Fairness restated without ENABLED, each action guarded by a state
+ * predicate that its enabledness implies. Substitution does not distribute
+ * over ENABLED, hence not over WF and SF, but it does over this form: a
+ * refinement proves the instantiated FairnessEnabledFree, where it only has
+ * to enable its own actions under the instantiated predicates, and recovers
+ * the instantiated Fairness through LemFairnessEnabledFree.
+ *)
+EnabledSetTaskRetries(t) ==
+    /\ t \in UnretriedTask
+    /\ \E u \in UnknownTask : ~ \E w \in Task : nextAttemptOf[w] = u
+
+EnabledRegisterTasks(t) == nextAttemptOf[t] \in UnknownTask
+
+EnabledStageTasks(t) == nextAttemptOf[t] \in RegisteredTask
+
+EnabledProcessTasks(t) == t \in AssignedTask
+
+EnabledCompleteTasks(t) == t \in SucceededTask
+
+EnabledAbortTasks(t) == t \in DiscardedTask
+
+EnabledRetryTasks(t) == t \in FailedTask /\ ~ (t \in UnretriedTask)
+
+EnabledStopTasks(t) == t \in stoppingRequested /\ (t \in StagedTask \/ t \in PausedTask)
+
+EnabledPauseTasks(t) == t \in pausingRequested /\ t \in StagedTask
+
+FairnessEnabledFree ==
+    \A t \in Task :
+        /\ <>[]EnabledSetTaskRetries(t)
+           => []<><<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
+        /\ <>[]EnabledRegisterTasks(t)
+           => []<><<RegisterTasks({nextAttemptOf[t]})>>_vars
+        /\ <>[]EnabledStageTasks(t)
+           => []<><<StageTasks({nextAttemptOf[t]})>>_vars
+        /\ []<>EnabledProcessTasks(t)
+           => []<><<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
+        /\ <>[]EnabledCompleteTasks(t)
+           => []<><<CompleteTasks({t})>>_vars
+        /\ <>[]EnabledAbortTasks(t)
+           => []<><<AbortTasks({t})>>_vars
+        /\ <>[]EnabledRetryTasks(t)
+           => []<><<RetryTasks({t})>>_vars
+        /\ <>[]EnabledStopTasks(t)
+           => []<><<StopTasks({t})>>_vars
+        /\ <>[]EnabledPauseTasks(t)
+           => []<><<PauseTasks({t})>>_vars
+
+LEMMA LemFairnessEnabledFree == FairnessEnabledFree => Fairness
+
 ================================================================================

@@ -255,4 +255,36 @@ LEMMA LemEventualTermination ==
 THEOREM T1_EventualTermination == Spec => EventualTermination
 BY LemEventualTermination, T1_FiniteKnownTasks, T1_Type, PTL DEF Spec
 
+(**
+ * ENABLED-FREE FAIRNESS
+ * Fairness restated without ENABLED: processing a task is enabled exactly
+ * when it is assigned, and finalizing it exactly when it is processed.
+ * Substitution does not distribute over ENABLED, hence not over WF and SF,
+ * but it does over this form: a refinement proves the instantiated
+ * FairProcessTasks(t) and FairFinalizeTasks(t) and recovers the instantiated
+ * Fairness through LemFairnessEnabledFree.
+ *)
+EnabledProcessTasks(t) == t \in AssignedTask
+
+EnabledFinalizeTasks(t) == t \in ProcessedTask
+
+FairProcessTasks(t) ==
+    []<>EnabledProcessTasks(t) => []<><<ProcessTasks({t})>>_vars
+
+FairFinalizeTasks(t) ==
+    <>[]EnabledFinalizeTasks(t) => []<><<FinalizeTasks({t})>>_vars
+
+LEMMA LemFairnessEnabledFree ==
+    Fairness <=> \A t \in Task : FairProcessTasks(t) /\ FairFinalizeTasks(t)
+<1>. SUFFICES ASSUME NEW t \in Task
+              PROVE  /\ SF_vars(ProcessTasks({t})) <=> FairProcessTasks(t)
+                     /\ WF_vars(FinalizeTasks({t})) <=> FairFinalizeTasks(t)
+    BY Isa DEF Fairness
+<1>1. (ENABLED <<ProcessTasks({t})>>_vars) <=> EnabledProcessTasks(t)
+    BY ExpandENABLED DEF AssignedTask, EnabledProcessTasks, ProcessTasks, vars
+<1>2. (ENABLED <<FinalizeTasks({t})>>_vars) <=> EnabledFinalizeTasks(t)
+    BY ExpandENABLED DEF EnabledFinalizeTasks, FinalizeTasks, ProcessedTask, vars
+<1>. QED
+    BY <1>1, <1>2, PTL DEF FairFinalizeTasks, FairProcessTasks
+
 ================================================================================

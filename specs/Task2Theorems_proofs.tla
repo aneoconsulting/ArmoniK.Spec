@@ -2001,22 +2001,88 @@ THEOREM T2_PermanentFinalization == Spec => PermanentFinalization
     BY LemTaskStateStable DEF AbortedTask
 <1>. QED
     BY <1>1, <1>2, <1>3, PTL DEF Spec
+(**
+ * ENABLED-FREE FAIRNESS
+ * Fairness restated without ENABLED, each action guarded by its enabling
+ * condition as a state predicate. Substitution does not distribute over
+ * ENABLED, hence not over WF and SF, but it does over this form: a
+ * refinement proves the instantiated FairnessEnabledFree, where it only has
+ * to enable its own actions under the instantiated predicates, and recovers
+ * the instantiated Fairness through LemFairnessEnabledFree; a layer that
+ * lifts a lemma of this module takes its hypotheses in this form.
+ *)
+EnabledSetTaskRetries(t) ==
+    /\ t \in UnretriedTask
+    /\ \E u \in UnknownTask : ~ \E w \in Task : nextAttemptOf[w] = u
 
-LEMMA LemFailedTaskEventualRetry ==
-    ASSUME NEW t \in Task
-    PROVE []TaskSafetyInv /\ [][Next]_vars
-          /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
-          => t \in UnretriedTask ~> t \in FailedTask /\ nextAttemptOf[t] \in UnknownTask
-<1>1. TaskSafetyInv /\ t \in UnretriedTask /\ [Next]_vars
-      => (t \in UnretriedTask)' \/ (t \in FailedTask /\ nextAttemptOf[t] \in UnknownTask)'
-    BY Assumptions DEF TaskSafetyInv, TypeOk, Next, vars, UnretriedTask, FailedTask,
-    UnknownTask, RegisterTasks, StageTasks, RegisteredTask, DiscardTasks, SetTaskRetries,
-    Bijection, Injection, Surjection, IsInjective, AssignTasks, StagedTask, ReleaseTasks,
-    AssignedTask, ProcessTasks, CompleteTasks, SucceededTask, AbortTasks, DiscardedTask,
-    RetryTasks
-<1>2. TaskSafetyInv /\ t \in UnretriedTask
-      => ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
-        <3>. SUFFICES ASSUME TaskSafetyInv, t \in UnretriedTask
+EnabledRegisterTasks(t) == nextAttemptOf[t] \in UnknownTask
+
+EnabledStageTasks(t) == nextAttemptOf[t] \in RegisteredTask
+
+EnabledProcessTasks(t) == t \in AssignedTask
+
+EnabledCompleteTasks(t) == t \in SucceededTask
+
+EnabledAbortTasks(t) == t \in DiscardedTask
+
+EnabledRetryTasks(t) == t \in FailedTask /\ ~ (t \in UnretriedTask)
+
+FairnessEnabledFree ==
+    \A t \in Task:
+        /\ <>[]EnabledSetTaskRetries(t)
+            => []<><<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
+        /\ <>[]EnabledRegisterTasks(t)
+            => []<><<RegisterTasks({nextAttemptOf[t]})>>_vars
+        /\ <>[]EnabledStageTasks(t)
+            => []<><<StageTasks({nextAttemptOf[t]})>>_vars
+        /\ []<>EnabledProcessTasks(t)
+            => []<><<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
+        /\ <>[]EnabledCompleteTasks(t) => []<><<CompleteTasks({t})>>_vars
+        /\ <>[]EnabledAbortTasks(t) => []<><<AbortTasks({t})>>_vars
+        /\ <>[]EnabledRetryTasks(t) => []<><<RetryTasks({t})>>_vars
+
+LEMMA LemFairnessEnabledFree == Fairness <=> FairnessEnabledFree
+<1>. DEFINE E1(t) ==
+                <>[]EnabledSetTaskRetries(t)
+                    => []<><<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
+            F1(t) == WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
+            E2(t) ==
+                <>[]EnabledRegisterTasks(t)
+                    => []<><<RegisterTasks({nextAttemptOf[t]})>>_vars
+            F2(t) == WF_vars(RegisterTasks({nextAttemptOf[t]}))
+            E3(t) ==
+                <>[]EnabledStageTasks(t)
+                    => []<><<StageTasks({nextAttemptOf[t]})>>_vars
+            F3(t) == WF_vars(StageTasks({nextAttemptOf[t]}))
+            E4(t) ==
+                []<>EnabledProcessTasks(t)
+                    => []<><<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
+            F4(t) == SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
+            E5(t) ==
+                <>[]EnabledCompleteTasks(t)
+                    => []<><<CompleteTasks({t})>>_vars
+            F5(t) == WF_vars(CompleteTasks({t}))
+            E6(t) ==
+                <>[]EnabledAbortTasks(t)
+                    => []<><<AbortTasks({t})>>_vars
+            F6(t) == WF_vars(AbortTasks({t}))
+            E7(t) ==
+                <>[]EnabledRetryTasks(t)
+                    => []<><<RetryTasks({t})>>_vars
+            F7(t) == WF_vars(RetryTasks({t}))
+<1>1. FairnessEnabledFree
+        <=> \A t \in Task : E1(t) /\ E2(t) /\ E3(t) /\ E4(t) /\ E5(t) /\ E6(t) /\ E7(t)
+    BY DEF FairnessEnabledFree
+<1>2. Fairness
+        <=> \A t \in Task : F1(t) /\ F2(t) /\ F3(t) /\ F4(t) /\ F5(t) /\ F6(t) /\ F7(t)
+    BY DEF Fairness
+<1>3. ASSUME NEW t \in Task
+      PROVE  E1(t) <=> F1(t)
+    <2>1. (ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars) => EnabledSetTaskRetries(t)
+        BY ExpandENABLED, Zenon DEF EnabledSetTaskRetries, SetTaskRetries, vars
+    <2>2. EnabledSetTaskRetries(t)
+            => ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
+        <3>. SUFFICES ASSUME EnabledSetTaskRetries(t)
                         PROVE \E taskStatep, nextAttemptOfp :
                                 /\ \E u \in Task :
                                     /\ {t} # {}
@@ -2030,19 +2096,23 @@ LEMMA LemFailedTaskEventualRetry ==
                                     /\ taskStatep = taskState
                                 /\ <<taskStatep, nextAttemptOfp>> /= <<taskState, nextAttemptOf>>
             BY ExpandENABLED, Zenon DEF SetTaskRetries, vars
-        <3>. PICK u \in Task: u \in UnknownTask /\ ~ \E v \in Task: nextAttemptOf[v] = u
-            BY DEF TaskSafetyInv, ExistsFreeUnknownTask
+        <3>. PICK u \in UnknownTask : ~ \E v \in Task: nextAttemptOf[v] = u
+            BY DEF EnabledSetTaskRetries
         <3>. DEFINE g               == [x \in {t} |-> u]
                     taskStatep      == taskState
                     nextAttemptOfp  == [t_1 \in Task |-> IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]]
         <3>. WITNESS taskStatep, nextAttemptOfp
-        <3>. SUFFICES /\ \E f \in Bijection({t}, {u}) :
+        <3>. SUFFICES /\ u \in Task
+                      /\ t \in UnretriedTask
+                      /\ \E f \in Bijection({t}, {u}) :
                             nextAttemptOfp
                             = [t_1 \in Task |->
                             IF t_1 \in {t} THEN f[t_1] ELSE nextAttemptOf[t_1]]
-                        /\ nextAttemptOfp /= nextAttemptOf
+                      /\ nextAttemptOfp /= nextAttemptOf
             OBVIOUS
-        <3>1. \E f \in Bijection({t}, {u}) :
+        <3>1. u \in Task /\ t \in UnretriedTask
+            BY DEF EnabledSetTaskRetries, UnknownTask
+        <3>2. \E f \in Bijection({t}, {u}) :
                     nextAttemptOfp
                     = [t_1 \in Task |->
                     IF t_1 \in {t} THEN f[t_1] ELSE nextAttemptOf[t_1]]
@@ -2050,10 +2120,101 @@ LEMMA LemFailedTaskEventualRetry ==
                 BY DEF Bijection, Injection, Surjection, IsInjective
             <4>. QED
                 BY <4>1
-        <3>2. nextAttemptOfp /= nextAttemptOf
-            BY Assumptions DEF UnretriedTask
+        <3>3. nextAttemptOfp /= nextAttemptOf
+            BY <3>1, Assumptions DEF UnretriedTask
         <3>. QED
-            BY <3>1, <3>2
+            BY <3>1, <3>2, <3>3
+    <2>. QED
+        BY <2>1, <2>2, PTL
+<1>4. ASSUME NEW t \in Task
+      PROVE  E2(t) <=> F2(t)
+    <2>1. (ENABLED <<RegisterTasks({nextAttemptOf[t]})>>_vars) => EnabledRegisterTasks(t)
+        BY ExpandENABLED DEF EnabledRegisterTasks, RegisterTasks, vars
+    <2>2. EnabledRegisterTasks(t) => ENABLED <<RegisterTasks({nextAttemptOf[t]})>>_vars
+        BY ExpandENABLED, FS_Singleton DEF EnabledRegisterTasks, RegisterTasks, UnknownTask,
+        vars
+    <2>. QED
+        BY <2>1, <2>2, PTL
+<1>5. ASSUME NEW t \in Task
+      PROVE  E3(t) <=> F3(t)
+    <2>1. (ENABLED <<StageTasks({nextAttemptOf[t]})>>_vars) => EnabledStageTasks(t)
+        BY ExpandENABLED DEF EnabledStageTasks, StageTasks, vars
+    <2>2. EnabledStageTasks(t) => ENABLED <<StageTasks({nextAttemptOf[t]})>>_vars
+        BY ExpandENABLED DEF EnabledStageTasks, RegisteredTask, StageTasks, vars
+    <2>. QED
+        BY <2>1, <2>2, PTL
+<1>6. ASSUME NEW t \in Task
+      PROVE  E4(t) <=> F4(t)
+    <2>1. (ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars) => EnabledProcessTasks(t)
+        BY ExpandENABLED DEF EnabledProcessTasks, ProcessTasks, SucceededTask, vars
+    <2>2. EnabledProcessTasks(t) => ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
+        <3>. DEFINE A == ProcessTasks({t}) /\ t \in SucceededTask'
+        <3>1. <<A>>_vars <=> A
+            BY DEF AssignedTask, ProcessTasks, SucceededTask, vars
+        <3>2. ENABLED <<A>>_vars <=> ENABLED A
+            BY <3>1, ENABLEDaxioms
+        <3>3. EnabledProcessTasks(t) => ENABLED A
+            <4>. SUFFICES ASSUME t \in AssignedTask
+                          PROVE  ENABLED A
+                BY DEF EnabledProcessTasks
+            <4>. SUFFICES \E nextAttemptOfp, taskStatep :
+                            /\ {t} # {}
+                            /\ {t} \subseteq AssignedTask
+                            /\ taskStatep = [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
+                            /\ nextAttemptOfp = nextAttemptOf
+                            /\ taskStatep[t] = TASK_SUCCEEDED
+                BY ExpandENABLED, Zenon DEF ProcessTasks, SucceededTask
+            <4>. WITNESS nextAttemptOf, [x \in Task |-> IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
+            <4>. QED
+                OBVIOUS
+        <3>. QED
+            BY <3>2, <3>3
+    <2>. QED
+        BY <2>1, <2>2, PTL
+<1>7. ASSUME NEW t \in Task
+      PROVE  E5(t) <=> F5(t)
+    <2>1. (ENABLED <<CompleteTasks({t})>>_vars) => EnabledCompleteTasks(t)
+        BY ExpandENABLED DEF CompleteTasks, EnabledCompleteTasks, vars
+    <2>2. EnabledCompleteTasks(t) => ENABLED <<CompleteTasks({t})>>_vars
+        BY ExpandENABLED DEF CompleteTasks, EnabledCompleteTasks, SucceededTask, vars
+    <2>. QED
+        BY <2>1, <2>2, PTL
+<1>8. ASSUME NEW t \in Task
+      PROVE  E6(t) <=> F6(t)
+    <2>1. (ENABLED <<AbortTasks({t})>>_vars) => EnabledAbortTasks(t)
+        BY ExpandENABLED DEF AbortTasks, EnabledAbortTasks, vars
+    <2>2. EnabledAbortTasks(t) => ENABLED <<AbortTasks({t})>>_vars
+        BY ExpandENABLED DEF AbortTasks, DiscardedTask, EnabledAbortTasks, vars
+    <2>. QED
+        BY <2>1, <2>2, PTL
+<1>9. ASSUME NEW t \in Task
+      PROVE  E7(t) <=> F7(t)
+    <2>1. (ENABLED <<RetryTasks({t})>>_vars) => EnabledRetryTasks(t)
+        BY ExpandENABLED DEF EnabledRetryTasks, RetryTasks, vars
+    <2>2. EnabledRetryTasks(t) => ENABLED <<RetryTasks({t})>>_vars
+        BY ExpandENABLED DEF EnabledRetryTasks, FailedTask, RetryTasks, UnretriedTask, vars
+    <2>. QED
+        BY <2>1, <2>2, PTL
+<1>. HIDE DEF E1, E2, E3, E4, E5, E6, E7, F1, F2, F3, F4, F5, F6, F7
+<1>. QED
+    BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8, <1>9, Zenon
+
+
+LEMMA LemFailedTaskEventualRetry ==
+    ASSUME NEW t \in Task
+    PROVE []TaskSafetyInv /\ [][Next]_vars
+          /\ (<>[]EnabledSetTaskRetries(t)
+                => []<><<\E u \in Task : SetTaskRetries({t}, {u})>>_vars)
+          => t \in UnretriedTask ~> t \in FailedTask /\ nextAttemptOf[t] \in UnknownTask
+<1>1. TaskSafetyInv /\ t \in UnretriedTask /\ [Next]_vars
+      => (t \in UnretriedTask)' \/ (t \in FailedTask /\ nextAttemptOf[t] \in UnknownTask)'
+    BY Assumptions DEF TaskSafetyInv, TypeOk, Next, vars, UnretriedTask, FailedTask,
+    UnknownTask, RegisterTasks, StageTasks, RegisteredTask, DiscardTasks, SetTaskRetries,
+    Bijection, Injection, Surjection, IsInjective, AssignTasks, StagedTask, ReleaseTasks,
+    AssignedTask, ProcessTasks, CompleteTasks, SucceededTask, AbortTasks, DiscardedTask,
+    RetryTasks
+<1>2. TaskSafetyInv /\ t \in UnretriedTask => EnabledSetTaskRetries(t)
+    BY DEF EnabledSetTaskRetries, ExistsFreeUnknownTask, TaskSafetyInv, UnknownTask
 <1>3. <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars => (t \in FailedTask /\ nextAttemptOf[t] \in UnknownTask)'
     BY DEF SetTaskRetries, vars, UnknownTask, Bijection, Surjection, UnretriedTask, FailedTask
 <1>. QED
@@ -2134,8 +2295,9 @@ THEOREM T2_FailedTaskEventualRetry == Spec => FailedTaskEventualRetry
         BY Isa DEF Fairness
     <2>. QED
         BY <2>1, <2>2, <2>3, <2>4, T2_TaskSafetyInv, PTL DEF Spec
-<1>3. Spec => WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
-    BY Isa DEF Spec, Fairness
+<1>3. Spec => (<>[]EnabledSetTaskRetries(t)
+                => []<><<\E u \in Task : SetTaskRetries({t}, {u})>>_vars)
+    BY LemFairnessEnabledFree, Isa DEF FairnessEnabledFree, Spec
 <1>. QED
     BY <1>1, <1>2, <1>3, LemFailedTaskEventualRetry, T2_TaskSafetyInv, PTL DEF Spec
 
@@ -2312,8 +2474,9 @@ LEMMA LemFailedTaskEventualFinalization ==
         BY Isa DEF Fairness
     <2>. QED
         BY <2>1, <2>2, <2>3, <2>4, PTL DEF Spec
-<1>3. Fairness => WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
-    BY Isa DEF Fairness
+<1>3. Fairness => (<>[]EnabledSetTaskRetries(t)
+                    => []<><<\E u \in Task : SetTaskRetries({t}, {u})>>_vars)
+    BY LemFairnessEnabledFree, Isa DEF FairnessEnabledFree
 <1>. QED
     BY <1>1, <1>2, <1>3, LemFailedTaskEventualRetry, PTL
 
@@ -2413,32 +2576,22 @@ THEOREM T2_RefineTask1 == Spec => RefineTask1
 <1>3. []TaskSafetyInv /\ [][Next]_vars /\ Fairness => T1!Fairness
     <2>. SUFFICES ASSUME NEW t \in Task
                 PROVE []TaskSafetyInv /\ [][Next]_vars /\ Fairness
-                        => /\ SF_T1!vars(T1!ProcessTasks({t}))
-                           /\ WF_T1!vars(T1!FinalizeTasks({t}))
-        BY Isa DEF T1!Fairness
+                        => /\ T1!FairProcessTasks(t)
+                           /\ T1!FairFinalizeTasks(t)
+        BY Assumptions, SameAssumptions, T1!LemFairnessEnabledFree, Isa
     <2>1. []TaskSafetyInv /\ [][Next]_vars /\ Fairness
-          => SF_T1!vars(T1!ProcessTasks({t}))
+          => T1!FairProcessTasks(t)
         <3>. SUFFICES []TaskSafetyInv /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
-                    => SF_T1!vars(T1!ProcessTasks({t}))
+                    => T1!FairProcessTasks(t)
             BY Isa DEF Fairness
         <3>. DEFINE AbsA(tb) == T1!ProcessTasks({tb})
                     A(tb)    == ProcessTasks({tb}) /\ tb \in SucceededTask'
-        <3>1. TaskSafetyInv /\ ENABLED <<AbsA(t)>>_T1!vars => ENABLED <<A(t)>>_vars
+        <3>1. TaskSafetyInv /\ T1!EnabledProcessTasks(t) => ENABLED <<A(t)>>_vars
             <4>. SUFFICES ASSUME TaskSafetyInv
-                        PROVE ENABLED <<AbsA(t)>>_T1!vars => ENABLED <<A(t)>>_vars
+                        PROVE T1!EnabledProcessTasks(t) => ENABLED <<A(t)>>_vars
                 OBVIOUS
-            <4>1. ENABLED <<AbsA(t)>>_T1!vars <=> t \in T1!AssignedTask
-                <5>. HIDE DEF taskStateBar
-                <5>1. AbsA(t) => taskStateBar' /= taskStateBar
-                    BY DEF T1!ProcessTasks, T1!AssignedTask
-                <5>2. <<AbsA(t)>>_T1!vars <=> AbsA(t)
-                    BY <5>1 DEF T1!vars
-                <5>3. ENABLED <<AbsA(t)>>_T1!vars <=> ENABLED AbsA(t)
-                    BY <5>2, ENABLEDaxioms
-                <5>4. ENABLED AbsA(t) <=> t \in T1!AssignedTask
-                    BY ExpandENABLED, Zenon DEF T1!ProcessTasks, T1!AssignedTask, taskStateBar
-                <5>. QED
-                    BY <5>3, <5>4
+            <4>1. T1!EnabledProcessTasks(t) <=> t \in T1!AssignedTask
+                BY DEF T1!EnabledProcessTasks
             <4>2. t \in AssignedTask => ENABLED <<A(t)>>_vars
                 <5>1. <<A(t)>>_vars <=> A(t)
                     BY DEF ProcessTasks, AssignedTask, vars
@@ -2466,15 +2619,15 @@ THEOREM T2_RefineTask1 == Spec => RefineTask1
             BY DEF ProcessTasks, T1!ProcessTasks, AssignedTask, T1!AssignedTask,
             vars, T1!vars
         <3>. QED
-            BY <3>1, <3>2, PTL
+            BY <3>1, <3>2, PTL DEF T1!FairProcessTasks
     <2>2. []TaskSafetyInv /\ [][Next]_vars /\ Fairness
-          => WF_T1!vars(T1!FinalizeTasks({t}))
+          => T1!FairFinalizeTasks(t)
         <3>. DEFINE P == ~ t \in UnretriedTask
-        <3>0. TaskSafetyInv /\ ENABLED <<T1!FinalizeTasks({t})>>_T1!vars
+        <3>0. TaskSafetyInv /\ T1!EnabledFinalizeTasks(t)
               => t \in SucceededTask \/ t \in DiscardedTask \/ t \in FailedTask
-            BY ExpandENABLED DEF TaskSafetyInv, TypeOk, T2State, T1!FinalizeTasks, T1!vars,
-            T1!ProcessedTask, SucceededTask, DiscardedTask, FailedTask
-        <3>1. []P /\ []TaskSafetyInv /\ [][Next]_vars /\ []ENABLED <<T1!FinalizeTasks({t})>>_T1!vars
+            BY DEF TaskSafetyInv, TypeOk, T2State, T1!EnabledFinalizeTasks, T1!ProcessedTask,
+            SucceededTask, DiscardedTask, FailedTask, taskStateBar
+        <3>1. []P /\ []TaskSafetyInv /\ [][Next]_vars /\ []T1!EnabledFinalizeTasks(t)
               => \/ []ENABLED <<CompleteTasks({t})>>_vars
                  \/ []ENABLED <<AbortTasks({t})>>_vars
                  \/ []ENABLED <<RetryTasks({t})>>_vars
@@ -2484,14 +2637,14 @@ THEOREM T2_RefineTask1 == Spec => RefineTask1
                 BY ExpandENABLED DEF AbortTasks, vars, DiscardedTask
             <4>0c. ENABLED <<RetryTasks({t})>>_vars <=> t \in FailedTask /\ ~ t \in UnretriedTask
                 BY ExpandENABLED DEF RetryTasks, vars, FailedTask, UnretriedTask
-            <4>1. TaskSafetyInv /\ P /\ ENABLED <<T1!FinalizeTasks({t})>>_T1!vars
+            <4>1. TaskSafetyInv /\ P /\ T1!EnabledFinalizeTasks(t)
                   => \/ ENABLED <<CompleteTasks({t})>>_vars
                      \/ ENABLED <<AbortTasks({t})>>_vars
                      \/ ENABLED <<RetryTasks({t})>>_vars
                 BY <3>0, <4>0a, <4>0b, <4>0c
-            <4>2. []TaskSafetyInv /\ [][Next]_vars /\ []ENABLED <<T1!FinalizeTasks({t})>>_T1!vars
+            <4>2. []TaskSafetyInv /\ [][Next]_vars /\ []T1!EnabledFinalizeTasks(t)
                   => [](ENABLED <<CompleteTasks({t})>>_vars => []ENABLED <<CompleteTasks({t})>>_vars)
-                <5>. SUFFICES ASSUME []TaskSafetyInv, []ENABLED <<T1!FinalizeTasks({t})>>_T1!vars
+                <5>. SUFFICES ASSUME []TaskSafetyInv, []T1!EnabledFinalizeTasks(t)
                               PROVE TaskSafetyInv /\ t \in SucceededTask /\ [Next]_vars => (t \in SucceededTask)'
                     BY <4>0a, PTL
                 <5>1. TaskSafetyInv /\ t \in SucceededTask /\ [Next]_vars
@@ -2509,9 +2662,9 @@ THEOREM T2_RefineTask1 == Spec => RefineTask1
                         BY <6>1 DEF SucceededTask, DiscardedTask, FailedTask, CompletedTask
                 <5>. QED
                     BY <5>1, <5>2
-            <4>3. []TaskSafetyInv /\ [][Next]_vars /\ []ENABLED <<T1!FinalizeTasks({t})>>_T1!vars
+            <4>3. []TaskSafetyInv /\ [][Next]_vars /\ []T1!EnabledFinalizeTasks(t)
                   => [](ENABLED <<AbortTasks({t})>>_vars => []ENABLED <<AbortTasks({t})>>_vars)
-                <5>. SUFFICES ASSUME []TaskSafetyInv, []ENABLED <<T1!FinalizeTasks({t})>>_T1!vars
+                <5>. SUFFICES ASSUME []TaskSafetyInv, []T1!EnabledFinalizeTasks(t)
                               PROVE TaskSafetyInv /\ t \in DiscardedTask /\ [Next]_vars => (t \in DiscardedTask)'
                     BY <4>0b, PTL
                 <5>1. TaskSafetyInv /\ t \in DiscardedTask /\ [Next]_vars => (t \in DiscardedTask)' \/ (t \in AbortedTask)'
@@ -2528,9 +2681,9 @@ THEOREM T2_RefineTask1 == Spec => RefineTask1
                         BY <6>1 DEF SucceededTask, DiscardedTask, FailedTask, AbortedTask
                 <5>. QED
                     BY <5>1, <5>2
-            <4>4. []TaskSafetyInv /\ [][Next]_vars /\ []ENABLED <<T1!FinalizeTasks({t})>>_T1!vars
+            <4>4. []TaskSafetyInv /\ [][Next]_vars /\ []T1!EnabledFinalizeTasks(t)
                   => [](ENABLED <<RetryTasks({t})>>_vars => []ENABLED <<RetryTasks({t})>>_vars)
-                <5>. SUFFICES ASSUME []TaskSafetyInv, []ENABLED <<T1!FinalizeTasks({t})>>_T1!vars
+                <5>. SUFFICES ASSUME []TaskSafetyInv, []T1!EnabledFinalizeTasks(t)
                               PROVE TaskSafetyInv /\ t \in FailedTask /\ ~ t \in UnretriedTask /\ [Next]_vars => (t \in FailedTask /\ ~ t \in UnretriedTask)'
                     BY <4>0c, PTL
                 <5>1. TaskSafetyInv /\ t \in FailedTask /\ ~ t \in UnretriedTask /\ [Next]_vars
@@ -2561,7 +2714,7 @@ THEOREM T2_RefineTask1 == Spec => RefineTask1
         <3>5. /\ []TaskSafetyInv
               /\ [][Next]_vars
               /\ Fairness
-              /\ <>[]ENABLED <<T1!FinalizeTasks({t})>>_T1!vars
+              /\ <>[]T1!EnabledFinalizeTasks(t)
               => <>[]P
             <4>1. t \in SucceededTask => P
                 BY DEF SucceededTask, UnretriedTask, FailedTask
@@ -2572,7 +2725,7 @@ THEOREM T2_RefineTask1 == Spec => RefineTask1
                     BY DEF RetriedTask, UnretriedTask, FailedTask
                 <5>. QED
                     BY <5>1, LemFailedTaskEventualFinalization, PTL
-            <4>4. ENABLED <<T1!FinalizeTasks({t})>>_T1!vars /\ TaskSafetyInv /\ P /\ [Next]_vars
+            <4>4. T1!EnabledFinalizeTasks(t) /\ TaskSafetyInv /\ P /\ [Next]_vars
                   => P'
                 BY <3>0 DEF DiscardedTask, AbortedTask, Next, vars, RegisterTasks, UnknownTask,
                 StageTasks, RegisteredTask, DiscardTasks, SetTaskRetries, AssignTasks, StagedTask,
@@ -2585,7 +2738,7 @@ THEOREM T2_RefineTask1 == Spec => RefineTask1
                           /\ WF_vars(RetryTasks({t}))
             BY Isa DEF Fairness
         <3>. QED
-            BY <3>1, <3>2, <3>3, <3>4, <3>5, <3>6, PTL DEF Fairness
+            BY <3>1, <3>2, <3>3, <3>4, <3>5, <3>6, PTL DEF Fairness, T1!FairFinalizeTasks
     <2>. QED
         BY <2>1, <2>2, Isa
 <1>. QED

@@ -36,4 +36,26 @@ LEMMA LemEventualTermination ==
 
 THEOREM T1_EventualTermination == Spec => EventualTermination
 
+(**
+ * ENABLED-FREE FAIRNESS
+ * Fairness restated without ENABLED: processing a task is enabled exactly
+ * when it is assigned, and finalizing it exactly when it is processed.
+ * Substitution does not distribute over ENABLED, hence not over WF and SF,
+ * but it does over this form: a refinement proves the instantiated
+ * FairProcessTasks(t) and FairFinalizeTasks(t) and recovers the instantiated
+ * Fairness through LemFairnessEnabledFree.
+ *)
+EnabledProcessTasks(t) == t \in AssignedTask
+
+EnabledFinalizeTasks(t) == t \in ProcessedTask
+
+FairProcessTasks(t) ==
+    []<>EnabledProcessTasks(t) => []<><<ProcessTasks({t})>>_vars
+
+FairFinalizeTasks(t) ==
+    <>[]EnabledFinalizeTasks(t) => []<><<FinalizeTasks({t})>>_vars
+
+LEMMA LemFairnessEnabledFree ==
+    Fairness <=> \A t \in Task : FairProcessTasks(t) /\ FairFinalizeTasks(t)
+
 ================================================================================
