@@ -61,14 +61,15 @@ jobs:
           echo "chunks=$(jq -c .chunks <<<"$plan")" | tee -a "$GITHUB_OUTPUT"
           echo "split=$(jq -c .split <<<"$plan")" | tee -a "$GITHUB_OUTPUT"
 
-  # The cache of .tlatools is saved before the optimized tlapm is installed into
-  # it, so that it leaves the latter out: only proofs-optimized needs it.
+  # Every run installs the tools afresh, at their latest builds, and shares them
+  # with its own jobs through a cache keyed by the run (a re-run of failed jobs
+  # reuses it). One install serves every job, so that they all check against
+  # the same builds.
   tools:
     name: Install the TLA+ tools
     runs-on: ubuntu-latest
     outputs:
-      base: ${{ steps.base.outputs.cache-primary-key }}
-      opt: ${{ steps.opt.outputs.cache-primary-key }}
+      key: tlatools-${{ github.run_id }}
     steps:
       - uses: actions/checkout@v5
 
@@ -77,37 +78,12 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - id: base
-        uses: actions/cache/restore@v4
+      - run: ./scripts/install-tools.sh
+
+      - uses: actions/cache/save@v4
         with:
           path: .tlatools
-          key: tlatools-${{ runner.os }}-${{ hashFiles('scripts/install-tools.sh') }}
-          lookup-only: true
-
-      - if: steps.base.outputs.cache-hit != 'true'
-        run: ./scripts/install-tools.sh --no-tlapm-opt
-
-      - if: steps.base.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: .tlatools
-          key: ${{ steps.base.outputs.cache-primary-key }}
-
-      - id: opt
-        uses: actions/cache/restore@v4
-        with:
-          path: .tlatools/tlapm-opt
-          key: tlapm-opt-${{ runner.os }}-${{ hashFiles('scripts/install-tools.sh') }}
-          lookup-only: true
-
-      - if: steps.opt.outputs.cache-hit != 'true'
-        run: make install-tlapm-opt
-
-      - if: steps.opt.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: .tlatools/tlapm-opt
-          key: ${{ steps.opt.outputs.cache-primary-key }}
+          key: tlatools-${{ github.run_id }}
 
   pairing:
     name: Interface / proof pairing
@@ -156,7 +132,7 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: .tlatools
-          key: ${{ needs.tools.outputs.base }}
+          key: ${{ needs.tools.outputs.key }}
           fail-on-cache-miss: true
 
       - name: Set up Python environment
@@ -211,7 +187,7 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: .tlatools
-          key: ${{ needs.tools.outputs.base }}
+          key: ${{ needs.tools.outputs.key }}
           fail-on-cache-miss: true
 
       - name: Check proofs (tlapm --strict)
@@ -237,13 +213,7 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: .tlatools
-          key: ${{ needs.tools.outputs.base }}
-          fail-on-cache-miss: true
-
-      - uses: actions/cache/restore@v4
-        with:
-          path: .tlatools/tlapm-opt
-          key: ${{ needs.tools.outputs.opt }}
+          key: ${{ needs.tools.outputs.key }}
           fail-on-cache-miss: true
 
       - name: Check proofs (tlapm --strict, optimized)
