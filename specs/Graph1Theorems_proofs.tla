@@ -1,6 +1,5 @@
 ------------------------- MODULE Graph1Theorems_proofs -------------------------
-EXTENDS Graph1, DDGraphTheorems, FiniteSetTheorems, NaturalsInduction,
-        SequenceTheorems, TLAPS
+EXTENDS Graph1, DDGraphTheorems, FiniteSetTheorems, NaturalsInduction, TLAPS
 
 USE Assumptions DEF OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_FINALIZED,
 TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED, TASK_PROCESSED,
@@ -1566,69 +1565,53 @@ LEMMA LemObjectTransitions ==
     BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next, vars
 
 (**
- * STABILITY OF MAXIMAL-OPEN-PATH ROOTS. While r stays in the open ancestry
- * of o, being the root of a maximal open path to o is preserved by every
- * system step, provided the open ancestor set S of o never gains a node.
- * Indeed the only threat is RegisterGraph attaching a new producing task
- * above r: that task is freshly registered (hence open) and, r being an open
- * ancestor of o, it would become a new open ancestor of o -- enlarging S,
- * which [S' \subseteq S]_S forbids. All other steps leave the predecessors of
- * r untouched, and closed (finalized) predecessors stay closed forever.
+ * STABILITY OF THE SOURCES OF THE OPEN ANCESTRY. While s stays in the open
+ * ancestry of o, being a source of it is preserved by every system step,
+ * provided the open ancestry S of o never gains a node. A source of OA(o) is
+ * a node of OA(o) whose predecessors are all closed (DDG_AncestorSubGraphSource).
+ * The only threat is RegisterGraph attaching a new producing task above s:
+ * that task is freshly registered (hence open) and, s being in the open
+ * ancestry of o, it would join the open ancestry of o -- enlarging S, which
+ * [S' \subseteq S]_S forbids. All other steps leave the predecessors of s
+ * untouched, and closed (finalized) predecessors stay closed forever.
  *)
-LEMMA LemMRootStable ==
-    ASSUME NEW o \in Object, NEW r \in Object \union Task
-    PROVE LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+LEMMA LemOASourceStable ==
+    ASSUME NEW o \in Object, NEW s \in Object \union Task
+    PROVE LET S == OA(o).node
           IN /\ GraphSafetyInv /\ GraphSafetyInv'
              /\ [Next]_vars /\ [S' \subseteq S]_S
-             /\ \E p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r
-             /\ (r \in S)'
-             => (\E p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r)'
-<1>. DEFINE S == AncestorSubGraph(deps, o, IsOpenNode).node
+             /\ s \in Source(OA(o))
+             /\ (s \in S)'
+             => (s \in Source(OA(o)))'
+<1>. DEFINE S == OA(o).node
 <1>. SUFFICES ASSUME GraphSafetyInv, GraphSafetyInv',
                      [Next]_vars, [S' \subseteq S]_S,
-                     \E p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r,
-                     (r \in S)'
-              PROVE  (\E p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r)'
+                     s \in Source(OA(o)),
+                     (s \in S)'
+              PROVE  (s \in Source(OA(o)))'
     BY Zenon
 <1>1. IsDirectedGraph(deps) /\ IsDag(deps)
     BY Zenon DEF GraphSafetyInv, DependencyGraphCompliant, IsDDGraph, IsDag
 <1>2. IsDirectedGraph(deps') /\ IsDag(deps')
     BY Zenon DEF GraphSafetyInv, DependencyGraphCompliant, IsDDGraph, IsDag
-<1>3. PICK p0 \in MaximalOpenPath(deps, o, IsOpenNode) : p0[1] = r
-    BY Zenon
-<1>4. \A u \in Predecessor(deps, r) : ~IsOpenNode(u)
-    BY Zenon, <1>3 DEF MaximalOpenPath
-<1>5. r \in deps.node
-    <2>1. p0 \in SimplePath(deps)
-        BY Zenon, <1>3 DEF MaximalOpenPath, OpenPath
-    <2>2. p0 \in Seq(deps.node) /\ Len(p0) >= 1 /\ Len(p0) \in Nat
-        BY Zenon, <2>1, DG_SimplePathIsSeq
-    <2>3. 1 \in 1..Len(p0)
-        BY Isa, <2>2
-    <2>. QED
-        BY Zenon, <1>3, <2>2, <2>3, ElementOfSeq
-(* The membership of r in the open ancestry of o at the next state, recast
- * over deps' and the next-state openness predicate OpPrimed so that the
- * DDGraphTheorems lemmas apply to it, and an open path from r to o there. *)
-<1>6. r \in AncestorSubGraph(deps', o, OpPrimed).node
-    BY DEF OpPrimed, AncestorSubGraph
-<1>7. PICK q \in OpenPath(deps', o, OpPrimed) : q[1] = r
-    <2>1. OpenSubGraph(deps', o, OpPrimed) = AncestorSubGraph(deps', o, OpPrimed)
-        BY Zenon, <1>2, DDG_OpenSubGraphEqualsAncestorSubGraph
-    <2>2. OpenSubGraph(deps', o, OpPrimed).node = {p[1] : p \in OpenPath(deps', o, OpPrimed)}
-        BY DEF OpenSubGraph
-    <2>3. r \in OpenSubGraph(deps', o, OpPrimed).node
-        BY Zenon, <1>6, <2>1
-    <2>. QED
-        BY <2>2, <2>3
-(* Closed predecessors of r stay closed under every step. *)
-<1>8. \A u \in Predecessor(deps, r) : ~OpPrimed(u)
-    <2>. SUFFICES ASSUME NEW u \in Predecessor(deps, r) PROVE ~OpPrimed(u)
+(* The open ancestry at the next state, recast over deps' and the next-state
+ * openness predicate OpPrimed so that the DDGraphTheorems lemmas apply. *)
+<1>0. OA(o)' = AncestorSubGraph(deps', o, OpPrimed)
+    BY DEF OA, OpPrimed, AncestorSubGraph
+(* The sources of the open ancestry, now and at the next state, are its
+ * nodes whose predecessors are all closed. *)
+<1>3. Source(OA(o)) = {m \in S : \A u \in Predecessor(deps, m) : ~IsOpenNode(u)}
+    BY ONLY <1>1, DDG_AncestorSubGraphSource DEF OA
+<1>4. Source(OA(o))' = {m \in S' : \A u \in Predecessor(deps', m) : ~OpPrimed(u)}
+    BY <1>0, <1>2, DDG_AncestorSubGraphSource
+<1>5. s \in deps.node
+    BY <1>1, DDG_AncestorSubGraphBasic DEF OA, Source, DirectedSubgraph
+(* Closed predecessors of s stay closed under every step. *)
+<1>6. \A u \in Predecessor(deps, s) : ~OpPrimed(u)
+    <2>. SUFFICES ASSUME NEW u \in Predecessor(deps, s) PROVE ~OpPrimed(u)
         BY Zenon
-    <2>1. u \in Task \union Object
-        BY Zenon DEF Predecessor, GraphSafetyInv, TypeOk, DirectedGraphOf
     <2>2. u \in FinalizedTask \/ u \in FinalizedObject
-        BY Zenon, <1>4 DEF IsOpenNode
+        BY Zenon, <1>3 DEF IsOpenNode
     <2>3. u \in FinalizedTask => u \in FinalizedTask'
         <3>. SUFFICES ASSUME u \in FinalizedTask PROVE u \in FinalizedTask'
             BY Zenon
@@ -1650,10 +1633,10 @@ LEMMA LemMRootStable ==
             BY Zenon, <3>1, <3>2 DEF FinalizedObject
     <2>. QED
         BY Zenon, <2>2, <2>3, <2>4 DEF OpPrimed, IsOpenNode
-(* No step adds a predecessor to r: only RegisterGraph could, and the added
- * parent -- a fresh, hence open, task -- would join the open ancestor set of
- * o, growing S against [S' \subseteq S]_S. *)
-<1>9. Predecessor(deps', r) \subseteq Predecessor(deps, r)
+(* No step adds a predecessor to s: only RegisterGraph could, and the added
+ * parent -- a fresh, hence open, task -- would join the open ancestry of o,
+ * growing S against [S' \subseteq S]_S. *)
+<1>7. Predecessor(deps', s) \subseteq Predecessor(deps, s)
     <2>1. deps' = deps \/ \E G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G)
         BY Zenon DEF Next, vars, TargetObjects, UntargetObjects, FinalizeObjects,
            StageTasks, DiscardTasks, AssignTasks, ReleaseTasks,
@@ -1661,31 +1644,31 @@ LEMMA LemMRootStable ==
     <2>2. CASE deps' = deps
         BY Zenon, <2>2 DEF Predecessor
     <2>3. CASE \E G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G)
-        <3>. SUFFICES ASSUME NEW u, u \in Predecessor(deps', r),
-                             u \notin Predecessor(deps, r)
+        <3>. SUFFICES ASSUME NEW u, u \in Predecessor(deps', s),
+                             u \notin Predecessor(deps, s)
                       PROVE  FALSE
             BY Zenon DEF Predecessor
         <3>1. PICK G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G)
             BY Zenon, <2>3
         <3>2. deps' = GraphUnion(deps, G)
             BY Zenon, <3>1 DEF RegisterGraph
-        <3>3. <<u, r>> \in deps'.edge
+        <3>3. <<u, s>> \in deps'.edge
             BY Zenon DEF Predecessor
-        <3>4. <<u, r>> \notin deps.edge
+        <3>4. <<u, s>> \notin deps.edge
             BY Zenon, <1>1 DEF Predecessor, IsDirectedGraph
-        <3>5. <<u, r>> \in G.edge /\ u \in G.node /\ r \in G.node
+        <3>5. <<u, s>> \in G.edge /\ u \in G.node /\ s \in G.node
             <4>1. IsDirectedGraph(G)
                 BY Zenon DEF DirectedGraphOf
             <4>. QED
                 BY Zenon, <3>2, <3>3, <3>4, <4>1 DEF GraphUnion, IsDirectedGraph
-        <3>6. r \notin Task
-            <4>. SUFFICES ASSUME r \in Task PROVE FALSE
+        <3>6. s \notin Task
+            <4>. SUFFICES ASSUME s \in Task PROVE FALSE
                 BY Zenon
-            <4>1. r \in UnknownTask
+            <4>1. s \in UnknownTask
                 BY Zenon, <3>1, <3>5 DEF RegisterGraph
             <4>. QED
                 BY Zenon, <1>5, <4>1 DEF GraphSafetyInv, GraphStateIntegrity
-        <3>7. r \in Object
+        <3>7. s \in Object
             BY Zenon, <3>6
         <3>8. u \in Task
             <4>1. IsBipartiteWithPartitions(deps', Task, Object)
@@ -1703,74 +1686,59 @@ LEMMA LemMRootStable ==
             <4>. QED
                 BY Zenon, <3>8, <4>1, Assumptions
                    DEF OpPrimed, IsOpenNode, FinalizedTask, FinalizedObject, TASK_REGISTERED
-        <3>11. u \in AncestorSubGraph(deps', o, OpPrimed).node
-            <4>1. \A m \in AncestorSubGraph(deps', o, OpPrimed).node :
-                    \A x \in Predecessor(deps', m) \ AncestorSubGraph(deps', o, OpPrimed).node :
-                        ~OpPrimed(x)
-                BY ONLY <1>2, DDG_AncestorSubGraphIsMaximal, Isa
-            <4>2. u \in Predecessor(deps', r) \ AncestorSubGraph(deps', o, OpPrimed).node
-                  => ~OpPrimed(u)
-                BY Zenon, <1>6, <4>1
+        <3>11. u \in S'
+            <4>1. \A m \in S' : \A x \in Predecessor(deps', m) \ S' : ~OpPrimed(x)
+                BY <1>0, <1>2, DDG_AncestorSubGraphIsMaximal
             <4>. QED
-                BY Zenon, <3>10, <4>2
-        <3>12. u \in S
-            <4>1. (AncestorSubGraph(deps, o, IsOpenNode).node)'
-                  = AncestorSubGraph(deps', o, OpPrimed).node
-                BY DEF OpPrimed, AncestorSubGraph
+                BY Zenon, <3>10, <4>1
+        <3>12. u \in deps.node
+            <4>1. S \subseteq deps.node
+                BY Zenon, <1>1, DDG_AncestorSubGraphBasic DEF OA, DirectedSubgraph
             <4>2. S' \subseteq S
                 BY Zenon
             <4>. QED
                 BY Zenon, <3>11, <4>1, <4>2
-        <3>13. u \in deps.node
-            <4>1. S \subseteq deps.node
-                BY Zenon, <1>1, DDG_AncestorSubGraphBasic DEF DirectedSubgraph
-            <4>. QED
-                BY Zenon, <3>12, <4>1
         <3>. QED
-            BY Zenon, <3>9, <3>13
+            BY Zenon, <3>9, <3>12
     <2>. QED
         BY Zenon, <2>1, <2>2, <2>3
-(* Assemble: the open path from r at the next state is maximal there, since
- * all predecessors of r at the next state are closed. *)
-<1>10. q \in MaximalOpenPath(deps', o, OpPrimed)
-    BY Zenon, <1>7, <1>8, <1>9 DEF MaximalOpenPath
-<1>11. q \in MaximalOpenPath(deps, o, IsOpenNode)'
-    BY Zenon, <1>10 DEF OpPrimed, MaximalOpenPath, OpenPath
 <1>. QED
-    BY Zenon, <1>7, <1>11
+    BY Zenon, <1>4, <1>6, <1>7
 
-LEMMA LemRootProgress ==
-    ASSUME NEW o \in Object, NEW r \in Object \union Task, NEW n \in Nat
-    PROVE LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+LEMMA LemOASourceProgress ==
+    ASSUME NEW o \in Object, NEW s \in Object \union Task, NEW n \in Nat
+    PROVE LET S == OA(o).node
               C == Cardinality(S)
-              IsMRoot(o0, r0) == \E p \in MaximalOpenPath(deps, o0, IsOpenNode) : p[1] = r0
           IN /\ []GraphSafetyInv /\ [][Next]_vars /\ []Fairness
              /\ [](o \in objectTargets /\ o \in RegisteredObject)
              /\ [][S' \subseteq S]_S
-             => C = n + 1 /\ IsMRoot(o, r) ~> C < n + 1
+             => C = n + 1 /\ s \in Source(OA(o)) ~> C < n + 1
 <1>. USE DEF T1!TASK_UNKNOWN, T1!TASK_REGISTERED, T1!TASK_STAGED, T1!TASK_ASSIGNED,
      T1!TASK_PROCESSED, T1!TASK_FINALIZED
-<1>. DEFINE S == AncestorSubGraph(deps, o, IsOpenNode).node
+<1>. DEFINE S == OA(o).node
             C == Cardinality(S)
-            IsMRoot(o0, r0) == \E p \in MaximalOpenPath(deps, o0, IsOpenNode) : p[1] = r0
-            J == C <= n + 1 /\ (C = n + 1 => r \in S)
-<1>1. GraphSafetyInv /\ IsMRoot(o, r) => r \in S
-    <2>. SUFFICES ASSUME GraphSafetyInv, IsMRoot(o, r) PROVE r \in S
+            J == C <= n + 1 /\ (C = n + 1 => s \in S)
+(* A source of the open ancestry is an open node of deps whose predecessors
+ * are all closed (DDG_AncestorSubGraphSource). *)
+<1>0. GraphSafetyInv /\ s \in Source(OA(o))
+      => /\ s \in deps.node /\ IsOpenNode(s)
+         /\ \A u \in Predecessor(deps, s) : ~IsOpenNode(u)
+    <2>. SUFFICES ASSUME GraphSafetyInv, s \in Source(OA(o))
+                  PROVE  /\ s \in deps.node /\ IsOpenNode(s)
+                         /\ \A u \in Predecessor(deps, s) : ~IsOpenNode(u)
         OBVIOUS
-    <2>1. PICK p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r
-        OBVIOUS
-    <2>2. IsDirectedGraph(deps)
+    <2>1. IsDirectedGraph(deps)
         BY DEF GraphSafetyInv, DependencyGraphCompliant, IsDDGraph, IsDag
-    <2>3. p \in OpenPath(deps, o, IsOpenNode)
-        BY <2>1 DEF MaximalOpenPath
-    <2>4. p \in OpenPath(AncestorSubGraph(deps, o, IsOpenNode), o, IsOpenNode)
-        BY Zenon, <2>2, <2>3, DDG_OpenPathInAncestorSubGraph
-    <2>5. p \in SimplePath(AncestorSubGraph(deps, o, IsOpenNode))
-        BY <2>4 DEF OpenPath
+    <2>2. s \in S /\ \A u \in Predecessor(deps, s) : ~IsOpenNode(u)
+        BY <2>1, DDG_AncestorSubGraphSource DEF OA
+    <2>3. S \subseteq {m \in deps.node : IsOpenNode(m)}
+        BY <2>1, DDG_AncestorSubGraphBasic DEF OA
     <2>. QED
-        BY <2>1, <2>5, DG_SimplePathIsSeq, ElementOfSeq
-<1>2. GraphSafetyInv /\ o \in objectTargets /\ IsMRoot(o, r)
-      => o \in objectTargets /\ r \in OA(o).node
+        BY <2>2, <2>3
+<1>1. s \in Source(OA(o)) => s \in S
+    BY DEF Source
+<1>2. GraphSafetyInv /\ o \in objectTargets /\ s \in Source(OA(o))
+      => o \in objectTargets /\ s \in OA(o).node
     BY <1>1 DEF OA
 <1>3. GraphSafetyInv => IsFiniteSet(S)
     <2>. SUFFICES ASSUME GraphSafetyInv
@@ -1779,17 +1747,17 @@ LEMMA LemRootProgress ==
     <2>1. IsDirectedGraph(deps)
         BY DEF GraphSafetyInv, DependencyGraphCompliant, IsDDGraph, IsDag
     <2>2. S \subseteq deps.node
-        BY Zenon, <2>1, DDG_AncestorSubGraphBasic DEF DirectedSubgraph
+        BY Zenon, <2>1, DDG_AncestorSubGraphBasic DEF OA, DirectedSubgraph
     <2>3. IsFiniteSet(deps.node)
         BY DEF GraphSafetyInv, DependencyGraphFinite
     <2>. QED
         BY <2>2, <2>3, FS_Subset
-<1>4. GraphSafetyInv /\ C = n + 1 /\ IsMRoot(o, r) => J
+<1>4. GraphSafetyInv /\ C = n + 1 /\ s \in Source(OA(o)) => J
     BY <1>1, <1>3
 <1>5. GraphSafetyInv /\ J /\ [S' \subseteq S]_S => J'
     <2>. SUFFICES ASSUME GraphSafetyInv, J, [S' \subseteq S]_S
                   PROVE  /\ C' <= n + 1
-                         /\ (C' = n + 1 => r \in S')
+                         /\ (C' = n + 1 => s \in S')
         BY Zenon
     <2>0. C \in Nat /\ C' \in Nat
         BY Zenon, <1>3, FS_CardinalityType, FS_Subset
@@ -1799,7 +1767,7 @@ LEMMA LemRootProgress ==
         <3>. HIDE DEF S
         <3>. QED
             BY <2>0, <3>1
-    <2>2. C' = n + 1 => r \in S'
+    <2>2. C' = n + 1 => s \in S'
         <3>. SUFFICES ASSUME C' = n + 1
                       PROVE S' = S
             BY Zenon
@@ -1813,198 +1781,168 @@ LEMMA LemRootProgress ==
             BY Zenon, <1>3, <3>2, FS_Subset
     <2>. QED
         BY Zenon, <2>1, <2>2
-<1>6. GraphSafetyInv /\ J /\ r \notin S => C < n + 1
+<1>6. GraphSafetyInv /\ J /\ s \notin S => C < n + 1
     BY <1>3, FS_CardinalityType
 <1>7. /\ []GraphSafetyInv /\ [][Next]_vars /\ []Fairness
       /\ [](o \in objectTargets /\ o \in RegisteredObject)
       /\ [][S' \subseteq S]_S
-      /\ [](o \in objectTargets /\ r \in OA(o).node)
-      => C = n + 1 /\ IsMRoot(o, r) ~> C < n + 1
+      /\ [](o \in objectTargets /\ s \in OA(o).node)
+      => C = n + 1 /\ s \in Source(OA(o)) ~> C < n + 1
     <2>. TSpec == /\ []GraphSafetyInv /\ [][Next]_vars /\ []Fairness
                   /\ [](o \in objectTargets /\ o \in RegisteredObject)
                   /\ [][S' \subseteq S]_S
-                  /\ [](o \in objectTargets /\ r \in OA(o).node)
-    <2>1. r \in Task \/ r \in Object
+                  /\ [](o \in objectTargets /\ s \in OA(o).node)
+    <2>1. s \in Task \/ s \in Object
         OBVIOUS
-    <2>2. GraphSafetyInv /\ r \in Task /\ IsMRoot(o, r) => \/ r \in RegisteredTask
-                                                           \/ r \in StagedTask
-                                                           \/ r \in AssignedTask
-                                                           \/ r \in ProcessedTask
-        <3>. SUFFICES ASSUME GraphSafetyInv, r \in Task, IsMRoot(o, r)
-                      PROVE  \/ r \in RegisteredTask
-                             \/ r \in StagedTask
-                             \/ r \in AssignedTask
-                             \/ r \in ProcessedTask
+    <2>2. GraphSafetyInv /\ s \in Task /\ s \in Source(OA(o)) => \/ s \in RegisteredTask
+                                                           \/ s \in StagedTask
+                                                           \/ s \in AssignedTask
+                                                           \/ s \in ProcessedTask
+        <3>. SUFFICES ASSUME GraphSafetyInv, s \in Task, s \in Source(OA(o))
+                      PROVE  \/ s \in RegisteredTask
+                             \/ s \in StagedTask
+                             \/ s \in AssignedTask
+                             \/ s \in ProcessedTask
             OBVIOUS
-        <3>1. PICK p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r
-            OBVIOUS
-        <3>2. p \in SimplePath(deps)
-            BY <3>1 DEF MaximalOpenPath, OpenPath
-        <3>3. p \in Seq(deps.node) /\ Len(p) >= 1 /\ Len(p) \in Nat
-            BY <3>2, DG_SimplePathIsSeq
-        <3>4. 1 \in 1..Len(p)
-            BY <3>3
-        <3>5. r \in deps.node
-            BY <3>1, <3>3, <3>4, ElementOfSeq
-        <3>6. IsOpenNode(r)
-            BY <3>1, <3>4 DEF MaximalOpenPath, OpenPath
-        <3>7. r \notin UnknownTask
-            BY <3>5 DEF GraphSafetyInv, GraphStateIntegrity
-        <3>8. r \notin FinalizedTask
-            BY <3>6 DEF IsOpenNode
-        <3>9. taskState[r] \in T1State
+        <3>1. s \in deps.node /\ IsOpenNode(s)
+            BY <1>0
+        <3>7. s \notin UnknownTask
+            BY <3>1 DEF GraphSafetyInv, GraphStateIntegrity
+        <3>8. s \notin FinalizedTask
+            BY <3>1 DEF IsOpenNode
+        <3>9. taskState[s] \in T1State
             BY DEF GraphSafetyInv, TypeOk
         <3>. QED
             BY <3>7, <3>8, <3>9 DEF T1State, UnknownTask, FinalizedTask,
                RegisteredTask, StagedTask, AssignedTask, ProcessedTask,
                TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED
-    <2>3. TSpec => (r \in Object /\ IsMRoot(o, r) ~> r \in FinalizedObject)
+    <2>3. TSpec => (s \in Object /\ s \in Source(OA(o)) ~> s \in FinalizedObject)
         <3>1. /\ GraphSafetyInv /\ GraphSafetyInv'
-              /\ r \in Object /\ IsMRoot(o, r)
-              /\ (o \in objectTargets /\ r \in OA(o).node)'
+              /\ s \in Object /\ s \in Source(OA(o))
+              /\ (o \in objectTargets /\ s \in OA(o).node)'
               /\ [Next]_vars /\ [S' \subseteq S]_S
-              => (r \in Object /\ IsMRoot(o, r))'
-            BY Zenon, LemMRootStable DEF OA
-        <3>2. GraphSafetyInv /\ r \in Object /\ IsMRoot(o, r) => ENABLED <<FinalizeObjects({r})>>_vars
-            <4>. SUFFICES ASSUME GraphSafetyInv, r \in Object, IsMRoot(o, r)
-                          PROVE  ENABLED <<FinalizeObjects({r})>>_vars
+              => (s \in Object /\ s \in Source(OA(o)))'
+            BY Zenon, LemOASourceStable
+        <3>2. GraphSafetyInv /\ s \in Object /\ s \in Source(OA(o)) => ENABLED <<FinalizeObjects({s})>>_vars
+            <4>. SUFFICES ASSUME GraphSafetyInv, s \in Object, s \in Source(OA(o))
+                          PROVE  ENABLED <<FinalizeObjects({s})>>_vars
                 OBVIOUS
-            <4>1. PICK p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r
-                OBVIOUS
-            <4>2. p \in SimplePath(deps)
-                BY <4>1 DEF MaximalOpenPath, OpenPath
-            <4>3. p \in Seq(deps.node) /\ Len(p) >= 1 /\ Len(p) \in Nat
-                BY <4>2, DG_SimplePathIsSeq
-            <4>4. 1 \in 1..Len(p)
-                BY <4>3
-            <4>5. r \in deps.node
-                BY <4>1, <4>3, <4>4, ElementOfSeq
-            <4>6. IsOpenNode(r)
-                BY <4>1, <4>4 DEF MaximalOpenPath, OpenPath
-            <4>7. \A u \in Predecessor(deps, r) : ~IsOpenNode(u)
-                BY <4>1 DEF MaximalOpenPath
-            <4>8. Predecessor(deps, r) \subseteq Task
-                BY <4>5, Assumptions
+            <4>1. /\ s \in deps.node /\ IsOpenNode(s)
+                  /\ \A u \in Predecessor(deps, s) : ~IsOpenNode(u)
+                BY <1>0
+            <4>8. Predecessor(deps, s) \subseteq Task
+                BY <4>1, Assumptions
                    DEF GraphSafetyInv, DependencyGraphCompliant, IsDDGraph,
                        IsBipartiteWithPartitions, Predecessor
-            <4>9. Predecessor(deps, r) \subseteq FinalizedTask
-                BY <4>7, <4>8, Assumptions DEF IsOpenNode, FinalizedObject
-            <4>10. r \in RegisteredObject
-                BY <4>5, <4>6
+            <4>9. Predecessor(deps, s) \subseteq FinalizedTask
+                BY <4>1, <4>8, Assumptions DEF IsOpenNode, FinalizedObject
+            <4>10. s \in RegisteredObject
+                BY <4>1
                    DEF GraphSafetyInv, GraphStateIntegrity, TypeOk, O1State,
                        IsOpenNode, UnknownObject, FinalizedObject, RegisteredObject
-            <4>11. r \in Source(deps)
+            <4>11. s \in Source(deps)
                 BY <4>9, <4>10 DEF GraphSafetyInv, GraphStateIntegrity
             <4>. QED
                 BY <4>10, <4>11, ExpandENABLED
                    DEF FinalizeObjects, vars, RegisteredObject, Source
-        <3>3. <<FinalizeObjects({r})>>_vars => (r \in FinalizedObject)'
+        <3>3. <<FinalizeObjects({s})>>_vars => (s \in FinalizedObject)'
             BY DEF FinalizeObjects, vars, FinalizedObject, RegisteredObject
-        <3>4. r \in Object /\ Fairness => WF_vars(FinalizeObjects({r}))
+        <3>4. s \in Object /\ Fairness => WF_vars(FinalizeObjects({s}))
             BY Isa DEF Fairness
         <3>. QED
             BY <3>1, <3>2, <3>3, <3>4, PTL
-    <2>4. TSpec => (r \in RegisteredTask /\ IsMRoot(o, r) ~> r \in StagedTask \/ r \in ProcessedTask)
+    <2>4. TSpec => (s \in RegisteredTask /\ s \in Source(OA(o)) ~> s \in StagedTask \/ s \in ProcessedTask)
         <3>1. /\ GraphSafetyInv /\ GraphSafetyInv'
-              /\ r \in RegisteredTask /\ IsMRoot(o, r)
-              /\ (o \in objectTargets /\ r \in OA(o).node)'
+              /\ s \in RegisteredTask /\ s \in Source(OA(o))
+              /\ (o \in objectTargets /\ s \in OA(o).node)'
               /\ [Next]_vars /\ [S' \subseteq S]_S
-              => \/ (r \in RegisteredTask /\ IsMRoot(o, r))'
-                 \/ (r \in StagedTask)'
-                 \/ (r \in ProcessedTask)'
+              => \/ (s \in RegisteredTask /\ s \in Source(OA(o)))'
+                 \/ (s \in StagedTask)'
+                 \/ (s \in ProcessedTask)'
             <4>. SUFFICES ASSUME GraphSafetyInv, GraphSafetyInv',
-                                 r \in RegisteredTask, IsMRoot(o, r),
-                                 (o \in objectTargets /\ r \in OA(o).node)',
+                                 s \in RegisteredTask, s \in Source(OA(o)),
+                                 (o \in objectTargets /\ s \in OA(o).node)',
                                  [Next]_vars, [S' \subseteq S]_S
-                          PROVE  \/ (r \in RegisteredTask /\ IsMRoot(o, r))'
-                                 \/ (r \in StagedTask)'
-                                 \/ (r \in ProcessedTask)'
+                          PROVE  \/ (s \in RegisteredTask /\ s \in Source(OA(o)))'
+                                 \/ (s \in StagedTask)'
+                                 \/ (s \in ProcessedTask)'
                 BY Zenon
-            <4>1. IsMRoot(o, r)'
-                BY Zenon, LemMRootStable DEF OA
-            <4>2. \/ (r \in RegisteredTask)'
-                  \/ (r \in StagedTask)'
-                  \/ (r \in ProcessedTask)'
-                <5>1. r \in Task /\ taskState[r] = TASK_REGISTERED
+            <4>1. s \in Source(OA(o))'
+                BY Zenon, LemOASourceStable
+            <4>2. \/ (s \in RegisteredTask)'
+                  \/ (s \in StagedTask)'
+                  \/ (s \in ProcessedTask)'
+                <5>1. s \in Task /\ taskState[s] = TASK_REGISTERED
                     BY Zenon DEF RegisteredTask
-                <5>2. \/ taskState'[r] = TASK_REGISTERED
-                      \/ taskState'[r] = TASK_STAGED
-                      \/ taskState'[r] = TASK_PROCESSED
+                <5>2. \/ taskState'[s] = TASK_REGISTERED
+                      \/ taskState'[s] = TASK_STAGED
+                      \/ taskState'[s] = TASK_PROCESSED
                     BY Zenon, <5>1, LemTaskTransitions
                        DEF TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED
                 <5>. QED
                     BY Zenon, <5>1, <5>2 DEF RegisteredTask, StagedTask, ProcessedTask
             <4>. QED
                 BY Zenon, <4>1, <4>2
-        <3>2. GraphSafetyInv /\ r \in RegisteredTask /\ IsMRoot(o, r) => ENABLED <<StageTasks({r})>>_vars
-            <4>. SUFFICES ASSUME GraphSafetyInv, r \in RegisteredTask, IsMRoot(o, r)
-                          PROVE  ENABLED <<StageTasks({r})>>_vars
+        <3>2. GraphSafetyInv /\ s \in RegisteredTask /\ s \in Source(OA(o)) => ENABLED <<StageTasks({s})>>_vars
+            <4>. SUFFICES ASSUME GraphSafetyInv, s \in RegisteredTask, s \in Source(OA(o))
+                          PROVE  ENABLED <<StageTasks({s})>>_vars
                 OBVIOUS
-            <4>1. PICK p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r
-                OBVIOUS
-            <4>2. \A u \in Predecessor(deps, r) : ~IsOpenNode(u)
-                BY <4>1 DEF MaximalOpenPath
-            <4>3. p \in SimplePath(deps)
-                BY <4>1 DEF MaximalOpenPath, OpenPath
-            <4>4. p \in Seq(deps.node) /\ Len(p) >= 1 /\ Len(p) \in Nat
-                BY <4>3, DG_SimplePathIsSeq
-            <4>5. 1 \in 1..Len(p)
-                BY <4>4
-            <4>6. r \in deps.node
-                BY <4>1, <4>4, <4>5, ElementOfSeq
-            <4>7. Predecessor(deps, r) \subseteq Object
-                BY <4>6, Assumptions
+            <4>1. /\ s \in deps.node
+                  /\ \A u \in Predecessor(deps, s) : ~IsOpenNode(u)
+                BY <1>0
+            <4>7. Predecessor(deps, s) \subseteq Object
+                BY <4>1, Assumptions
                    DEF GraphSafetyInv, DependencyGraphCompliant, IsDDGraph,
                        IsBipartiteWithPartitions, Predecessor, RegisteredTask
-            <4>8. Predecessor(deps, r) \subseteq FinalizedObject
-                BY <4>2, <4>7, Assumptions DEF IsOpenNode, FinalizedTask
+            <4>8. Predecessor(deps, s) \subseteq FinalizedObject
+                BY <4>1, <4>7, Assumptions DEF IsOpenNode, FinalizedTask
             <4>. QED
                 BY <4>8, ExpandENABLED
                    DEF StageTasks, vars, RegisteredTask, TASK_REGISTERED, TASK_STAGED
-        <3>3. <<StageTasks({r})>>_vars => (r \in StagedTask)'
+        <3>3. <<StageTasks({s})>>_vars => (s \in StagedTask)'
             BY DEF StageTasks, vars, StagedTask, RegisteredTask
-        <3>4. r \in RegisteredTask /\ Fairness => WF_vars(StageTasks({r}))
+        <3>4. s \in RegisteredTask /\ Fairness => WF_vars(StageTasks({s}))
             BY Isa DEF Fairness, RegisteredTask
         <3>. QED
             BY <3>1, <3>2, <3>3, <3>4, PTL
-    <2>5. TSpec => (r \in StagedTask ~> r \in AssignedTask \/ r \in ProcessedTask)
-        <3>1. GraphSafetyInv /\ r \in StagedTask /\ [Next]_vars
-              => (r \in StagedTask)' \/ (r \in AssignedTask)' \/ (r \in ProcessedTask)'
-            <4>. SUFFICES ASSUME r \in StagedTask, [Next]_vars
-                          PROVE  \/ (r \in StagedTask)'
-                                 \/ (r \in AssignedTask)'
-                                 \/ (r \in ProcessedTask)'
+    <2>5. TSpec => (s \in StagedTask ~> s \in AssignedTask \/ s \in ProcessedTask)
+        <3>1. GraphSafetyInv /\ s \in StagedTask /\ [Next]_vars
+              => (s \in StagedTask)' \/ (s \in AssignedTask)' \/ (s \in ProcessedTask)'
+            <4>. SUFFICES ASSUME s \in StagedTask, [Next]_vars
+                          PROVE  \/ (s \in StagedTask)'
+                                 \/ (s \in AssignedTask)'
+                                 \/ (s \in ProcessedTask)'
                 OBVIOUS
-            <4>1. r \in Task /\ taskState[r] = TASK_STAGED
+            <4>1. s \in Task /\ taskState[s] = TASK_STAGED
                 BY DEF StagedTask
-            <4>2. \/ taskState'[r] = TASK_STAGED
-                  \/ taskState'[r] = TASK_ASSIGNED
-                  \/ taskState'[r] = TASK_PROCESSED
+            <4>2. \/ taskState'[s] = TASK_STAGED
+                  \/ taskState'[s] = TASK_ASSIGNED
+                  \/ taskState'[s] = TASK_PROCESSED
                 BY <4>1, LemTaskTransitions
                    DEF TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED
             <4>. QED
                 BY <4>1, <4>2 DEF StagedTask, AssignedTask, ProcessedTask
-        <3>2. r \in StagedTask /\ o \in objectTargets /\ r \in OA(o).node
+        <3>2. s \in StagedTask /\ o \in objectTargets /\ s \in OA(o).node
               => ENABLED <</\ o \in objectTargets
-                           /\ r \in OA(o).node
-                           /\ AssignTasks({r})>>_vars
-            <4>. SUFFICES ASSUME r \in StagedTask, o \in objectTargets, r \in OA(o).node
+                           /\ s \in OA(o).node
+                           /\ AssignTasks({s})>>_vars
+            <4>. SUFFICES ASSUME s \in StagedTask, o \in objectTargets, s \in OA(o).node
                           PROVE  ENABLED <</\ o \in objectTargets
-                                           /\ r \in OA(o).node
-                                           /\ AssignTasks({r})>>_vars
+                                           /\ s \in OA(o).node
+                                           /\ AssignTasks({s})>>_vars
                 OBVIOUS
             <4>. QED
                 BY ExpandENABLED
                    DEF AssignTasks, vars, StagedTask, TASK_STAGED, TASK_ASSIGNED
         <3>3. <</\ o \in objectTargets
-                /\ r \in OA(o).node
-                /\ AssignTasks({r})>>_vars
-              => (r \in AssignedTask)'
+                /\ s \in OA(o).node
+                /\ AssignTasks({s})>>_vars
+              => (s \in AssignedTask)'
             BY DEF AssignTasks, vars, AssignedTask, StagedTask
-        <3>4. r \in StagedTask /\ Fairness
+        <3>4. s \in StagedTask /\ Fairness
               => WF_vars(/\ o \in objectTargets
-                         /\ r \in OA(o).node
-                         /\ AssignTasks({r}))
+                         /\ s \in OA(o).node
+                         /\ AssignTasks({s}))
             BY Isa DEF Fairness, StagedTask
         <3>. QED
             BY <3>1, <3>2, <3>3, <3>4, PTL
@@ -2013,15 +1951,15 @@ LEMMA LemRootProgress ==
             BY DEF GraphSafetyInv, TypeOk, T1State, T1!TypeOk, T1!T1State
         <3>. QED
             BY <3>1, LemRefineTask1Next, LemRefineTask1Fairness, PTL
-    <2>7. TSpec => (r \in AssignedTask ~> r \in StagedTask \/ r \in ProcessedTask)
-        <3>0. /\ r \in AssignedTask <=> r \in T1!AssignedTask
-              /\ r \in StagedTask <=> r \in T1!StagedTask
-              /\ r \in ProcessedTask <=> r \in T1!ProcessedTask
+    <2>7. TSpec => (s \in AssignedTask ~> s \in StagedTask \/ s \in ProcessedTask)
+        <3>0. /\ s \in AssignedTask <=> s \in T1!AssignedTask
+              /\ s \in StagedTask <=> s \in T1!StagedTask
+              /\ s \in ProcessedTask <=> s \in T1!ProcessedTask
             BY DEF AssignedTask, StagedTask, ProcessedTask, T1!AssignedTask,
             T1!StagedTask, T1!ProcessedTask
-        <3>1. r \in Task => (TSpec => (r \in AssignedTask ~> r \in StagedTask \/ r \in ProcessedTask))
-            <4>. SUFFICES ASSUME r \in Task
-                          PROVE TSpec => (r \in AssignedTask ~> r \in StagedTask \/ r \in ProcessedTask)
+        <3>1. s \in Task => (TSpec => (s \in AssignedTask ~> s \in StagedTask \/ s \in ProcessedTask))
+            <4>. SUFFICES ASSUME s \in Task
+                          PROVE TSpec => (s \in AssignedTask ~> s \in StagedTask \/ s \in ProcessedTask)
                 OBVIOUS
             <4>1. []T1!TypeOk /\ [][T1!Next]_T1!vars /\ T1!Fairness => T1!EventualDeallocation
                 BY SameAssumptions, T1!LemEventualDeallocation, Isa DEF T1!EventualDeallocation
@@ -2029,29 +1967,29 @@ LEMMA LemRootProgress ==
             <4>2. T1!EventualDeallocation => \A t \in Task : P(t)
                 BY Isa DEF T1!EventualDeallocation
             <4>. HIDE DEF P
-            <4>3. (\A t \in Task : P(t)) => P(r)
+            <4>3. (\A t \in Task : P(t)) => P(s)
                 OBVIOUS
-            <4>4. T1!EventualDeallocation => P(r)
+            <4>4. T1!EventualDeallocation => P(s)
                 BY <4>2, <4>3, PTL
             <4>. QED
                 BY <2>6, <3>0, <4>1, <4>4, PTL DEF P
-        <3>2. r \in Object => (TSpec => (r \in AssignedTask ~> r \in StagedTask \/ r \in ProcessedTask))
-            <4>. SUFFICES ASSUME r \in Object
-                          PROVE TSpec => (r \in AssignedTask ~> r \in StagedTask \/ r \in ProcessedTask)
+        <3>2. s \in Object => (TSpec => (s \in AssignedTask ~> s \in StagedTask \/ s \in ProcessedTask))
+            <4>. SUFFICES ASSUME s \in Object
+                          PROVE TSpec => (s \in AssignedTask ~> s \in StagedTask \/ s \in ProcessedTask)
                 OBVIOUS
-            <4>1. ~(r \in AssignedTask)
+            <4>1. ~(s \in AssignedTask)
                 BY DEF AssignedTask
             <4>. QED
                 BY <4>1, PTL
         <3>. QED
             BY <2>1, <3>1, <3>2, PTL
-    <2>8. TSpec => ([]<>(r \in AssignedTask) => <>(r \in ProcessedTask))
-        <3>0. /\ r \in AssignedTask <=> r \in T1!AssignedTask
-              /\ r \in ProcessedTask <=> r \in T1!ProcessedTask
+    <2>8. TSpec => ([]<>(s \in AssignedTask) => <>(s \in ProcessedTask))
+        <3>0. /\ s \in AssignedTask <=> s \in T1!AssignedTask
+              /\ s \in ProcessedTask <=> s \in T1!ProcessedTask
             BY DEF AssignedTask, ProcessedTask, T1!AssignedTask, T1!ProcessedTask
-        <3>1. r \in Task => (TSpec => ([]<>(r \in AssignedTask) => <>(r \in ProcessedTask)))
-            <4>. SUFFICES ASSUME r \in Task
-                          PROVE TSpec => ([]<>(r \in AssignedTask) => <>(r \in ProcessedTask))
+        <3>1. s \in Task => (TSpec => ([]<>(s \in AssignedTask) => <>(s \in ProcessedTask)))
+            <4>. SUFFICES ASSUME s \in Task
+                          PROVE TSpec => ([]<>(s \in AssignedTask) => <>(s \in ProcessedTask))
                 OBVIOUS
             <4>1. []T1!TypeOk /\ [][T1!Next]_T1!vars /\ T1!Fairness => T1!EventualProcessing
                 BY SameAssumptions, T1!LemEventualProcessing, Isa DEF T1!EventualProcessing
@@ -2059,29 +1997,29 @@ LEMMA LemRootProgress ==
             <4>2. T1!EventualProcessing => \A t \in Task : P(t)
                 BY Isa DEF T1!EventualProcessing
             <4>. HIDE DEF P
-            <4>3. (\A t \in Task : P(t)) => P(r)
+            <4>3. (\A t \in Task : P(t)) => P(s)
                 OBVIOUS
-            <4>4. T1!EventualProcessing => P(r)
+            <4>4. T1!EventualProcessing => P(s)
                 BY <4>2, <4>3, PTL
             <4>. QED
                 BY <2>6, <3>0, <4>1, <4>4, PTL DEF P
-        <3>2. r \in Object => (TSpec => ([]<>(r \in AssignedTask) => <>(r \in ProcessedTask)))
-            <4>. SUFFICES ASSUME r \in Object
-                          PROVE TSpec => ([]<>(r \in AssignedTask) => <>(r \in ProcessedTask))
+        <3>2. s \in Object => (TSpec => ([]<>(s \in AssignedTask) => <>(s \in ProcessedTask)))
+            <4>. SUFFICES ASSUME s \in Object
+                          PROVE TSpec => ([]<>(s \in AssignedTask) => <>(s \in ProcessedTask))
                 OBVIOUS
-            <4>1. ~(r \in AssignedTask)
+            <4>1. ~(s \in AssignedTask)
                 BY DEF AssignedTask
             <4>. QED
                 BY <4>1, PTL
         <3>. QED
             BY <2>1, <3>1, <3>2, PTL
-    <2>9. TSpec => (r \in ProcessedTask ~> r \in FinalizedTask)
-        <3>0. /\ r \in ProcessedTask <=> r \in T1!ProcessedTask
-              /\ r \in FinalizedTask <=> r \in T1!FinalizedTask
+    <2>9. TSpec => (s \in ProcessedTask ~> s \in FinalizedTask)
+        <3>0. /\ s \in ProcessedTask <=> s \in T1!ProcessedTask
+              /\ s \in FinalizedTask <=> s \in T1!FinalizedTask
             BY DEF ProcessedTask, FinalizedTask, T1!ProcessedTask, T1!FinalizedTask
-        <3>1. r \in Task => (TSpec => (r \in ProcessedTask ~> r \in FinalizedTask))
-            <4>. SUFFICES ASSUME r \in Task
-                          PROVE TSpec => (r \in ProcessedTask ~> r \in FinalizedTask)
+        <3>1. s \in Task => (TSpec => (s \in ProcessedTask ~> s \in FinalizedTask))
+            <4>. SUFFICES ASSUME s \in Task
+                          PROVE TSpec => (s \in ProcessedTask ~> s \in FinalizedTask)
                 OBVIOUS
             <4>1. []T1!TypeOk /\ [][T1!Next]_T1!vars /\ T1!Fairness => T1!EventualFinalization
                 BY SameAssumptions, T1!LemEventualFinalization, Isa DEF T1!EventualFinalization
@@ -2089,29 +2027,36 @@ LEMMA LemRootProgress ==
             <4>2. T1!EventualFinalization => \A t \in Task : P(t)
                 BY Isa DEF T1!EventualFinalization
             <4>. HIDE DEF P
-            <4>3. (\A t \in Task : P(t)) => P(r)
+            <4>3. (\A t \in Task : P(t)) => P(s)
                 OBVIOUS
-            <4>4. T1!EventualFinalization => P(r)
+            <4>4. T1!EventualFinalization => P(s)
                 BY <4>2, <4>3, PTL
             <4>. QED
                 BY <2>6, <3>0, <4>1, <4>4, PTL DEF P
-        <3>2. r \in Object => (TSpec => (r \in ProcessedTask ~> r \in FinalizedTask))
-            <4>. SUFFICES ASSUME r \in Object
-                          PROVE TSpec => (r \in ProcessedTask ~> r \in FinalizedTask)
+        <3>2. s \in Object => (TSpec => (s \in ProcessedTask ~> s \in FinalizedTask))
+            <4>. SUFFICES ASSUME s \in Object
+                          PROVE TSpec => (s \in ProcessedTask ~> s \in FinalizedTask)
                 OBVIOUS
-            <4>1. ~(r \in ProcessedTask)
+            <4>1. ~(s \in ProcessedTask)
                 BY DEF ProcessedTask
             <4>. QED
                 BY <4>1, PTL
         <3>. QED
             BY <2>1, <3>1, <3>2, PTL
-    <2>10. /\ r \in FinalizedObject => r \notin S
-           /\ r \in FinalizedTask => r \notin S
-        <3>1. S \subseteq {m \in deps.node : IsOpenNode(m)}
-            BY DEF AncestorSubGraph, Ancestor
+    <2>10. GraphSafetyInv
+           => /\ s \in FinalizedObject => s \notin S
+              /\ s \in FinalizedTask => s \notin S
+        <3>. SUFFICES ASSUME GraphSafetyInv
+                      PROVE  /\ s \in FinalizedObject => s \notin S
+                             /\ s \in FinalizedTask => s \notin S
+            OBVIOUS
+        <3>1. IsDirectedGraph(deps)
+            BY DEF GraphSafetyInv, DependencyGraphCompliant, IsDDGraph, IsDag
+        <3>2. S \subseteq {m \in deps.node : IsOpenNode(m)}
+            BY <3>1, DDG_AncestorSubGraphBasic DEF OA
         <3>. QED
-            BY <3>1 DEF IsOpenNode
-    <2>11. ~(r \in StagedTask /\ r \in AssignedTask)
+            BY <3>2 DEF IsOpenNode
+    <2>11. ~(s \in StagedTask /\ s \in AssignedTask)
         BY DEF StagedTask, AssignedTask, TASK_STAGED, TASK_ASSIGNED
     <2>. QED
         BY <1>1, <1>4, <1>5, <1>6, <2>1, <2>2, <2>3, <2>4, <2>5, <2>7, <2>8, <2>9,
@@ -2119,8 +2064,8 @@ LEMMA LemRootProgress ==
 <1>8. /\ []GraphSafetyInv /\ [][Next]_vars /\ []Fairness
       /\ [](o \in objectTargets /\ o \in RegisteredObject)
       /\ [][S' \subseteq S]_S
-      => C = n + 1 /\ IsMRoot(o, r) /\ <>~(o \in objectTargets /\ r \in OA(o).node) ~> C < n + 1
-    <2>1. o \in objectTargets /\ ~(o \in objectTargets /\ r \in OA(o).node) => r \notin S
+      => C = n + 1 /\ s \in Source(OA(o)) /\ <>~(o \in objectTargets /\ s \in OA(o).node) ~> C < n + 1
+    <2>1. o \in objectTargets /\ ~(o \in objectTargets /\ s \in OA(o).node) => s \notin S
         BY DEF OA
     <2>. QED
         BY <1>1, <1>4, <1>5, <1>6, <2>1, PTL
@@ -2129,67 +2074,58 @@ LEMMA LemRootProgress ==
 
 LEMMA LemCardinalityDescent ==
     ASSUME NEW o \in Object, NEW n \in Nat
-    PROVE LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+    PROVE LET S == OA(o).node
               C == Cardinality(S)
           IN /\ []GraphSafetyInv /\ [][Next]_vars /\ []Fairness
              /\ [](o \in objectTargets /\ o \in RegisteredObject)
              /\ [][S' \subseteq S]_S
              => C = n + 1 ~> C < n + 1
-<1>. DEFINE S == AncestorSubGraph(deps, o, IsOpenNode).node
+<1>. DEFINE S == OA(o).node
             C == Cardinality(S)
-            IsMRoot(o0, r0) == \E p \in MaximalOpenPath(deps, o0, IsOpenNode) : p[1] = r0
             F == /\ []GraphSafetyInv
                  /\ [][Next]_vars 
                  /\ []Fairness
                  /\ [](o \in objectTargets /\ o \in RegisteredObject)
                  /\ [][S' \subseteq S]_S
 <1>1. GraphSafetyInv /\ o \in RegisteredObject
-      => \E r \in Task \union Object : IsMRoot(o, r)
+      => \E s \in Task \union Object : s \in Source(OA(o))
     <2>. SUFFICES ASSUME GraphSafetyInv, o \in RegisteredObject
-                  PROVE  \E r \in Task \union Object : IsMRoot(o, r)
+                  PROVE  \E s \in Task \union Object : s \in Source(OA(o))
         OBVIOUS
     <2>1. o \in deps.node
         BY DEF GraphSafetyInv, GraphStateIntegrity, RegisteredObject, UnknownObject
     <2>2. IsOpenNode(o)
         BY Assumptions DEF IsOpenNode, RegisteredObject, FinalizedObject,
         FinalizedTask
-    <2>3. OpenPath(deps, o, IsOpenNode) # {}
-        BY Isa, <2>1, <2>2, DDG_OpenPathEmpty
-    <2>4. IsDag(deps) /\ IsFiniteSet(deps.node)
+    <2>3. IsDag(deps) /\ IsFiniteSet(deps.node)
         BY DEF GraphSafetyInv, DependencyGraphCompliant, DependencyGraphFinite, IsDDGraph
-    <2>5. PICK p \in MaximalOpenPath(deps, o, IsOpenNode) : TRUE
-        BY Zenon, <2>3, <2>4, DDG_MaximalOpenPathExists
-    <2>6. p \in SimplePath(deps)
-        BY <2>5 DEF MaximalOpenPath, OpenPath
-    <2>7. p[1] \in deps.node
-        BY <2>6, DG_SimplePathIsSeq, ElementOfSeq
-    <2>8. p[1] \in Task \union Object
-        BY <2>7 DEF GraphSafetyInv, TypeOk, DirectedGraphOf
-    <2>9. IsMRoot(o, p[1])
-        BY <2>5 DEF IsMRoot
+    <2>4. PICK s \in Source(OA(o)) : TRUE
+        BY <2>1, <2>2, <2>3, DDG_AncestorSubGraphHasSource DEF OA
+    <2>5. s \in deps.node
+        BY <2>3, <2>4, DDG_AncestorSubGraphBasic DEF OA, Source, DirectedSubgraph, IsDag
     <2>. QED
-        BY <2>8, <2>9
-<1>2. \A r \in Task \union Object : F => C = n + 1 /\ IsMRoot(o, r) ~> C < n + 1
-    BY LemRootProgress
-<1>3. (\A r \in Task \union Object :  (F => C = n + 1 /\ IsMRoot(o, r) ~> C < n + 1))
-      => (F => C = n + 1 /\ (\E r \in Task \union Object : IsMRoot(o, r)) ~> C < n + 1)
-    <2>1. (\A r \in Task \union Object : (F => C = n + 1 /\ IsMRoot(o, r) ~> C < n + 1))
-          => (F => \A r \in Task \union Object : (C = n + 1 /\ IsMRoot(o, r) ~> C < n + 1))
+        BY <2>4, <2>5 DEF GraphSafetyInv, TypeOk, DirectedGraphOf
+<1>2. \A s \in Task \union Object : F => C = n + 1 /\ s \in Source(OA(o)) ~> C < n + 1
+    BY LemOASourceProgress
+<1>3. (\A s \in Task \union Object :  (F => C = n + 1 /\ s \in Source(OA(o)) ~> C < n + 1))
+      => (F => C = n + 1 /\ (\E s \in Task \union Object : s \in Source(OA(o))) ~> C < n + 1)
+    <2>1. (\A s \in Task \union Object : (F => C = n + 1 /\ s \in Source(OA(o)) ~> C < n + 1))
+          => (F => \A s \in Task \union Object : (C = n + 1 /\ s \in Source(OA(o)) ~> C < n + 1))
         OBVIOUS
-    <2>2. (\A r \in Task \union Object : (C = n + 1 /\ IsMRoot(o, r) ~> C < n + 1))
-          => (C = n + 1 /\ (\E r \in Task \union Object : IsMRoot(o, r)) ~> C < n + 1)
-        <3>1. (\A r \in Task \union Object : (C = n + 1 /\ IsMRoot(o, r) ~> C < n + 1))
-              => \A r \in Task \union Object : [](C = n + 1 /\ IsMRoot(o, r) => <>(C < n + 1))
-            <5>. SUFFICES ASSUME NEW r \in Task \union Object, C = n + 1 /\ IsMRoot(o, r) ~> C < n + 1
-                            PROVE [](C = n + 1 /\ IsMRoot(o, r) => <>(C < n + 1))
+    <2>2. (\A s \in Task \union Object : (C = n + 1 /\ s \in Source(OA(o)) ~> C < n + 1))
+          => (C = n + 1 /\ (\E s \in Task \union Object : s \in Source(OA(o))) ~> C < n + 1)
+        <3>1. (\A s \in Task \union Object : (C = n + 1 /\ s \in Source(OA(o)) ~> C < n + 1))
+              => \A s \in Task \union Object : [](C = n + 1 /\ s \in Source(OA(o)) => <>(C < n + 1))
+            <5>. SUFFICES ASSUME NEW s \in Task \union Object, C = n + 1 /\ s \in Source(OA(o)) ~> C < n + 1
+                            PROVE [](C = n + 1 /\ s \in Source(OA(o)) => <>(C < n + 1))
                 OBVIOUS
             <5>. QED
                 BY PTL
-        <3>2. (\A r \in Task \union Object : [](C = n + 1 /\ IsMRoot(o, r) => <>(C < n + 1)))
-                => [](\A r \in Task \union Object : C = n + 1 /\ IsMRoot(o, r) => <>(C < n + 1))
+        <3>2. (\A s \in Task \union Object : [](C = n + 1 /\ s \in Source(OA(o)) => <>(C < n + 1)))
+                => [](\A s \in Task \union Object : C = n + 1 /\ s \in Source(OA(o)) => <>(C < n + 1))
             OBVIOUS
-        <3>3. (\A r \in Task \union Object : C = n + 1 /\ IsMRoot(o, r) => <>(C < n + 1))
-                => (C = n + 1 /\ (\E r \in Task \union Object : IsMRoot(o, r)) => <>(C < n + 1))
+        <3>3. (\A s \in Task \union Object : C = n + 1 /\ s \in Source(OA(o)) => <>(C < n + 1))
+                => (C = n + 1 /\ (\E s \in Task \union Object : s \in Source(OA(o))) => <>(C < n + 1))
             OBVIOUS
         <3>. QED
             BY <3>1, <3>2, <3>3, PTL
@@ -2246,20 +2182,20 @@ LEMMA LemFairnessStable == Fairness <=> []Fairness
 <1>. QED
     BY <1>1, <1>2, <1>3, PTL DEF Fairness
 
-(* A target cannot stay registered forever while its open-ancestor subgraph     *)
-(* never grows: the finite cardinality C = Cardinality(S) would have to descend  *)
-(* below every bound (LemCardinalityDescent), which is impossible. This is the   *)
-(* engine of the object-finalization fairness refinement; it is reused verbatim  *)
-(* (under the Bar) by Graph2 to discharge WF(O2!CompleteObjects),                *)
-(* whose enabled-forever negation reduces to exactly this.                       *)
+(* A target cannot stay registered forever while its open ancestry OA(o) never   *)
+(* grows: the finite cardinality C = Cardinality(S) would have to descend below  *)
+(* every bound (LemCardinalityDescent), which is impossible. This is the engine  *)
+(* of the object-finalization fairness refinement; it is reused verbatim (under  *)
+(* the Bar) by Graph2 to discharge WF(O2!CompleteObjects), whose enabled-forever *)
+(* negation reduces to exactly this.                                             *)
 LEMMA LemTargetedRegisteredImpossible ==
     ASSUME NEW o \in Object
-    PROVE LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+    PROVE LET S == OA(o).node
           IN /\ []GraphSafetyInv /\ [][Next]_vars /\ []Fairness
              /\ [](o \in objectTargets /\ o \in RegisteredObject)
              /\ [][S' \subseteq S]_S
              => FALSE
-<1>. DEFINE S == AncestorSubGraph(deps, o, IsOpenNode).node
+<1>. DEFINE S == OA(o).node
             C == Cardinality(S)
             F == /\ []GraphSafetyInv
                  /\ [][Next]_vars
@@ -2276,7 +2212,7 @@ LEMMA LemTargetedRegisteredImpossible ==
     <2>1. IsDirectedGraph(deps)
         BY DEF GraphSafetyInv, DependencyGraphCompliant, IsDDGraph, IsDag
     <2>2. S \subseteq deps.node
-        BY Zenon, <2>1, DDG_AncestorSubGraphBasic DEF DirectedSubgraph
+        BY Zenon, <2>1, DDG_AncestorSubGraphBasic DEF OA, DirectedSubgraph
     <2>3. IsFiniteSet(S)
         BY <2>2, FS_Subset DEF GraphSafetyInv, DependencyGraphFinite
     <2>4. o \in deps.node
@@ -2284,7 +2220,7 @@ LEMMA LemTargetedRegisteredImpossible ==
     <2>5. IsOpenNode(o)
         BY DEF IsOpenNode, RegisteredObject, FinalizedObject, FinalizedTask
     <2>6. o \in S
-        BY Isa, <2>4, <2>5, DDG_AncestorSubGraphEmpty
+        BY Isa, <2>4, <2>5, DDG_AncestorSubGraphEmpty DEF OA
     <2>. QED
         BY <2>3, <2>6, FS_EmptySet, FS_CardinalityType
 <1>1. GraphSafetyInv /\ o \in RegisteredObject => \E n \in Nat : C <= n
@@ -2383,7 +2319,7 @@ THEOREM G1_RefineObject1 == Spec => RefineObject1
                         => O1!FairFinalizeObjects(o)
         BY SameObjectAssumptions, O1!LemFairnessEnabledFree, Isa
         DEF UpstreamStabilization
-    <2>. DEFINE S == AncestorSubGraph(deps, o, IsOpenNode).node
+    <2>. DEFINE S == OA(o).node
                 C == Cardinality(S)
     <2>. SUFFICES /\ []GraphSafetyInv
                   /\ [][Next]_vars 
@@ -2402,7 +2338,7 @@ THEOREM G1_RefineObject1 == Spec => RefineObject1
         <3>. QED
             BY <3>1, <3>2, <2>0, PTL DEF O1!FairFinalizeObjects, UpstreamStabilization
     \* The core contradiction (a target cannot stay registered forever while its
-    \* open-ancestor subgraph never grows) is now the standalone lemma
+    \* open ancestry OA(o) never grows) is now the standalone lemma
     \* LemTargetedRegisteredImpossible, reusable -- under the Bar -- by G2.
     <2>. QED
         BY LemTargetedRegisteredImpossible

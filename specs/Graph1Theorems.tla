@@ -142,37 +142,37 @@ LEMMA LemObjectTransitions ==
             \/ objectState[x] = OBJECT_REGISTERED /\ objectState'[x] = OBJECT_FINALIZED
 
 (**
- * STABILITY OF MAXIMAL-OPEN-PATH ROOTS. While r stays in the open ancestry
- * of o, being the root of a maximal open path to o is preserved by every
- * system step, provided the open ancestor set S of o never gains a node.
- * Indeed the only threat is RegisterGraph attaching a new producing task
- * above r: that task is freshly registered (hence open) and, r being an open
- * ancestor of o, it would become a new open ancestor of o -- enlarging S,
- * which [S' \subseteq S]_S forbids. All other steps leave the predecessors of
- * r untouched, and closed (finalized) predecessors stay closed forever.
+ * STABILITY OF THE SOURCES OF THE OPEN ANCESTRY. While s stays in the open
+ * ancestry of o, being a source of it is preserved by every system step,
+ * provided the open ancestry S of o never gains a node. A source of OA(o) is
+ * a node of OA(o) whose predecessors are all closed (DDG_AncestorSubGraphSource).
+ * The only threat is RegisterGraph attaching a new producing task above s:
+ * that task is freshly registered (hence open) and, s being in the open
+ * ancestry of o, it would join the open ancestry of o -- enlarging S, which
+ * [S' \subseteq S]_S forbids. All other steps leave the predecessors of s
+ * untouched, and closed (finalized) predecessors stay closed forever.
  *)
-LEMMA LemMRootStable ==
-    ASSUME NEW o \in Object, NEW r \in Object \union Task
-    PROVE LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+LEMMA LemOASourceStable ==
+    ASSUME NEW o \in Object, NEW s \in Object \union Task
+    PROVE LET S == OA(o).node
           IN /\ GraphSafetyInv /\ GraphSafetyInv'
              /\ [Next]_vars /\ [S' \subseteq S]_S
-             /\ \E p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r
-             /\ (r \in S)'
-             => (\E p \in MaximalOpenPath(deps, o, IsOpenNode) : p[1] = r)'
+             /\ s \in Source(OA(o))
+             /\ (s \in S)'
+             => (s \in Source(OA(o)))'
 
-LEMMA LemRootProgress ==
-    ASSUME NEW o \in Object, NEW r \in Object \union Task, NEW n \in Nat
-    PROVE LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+LEMMA LemOASourceProgress ==
+    ASSUME NEW o \in Object, NEW s \in Object \union Task, NEW n \in Nat
+    PROVE LET S == OA(o).node
               C == Cardinality(S)
-              IsMRoot(o0, r0) == \E p \in MaximalOpenPath(deps, o0, IsOpenNode) : p[1] = r0
           IN /\ []GraphSafetyInv /\ [][Next]_vars /\ []Fairness
              /\ [](o \in objectTargets /\ o \in RegisteredObject)
              /\ [][S' \subseteq S]_S
-             => C = n + 1 /\ IsMRoot(o, r) ~> C < n + 1
+             => C = n + 1 /\ s \in Source(OA(o)) ~> C < n + 1
 
 LEMMA LemCardinalityDescent ==
     ASSUME NEW o \in Object, NEW n \in Nat
-    PROVE LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+    PROVE LET S == OA(o).node
               C == Cardinality(S)
           IN /\ []GraphSafetyInv /\ [][Next]_vars /\ []Fairness
              /\ [](o \in objectTargets /\ o \in RegisteredObject)
@@ -183,15 +183,15 @@ LEMMA LemCardinalityDescent ==
 (* ([]WF_v(A) <=> WF_v(A)); so the whole conjunction is its own []. Reused by G2. *)
 LEMMA LemFairnessStable == Fairness <=> []Fairness
 
-(* A target cannot stay registered forever while its open-ancestor subgraph     *)
-(* never grows: the finite cardinality C = Cardinality(S) would have to descend  *)
-(* below every bound (LemCardinalityDescent), which is impossible. This is the   *)
-(* engine of the object-finalization fairness refinement; it is reused verbatim  *)
-(* (under the Bar) by Graph2 to discharge WF(O2!CompleteObjects),                *)
-(* whose enabled-forever negation reduces to exactly this.                       *)
+(* A target cannot stay registered forever while its open ancestry OA(o) never   *)
+(* grows: the finite cardinality C = Cardinality(S) would have to descend below  *)
+(* every bound (LemCardinalityDescent), which is impossible. This is the engine  *)
+(* of the object-finalization fairness refinement; it is reused verbatim (under  *)
+(* the Bar) by Graph2 to discharge WF(O2!CompleteObjects), whose enabled-forever *)
+(* negation reduces to exactly this.                                             *)
 LEMMA LemTargetedRegisteredImpossible ==
     ASSUME NEW o \in Object
-    PROVE LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+    PROVE LET S == OA(o).node
           IN /\ []GraphSafetyInv /\ [][Next]_vars /\ []Fairness
              /\ [](o \in objectTargets /\ o \in RegisteredObject)
              /\ [][S' \subseteq S]_S
