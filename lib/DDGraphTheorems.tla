@@ -15,18 +15,6 @@
 
 EXTENDS DDGraphs, DiGraphTheorems, FiniteSets
 
-(******************************************************************************)
-(* Sequence prefix/suffix operators, copied verbatim from CommunityModules     *)
-(* `SequencesExt.tla`. DiGraphs no longer extends SequencesExt (it dragged the *)
-(* Bags -> theorem-library tree into every downstream module), so the handful  *)
-(* of these operators used in the statements below are inlined here instead.   *)
-(* The companion DDGraphTheorems_proofs module keeps SequencesExtTheorems      *)
-(* (for ReverseProperties etc.), where these come from SequencesExt directly.  *)
-(******************************************************************************)
-Reverse(s) == [i \in 1..Len(s) |-> s[(Len(s) - i) + 1]]
-IsPrefix(s, t) == Len(s) <= Len(t) /\ SubSeq(s, 1, Len(s)) = SubSeq(t, 1, Len(s))
-IsSuffix(s, t) == IsPrefix(Reverse(s), Reverse(t))
-IsStrictSuffix(s, t) == IsSuffix(s, t) /\ s # t
 
 (******************************************************************************)
 (* Every member of DDGraphOf(T, O) is a DD graph over T and O, with nodes in *)
@@ -112,42 +100,15 @@ LEMMA DDG_PathLiftToOpInduced ==
 --------------------------------------------------------------------------------
 
 (******************************************************************************)
-(* OpenPath is empty iff the target itself fails the predicate Op: every     *)
-(* open path ends at n, so if Op(n) holds the singleton path <<n>> already   *)
-(* belongs to OpenPath; conversely no open path can end at a node that does  *)
-(* not satisfy Op.                                                            *)
-(******************************************************************************)
-THEOREM DDG_OpenPathEmpty ==
-    ASSUME NEW G, NEW n \in G.node, NEW Op(_)
-    PROVE  OpenPath(G, n, Op) = {} <=> ~Op(n)
-
---------------------------------------------------------------------------------
-
-(******************************************************************************)
-(* Every open path ending at n lives inside AncestorSubGraph(G, n, Op): it    *)
-(* lifts into the subgraph and stays an open path there (its endpoint is      *)
-(* still n and all its nodes still satisfy Op). The "input" counterpart to   *)
-(* the closure property of DDG_AncestorSubGraphProperties; a corollary of the *)
-(* lift machinery, needing only that G is a directed graph.                   *)
-(******************************************************************************)
-THEOREM DDG_OpenPathInAncestorSubGraph ==
-    ASSUME NEW G, IsDirectedGraph(G), NEW n, NEW Op(_),
-           NEW p \in OpenPath(G, n, Op)
-    PROVE  p \in OpenPath(AncestorSubGraph(G, n, Op), n, Op)
-
---------------------------------------------------------------------------------
-
-(******************************************************************************)
 (* AncestorSubGraph — structural lemmas.                                      *)
 (*                                                                            *)
-(* The following block builds up the path-to-target property step by step,    *)
-(* which in turn yields weak connectedness. Each lemma carries the minimal    *)
-(* hypotheses on G under which it holds.                                      *)
+(* Each lemma carries the minimal hypotheses on G under which it holds.     *)
 (******************************************************************************)
 
 (******************************************************************************)
 (* Bundled structural properties of AncestorSubGraph(G, n, Op), requiring    *)
-(* n \in O, finiteness, and Op-monotonicity (open tasks have open inputs):    *)
+(* n \in O and Op-monotonicity (Op-satisfying tasks have Op-satisfying      *)
+(* inputs):                                                                   *)
 (*   - it is itself a DD graph over (T, O) and a directed subgraph of G;     *)
 (*   - it is weakly connected (every pair of nodes connects through n in    *)
 (*     the underlying undirected view);                                       *)
@@ -190,68 +151,6 @@ THEOREM DDG_AncestorSubGraphEmpty ==
            /\ A = EmptyGraph <=> ~Op(n)
            /\ n \in A.node <=> Op(n)
 
-(******************************************************************************)
-(* OpenSubGraph and AncestorSubGraph define the same object: the set of      *)
-(* start nodes of open paths ending at n coincides with the set of n's      *)
-(* ancestors in the Op-induced subgraph, and both pin down the same edges.   *)
-(* This lets later proofs switch between the path-based and closure-based   *)
-(* views at will. Needs only that G is a directed graph -- the equality is   *)
-(* about simple paths and reachability, so neither finiteness nor the DD     *)
-(* graph structure plays any role.                                          *)
-(******************************************************************************)
-THEOREM DDG_OpenSubGraphEqualsAncestorSubGraph ==
-    ASSUME NEW G, IsDirectedGraph(G), NEW n, NEW Op(_)
-    PROVE  OpenSubGraph(G, n, Op) = AncestorSubGraph(G, n, Op)
-
---------------------------------------------------------------------------------
-(******************************************************************************)
-(* MaximalOpenPath -- existence and the suffix characterisation.              *)
-(******************************************************************************)
-
-(******************************************************************************)
-(* Prepending an Op-satisfying predecessor u of the root p[1] of an open path  *)
-(* to n yields an open path to n one node longer. u is not already on p (else  *)
-(* p[1] reaches u and u -> p[1] closes a directed cycle), so the extended      *)
-(* sequence stays simple.                                                      *)
-(******************************************************************************)
-LEMMA DDG_PrependOpenPath ==
-    ASSUME NEW G, IsDag(G), NEW n, NEW Op(_),
-           NEW p \in OpenPath(G, n, Op),
-           NEW u \in Predecessor(G, p[1]), Op(u)
-    PROVE  /\ (<<u>> \o p) \in OpenPath(G, n, Op)
-           /\ Len(<<u>> \o p) = Len(p) + 1
-
-(******************************************************************************)
-(* A maximal open path to n exists whenever some open path to n does: a        *)
-(* longest open path (lengths are bounded by Cardinality(G.node)) has a root   *)
-(* with no Op-predecessor, since prepending one (DDG_PrependOpenPath) would    *)
-(* give a strictly longer open path.                                           *)
-(******************************************************************************)
-THEOREM DDG_MaximalOpenPathExists ==
-    ASSUME NEW G, IsDag(G), IsFiniteSet(G.node),
-           NEW n, NEW Op(_), OpenPath(G, n, Op) # {}
-    PROVE  MaximalOpenPath(G, n, Op) # {}
-
-(******************************************************************************)
-(* IsStrictSuffix in concrete terms: a strict suffix is strictly shorter and  *)
-(* aligns with the tail of the longer sequence. Derived from IsStrictPrefix on *)
-(* the reversed sequences (IsSuffix is IsPrefix of the reverses).             *)
-(******************************************************************************)
-LEMMA DDG_StrictSuffixChar ==
-    ASSUME NEW S, NEW s \in Seq(S), NEW t \in Seq(S), IsStrictSuffix(s, t)
-    PROVE  /\ Len(s) < Len(t)
-           /\ \A i \in 1..Len(s) : s[i] = t[(Len(t) - Len(s)) + i]
-
-(******************************************************************************)
-(* On a DAG, the "root has no Op-predecessor" characterisation of             *)
-(* MaximalOpenPath coincides with the order-theoretic one: an open path is    *)
-(* maximal iff it is not a proper (strict) suffix of any other open path.     *)
-(******************************************************************************)
-THEOREM DDG_MaximalOpenPathSuffixEquiv ==
-    ASSUME NEW G, IsDag(G), NEW n, NEW Op(_)
-    PROVE  MaximalOpenPath(G, n, Op) =
-           {p \in OpenPath(G, n, Op) :
-                \A q \in OpenPath(G, n, Op) : ~ IsStrictSuffix(p, q)}
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
