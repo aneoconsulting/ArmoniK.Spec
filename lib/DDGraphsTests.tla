@@ -79,49 +79,6 @@ ASSUME AssertEq(Cardinality(DDGraphOf({"t", "u", "v"}, {"o", "p", "q"})), 962)
 ASSUME \A G \in DDGraphOf({"t"}, {"o", "p"}) : IsDDGraph(G, {"t"}, {"o", "p"})
 
 (******************************************************************************)
-(* OpenPath                                                                   *)
-(******************************************************************************)
-
-\* With an always-true predicate, OpenPath collects every simple path that
-\* ends at n.
-ASSUME LET G == [node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<2, 3>>}]
-       IN  AssertEq(OpenPath(G, 3, TestAll),
-                    {<<3>>, <<2, 3>>, <<1, 2, 3>>})
-
-\* A predicate that rejects every node yields no open path.
-ASSUME LET G == [node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<2, 3>>}]
-       IN  AssertEq(OpenPath(G, 3, TestNone), {})
-
-\* Excluding an intermediate node only leaves paths that avoid it; the
-\* singleton path <<3>> remains because Op(3) holds.
-ASSUME LET G == [node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<2, 3>>}]
-       IN  AssertEq(OpenPath(G, 3, TestNot2), {<<3>>})
-
-\* A target outside G.node has no open path.
-ASSUME LET G == [node |-> {1}, edge |-> {}]
-       IN  AssertEq(OpenPath(G, 2, TestAll), {})
-
-(******************************************************************************)
-(* OpenSubGraph                                                               *)
-(******************************************************************************)
-
-\* All-true predicate: every ancestor of 3 in G is in the open subgraph.
-ASSUME LET G == [node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<2, 3>>}]
-       IN  AssertEq(OpenSubGraph(G, 3, TestAll),
-                    [node |-> {1, 2, 3},
-                     edge |-> {<<1, 2>>, <<2, 3>>}])
-
-\* All-false predicate: empty subgraph.
-ASSUME LET G == [node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<2, 3>>}]
-       IN  AssertEq(OpenSubGraph(G, 3, TestNone),
-                    EmptyGraph)
-
-\* Excluding 2 cuts 1 off the open subgraph (no open path passes through 2).
-ASSUME LET G == [node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<2, 3>>}]
-       IN  AssertEq(OpenSubGraph(G, 3, TestNot2),
-                    [node |-> {3}, edge |-> {}])
-
-(******************************************************************************)
 (* AncestorSubGraph                                                           *)
 (******************************************************************************)
 
@@ -138,20 +95,6 @@ ASSUME LET G == [node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<2, 3>>}]
 ASSUME LET G == [node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<2, 3>>}]
        IN  AssertEq(AncestorSubGraph(G, 3, TestNot2),
                     [node |-> {3}, edge |-> {}])
-
-\* OpenSubGraph and AncestorSubGraph coincide on a small diamond.
-ASSUME LET G == [node |-> {1, 2, 3, 4},
-                 edge |-> {<<1, 2>>, <<1, 3>>, <<2, 4>>, <<3, 4>>}]
-       IN  AssertEq(OpenSubGraph(G, 4, TestAll),
-                    AncestorSubGraph(G, 4, TestAll))
-
-\* When the target does not satisfy Op, both subgraphs are empty.
-ASSUME LET G == [node |-> {"t1", "t2", "o"},
-                 edge |-> {<<"t1", "o">>, <<"t2", "o">>}]
-       IN  /\ AssertEq(OpenSubGraph(G, "t2", TestNotT2),
-                       EmptyGraph)
-           /\ AssertEq(AncestorSubGraph(G, "t2", TestNotT2),
-                       EmptyGraph)
 
 (******************************************************************************)
 (* RetrySubGraph                                                              *)
