@@ -310,8 +310,7 @@ THEOREM DDG_AncestorSubGraphBasic ==
 THEOREM DDG_AncestorSubGraphMono ==
     ASSUME NEW G, IsDirectedGraph(G), NEW n, NEW Op(_), NEW Op2(_),
            \A m : Op2(m) => Op(m)
-    PROVE  /\ AncestorSubGraph(G, n, Op2).node \subseteq AncestorSubGraph(G, n, Op).node
-           /\ AncestorSubGraph(G, n, Op2).edge \subseteq AncestorSubGraph(G, n, Op).edge
+    PROVE  AncestorSubGraph(G, n, Op2) \in DirectedSubgraph(AncestorSubGraph(G, n, Op))
 
 (******************************************************************************)
 (* The sources of AncestorSubGraph(G, n, Op) are its nodes whose every       *)
@@ -349,12 +348,9 @@ THEOREM DDG_DerivationBlockedSink ==
 (* derivation of n in G.                                                      *)
 (******************************************************************************)
 THEOREM DDG_DerivationAntitone ==
-    ASSUME NEW T, NEW G, NEW G2,
-           IsDirectedGraph(G), IsDirectedGraph(G2),
-           G.node \subseteq G2.node, G.edge \subseteq G2.edge,
+    ASSUME NEW T, NEW G2, NEW G \in DirectedSubgraph(G2),
            NEW n, NEW Op(_), NEW Op2(_),
-           AncestorSubGraph(G2, n, Op2).node \subseteq AncestorSubGraph(G, n, Op).node,
-           AncestorSubGraph(G2, n, Op2).edge \subseteq AncestorSubGraph(G, n, Op).edge
+           AncestorSubGraph(G2, n, Op2) \in DirectedSubgraph(AncestorSubGraph(G, n, Op))
     PROVE  Derivation(G2, n, Op2, T) \subseteq Derivation(G, n, Op, T)
 
 (******************************************************************************)

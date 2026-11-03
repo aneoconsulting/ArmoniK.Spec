@@ -1586,8 +1586,7 @@ THEOREM DDG_AncestorSubGraphBasic ==
 THEOREM DDG_AncestorSubGraphMono ==
     ASSUME NEW G, IsDirectedGraph(G), NEW n, NEW Op(_), NEW Op2(_),
            \A m : Op2(m) => Op(m)
-    PROVE  /\ AncestorSubGraph(G, n, Op2).node \subseteq AncestorSubGraph(G, n, Op).node
-           /\ AncestorSubGraph(G, n, Op2).edge \subseteq AncestorSubGraph(G, n, Op).edge
+    PROVE  AncestorSubGraph(G, n, Op2) \in DirectedSubgraph(AncestorSubGraph(G, n, Op))
 <1> DEFINE Ind2 == {m \in G.node : Op2(m)}
 <1> DEFINE Ind1 == {m \in G.node : Op(m)}
 <1> DEFINE H2 == [node |-> Ind2, edge |-> G.edge \cap (Ind2 \X Ind2)]
@@ -1623,8 +1622,10 @@ THEOREM DDG_AncestorSubGraphMono ==
         BY <2>1, <2>2
 <1>3. AncestorSubGraph(G, n, Op2).edge \subseteq AncestorSubGraph(G, n, Op).edge
     BY <1>2 DEF AncestorSubGraph
+<1>4. IsDirectedGraph(AncestorSubGraph(G, n, Op2))
+    BY DDG_AncestorSubGraphBasic, DG_DirectedSubgraphProperties
 <1>. QED
-    BY <1>2, <1>3
+    BY <1>2, <1>3, <1>4, DG_DirectedSubgraphIntro
 
 (******************************************************************************)
 (* The sources of AncestorSubGraph(G, n, Op) are its nodes whose every       *)
@@ -1714,12 +1715,9 @@ THEOREM DDG_DerivationBlockedSink ==
 (* derivation of n in G.                                                      *)
 (******************************************************************************)
 THEOREM DDG_DerivationAntitone ==
-    ASSUME NEW T, NEW G, NEW G2,
-           IsDirectedGraph(G), IsDirectedGraph(G2),
-           G.node \subseteq G2.node, G.edge \subseteq G2.edge,
+    ASSUME NEW T, NEW G2, NEW G \in DirectedSubgraph(G2),
            NEW n, NEW Op(_), NEW Op2(_),
-           AncestorSubGraph(G2, n, Op2).node \subseteq AncestorSubGraph(G, n, Op).node,
-           AncestorSubGraph(G2, n, Op2).edge \subseteq AncestorSubGraph(G, n, Op).edge
+           AncestorSubGraph(G2, n, Op2) \in DirectedSubgraph(AncestorSubGraph(G, n, Op))
     PROVE  Derivation(G2, n, Op2, T) \subseteq Derivation(G, n, Op, T)
 <1> DEFINE V2 == AncestorSubGraph(G2, n, Op2)
 <1> DEFINE V1 == AncestorSubGraph(G, n, Op)
@@ -1732,16 +1730,9 @@ THEOREM DDG_DerivationAntitone ==
       /\ \A t \in D.node \cap T : Predecessor(G2, t) \subseteq D.node
     BY DEF Derivation
 <1>2. D \in DirectedSubgraph(V1)
-    <2>1. /\ IsDirectedGraph(D)
-          /\ D.node \in SUBSET V2.node /\ D.edge \in SUBSET (V2.node \X V2.node)
-          /\ D.edge \subseteq V2.edge
-        BY <1>1 DEF DirectedSubgraph
-    <2>2. D = [node |-> D.node, edge |-> D.edge]
-        BY <2>1 DEF IsDirectedGraph
-    <2>. QED
-        BY <2>1, <2>2 DEF DirectedSubgraph
-<1>3. V1.node \subseteq G.node
-    BY DDG_AncestorSubGraphBasic DEF DirectedSubgraph
+    BY <1>1, DG_DirectedSubgraphTransitive
+<1>3. V1.node \subseteq G.node /\ G.node \subseteq G2.node /\ G.edge \subseteq G2.edge
+    BY DDG_AncestorSubGraphBasic, DG_DirectedSubgraphProperties DEF DirectedSubgraph
 <1>4. Source(D) \subseteq Source(G)
     <2> SUFFICES ASSUME NEW x \in Source(D) PROVE x \in Source(G)
         OBVIOUS
@@ -1755,11 +1746,11 @@ THEOREM DDG_DerivationAntitone ==
     <2>3. Predecessor(G2, x) = {}
         BY <2>1 DEF Source
     <2>4. Predecessor(G, x) = {}
-        BY <2>3 DEF Predecessor
+        BY <1>3, <2>3 DEF Predecessor
     <2>. QED
         BY <2>2, <2>4 DEF Source
 <1>5. \A t \in D.node \cap T : Predecessor(G, t) \subseteq D.node
-    BY <1>1 DEF Predecessor
+    BY <1>1, <1>3 DEF Predecessor
 <1>. QED
     BY <1>1, <1>2, <1>4, <1>5 DEF Derivation
 
