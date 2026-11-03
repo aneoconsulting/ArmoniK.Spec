@@ -217,7 +217,9 @@ EnabledFinalizeObjects(o) ==
     /\ \/ o \in Source(deps)
        \/ \E t \in Predecessor(deps, o): t \in ProcessedTask
 
-EnabledStageTasks(t) ==
+EnabledStageTasks(t, o) ==
+    /\ o \in objectTargets
+    /\ t \in OA(o).node
     /\ Predecessor(deps, t) \subseteq FinalizedObject
     /\ t \in RegisteredTask
 
@@ -238,11 +240,15 @@ FairnessEnabledFree ==
     /\ \A o \in Object :
         <>[]EnabledFinalizeObjects(o) => []<><<FinalizeObjects({o})>>_vars
     /\ \A t \in Task :
-        /\ <>[]EnabledStageTasks(t) => []<><<StageTasks({t})>>_vars
         /\ []<>EnabledProcessTasks(t) => []<><<ProcessTasks({t})>>_vars
         /\ <>[]EnabledFinalizeTasks(t) => []<><<FinalizeTasks({t})>>_vars
     /\ \A t \in Task, o \in Object :
-        <>[]EnabledAssignTasks(t, o)
+        /\ <>[]EnabledStageTasks(t, o)
+            => []<><<
+                /\ o \in objectTargets
+                /\ t \in OA(o).node
+                /\ StageTasks({t})>>_vars
+        /\ <>[]EnabledAssignTasks(t, o)
             => []<><<
                 /\ o \in objectTargets
                 /\ t \in OA(o).node

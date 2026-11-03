@@ -1883,9 +1883,16 @@ LEMMA LemOASourceProgress ==
                     BY Zenon, <5>1, <5>2 DEF RegisteredTask, StagedTask, ProcessedTask
             <4>. QED
                 BY Zenon, <4>1, <4>2
-        <3>2. GraphSafetyInv /\ s \in RegisteredTask /\ s \in Source(OA(o)) => ENABLED <<StageTasks({s})>>_vars
-            <4>. SUFFICES ASSUME GraphSafetyInv, s \in RegisteredTask, s \in Source(OA(o))
-                          PROVE  ENABLED <<StageTasks({s})>>_vars
+        <3>2. /\ GraphSafetyInv /\ s \in RegisteredTask /\ s \in Source(OA(o))
+              /\ o \in objectTargets /\ s \in OA(o).node
+              => ENABLED <</\ o \in objectTargets
+                           /\ s \in OA(o).node
+                           /\ StageTasks({s})>>_vars
+            <4>. SUFFICES ASSUME GraphSafetyInv, s \in RegisteredTask, s \in Source(OA(o)),
+                                 o \in objectTargets, s \in OA(o).node
+                          PROVE  ENABLED <</\ o \in objectTargets
+                                           /\ s \in OA(o).node
+                                           /\ StageTasks({s})>>_vars
                 OBVIOUS
             <4>1. /\ s \in deps.node
                   /\ \A u \in Predecessor(deps, s) : ~IsOpenNode(u)
@@ -1899,9 +1906,15 @@ LEMMA LemOASourceProgress ==
             <4>. QED
                 BY <4>8, ExpandENABLED
                    DEF StageTasks, vars, RegisteredTask, TASK_REGISTERED, TASK_STAGED
-        <3>3. <<StageTasks({s})>>_vars => (s \in StagedTask)'
+        <3>3. <</\ o \in objectTargets
+                /\ s \in OA(o).node
+                /\ StageTasks({s})>>_vars
+              => (s \in StagedTask)'
             BY DEF StageTasks, vars, StagedTask, RegisteredTask
-        <3>4. s \in RegisteredTask /\ Fairness => WF_vars(StageTasks({s}))
+        <3>4. s \in RegisteredTask /\ Fairness
+              => WF_vars(/\ o \in objectTargets
+                         /\ s \in OA(o).node
+                         /\ StageTasks({s}))
             BY Isa DEF Fairness, RegisteredTask
         <3>. QED
             BY <3>1, <3>2, <3>3, <3>4, PTL
@@ -2149,7 +2162,6 @@ LEMMA LemFairnessStable == Fairness <=> []Fairness
     <2>. QED
         BY <2>1, <2>2, Isa
 <1>. DEFINE TaskFairness(t) ==
-                /\ WF_vars(StageTasks({t}))
                 /\ SF_vars(ProcessTasks({t}))
                 /\ WF_vars(FinalizeTasks({t}))
 <1>2. (\A t \in Task : TaskFairness(t))
@@ -2164,7 +2176,11 @@ LEMMA LemFairnessStable == Fairness <=> []Fairness
     <2>. QED
         BY <2>1, <2>2, Isa
 <1>. DEFINE PairFairness(t, o) ==
-                WF_vars(
+                /\ WF_vars(
+                    /\ o \in objectTargets
+                    /\ t \in OA(o).node
+                    /\ StageTasks({t}))
+                /\ WF_vars(
                     /\ o \in objectTargets
                     /\ t \in OA(o).node
                     /\ AssignTasks({t}))
@@ -2416,7 +2432,9 @@ EnabledFinalizeObjects(o) ==
     /\ \/ o \in Source(deps)
        \/ \E t \in Predecessor(deps, o): t \in ProcessedTask
 
-EnabledStageTasks(t) ==
+EnabledStageTasks(t, o) ==
+    /\ o \in objectTargets
+    /\ t \in OA(o).node
     /\ Predecessor(deps, t) \subseteq FinalizedObject
     /\ t \in RegisteredTask
 
@@ -2437,11 +2455,15 @@ FairnessEnabledFree ==
     /\ \A o \in Object :
         <>[]EnabledFinalizeObjects(o) => []<><<FinalizeObjects({o})>>_vars
     /\ \A t \in Task :
-        /\ <>[]EnabledStageTasks(t) => []<><<StageTasks({t})>>_vars
         /\ []<>EnabledProcessTasks(t) => []<><<ProcessTasks({t})>>_vars
         /\ <>[]EnabledFinalizeTasks(t) => []<><<FinalizeTasks({t})>>_vars
     /\ \A t \in Task, o \in Object :
-        <>[]EnabledAssignTasks(t, o)
+        /\ <>[]EnabledStageTasks(t, o)
+            => []<><<
+                /\ o \in objectTargets
+                /\ t \in OA(o).node
+                /\ StageTasks({t})>>_vars
+        /\ <>[]EnabledAssignTasks(t, o)
             => []<><<
                 /\ o \in objectTargets
                 /\ t \in OA(o).node
@@ -2452,21 +2474,28 @@ LEMMA LemFairnessEnabledFree == FairnessEnabledFree => Fairness
                 <>[]EnabledFinalizeObjects(o) => []<><<FinalizeObjects({o})>>_vars
             FO(o) == WF_vars(FinalizeObjects({o}))
             ET(t) ==
-                /\ <>[]EnabledStageTasks(t) => []<><<StageTasks({t})>>_vars
                 /\ []<>EnabledProcessTasks(t) => []<><<ProcessTasks({t})>>_vars
                 /\ <>[]EnabledFinalizeTasks(t) => []<><<FinalizeTasks({t})>>_vars
             FT(t) ==
-                /\ WF_vars(StageTasks({t}))
                 /\ SF_vars(ProcessTasks({t}))
                 /\ WF_vars(FinalizeTasks({t}))
             ETO(t, o) ==
-                <>[]EnabledAssignTasks(t, o)
+                /\ <>[]EnabledStageTasks(t, o)
+                    => []<><<
+                        /\ o \in objectTargets
+                        /\ t \in OA(o).node
+                        /\ StageTasks({t})>>_vars
+                /\ <>[]EnabledAssignTasks(t, o)
                     => []<><<
                         /\ o \in objectTargets
                         /\ t \in OA(o).node
                         /\ AssignTasks({t})>>_vars
             FTO(t, o) ==
-                WF_vars(
+                /\ WF_vars(
+                    /\ o \in objectTargets
+                    /\ t \in OA(o).node
+                    /\ StageTasks({t}))
+                /\ WF_vars(
                     /\ o \in objectTargets
                     /\ t \in OA(o).node
                     /\ AssignTasks({t}))
@@ -2488,17 +2517,21 @@ LEMMA LemFairnessEnabledFree == FairnessEnabledFree => Fairness
         BY <2>1, PTL
 <1>4. ASSUME NEW t \in Task
       PROVE  ET(t) => FT(t)
-    <2>1. (ENABLED <<StageTasks({t})>>_vars) => EnabledStageTasks(t)
-        BY ExpandENABLED, Zenon DEF EnabledStageTasks, StageTasks, vars
-    <2>2. (ENABLED <<ProcessTasks({t})>>_vars) => EnabledProcessTasks(t)
+    <2>1. (ENABLED <<ProcessTasks({t})>>_vars) => EnabledProcessTasks(t)
         BY ExpandENABLED DEF EnabledProcessTasks, ProcessTasks, vars
-    <2>3. (ENABLED <<FinalizeTasks({t})>>_vars) => EnabledFinalizeTasks(t)
+    <2>2. (ENABLED <<FinalizeTasks({t})>>_vars) => EnabledFinalizeTasks(t)
         BY ExpandENABLED, Zenon DEF EnabledFinalizeTasks, FinalizeTasks, vars
     <2>. QED
-        BY <2>1, <2>2, <2>3, PTL
+        BY <2>1, <2>2, PTL
 <1>5. ASSUME NEW t \in Task, NEW o \in Object
       PROVE  ETO(t, o) => FTO(t, o)
     <2>1. (ENABLED <<
+                /\ o \in objectTargets
+                /\ t \in OA(o).node
+                /\ StageTasks({t})>>_vars)
+            => EnabledStageTasks(t, o)
+        BY ExpandENABLED, Zenon DEF StageTasks, EnabledStageTasks, vars
+    <2>2. (ENABLED <<
                 /\ o \in objectTargets
                 /\ t \in OA(o).node
                 /\ AssignTasks({t})>>_vars)
@@ -2506,7 +2539,7 @@ LEMMA LemFairnessEnabledFree == FairnessEnabledFree => Fairness
         BY ExpandENABLED, Zenon DEF AssignTasks, EnabledAssignTasks,
         vars
     <2>. QED
-        BY <2>1, PTL
+        BY <2>1, <2>2, PTL
 <1>. HIDE DEF EO, FO, ET, FT, ETO, FTO
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, <1>5, Zenon

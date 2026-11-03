@@ -712,8 +712,11 @@ BY LemGraphStateIntegrity DEF Spec
 (* <<Op(t)>>_v.                                                              *)
 (*****************************************************************************)
 
-DiscardOnAbortedInput(t) ==
-    Predecessor(deps, t) \intersect AbortedObject /= {} /\ DiscardTasks({t})
+DiscardOnAbortedInput(t, o) ==
+    /\ o \in objectTargets
+    /\ t \in OA(o).node
+    /\ Predecessor(deps, t) \intersect AbortedObject /= {}
+    /\ DiscardTasks({t})
 
 AssignUpstream(t, o) ==
     o \in objectTargets /\ t \in OA(o).node /\ AssignTasks({t})
@@ -898,43 +901,54 @@ LEMMA LemRefineG2WFStageTasks ==
     BY <1>1, <1>2, PTL
 
 (* WF(G2!DiscardOnAbortedInput): G3's discard domain (registered, staged,     *)
-(* paused, stopped) Bar-maps exactly onto G2's (registered, staged), so the   *)
-(* enabledness conditions coincide.                                           *)
+(* paused, stopped) Bar-maps exactly onto G2's (registered, staged), and the  *)
+(* open ancestries coincide (LemG2OpenNodeBridge), so the enabledness         *)
+(* conditions coincide.                                                       *)
 LEMMA LemRefineG2WFDiscardOnAbortedInput ==
-    ASSUME NEW t \in Task
-    PROVE  WF_vars(DiscardOnAbortedInput(t)) => (<>[]G2!EnabledDiscardOnAbortedInput(t) => []<><<G2!DiscardOnAbortedInput(t)>>_(G2!vars))
-<1>1. G2!EnabledDiscardOnAbortedInput(t) => ENABLED <<DiscardOnAbortedInput(t)>>_vars
-    <2>1. G2!EnabledDiscardOnAbortedInput(t)
-          => /\ Predecessor(deps, t) \intersect AbortedObject /= {}
+    ASSUME NEW t \in Task, NEW o \in Object
+    PROVE  WF_vars(DiscardOnAbortedInput(t, o)) => (<>[]G2!EnabledDiscardOnAbortedInput(t, o) => []<><<G2!DiscardOnAbortedInput(t, o)>>_(G2!vars))
+<1>1. G2!EnabledDiscardOnAbortedInput(t, o) => ENABLED <<DiscardOnAbortedInput(t, o)>>_vars
+    <2>1. G2!EnabledDiscardOnAbortedInput(t, o)
+          => /\ o \in objectTargets
+             /\ t \in OA(o).node
+             /\ Predecessor(deps, t) \intersect AbortedObject /= {}
              /\ t \in UNION {RegisteredTask, StagedTask, PausedTask, StoppedTask}
-        <3>. SUFFICES ASSUME G2!Predecessor(deps, t) \intersect G2!AbortedObject /= {},
+        <3>. SUFFICES ASSUME o \in objectTargets,
+                             t \in G2!OA(o).node,
+                             G2!Predecessor(deps, t) \intersect G2!AbortedObject /= {},
                              {t} \subseteq G2!RegisteredTask \union G2!StagedTask
-                      PROVE  /\ Predecessor(deps, t) \intersect AbortedObject /= {}
+                      PROVE  /\ o \in objectTargets
+                             /\ t \in OA(o).node
+                             /\ Predecessor(deps, t) \intersect AbortedObject /= {}
                              /\ t \in UNION {RegisteredTask, StagedTask, PausedTask, StoppedTask}
             BY Zenon DEF G2!EnabledDiscardOnAbortedInput
         <3>. QED
-            BY LemG2BarStates, LemG2GraphBridges, Zenon
-    <2>2. /\ Predecessor(deps, t) \intersect AbortedObject /= {}
+            BY LemG2BarStates, LemG2GraphBridges, LemG2OpenNodeBridge, Zenon
+    <2>2. /\ o \in objectTargets
+          /\ t \in OA(o).node
+          /\ Predecessor(deps, t) \intersect AbortedObject /= {}
           /\ t \in UNION {RegisteredTask, StagedTask, PausedTask, StoppedTask}
-          => ENABLED <<DiscardOnAbortedInput(t)>>_vars
-        <3>1. DiscardOnAbortedInput(t) => taskState' /= taskState
+          => ENABLED <<DiscardOnAbortedInput(t, o)>>_vars
+        <3>1. DiscardOnAbortedInput(t, o) => taskState' /= taskState
             BY DEF DiscardOnAbortedInput, DiscardTasks, RegisteredTask, StagedTask,
             PausedTask, StoppedTask
-        <3>2. <<DiscardOnAbortedInput(t)>>_vars <=> DiscardOnAbortedInput(t)
+        <3>2. <<DiscardOnAbortedInput(t, o)>>_vars <=> DiscardOnAbortedInput(t, o)
             BY <3>1 DEF vars
-        <3>3. ENABLED <<DiscardOnAbortedInput(t)>>_vars <=> ENABLED DiscardOnAbortedInput(t)
+        <3>3. ENABLED <<DiscardOnAbortedInput(t, o)>>_vars <=> ENABLED DiscardOnAbortedInput(t, o)
             BY <3>2, ENABLEDaxioms
-        <3>4. /\ Predecessor(deps, t) \intersect AbortedObject /= {}
+        <3>4. /\ o \in objectTargets
+              /\ t \in OA(o).node
+              /\ Predecessor(deps, t) \intersect AbortedObject /= {}
               /\ t \in UNION {RegisteredTask, StagedTask, PausedTask, StoppedTask}
-              => ENABLED DiscardOnAbortedInput(t)
+              => ENABLED DiscardOnAbortedInput(t, o)
             BY ExpandENABLED, Zenon DEF DiscardOnAbortedInput, DiscardTasks
         <3>. QED
             BY <3>3, <3>4
     <2>. QED
         BY <2>1, <2>2
-<1>2. <<DiscardOnAbortedInput(t)>>_vars => <<G2!DiscardOnAbortedInput(t)>>_(G2!vars)
-    <2>. SUFFICES ASSUME DiscardOnAbortedInput(t)
-                  PROVE  G2!DiscardOnAbortedInput(t) /\ G2!vars' /= G2!vars
+<1>2. <<DiscardOnAbortedInput(t, o)>>_vars => <<G2!DiscardOnAbortedInput(t, o)>>_(G2!vars)
+    <2>. SUFFICES ASSUME DiscardOnAbortedInput(t, o)
+                  PROVE  G2!DiscardOnAbortedInput(t, o) /\ G2!vars' /= G2!vars
         BY DEF vars
     <2>1. taskStateBar' = [s \in Task |-> IF s \in {t} THEN TASK_DISCARDED ELSE taskStateBar[s]]
         <3>. SUFFICES ASSUME NEW u \in Task
@@ -956,8 +970,10 @@ LEMMA LemRefineG2WFDiscardOnAbortedInput ==
             BY DEF DiscardOnAbortedInput, DiscardTasks
         <3>. QED
             BY <2>1, <3>1 DEF PausedTask, RegisteredTask, StagedTask, StoppedTask, taskStateBar
+    <2>5. o \in objectTargets /\ t \in G2!OA(o).node
+        BY LemG2OpenNodeBridge DEF DiscardOnAbortedInput
     <2>. QED
-        BY <2>2, <2>3, <2>4, Zenon DEF G2!DiscardOnAbortedInput, G2!vars
+        BY <2>2, <2>3, <2>4, <2>5, Zenon DEF G2!DiscardOnAbortedInput, G2!vars
 <1>. QED
     BY <1>1, <1>2, PTL
 
@@ -1786,7 +1802,6 @@ THEOREM G3_RefineGraph2 == Spec => RefineGraph2
       PROVE  /\ (<>[]G2!EnabledSetTaskRetries(t) => []<><<\E u \in Task : G2!SetTaskRetries({t}, {u})>>_(G2!vars))
              /\ (<>[]G2!EnabledRegisterRetrySubGraph(t) => []<><<G2!RegisterGraph(G2!RetrySubGraph(deps, t, nextAttemptOf[t]))>>_(G2!vars))
              /\ (<>[]G2!EnabledStageTasks(t) => []<><<G2!StageTasks({t})>>_(G2!vars))
-             /\ (<>[]G2!EnabledDiscardOnAbortedInput(t) => []<><<G2!DiscardOnAbortedInput(t)>>_(G2!vars))
              /\ ([]<>G2!EnabledProcessTasks(t) => []<><<G2!ProcessTasks({t}) /\ t \in G2!SucceededTask'>>_(G2!vars))
              /\ (<>[]G2!EnabledCompleteTasks(t) => []<><<G2!CompleteTasks({t})>>_(G2!vars))
              /\ (<>[]G2!EnabledAbortTasks(t) => []<><<G2!AbortTasks({t})>>_(G2!vars))
@@ -1794,31 +1809,33 @@ THEOREM G3_RefineGraph2 == Spec => RefineGraph2
     <2>1. /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
           /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
           /\ WF_vars(StageTasks({t}))
-          /\ WF_vars(DiscardOnAbortedInput(t))
           /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
           /\ WF_vars(CompleteTasks({t}))
           /\ WF_vars(AbortTasks({t}))
           /\ WF_vars(RetryTasks({t}))
-        BY <1>2, Isa DEF Fairness, DiscardOnAbortedInput
+        BY <1>2, Isa DEF Fairness
     <2>. QED
         BY <1>1, <1>2, <2>1, LemRefineG2WFSetTaskRetries, LemRefineG2WFRegisterRetrySubGraph,
-           LemRefineG2WFStageTasks, LemRefineG2WFDiscardOnAbortedInput,
+           LemRefineG2WFStageTasks,
            LemRefineG2SFProcessTasks, LemRefineG2WFCompleteTasks, LemRefineG2WFAbortTasks,
            LemRefineG2WFRetryTasks
-(* Assignment fairness, per (task, object) pair. *)
+(* Discard-on-abort and assignment fairness, per (task, object) pair. *)
 <1>7. ASSUME NEW t \in Task, NEW o \in Object
-      PROVE  (<>[]G2!EnabledAssignTasks(t, o)
-                 => []<><<
-                      /\ o \in objectTargets
-                      /\ t \in G2!OA(o).node
-                      /\ G2!AssignTasks({t})>>_(G2!vars))
-    <2>1. /\ SF_vars(AssignUpstream(t, o))
+      PROVE  /\ (<>[]G2!EnabledDiscardOnAbortedInput(t, o) => []<><<G2!DiscardOnAbortedInput(t, o)>>_(G2!vars))
+             /\ (<>[]G2!EnabledAssignTasks(t, o)
+                    => []<><<
+                         /\ o \in objectTargets
+                         /\ t \in G2!OA(o).node
+                         /\ G2!AssignTasks({t})>>_(G2!vars))
+    <2>1. /\ WF_vars(DiscardOnAbortedInput(t, o))
+          /\ SF_vars(AssignUpstream(t, o))
           /\ WF_vars(StopTasks({t}))
           /\ WF_vars(ResumeUpstream(t, o))
           /\ WF_vars(DiscardStoppedUpstream(t, o))
-        BY <1>2, Isa DEF Fairness, AssignUpstream, ResumeUpstream, DiscardStoppedUpstream
+        BY <1>2, Isa
+        DEF Fairness, DiscardOnAbortedInput, AssignUpstream, ResumeUpstream, DiscardStoppedUpstream
     <2>. QED
-        BY <1>1, <1>2, <2>1, LemRefineG2WFAssignTasks
+        BY <1>1, <1>2, <2>1, LemRefineG2WFDiscardOnAbortedInput, LemRefineG2WFAssignTasks
 <1>8. G2!FairnessEnabledFree
     BY <1>5, <1>6, <1>7, Isa
     DEF G2!FairnessEnabledFree, G2!DiscardOnAbortedInput, G2!AssignUpstream
