@@ -1,6 +1,5 @@
 -------------------------- MODULE Graph2Theorems_proofs --------------------------
-EXTENDS Graph2, DDGraphTheorems, FiniteSetTheorems, NaturalsInduction,
-        SequenceTheorems, TLAPS
+EXTENDS Graph2, DDGraphTheorems, FiniteSetTheorems, TLAPS
 
 USE DEF OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_COMPLETED, OBJECT_ABORTED, OBJECT_FINALIZED,
         TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED,
@@ -99,44 +98,30 @@ BY Assumptions DEF Bijection, ExistsBijection, G1!Bijection, G1!ExistsBijection,
 
 (* G2's IsOpenNode (corrected to exclude completed/aborted/retried tasks and     *)
 (* completed/aborted objects) coincides pointwise with G1!IsOpenNode under the   *)
-(* Bar mapping (LemG1BarStates), so the open-induced ancestor subgraph and the set  *)
-(* of open paths are mapping-independent. Used by the UpstreamStabilization       *)
-(* refinement and the open-ancestry-guarded AssignTasks fairness conjunct.       *)
+(* Bar mapping (LemG1BarStates), so the open ancestries coincide. Used by the    *)
+(* UpstreamStabilization refinement and the open-ancestry-guarded fairness       *)
+(* conjuncts.                                                                    *)
 LEMMA LemG1OpenNodeBridge ==
     ASSUME TypeOk
     PROVE  /\ \A n : IsOpenNode(n) <=> G1!IsOpenNode(n)
-           /\ \A o : AncestorSubGraph(deps, o, IsOpenNode)
-                     = G1!AncestorSubGraph(deps, o, G1!IsOpenNode)
-           /\ \A o : OpenPath(deps, o, IsOpenNode)
-                     = G1!OpenPath(deps, o, G1!IsOpenNode)
+           /\ \A o : OA(o) = G1!OA(o)
 <1>1. \A n : IsOpenNode(n) <=> G1!IsOpenNode(n)
     BY LemG1BarStates DEF IsOpenNode, G1!IsOpenNode
 <1>2. ASSUME NEW o
-      PROVE  AncestorSubGraph(deps, o, IsOpenNode)
-             = G1!AncestorSubGraph(deps, o, G1!IsOpenNode)
+      PROVE  OA(o) = G1!OA(o)
     \* (a) mapping-independence: G1's graph operators equal G2's at the same Op
-    <2>1. G1!AncestorSubGraph(deps, o, G1!IsOpenNode)
-          = AncestorSubGraph(deps, o, G1!IsOpenNode)
-        BY DEF G1!AncestorSubGraph, AncestorSubGraph, G1!Ancestor, Ancestor,
+    <2>1. G1!OA(o) = AncestorSubGraph(deps, o, G1!IsOpenNode)
+        BY DEF G1!OA, G1!AncestorSubGraph, AncestorSubGraph, G1!Ancestor, Ancestor,
             G1!AreConnectedIn, AreConnectedIn, G1!SimplePath, SimplePath, G1!Path, Path,
             G1!IsInjective, IsInjective
     \* (b) the open predicate only enters via the induced node set, which is
     \*     pointwise-equal under <1>1
-    <2>2. AncestorSubGraph(deps, o, G1!IsOpenNode) = AncestorSubGraph(deps, o, IsOpenNode)
-        BY <1>1 DEF AncestorSubGraph
-    <2>. QED
-        BY <2>1, <2>2
-<1>3. ASSUME NEW o
-      PROVE  OpenPath(deps, o, IsOpenNode) = G1!OpenPath(deps, o, G1!IsOpenNode)
-    <2>1. G1!OpenPath(deps, o, G1!IsOpenNode) = OpenPath(deps, o, G1!IsOpenNode)
-        BY DEF G1!OpenPath, OpenPath, G1!SimplePath, SimplePath, G1!Path, Path,
-            G1!IsInjective, IsInjective
-    <2>2. OpenPath(deps, o, G1!IsOpenNode) = OpenPath(deps, o, IsOpenNode)
-        BY <1>1 DEF OpenPath
+    <2>2. AncestorSubGraph(deps, o, G1!IsOpenNode) = OA(o)
+        BY <1>1 DEF OA, AncestorSubGraph
     <2>. QED
         BY <2>1, <2>2
 <1>. QED
-    BY <1>1, <1>2, <1>3
+    BY <1>1, <1>2
 
 (*****************************************************************************)
 (* TYPE INVARIANT                                                            *)
@@ -1941,8 +1926,6 @@ LEMMA LemCompletedObjectHasDerivation ==
             BY <1>1, DDG_AncestorSubGraphProperties
         <3>. QED
             BY <3>1, <3>2, <3>3, <3>4
-    <2>4. IsDirectedGraph(A)
-        BY <2>3 DEF IsDag, IsDDGraph
     <2>5. o \in A.node
         BY <1>2, <2>1, <2>2, DDG_AncestorSubGraphEmpty
     <2>6. A.edge = deps.edge \cap (A.node \X A.node)
@@ -1972,29 +1955,8 @@ LEMMA LemCompletedObjectHasDerivation ==
                 OBVIOUS
             <4>1. AreConnectedIn(A, m, o)
                 BY <2>3
-            <4>2. PICK p \in SimplePath(A) : p[1] = m /\ p[Len(p)] = o
-                BY <4>1 DEF AreConnectedIn
-            <4>3. p \in Seq(A.node) /\ Len(p) \in Nat /\ Len(p) >= 1 /\ IsInjective(p)
-                  /\ \A i \in 1..(Len(p) - 1) : <<p[i], p[i+1]>> \in A.edge
-                BY <4>2, DG_SimplePathIsSeq
-            <4>4. Len(p) # 1
-                BY <4>2, <4>3 DEF IsInjective
-            <4>5. Len(p) >= 2
-                BY <4>3, <4>4
-            <4>6. <<p[1], p[2]>> \in A.edge
-                <5>1. 1 \in 1..(Len(p) - 1)
-                    BY <4>3, <4>5, Isa
-                <5>. QED
-                    BY <4>3, <5>1
-            <4>7. p[2] \in A.node /\ p[2] \in Successor(A, m)
-                <5>1. 2 \in 1..Len(p)
-                    BY <4>3, <4>5, Isa
-                <5>2. p[2] \in A.node
-                    BY <4>3, <5>1, ElementOfSeq
-                <5>. QED
-                    BY <4>2, <4>6, <5>2 DEF Successor
             <4>. QED
-                BY <4>7 DEF Sink
+                BY <4>1, DG_AreConnectedHasSuccessor DEF Sink
         <3>. QED
             BY <2>5, <3>1, <3>2, DG_SourceSinkProperties
     \* (b) every source of A is a source of deps
@@ -2036,60 +1998,10 @@ LEMMA LemCompletedObjectHasDerivation ==
         <3>. QED
             BY <3>1, <3>2
     \* (d) A is a directed subgraph of the viable ancestor subgraph
-    <2>11. A \in DirectedSubgraph(AncestorSubGraph(deps, o, IsViableNode))
-        <3>. DEFINE V == AncestorSubGraph(deps, o, IsViableNode)
-                    PN == {n \in deps.node : G2_IsProducedNode(n)}
-                    VN == {n \in deps.node : IsViableNode(n)}
-                    PI == [node |-> PN, edge |-> deps.edge \cap (PN \X PN)]
-                    VI == [node |-> VN, edge |-> deps.edge \cap (VN \X VN)]
-        <3>1. A = [node |-> Ancestor(PI, o), edge |-> deps.edge \cap (Ancestor(PI, o) \X Ancestor(PI, o))]
-            BY <2>1, <2>2 DEF AncestorSubGraph
-        <3>2. PN \subseteq VN
-            BY <1>4
-        <3>3. PI.node \subseteq VI.node /\ PI.edge \subseteq VI.edge
-            BY <3>2
-        \* lift any PI-simple-path to VI
-        <3>4. \A m \in A.node : AreConnectedIn(VI, m, o)
-            <4>. SUFFICES ASSUME NEW m \in A.node PROVE AreConnectedIn(VI, m, o)
-                OBVIOUS
-            <4>1. m \in Ancestor(PI, o)
-                BY <3>1
-            <4>2. AreConnectedIn(PI, m, o)
-                BY <4>1 DEF Ancestor
-            <4>3. PICK p \in SimplePath(PI) : p[1] = m /\ p[Len(p)] = o
-                BY <4>2 DEF AreConnectedIn
-            <4>4. \A i \in 1..Len(p) : p[i] \in VI.node
-                BY <3>3, <4>3, DG_SimplePathIsSeq
-            <4>5. \A i \in 1..(Len(p) - 1) : <<p[i], p[i+1]>> \in VI.edge
-                BY <3>3, <4>3, DG_SimplePathIsSeq
-            <4>8. p \in SimplePath(VI)
-                BY <4>3, <4>4, <4>5, DG_SimplePathLift
-            <4>. QED
-                BY <4>3, <4>8 DEF AreConnectedIn
-        <3>5. o \in VI.node
-            BY <1>4, <1>6, <2>1, <2>2
-        <3>6. A.node \subseteq V.node
-            <4>. SUFFICES ASSUME NEW m \in A.node PROVE m \in V.node
-                OBVIOUS
-            <4>1. AreConnectedIn(VI, m, o)
-                BY <3>4
-            <4>2. m \in VI.node
-                BY <4>1, DG_SimplePathIsSeq DEF AreConnectedIn
-            <4>3. m \in Ancestor(VI, o)
-                BY <4>1, <4>2 DEF Ancestor
-            <4>. QED
-                BY <3>5, <4>3 DEF AncestorSubGraph
-        <3>7. V = [node |-> V.node, edge |-> deps.edge \cap (V.node \X V.node)]
-            BY DEF AncestorSubGraph
-        <3>8. A.edge \subseteq V.edge /\ A.edge \subseteq (V.node \X V.node)
-            <4>1. A.edge = deps.edge \cap (A.node \X A.node)
-                BY <2>6
-            <4>. QED
-                BY <3>6, <3>7, <4>1
-        <3>. QED
-            BY <2>4, <3>6, <3>8 DEF DirectedSubgraph, IsDirectedGraph
+    <2>11. A \in DirectedSubgraph(ViableAncestry(o))
+        BY <1>2, <1>4, DDG_AncestorSubGraphMono DEF ViableAncestry
     <2>12. A \in G2Derivation(o)
-        BY <2>3, <2>8, <2>9, <2>10, <2>11 DEF Derivation, G2Derivation
+        BY <2>3, <2>8, <2>9, <2>10, <2>11 DEF Derivation, G2Derivation, ViableAncestry
     <2>. QED
         BY <2>7, <2>12
 (* ---- converse direction: a qualifying derivation forces o completed ---- *)
@@ -3072,38 +2984,29 @@ LEMMA LemRefineG1WFStageTasks ==
     <2>. QED
         BY <1>4, <2>1, <1>2, <1>3, PTL
 
-(* G1!UpstreamStabilization refinement. G2's IsOpenNode matches               *)
-(* G1!IsOpenNode under the Bar (LemG1OpenNodeBridge), so the open-induced         *)
-(* ancestor subgraphs coincide under []TypeOk, and the two constraints differ  *)
-(* only by G1's outer target guard ([](o \in targets) => ...), which G2's      *)
-(* unconditional constraint trivially satisfies. The boxed bridge below is     *)
-(* proved at clean lemma level (its PTL necessitation must not sit in a        *)
-(* context polluted by the non-box temporal hypothesis                        *)
-(* UpstreamStabilization).                                                     *)
+(* G1!UpstreamStabilization refinement. G2's IsOpenNode matches G1!IsOpenNode     *)
+(* under the Bar (LemG1OpenNodeBridge), so OA(o) and G1!OA(o) coincide under      *)
+(* []TypeOk, and the two constraints differ only by G1's outer target guard ([](o *)
+(* \in targets) => ...), which G2's unconditional constraint trivially satisfies. *)
+(* The boxed bridge below is proved at clean lemma level (its PTL necessitation   *)
+(* must not sit in a context polluted by the non-box temporal hypothesis          *)
+(* UpstreamStabilization).                                                        *)
 LEMMA LemG1OpenAncestryBar ==
     ASSUME NEW o \in Object
-    PROVE  [](TypeOk => G1!AncestorSubGraph(deps, o, G1!IsOpenNode)
-                        = AncestorSubGraph(deps, o, IsOpenNode))
-<1>1. TypeOk => G1!AncestorSubGraph(deps, o, G1!IsOpenNode)
-               = AncestorSubGraph(deps, o, IsOpenNode)
+    PROVE  [](TypeOk => G1!OA(o) = OA(o))
+<1>1. TypeOk => G1!OA(o) = OA(o)
     BY LemG1OpenNodeBridge
 <1>. QED
     BY <1>1, PTL
 
-(* One step of G2's UpstreamStabilization is one step of G1's, once the       *)
-(* two open ancestor subgraphs coincide before and after the step.            *)
+(* One step of G2's UpstreamStabilization is one step of G1's, once the open  *)
+(* ancestries OA(o) and G1!OA(o) coincide before and after the step.          *)
 LEMMA LemG1UpstreamStabilizationStep ==
     ASSUME NEW o \in Object
-    PROVE  /\ G1!AncestorSubGraph(deps, o, G1!IsOpenNode)
-              = AncestorSubGraph(deps, o, IsOpenNode)
-           /\ (G1!AncestorSubGraph(deps, o, G1!IsOpenNode)
-               = AncestorSubGraph(deps, o, IsOpenNode))'
-           => ([(AncestorSubGraph(deps, o, IsOpenNode))'
-                \in DirectedSubgraph(AncestorSubGraph(deps, o, IsOpenNode))
-               ]_(AncestorSubGraph(deps, o, IsOpenNode))
-               => [(G1!AncestorSubGraph(deps, o, G1!IsOpenNode))'
-                   \in G1!DirectedSubgraph(G1!AncestorSubGraph(deps, o, G1!IsOpenNode))
-                  ]_(G1!AncestorSubGraph(deps, o, G1!IsOpenNode)))
+    PROVE  /\ G1!OA(o) = OA(o)
+           /\ (G1!OA(o) = OA(o))'
+           => ([OA(o)' \in DirectedSubgraph(OA(o))]_(OA(o))
+               => [G1!OA(o)' \in G1!DirectedSubgraph(G1!OA(o))]_(G1!OA(o)))
 BY LemG1GraphBridges
 
 LEMMA LemRefineG1UpstreamStabilization ==
@@ -3111,16 +3014,11 @@ LEMMA LemRefineG1UpstreamStabilization ==
 <1>. USE DEF UpstreamStabilization, G1!UpstreamStabilization, OA, G1!OA
 <1>. SUFFICES ASSUME []TypeOk, UpstreamStabilization, NEW o \in Object
               PROVE  []( [](o \in objectTargets)
-                        => <>[][ (G1!AncestorSubGraph(deps, o, G1!IsOpenNode))'
-                                 \in G1!DirectedSubgraph(G1!AncestorSubGraph(deps, o, G1!IsOpenNode))
-                               ]_(G1!AncestorSubGraph(deps, o, G1!IsOpenNode)) )
+                        => <>[][G1!OA(o)' \in G1!DirectedSubgraph(G1!OA(o))]_(G1!OA(o)) )
     BY Isa
-<1>1. <>[][(AncestorSubGraph(deps, o, IsOpenNode))'
-           \in DirectedSubgraph(AncestorSubGraph(deps, o, IsOpenNode))
-          ]_(AncestorSubGraph(deps, o, IsOpenNode))
+<1>1. <>[][OA(o)' \in DirectedSubgraph(OA(o))]_(OA(o))
     BY Isa
-<1>2. [](G1!AncestorSubGraph(deps, o, G1!IsOpenNode)
-          = AncestorSubGraph(deps, o, IsOpenNode))
+<1>2. [](G1!OA(o) = OA(o))
     BY LemG1OpenAncestryBar, PTL
 <1>. QED
     BY <1>1, <1>2, LemG1UpstreamStabilizationStep, PTL
@@ -3132,13 +3030,11 @@ LEMMA LemRefineG1UpstreamStabilization ==
 LEMMA LemUpstreamStabilizationNodeSets ==
     ASSUME NEW o \in Object
     PROVE  UpstreamStabilization
-           => <>[][(AncestorSubGraph(deps, o, IsOpenNode).node)'
-                   \subseteq AncestorSubGraph(deps, o, IsOpenNode).node]_vars
-<1>. DEFINE G == AncestorSubGraph(deps, o, IsOpenNode)
-<1>1. [G' \in DirectedSubgraph(G)]_(G) => [(G.node)' \subseteq G.node]_vars
+           => <>[][(OA(o).node)' \subseteq OA(o).node]_vars
+<1>1. [OA(o)' \in DirectedSubgraph(OA(o))]_(OA(o)) => [(OA(o).node)' \subseteq OA(o).node]_vars
     BY Zenon DEF DirectedSubgraph
-<1>2. UpstreamStabilization => <>[][G' \in DirectedSubgraph(G)]_(G)
-    BY Isa DEF UpstreamStabilization, OA
+<1>2. UpstreamStabilization => <>[][OA(o)' \in DirectedSubgraph(OA(o))]_(OA(o))
+    BY Isa DEF UpstreamStabilization
 <1>. QED
     BY <1>1, <1>2, PTL
 
@@ -3146,11 +3042,9 @@ LEMMA LemUpstreamStabilizationNodeSets ==
 (* suffix-stable: it is its own [].                                           *)
 LEMMA LemUpstreamStabilizationStable ==
     UpstreamStabilization <=> []UpstreamStabilization
-<1>. DEFINE Closed(o) == <>[][(AncestorSubGraph(deps, o, IsOpenNode))'
-                                 \in DirectedSubgraph(AncestorSubGraph(deps, o, IsOpenNode))
-                                ]_(AncestorSubGraph(deps, o, IsOpenNode))
+<1>. DEFINE Closed(o) == <>[][OA(o)' \in DirectedSubgraph(OA(o))]_(OA(o))
 <1>1. UpstreamStabilization <=> \A o \in Object : Closed(o)
-    BY Isa DEF UpstreamStabilization, OA
+    BY Isa DEF UpstreamStabilization
 <1>2. (\A o \in Object : Closed(o)) <=> [](\A o \in Object : Closed(o))
     <2>1. [](\A o \in Object : Closed(o)) <=> \A o \in Object : []Closed(o)
         OBVIOUS
@@ -3725,6 +3619,8 @@ JointNotFailed == INSTANCE JointStabilityTheorems WITH T <- NotFailed
 JointSettled   == INSTANCE JointStabilityTheorems WITH T <- Settled
 JointRetained  == INSTANCE JointStabilityTheorems WITH T <- Retained
 
+(* IsOpenNode at the next state, so that the DDG lemmas apply at deps'.     *)
+IsOpenNodeP(m) == IsOpenNode(m)'
 
 (*****************************************************************************)
 (* QUIESCENCE COROLLARY: under a quiesced open ancestry of a registered      *)
@@ -3736,13 +3632,13 @@ JointRetained  == INSTANCE JointStabilityTheorems WITH T <- Retained
 (*****************************************************************************)
 LEMMA LemNoUnknownCloneUnderQuiescence ==
     ASSUME NEW o \in Object, NEW t \in Task
-    PROVE  LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+    PROVE  LET S == OA(o).node
            IN /\ []GraphSafetyInv /\ [][Next]_vars
               /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
               /\ [](o \in RegisteredObject)
               /\ [][S' \subseteq S]_vars
               => [](~ (t \in Predecessor(deps, o) /\ nextAttemptOf[t] \in UnknownTask))
-<1>. DEFINE S  == AncestorSubGraph(deps, o, IsOpenNode).node
+<1>. DEFINE S  == OA(o).node
             A  == RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t]))
             Pb == t \in Predecessor(deps, o) /\ nextAttemptOf[t] \in UnknownTask
             X  == nextAttemptOf[t] \notin UnknownTask
@@ -3809,35 +3705,27 @@ LEMMA LemNoUnknownCloneUnderQuiescence ==
     <2>8. uc \notin S
         <3>1. uc \notin deps.node
             BY <2>1 DEF GSI_Nodes
+        <3>2. S \subseteq deps.node
+            BY DDG_AncestorSubGraphBasic DEF OA, DirectedSubgraph, TypeOk, DirectedGraphOf
         <3>. QED
-            BY <3>1, Zenon DEF Ancestor, AncestorSubGraph
+            BY <3>1, <3>2
     <2>9. (uc \in S)'
-        <3>. DEFINE IN2 == {m \in deps'.node : IsOpenNode(m)'}
-                    H   == [node |-> IN2,
-                            edge |-> deps'.edge \cap (IN2 \X IN2)]
-        <3>1. IsDirectedGraph(H)
-            BY DEF IsDirectedGraph
-        <3>2. (IsOpenNode(o))'
-            BY Assumptions
-            DEF AbortedObject, AbortedTask, CompletedObject, CompletedTask, IsOpenNode,
-                RegisteredObject, RetriedTask, TypeOk
-        <3>3. (IsOpenNode(uc))'
+        <3>1. IsDirectedGraph(deps')
+            BY DEF DirectedGraphOf, TypeOk
+        <3>2. IsOpenNodeP(o) /\ IsOpenNodeP(uc)
             BY <2>7, Assumptions
             DEF AbortedObject, AbortedTask, CompletedObject, CompletedTask, IsOpenNode,
-                RetriedTask, TypeOk, UnknownTask
-        <3>4. o \in deps'.node /\ uc \in deps'.node
-            <4>1. deps'.edge \subseteq deps'.node \X deps'.node
-                BY DEF DirectedGraphOf, IsDirectedGraph, TypeOk
-            <4>. QED
-                BY <2>6, <4>1
-        <3>5. o \in H.node /\ uc \in H.node /\ <<uc, o>> \in H.edge
-            BY <2>6, <3>2, <3>3, <3>4, Zenon
-        <3>6. o \in Ancestor(H, o)
-            BY <3>1, <3>5, DG_AncestorDescendantProperties, Zenon
-        <3>7. uc \in Ancestor(H, o)
-            BY <3>1, <3>5, <3>6, DG_AncestorClosedUnderPredecessor, Zenon
+                IsOpenNodeP, RegisteredObject, RetriedTask, TypeOk, UnknownTask
+        <3>3. o \in deps'.node /\ uc \in Predecessor(deps', o)
+            BY <2>6, <3>1 DEF IsDirectedGraph, Predecessor
+        <3>4. OA(o)' = AncestorSubGraph(deps', o, IsOpenNodeP)
+            BY DEF OA, IsOpenNodeP, AncestorSubGraph
+        <3>5. o \in S'
+            BY <3>2, <3>3, <3>4, DDG_AncestorSubGraphEmpty
+        <3>6. \A m \in S' : \A x \in Predecessor(deps', m) \ S' : ~IsOpenNodeP(x)
+            BY <3>1, <3>4, DDG_AncestorSubGraphIsMaximal
         <3>. QED
-            BY <3>2, <3>5, <3>7, Zenon DEF AncestorSubGraph
+            BY <3>2, <3>3, <3>5, <3>6
     <2>10. vars' /= vars
         <3>1. taskState[uc] = TASK_UNKNOWN
             BY <2>1 DEF UnknownTask
@@ -3862,14 +3750,14 @@ LEMMA LemNoUnknownCloneUnderQuiescence ==
 (* dead and a STRONG witness is permanent.                                   *)
 LEMMA LemNoUnretriedProducerUnderQuiescence ==
     ASSUME NEW o \in Object, NEW t \in Task
-    PROVE  LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+    PROVE  LET S == OA(o).node
            IN /\ []GraphSafetyInv /\ [][Next]_vars
               /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
               /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
               /\ [](o \in RegisteredObject)
               /\ [][S' \subseteq S]_vars
               => [](~ (t \in Predecessor(deps, o) /\ t \in UnretriedTask))
-<1>. DEFINE S == AncestorSubGraph(deps, o, IsOpenNode).node
+<1>. DEFINE S == OA(o).node
 <1>. SUFFICES ASSUME []GraphSafetyInv, []TypeOk, []DependencyGraphCompliant, []DepsNodeFinite,
                      []GSI_Nodes, []GSI_ObjPreds,
                      []UnknownAttemptImpliesFailed, []T2!TaskAttemptsIntegrity,
@@ -3902,7 +3790,7 @@ LEMMA LemNoUnretriedProducerUnderQuiescence ==
 (* RETRIED is terminal, so the exclusion is eventually permanent.            *)
 LEMMA LemFailedProducerEventuallyRetired ==
     ASSUME NEW o \in Object, NEW t \in Task
-    PROVE  LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+    PROVE  LET S == OA(o).node
            IN /\ []GraphSafetyInv /\ [][Next]_vars
               /\ WF_vars(RetryTasks({t}))
               /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
@@ -3910,7 +3798,7 @@ LEMMA LemFailedProducerEventuallyRetired ==
               /\ [](o \in RegisteredObject)
               /\ [][S' \subseteq S]_vars
               => <>[](~ (t \in Predecessor(deps, o) /\ t \in FailedTask))
-<1>. DEFINE S  == AncestorSubGraph(deps, o, IsOpenNode).node
+<1>. DEFINE S  == OA(o).node
             Pb == t \in Predecessor(deps, o) /\ t \in FailedTask
 \* --- (0) RetryTasks({t}) is enabled from the live-producer invariant: the   ---
 \* --- invariant's witness is strong or pending, never a registered-clone     ---
@@ -4064,12 +3952,12 @@ LEMMA LemFailedProducerEventuallyRetired ==
 (* ancestry -- growth, which the no-growth box forbids.                      *)
 LEMMA LemPredsFrozenUnderQuiescence ==
     ASSUME NEW o \in Object
-    PROVE  LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+    PROVE  LET S == OA(o).node
            IN /\ []GraphSafetyInv /\ [][Next]_vars
               /\ [](o \in RegisteredObject)
               /\ [][S' \subseteq S]_vars
               => [][Predecessor(deps, o)' = Predecessor(deps, o)]_vars
-<1>. DEFINE S == AncestorSubGraph(deps, o, IsOpenNode).node
+<1>. DEFINE S == OA(o).node
 <1>. SUFFICES ASSUME []GraphSafetyInv, []TypeOk, []DependencyGraphCompliant, []GSI_Nodes,
                      [][Next]_vars, [](o \in RegisteredObject),
                      [][S' \subseteq S]_vars
@@ -4144,35 +4032,28 @@ LEMMA LemPredsFrozenUnderQuiescence ==
                 <5>10. w \notin S
                     <6>1. w \notin deps.node
                         BY <5>7, <5>8 DEF GSI_Nodes
+                    <6>2. S \subseteq deps.node
+                        BY DDG_AncestorSubGraphBasic
+                        DEF S, OA, DirectedSubgraph, TypeOk, DirectedGraphOf
                     <6>. QED
-                        BY <6>1, Zenon DEF S, Ancestor, AncestorSubGraph
+                        BY <6>1, <6>2
                 <5>11. (w \in S)'
-                    <6>. DEFINE IN2 == {m \in deps'.node : IsOpenNode(m)'}
-                                H   == [node |-> IN2,
-                                        edge |-> deps'.edge \cap (IN2 \X IN2)]
-                    <6>1. IsDirectedGraph(H)
-                        BY DEF IsDirectedGraph
-                    <6>2. (IsOpenNode(o))'
-                        BY Assumptions
-                        DEF AbortedObject, AbortedTask, CompletedObject, CompletedTask, IsOpenNode,
-                            RegisteredObject, RetriedTask, TypeOk
-                    <6>3. (IsOpenNode(w))'
+                    <6>1. IsDirectedGraph(deps')
+                        BY DEF DirectedGraphOf, TypeOk
+                    <6>2. IsOpenNodeP(o) /\ IsOpenNodeP(w)
                         BY <5>7, <5>9, Assumptions
                         DEF AbortedObject, AbortedTask, CompletedObject, CompletedTask, IsOpenNode,
-                            RetriedTask, TypeOk, UnknownTask
-                    <6>4. o \in deps'.node /\ w \in deps'.node
-                        <7>1. deps'.edge \subseteq deps'.node \X deps'.node
-                            BY DEF DirectedGraphOf, IsDirectedGraph, TypeOk
-                        <7>. QED
-                            BY <5>2, <7>1
-                    <6>5. o \in H.node /\ w \in H.node /\ <<w, o>> \in H.edge
-                        BY <5>2, <6>2, <6>3, <6>4, Zenon
-                    <6>6. o \in Ancestor(H, o)
-                        BY <6>1, <6>5, DG_AncestorDescendantProperties, Zenon
-                    <6>7. w \in Ancestor(H, o)
-                        BY <6>1, <6>5, <6>6, DG_AncestorClosedUnderPredecessor, Zenon
+                            IsOpenNodeP, RegisteredObject, RetriedTask, TypeOk, UnknownTask
+                    <6>3. o \in deps'.node /\ w \in Predecessor(deps', o)
+                        BY <5>2, <6>1 DEF IsDirectedGraph, Predecessor
+                    <6>4. OA(o)' = AncestorSubGraph(deps', o, IsOpenNodeP)
+                        BY DEF OA, IsOpenNodeP, AncestorSubGraph
+                    <6>5. o \in S'
+                        BY <6>2, <6>3, <6>4, DDG_AncestorSubGraphEmpty DEF S
+                    <6>6. \A m \in S' : \A x \in Predecessor(deps', m) \ S' : ~IsOpenNodeP(x)
+                        BY <6>1, <6>4, DDG_AncestorSubGraphIsMaximal DEF S
                     <6>. QED
-                        BY <6>2, <6>5, <6>7, Zenon DEF S, AncestorSubGraph
+                        BY <6>2, <6>3, <6>5, <6>6
                 <5>. QED
                     BY <3>2, <5>10, <5>11, Zenon
             <4>. QED
@@ -4502,12 +4383,12 @@ LEMMA LemPredsFinite ==
 (* finite conjunctions below range.                                          *)
 LEMMA LemPredsPinned ==
     ASSUME NEW o \in Object
-    PROVE  LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+    PROVE  LET S == OA(o).node
            IN /\ []GraphSafetyInv /\ [][Next]_vars
               /\ [](o \in RegisteredObject)
               /\ <>[][S' \subseteq S]_vars
               => \E P \in SUBSET Task : IsFiniteSet(P) /\ <>[](Predecessor(deps, o) = P)
-<1>. DEFINE S     == AncestorSubGraph(deps, o, IsOpenNode).node
+<1>. DEFINE S     == OA(o).node
             Preds == Predecessor(deps, o)
 <1>. SUFFICES ASSUME []GraphSafetyInv, [][Next]_vars,
                      [](o \in RegisteredObject),
@@ -4565,12 +4446,12 @@ LEMMA LemPredsPinned ==
 (* the per-producer eventualities.                                           *)
 LEMMA LemNoFailedProducersUnderQuiescence ==
     ASSUME NEW o \in Object
-    PROVE  LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+    PROVE  LET S == OA(o).node
            IN /\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness
               /\ [](o \in RegisteredObject)
               /\ [][S' \subseteq S]_vars
               => <>[](\A w \in Task : ~ (w \in Predecessor(deps, o) /\ w \in FailedTask))
-<1>. DEFINE S       == AncestorSubGraph(deps, o, IsOpenNode).node
+<1>. DEFINE S       == OA(o).node
             Preds   == Predecessor(deps, o)
             Retired(x) == <>[](x \in NotFailed)
 (* Validities, proved in the clean context so that they may be necessitated. *)
@@ -4711,7 +4592,7 @@ LEMMA LemSPROutputS ==
 (* them from the common suffix where the <>[]-hypotheses hold.               *)
 LEMMA LemSPROutputD ==
     ASSUME NEW o \in Object, NEW t \in Task
-    PROVE  LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+    PROVE  LET S == OA(o).node
            IN /\ []GraphSafetyInv /\ [][Next]_vars /\ []Fairness
               /\ <>[](t \in Predecessor(deps, o) /\ t \in DiscardedTask)
               /\ <>[](o \in RegisteredObject)
@@ -4719,7 +4600,7 @@ LEMMA LemSPROutputD ==
               => <>[](\E w \in Predecessor(deps, o) \ {t} :
                           w \notin UNION {CompletedTask, AbortedTask, RetriedTask,
                                           FailedTask})
-<1>. DEFINE S == AncestorSubGraph(deps, o, IsOpenNode).node
+<1>. DEFINE S == OA(o).node
 <1>. SUFFICES ASSUME []GraphSafetyInv, [][Next]_vars, []Fairness,
                      <>[](t \in Predecessor(deps, o) /\ t \in DiscardedTask),
                      <>[](o \in RegisteredObject),
@@ -4864,8 +4745,7 @@ LEMMA LemOutputRetained ==
         BY PTL
     <2>. QED
         BY <2>1, Isa DEF Fairness
-<1>2. <>[][(AncestorSubGraph(deps, o, IsOpenNode).node)'
-           \subseteq AncestorSubGraph(deps, o, IsOpenNode).node]_vars
+<1>2. <>[][(OA(o).node)' \subseteq OA(o).node]_vars
     BY LemUpstreamStabilizationNodeSets
 (* S-case: the completion fairness drives o out of REGISTERED for good. *)
 <1>3. <>[](t \in SucceededTask) => <>[](Witness)
@@ -5106,7 +4986,7 @@ LEMMA LemCompleteObjectsFires ==
                  \/ \E p \in Predecessor(deps, o) :
                         p \in SucceededTask \/ p \in DiscardedTask \/ p \in FailedTask)
            => <><<CompleteObjects({o})>>_vars
-<1>. DEFINE S     == AncestorSubGraph(deps, o, IsOpenNode).node
+<1>. DEFINE S     == OA(o).node
             Preds == Predecessor(deps, o)
             Settle(x) == <>[](x \in Settled)
 (* Validities, proved in the clean context so that they may be necessitated. *)
@@ -6075,17 +5955,15 @@ THEOREM G2_RefineGraph1 == Spec => RefineGraph1
     BY <1>4, <1>5, <1>12 DEF G1!Spec
 
 (*****************************************************************************)
-(* REFINEMENT OF Object2 -- FAIRNESS                                         *)
-(*                                                                           *)
-(* G2 refines O2 (via G2_RefineGraph1). O2's only fairness                  *)
-(* conjunct, WF(o targeted /\ CompleteObjects), is enabled exactly when o is *)
-(* a registered target (O2!RegisteredObject = G1!RegisteredObject under     *)
-(* the Bar). A registered target cannot persist forever -- its open-ancestor *)
-(* cardinality would descend below every bound -- which is precisely        *)
-(* G1!LemTargetedRegisteredImpossible. Its G1-side hypotheses               *)
-(* (GraphSafetyInv / Next / Fairness) come from the G1 refinement; the      *)
-(* open-ancestor measure from G1!UpstreamStabilization, which G2            *)
-(* supplies via LemRefineG1UpstreamStabilization. The whole                 *)
+(* REFINEMENT OF Object2 -- FAIRNESS  G2 refines O2 (via G2_RefineGraph1).   *)
+(* O2's only fairness conjunct, WF(o targeted /\ CompleteObjects), is        *)
+(* enabled exactly when o is a registered target (O2!RegisteredObject =      *)
+(* G1!RegisteredObject under the Bar). A registered target cannot persist    *)
+(* forever -- the cardinality of its open ancestry would descend below every *)
+(* bound -- which is precisely G1!LemTargetedRegisteredImpossible. Its       *)
+(* G1-side hypotheses (GraphSafetyInv / Next / Fairness) come from the G1    *)
+(* refinement; the measure on OA(o) from G1!UpstreamStabilization, which G2  *)
+(* supplies via LemRefineG1UpstreamStabilization. The whole                  *)
 (* object-finalization engine is thus lifted verbatim from Graph1.           *)
 (*****************************************************************************)
 
@@ -6105,24 +5983,23 @@ LEMMA LemG1RegisteredBar ==
 <1>. QED
     BY <1>1, PTL
 
-(* WEAK FAIRNESS OF THE OBJECT-COMPLETION ACTION, reduced -- in a CLEAN          *)
-(* context, away from the refinement proof's pile of temporal hypotheses -- to    *)
-(* Graph1's targeted-registered contradiction. The negation of WF                 *)
-(* leaves the action enabled forever; the (inline) ENABLED equivalence keeps the  *)
-(* target registered forever; the Bar rewrite (LemG1RegisteredBar) maps that into        *)
-(* G1!RegisteredObject; and G1!LemTargetedRegisteredImpossible closes it, since   *)
-(* the finite open-ancestor subgraph cannot descend below every bound. This is    *)
-(* exactly G1_RefineObject1's reduction, lifted under the Bar. The                *)
-(* ENABLED is necessitated INLINE here (as in G1) and succeeds because no         *)
-(* temporal fact is in scope to pollute the coalescing -- the wall that blocks    *)
-(* doing this directly inside the refinement proof.                               *)
+(* WEAK FAIRNESS OF THE OBJECT-COMPLETION ACTION, reduced -- in a CLEAN context, away    *)
+(* from the refinement proof's pile of temporal hypotheses -- to Graph1's                *)
+(* targeted-registered contradiction. The negation of WF leaves the action enabled       *)
+(* forever; the (inline) ENABLED equivalence keeps the target registered forever; the    *)
+(* Bar rewrite (LemG1RegisteredBar) maps that into G1!RegisteredObject; and              *)
+(* G1!LemTargetedRegisteredImpossible closes it, since the cardinality of the finite     *)
+(* open ancestry cannot descend below every bound. This is exactly G1_RefineObject1's    *)
+(* reduction, lifted under the Bar. The ENABLED is necessitated INLINE here (as in G1)   *)
+(* and succeeds because no temporal fact is in scope to pollute the coalescing -- the    *)
+(* wall that blocks doing this directly inside the refinement proof.                     *)
 LEMMA LemRefineO2WFCompleteObjects ==
     ASSUME NEW o \in Object
-    PROVE  LET S == G1!AncestorSubGraph(deps, o, G1!IsOpenNode).node
+    PROVE  LET S == G1!OA(o).node
            IN /\ []G1!GraphSafetyInv /\ [][G1!Next]_(G1!vars) /\ []G1!Fairness
               /\ []([](o \in objectTargets) => <>[][S' \subseteq S]_S)
               => (<>[]O2!EnabledCompleteObjects(o) => []<><<o \in objectTargets /\ O2!CompleteObjects({o})>>_(O2!vars))
-<1>. DEFINE S == G1!AncestorSubGraph(deps, o, G1!IsOpenNode).node
+<1>. DEFINE S == G1!OA(o).node
 <1>1. SUFFICES /\ []G1!GraphSafetyInv /\ [][G1!Next]_(G1!vars) /\ []G1!Fairness
                /\ [](o \in objectTargets /\ o \in RegisteredObject)
                /\ [][S' \subseteq S]_S
@@ -6153,22 +6030,21 @@ LEMMA LemRefineO2WFCompleteObjects ==
 <1>. QED
     BY G1!LemTargetedRegisteredImpossible, LemG1Assumptions, Isa
 
-(* G1's UpstreamStabilization projected onto the node set of the open        *)
-(* ancestor subgraph -- the cardinality measure of                            *)
-(* LemRefineO2WFCompleteObjects. Clean lemma level, so that PTL may box the  *)
-(* action-level bridge (subgraph inclusion => node-set inclusion).           *)
+(* G1's UpstreamStabilization projected onto G1!OA(o).node -- the cardinality *)
+(* measure of LemRefineO2WFCompleteObjects. Clean lemma level, so that PTL    *)
+(* may box the action-level bridge (subgraph inclusion => node-set            *)
+(* inclusion).                                                                *)
 LEMMA LemG1UpstreamStabilizationNodeSets ==
     ASSUME NEW o \in Object
     PROVE  G1!UpstreamStabilization
-           => LET S == G1!AncestorSubGraph(deps, o, G1!IsOpenNode).node
+           => LET S == G1!OA(o).node
               IN  []([](o \in objectTargets) => <>[][S' \subseteq S]_S)
-<1>. DEFINE AG == G1!AncestorSubGraph(deps, o, G1!IsOpenNode)
-            S  == AG.node
-<1>1. [AG' \in G1!DirectedSubgraph(AG)]_(AG) => [S' \subseteq S]_S
+<1>. DEFINE S == G1!OA(o).node
+<1>1. [G1!OA(o)' \in G1!DirectedSubgraph(G1!OA(o))]_(G1!OA(o)) => [S' \subseteq S]_S
     BY Zenon DEF G1!DirectedSubgraph
 <1>2. G1!UpstreamStabilization
-      => []([](o \in objectTargets) => <>[][AG' \in G1!DirectedSubgraph(AG)]_(AG))
-    BY Isa DEF G1!UpstreamStabilization, G1!OA
+      => []([](o \in objectTargets) => <>[][G1!OA(o)' \in G1!DirectedSubgraph(G1!OA(o))]_(G1!OA(o)))
+    BY Isa DEF G1!UpstreamStabilization
 <1>. QED
     BY <1>1, <1>2, PTL
 
@@ -6197,13 +6073,13 @@ THEOREM G2_RefineObject2 == Spec => RefineObject2
     <2>. SUFFICES ASSUME NEW o \in Object
                   PROVE  (<>[]O2!EnabledCompleteObjects(o) => []<><<o \in objectTargets /\ O2!CompleteObjects({o})>>_(O2!vars))
         BY O2!LemFairnessEnabledFree, LemO2Assumptions, Isa DEF O2!FairCompleteObjects
-    <2>. DEFINE S == G1!AncestorSubGraph(deps, o, G1!IsOpenNode).node
-    \* the open-ancestor measure for o, instantiated from G1!OUEC
+    <2>. DEFINE S == G1!OA(o).node
+    \* the measure on OA(o), instantiated from G1!UpstreamStabilization
     <2>6. []([](o \in objectTargets) => <>[][S' \subseteq S]_S)
         BY <2>5, LemG1UpstreamStabilizationNodeSets
     \* The WF conjunct is discharged by its clean module-level reduction lemma:
     \* supply the four G1-side temporal hypotheses (from the assumed G1
-    \* refinement plus the open-ancestor measure) and the lemma delivers WF.
+    \* refinement plus the measure on OA(o)) and the lemma delivers WF.
     \* The ENABLED necessitation that would otherwise have to run here -- amid
     \* these temporal facts -- is done inside the lemma, in a pristine context.
     <2>. QED
@@ -6481,36 +6357,39 @@ LEMMA LemUnderivableQuiescence ==
         OBVIOUS
     <2>0. IsDirectedGraph(deps) /\ IsDirectedGraph(deps')
         BY DEF DirectedGraphOf, TypeOk
-    <2>1. deps.node \subseteq deps'.node /\ deps.edge \subseteq deps'.edge
-        BY LemDepsMonotone
-    <2>2. /\ AncestorSubGraph(deps', o, IsViableNodeP).node
-             \subseteq AncestorSubGraph(deps, o, IsViableNode).node
-          /\ AncestorSubGraph(deps', o, IsViableNodeP).edge
-             \subseteq AncestorSubGraph(deps, o, IsViableNode).edge
+    <2>1. deps \in DirectedSubgraph(deps')
+        BY <2>0, LemDepsMonotone, DG_DirectedSubgraphIntro
+    <2>2. ViableAncestry(o)' \in DirectedSubgraph(ViableAncestry(o))
         <3>1. CASE deps' = deps
-            <4>1. /\ AncestorSubGraph(deps, o, IsViableNodeP).node
-                     \subseteq AncestorSubGraph(deps, o, IsViableNode).node
-                  /\ AncestorSubGraph(deps, o, IsViableNodeP).edge
-                     \subseteq AncestorSubGraph(deps, o, IsViableNode).edge
-                BY <1>3, <2>0, DDG_AncestorSubGraphMono, Isa
+            <4>1. \A n : IsViableNodeP(n) => IsViableNode(n)
+                BY <1>3
+            <4>2. AncestorSubGraph(deps, o, IsViableNodeP)
+                  \in DirectedSubgraph(AncestorSubGraph(deps, o, IsViableNode))
+                BY <2>0, <4>1, DDG_AncestorSubGraphMono
             <4>. QED
-                BY <3>1, <4>1
+                BY <1>2, <3>1, <4>2 DEF ViableAncestry
         <3>2. CASE deps' /= deps
             <4>1. \E G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G)
                 BY <1>4, <3>2
             <4>2. HS
                 BY <3>2 DEF vars
-            <4>3. AncestorSubGraph(deps', o, IsViableNodeP) = ViableAncestry(o)
-                BY <4>1, <4>2, <1>2
+            <4>3. ViableAncestry(o)' = ViableAncestry(o)
+                BY <4>1, <4>2
+            <4>4. IsDirectedGraph(ViableAncestry(o))
+                BY <2>0, DDG_AncestorSubGraphBasic, DG_DirectedSubgraphProperties
+                DEF ViableAncestry
             <4>. QED
-                BY <4>3 DEF ViableAncestry
+                BY <4>3, <4>4, DG_DirectedSubgraphIntro
         <3>. QED
             BY <3>1, <3>2
-    <2>3. Derivation(deps', o, IsViableNodeP, Task)
+    <2>3. AncestorSubGraph(deps', o, IsViableNodeP)
+          \in DirectedSubgraph(AncestorSubGraph(deps, o, IsViableNode))
+        BY <1>2, <2>2 DEF ViableAncestry
+    <2>4. Derivation(deps', o, IsViableNodeP, Task)
              \subseteq Derivation(deps, o, IsViableNode, Task)
-        BY <2>0, <2>1, <2>2, DDG_DerivationAntitone, Isa
+        BY <2>1, <2>3, DDG_DerivationAntitone
     <2>. QED
-        BY <1>1, <2>3 DEF G2Derivation
+        BY <1>1, <2>4 DEF G2Derivation
 <1>. QED
     BY <1>5, PTL
 

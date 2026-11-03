@@ -85,16 +85,13 @@ LEMMA LemG1Assumptions == G1!Assumptions
 
 (* G2's IsOpenNode (corrected to exclude completed/aborted/retried tasks and     *)
 (* completed/aborted objects) coincides pointwise with G1!IsOpenNode under the   *)
-(* Bar mapping (LemG1BarStates), so the open-induced ancestor subgraph and the set  *)
-(* of open paths are mapping-independent. Used by the UpstreamStabilization       *)
-(* refinement and the open-ancestry-guarded AssignTasks fairness conjunct.       *)
+(* Bar mapping (LemG1BarStates), so the open ancestries coincide. Used by the    *)
+(* UpstreamStabilization refinement and the open-ancestry-guarded fairness       *)
+(* conjuncts.                                                                    *)
 LEMMA LemG1OpenNodeBridge ==
     ASSUME TypeOk
     PROVE  /\ \A n : IsOpenNode(n) <=> G1!IsOpenNode(n)
-           /\ \A o : AncestorSubGraph(deps, o, IsOpenNode)
-                     = G1!AncestorSubGraph(deps, o, G1!IsOpenNode)
-           /\ \A o : OpenPath(deps, o, IsOpenNode)
-                     = G1!OpenPath(deps, o, G1!IsOpenNode)
+           /\ \A o : OA(o) = G1!OA(o)
 
 (*****************************************************************************)
 (* TYPE INVARIANT                                                            *)
@@ -557,33 +554,25 @@ LEMMA LemRefineG1WFStageTasks ==
            /\ WF_vars(DiscardOnAbortedInput(t))
            => (<>[]G1!EnabledStageTasks(t) => []<><<G1!StageTasks({t})>>_(G1!vars))
 
-(* G1!UpstreamStabilization refinement. G2's IsOpenNode matches               *)
-(* G1!IsOpenNode under the Bar (LemG1OpenNodeBridge), so the open-induced         *)
-(* ancestor subgraphs coincide under []TypeOk, and the two constraints differ  *)
-(* only by G1's outer target guard ([](o \in targets) => ...), which G2's      *)
-(* unconditional constraint trivially satisfies. The boxed bridge below is     *)
-(* proved at clean lemma level (its PTL necessitation must not sit in a        *)
-(* context polluted by the non-box temporal hypothesis                        *)
-(* UpstreamStabilization).                                                     *)
+(* G1!UpstreamStabilization refinement. G2's IsOpenNode matches G1!IsOpenNode     *)
+(* under the Bar (LemG1OpenNodeBridge), so OA(o) and G1!OA(o) coincide under      *)
+(* []TypeOk, and the two constraints differ only by G1's outer target guard ([](o *)
+(* \in targets) => ...), which G2's unconditional constraint trivially satisfies. *)
+(* The boxed bridge below is proved at clean lemma level (its PTL necessitation   *)
+(* must not sit in a context polluted by the non-box temporal hypothesis          *)
+(* UpstreamStabilization).                                                        *)
 LEMMA LemG1OpenAncestryBar ==
     ASSUME NEW o \in Object
-    PROVE  [](TypeOk => G1!AncestorSubGraph(deps, o, G1!IsOpenNode)
-                        = AncestorSubGraph(deps, o, IsOpenNode))
+    PROVE  [](TypeOk => G1!OA(o) = OA(o))
 
-(* One step of G2's UpstreamStabilization is one step of G1's, once the       *)
-(* two open ancestor subgraphs coincide before and after the step.            *)
+(* One step of G2's UpstreamStabilization is one step of G1's, once the open  *)
+(* ancestries OA(o) and G1!OA(o) coincide before and after the step.          *)
 LEMMA LemG1UpstreamStabilizationStep ==
     ASSUME NEW o \in Object
-    PROVE  /\ G1!AncestorSubGraph(deps, o, G1!IsOpenNode)
-              = AncestorSubGraph(deps, o, IsOpenNode)
-           /\ (G1!AncestorSubGraph(deps, o, G1!IsOpenNode)
-               = AncestorSubGraph(deps, o, IsOpenNode))'
-           => ([(AncestorSubGraph(deps, o, IsOpenNode))'
-                \in DirectedSubgraph(AncestorSubGraph(deps, o, IsOpenNode))
-               ]_(AncestorSubGraph(deps, o, IsOpenNode))
-               => [(G1!AncestorSubGraph(deps, o, G1!IsOpenNode))'
-                   \in G1!DirectedSubgraph(G1!AncestorSubGraph(deps, o, G1!IsOpenNode))
-                  ]_(G1!AncestorSubGraph(deps, o, G1!IsOpenNode)))
+    PROVE  /\ G1!OA(o) = OA(o)
+           /\ (G1!OA(o) = OA(o))'
+           => ([OA(o)' \in DirectedSubgraph(OA(o))]_(OA(o))
+               => [G1!OA(o)' \in G1!DirectedSubgraph(G1!OA(o))]_(G1!OA(o)))
 
 LEMMA LemRefineG1UpstreamStabilization ==
     []TypeOk /\ UpstreamStabilization => G1!UpstreamStabilization
@@ -595,8 +584,7 @@ LEMMA LemRefineG1UpstreamStabilization ==
 LEMMA LemUpstreamStabilizationNodeSets ==
     ASSUME NEW o \in Object
     PROVE  UpstreamStabilization
-           => <>[][(AncestorSubGraph(deps, o, IsOpenNode).node)'
-                   \subseteq AncestorSubGraph(deps, o, IsOpenNode).node]_vars
+           => <>[][(OA(o).node)' \subseteq OA(o).node]_vars
 
 (* UpstreamStabilization is a conjunction of <>[]-formulas, hence             *)
 (* suffix-stable: it is its own [].                                           *)
@@ -697,7 +685,7 @@ LEMMA LemT2NextAttemptFrozen ==
 (*****************************************************************************)
 LEMMA LemNoUnknownCloneUnderQuiescence ==
     ASSUME NEW o \in Object, NEW t \in Task
-    PROVE  LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+    PROVE  LET S == OA(o).node
            IN /\ []GraphSafetyInv /\ [][Next]_vars
               /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
               /\ [](o \in RegisteredObject)
@@ -712,7 +700,7 @@ LEMMA LemNoUnknownCloneUnderQuiescence ==
 (* dead and a STRONG witness is permanent.                                   *)
 LEMMA LemNoUnretriedProducerUnderQuiescence ==
     ASSUME NEW o \in Object, NEW t \in Task
-    PROVE  LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+    PROVE  LET S == OA(o).node
            IN /\ []GraphSafetyInv /\ [][Next]_vars
               /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
               /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
@@ -726,7 +714,7 @@ LEMMA LemNoUnretriedProducerUnderQuiescence ==
 (* RETRIED is terminal, so the exclusion is eventually permanent.            *)
 LEMMA LemFailedProducerEventuallyRetired ==
     ASSUME NEW o \in Object, NEW t \in Task
-    PROVE  LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+    PROVE  LET S == OA(o).node
            IN /\ []GraphSafetyInv /\ [][Next]_vars
               /\ WF_vars(RetryTasks({t}))
               /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
@@ -740,7 +728,7 @@ LEMMA LemFailedProducerEventuallyRetired ==
 (* ancestry -- growth, which the no-growth box forbids.                      *)
 LEMMA LemPredsFrozenUnderQuiescence ==
     ASSUME NEW o \in Object
-    PROVE  LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+    PROVE  LET S == OA(o).node
            IN /\ []GraphSafetyInv /\ [][Next]_vars
               /\ [](o \in RegisteredObject)
               /\ [][S' \subseteq S]_vars
@@ -850,7 +838,7 @@ LEMMA LemPredsFinite ==
 (* finite conjunctions below range.                                          *)
 LEMMA LemPredsPinned ==
     ASSUME NEW o \in Object
-    PROVE  LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+    PROVE  LET S == OA(o).node
            IN /\ []GraphSafetyInv /\ [][Next]_vars
               /\ [](o \in RegisteredObject)
               /\ <>[][S' \subseteq S]_vars
@@ -862,7 +850,7 @@ LEMMA LemPredsPinned ==
 (* the per-producer eventualities.                                           *)
 LEMMA LemNoFailedProducersUnderQuiescence ==
     ASSUME NEW o \in Object
-    PROVE  LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+    PROVE  LET S == OA(o).node
            IN /\ []GraphSafetyInv /\ [][Next]_vars /\ Fairness
               /\ [](o \in RegisteredObject)
               /\ [][S' \subseteq S]_vars
@@ -899,7 +887,7 @@ LEMMA LemSPROutputS ==
 (* them from the common suffix where the <>[]-hypotheses hold.               *)
 LEMMA LemSPROutputD ==
     ASSUME NEW o \in Object, NEW t \in Task
-    PROVE  LET S == AncestorSubGraph(deps, o, IsOpenNode).node
+    PROVE  LET S == OA(o).node
            IN /\ []GraphSafetyInv /\ [][Next]_vars /\ []Fairness
               /\ <>[](t \in Predecessor(deps, o) /\ t \in DiscardedTask)
               /\ <>[](o \in RegisteredObject)
@@ -1158,17 +1146,15 @@ LEMMA LemRefineT2WFRetryTasks ==
 THEOREM G2_RefineGraph1 == Spec => RefineGraph1
 
 (*****************************************************************************)
-(* REFINEMENT OF Object2 -- FAIRNESS                                         *)
-(*                                                                           *)
-(* G2 refines O2 (via G2_RefineGraph1). O2's only fairness                  *)
-(* conjunct, WF(o targeted /\ CompleteObjects), is enabled exactly when o is *)
-(* a registered target (O2!RegisteredObject = G1!RegisteredObject under     *)
-(* the Bar). A registered target cannot persist forever -- its open-ancestor *)
-(* cardinality would descend below every bound -- which is precisely        *)
-(* G1!LemTargetedRegisteredImpossible. Its G1-side hypotheses               *)
-(* (GraphSafetyInv / Next / Fairness) come from the G1 refinement; the      *)
-(* open-ancestor measure from G1!UpstreamStabilization, which G2            *)
-(* supplies via LemRefineG1UpstreamStabilization. The whole                 *)
+(* REFINEMENT OF Object2 -- FAIRNESS  G2 refines O2 (via G2_RefineGraph1).   *)
+(* O2's only fairness conjunct, WF(o targeted /\ CompleteObjects), is        *)
+(* enabled exactly when o is a registered target (O2!RegisteredObject =      *)
+(* G1!RegisteredObject under the Bar). A registered target cannot persist    *)
+(* forever -- the cardinality of its open ancestry would descend below every *)
+(* bound -- which is precisely G1!LemTargetedRegisteredImpossible. Its       *)
+(* G1-side hypotheses (GraphSafetyInv / Next / Fairness) come from the G1    *)
+(* refinement; the measure on OA(o) from G1!UpstreamStabilization, which G2  *)
+(* supplies via LemRefineG1UpstreamStabilization. The whole                  *)
 (* object-finalization engine is thus lifted verbatim from Graph1.           *)
 (*****************************************************************************)
 
@@ -1182,32 +1168,31 @@ LEMMA LemG1RegisteredBar ==
     PROVE  [](o \in objectTargets /\ o \in RegisteredObject
               => o \in objectTargets /\ o \in G1!RegisteredObject)
 
-(* WEAK FAIRNESS OF THE OBJECT-COMPLETION ACTION, reduced -- in a CLEAN          *)
-(* context, away from the refinement proof's pile of temporal hypotheses -- to    *)
-(* Graph1's targeted-registered contradiction. The negation of WF                 *)
-(* leaves the action enabled forever; the (inline) ENABLED equivalence keeps the  *)
-(* target registered forever; the Bar rewrite (LemG1RegisteredBar) maps that into        *)
-(* G1!RegisteredObject; and G1!LemTargetedRegisteredImpossible closes it, since   *)
-(* the finite open-ancestor subgraph cannot descend below every bound. This is    *)
-(* exactly G1_RefineObject1's reduction, lifted under the Bar. The                *)
-(* ENABLED is necessitated INLINE here (as in G1) and succeeds because no         *)
-(* temporal fact is in scope to pollute the coalescing -- the wall that blocks    *)
-(* doing this directly inside the refinement proof.                               *)
+(* WEAK FAIRNESS OF THE OBJECT-COMPLETION ACTION, reduced -- in a CLEAN context, away    *)
+(* from the refinement proof's pile of temporal hypotheses -- to Graph1's                *)
+(* targeted-registered contradiction. The negation of WF leaves the action enabled       *)
+(* forever; the (inline) ENABLED equivalence keeps the target registered forever; the    *)
+(* Bar rewrite (LemG1RegisteredBar) maps that into G1!RegisteredObject; and              *)
+(* G1!LemTargetedRegisteredImpossible closes it, since the cardinality of the finite     *)
+(* open ancestry cannot descend below every bound. This is exactly G1_RefineObject1's    *)
+(* reduction, lifted under the Bar. The ENABLED is necessitated INLINE here (as in G1)   *)
+(* and succeeds because no temporal fact is in scope to pollute the coalescing -- the    *)
+(* wall that blocks doing this directly inside the refinement proof.                     *)
 LEMMA LemRefineO2WFCompleteObjects ==
     ASSUME NEW o \in Object
-    PROVE  LET S == G1!AncestorSubGraph(deps, o, G1!IsOpenNode).node
+    PROVE  LET S == G1!OA(o).node
            IN /\ []G1!GraphSafetyInv /\ [][G1!Next]_(G1!vars) /\ []G1!Fairness
               /\ []([](o \in objectTargets) => <>[][S' \subseteq S]_S)
               => (<>[]O2!EnabledCompleteObjects(o) => []<><<o \in objectTargets /\ O2!CompleteObjects({o})>>_(O2!vars))
 
-(* G1's UpstreamStabilization projected onto the node set of the open        *)
-(* ancestor subgraph -- the cardinality measure of                            *)
-(* LemRefineO2WFCompleteObjects. Clean lemma level, so that PTL may box the  *)
-(* action-level bridge (subgraph inclusion => node-set inclusion).           *)
+(* G1's UpstreamStabilization projected onto G1!OA(o).node -- the cardinality *)
+(* measure of LemRefineO2WFCompleteObjects. Clean lemma level, so that PTL    *)
+(* may box the action-level bridge (subgraph inclusion => node-set            *)
+(* inclusion).                                                                *)
 LEMMA LemG1UpstreamStabilizationNodeSets ==
     ASSUME NEW o \in Object
     PROVE  G1!UpstreamStabilization
-           => LET S == G1!AncestorSubGraph(deps, o, G1!IsOpenNode).node
+           => LET S == G1!OA(o).node
               IN  []([](o \in objectTargets) => <>[][S' \subseteq S]_S)
 
 THEOREM G2_RefineObject2 == Spec => RefineObject2
