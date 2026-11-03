@@ -2988,40 +2988,29 @@ LEMMA LemRefineG1WFStageTasks ==
 (* under the Bar (LemG1OpenNodeBridge), so OA(o) and G1!OA(o) coincide under      *)
 (* []TypeOk, and the two constraints differ only by G1's outer target guard ([](o *)
 (* \in targets) => ...), which G2's unconditional constraint trivially satisfies. *)
-(* The boxed bridge below is proved at clean lemma level (its PTL necessitation   *)
-(* must not sit in a context polluted by the non-box temporal hypothesis          *)
-(* UpstreamStabilization).                                                        *)
-LEMMA LemG1OpenAncestryBar ==
-    ASSUME NEW o \in Object
-    PROVE  [](TypeOk => G1!OA(o) = OA(o))
-<1>1. TypeOk => G1!OA(o) = OA(o)
-    BY LemG1OpenNodeBridge
-<1>. QED
-    BY <1>1, PTL
-
-(* One step of G2's UpstreamStabilization is one step of G1's, once the open  *)
-(* ancestries OA(o) and G1!OA(o) coincide before and after the step.          *)
-LEMMA LemG1UpstreamStabilizationStep ==
-    ASSUME NEW o \in Object
-    PROVE  /\ G1!OA(o) = OA(o)
-           /\ (G1!OA(o) = OA(o))'
-           => ([OA(o)' \in DirectedSubgraph(OA(o))]_(OA(o))
-               => [G1!OA(o)' \in G1!DirectedSubgraph(G1!OA(o))]_(G1!OA(o)))
-BY LemG1GraphBridges
-
 LEMMA LemRefineG1UpstreamStabilization ==
     []TypeOk /\ UpstreamStabilization => G1!UpstreamStabilization
 <1>. USE DEF UpstreamStabilization, G1!UpstreamStabilization, OA, G1!OA
-<1>. SUFFICES ASSUME []TypeOk, UpstreamStabilization, NEW o \in Object
-              PROVE  []( [](o \in objectTargets)
-                        => <>[][G1!OA(o)' \in G1!DirectedSubgraph(G1!OA(o))]_(G1!OA(o)) )
+<1>. SUFFICES ASSUME NEW o \in Object
+              PROVE  []TypeOk /\ UpstreamStabilization
+                     => []( [](o \in objectTargets)
+                           => <>[][G1!OA(o)' \in G1!DirectedSubgraph(G1!OA(o))]_(G1!OA(o)) )
     BY Isa
-<1>1. <>[][OA(o)' \in DirectedSubgraph(OA(o))]_(OA(o))
+\* the open ancestries coincide in every state, boxed in the clean context
+<1>1. [](TypeOk => G1!OA(o) = OA(o))
+    <2>1. TypeOk => G1!OA(o) = OA(o)
+        BY LemG1OpenNodeBridge
+    <2>. QED
+        BY <2>1, PTL
+\* one constraint step is then one G1 constraint step
+<1>2. G1!OA(o) = OA(o) /\ (G1!OA(o) = OA(o))'
+      => ([OA(o)' \in DirectedSubgraph(OA(o))]_(OA(o))
+          => [G1!OA(o)' \in G1!DirectedSubgraph(G1!OA(o))]_(G1!OA(o)))
+    BY LemG1GraphBridges
+<1>3. UpstreamStabilization => <>[][OA(o)' \in DirectedSubgraph(OA(o))]_(OA(o))
     BY Isa
-<1>2. [](G1!OA(o) = OA(o))
-    BY LemG1OpenAncestryBar, PTL
 <1>. QED
-    BY <1>1, <1>2, LemG1UpstreamStabilizationStep, PTL
+    BY <1>1, <1>2, <1>3, PTL
 
 (* Node-set projection of UpstreamStabilization: a subgraph inclusion          *)
 (* implies the inclusion of the node sets, so the subgraph form of             *)

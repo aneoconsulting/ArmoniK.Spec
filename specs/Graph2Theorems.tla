@@ -558,22 +558,6 @@ LEMMA LemRefineG1WFStageTasks ==
 (* under the Bar (LemG1OpenNodeBridge), so OA(o) and G1!OA(o) coincide under      *)
 (* []TypeOk, and the two constraints differ only by G1's outer target guard ([](o *)
 (* \in targets) => ...), which G2's unconditional constraint trivially satisfies. *)
-(* The boxed bridge below is proved at clean lemma level (its PTL necessitation   *)
-(* must not sit in a context polluted by the non-box temporal hypothesis          *)
-(* UpstreamStabilization).                                                        *)
-LEMMA LemG1OpenAncestryBar ==
-    ASSUME NEW o \in Object
-    PROVE  [](TypeOk => G1!OA(o) = OA(o))
-
-(* One step of G2's UpstreamStabilization is one step of G1's, once the open  *)
-(* ancestries OA(o) and G1!OA(o) coincide before and after the step.          *)
-LEMMA LemG1UpstreamStabilizationStep ==
-    ASSUME NEW o \in Object
-    PROVE  /\ G1!OA(o) = OA(o)
-           /\ (G1!OA(o) = OA(o))'
-           => ([OA(o)' \in DirectedSubgraph(OA(o))]_(OA(o))
-               => [G1!OA(o)' \in G1!DirectedSubgraph(G1!OA(o))]_(G1!OA(o)))
-
 LEMMA LemRefineG1UpstreamStabilization ==
     []TypeOk /\ UpstreamStabilization => G1!UpstreamStabilization
 
