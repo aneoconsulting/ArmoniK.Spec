@@ -1627,6 +1627,68 @@ THEOREM DDG_AncestorSubGraphMono ==
     BY <1>2, <1>3
 
 (******************************************************************************)
+(* The sources of AncestorSubGraph(G, n, Op) are its nodes whose every       *)
+(* predecessor in G fails Op: a predecessor satisfying Op belongs to the      *)
+(* subgraph (DDG_AncestorSubGraphIsMaximal), together with its edge to the    *)
+(* node, and every node of the subgraph satisfies Op.                         *)
+(******************************************************************************)
+THEOREM DDG_AncestorSubGraphSource ==
+    ASSUME NEW G, IsDirectedGraph(G), NEW n, NEW Op(_)
+    PROVE  LET A == AncestorSubGraph(G, n, Op) IN
+           Source(A) = {s \in A.node : \A u \in Predecessor(G, s) : ~Op(u)}
+<1> DEFINE A == AncestorSubGraph(G, n, Op)
+<1>1. A \in DirectedSubgraph(G) /\ A.node \subseteq {y \in G.node : Op(y)}
+    BY DDG_AncestorSubGraphBasic
+<1>2. \A m \in A.node : \A x \in Predecessor(G, m) \ A.node : ~Op(x)
+    BY DDG_AncestorSubGraphIsMaximal
+<1>3. A.edge = G.edge \cap (A.node \X A.node)
+    BY DEF AncestorSubGraph
+<1>4. ASSUME NEW s \in Source(A)
+      PROVE  s \in A.node /\ \A u \in Predecessor(G, s) : ~Op(u)
+    <2>1. s \in A.node /\ Predecessor(A, s) = {}
+        BY <1>4 DEF Source
+    <2>2. ASSUME NEW u \in Predecessor(G, s), Op(u) PROVE FALSE
+        <3>1. u \in A.node
+            BY <1>2, <2>1, <2>2
+        <3>2. u \in Predecessor(A, s)
+            BY <1>3, <2>1, <2>2, <3>1 DEF Predecessor
+        <3>. QED
+            BY <2>1, <3>2
+    <2>. QED
+        BY <2>1, <2>2
+<1>5. ASSUME NEW s \in A.node, \A u \in Predecessor(G, s) : ~Op(u)
+      PROVE  s \in Source(A)
+    <2>1. ASSUME NEW u \in Predecessor(A, s) PROVE FALSE
+        <3>1. u \in A.node /\ <<u, s>> \in G.edge
+            BY <1>3 DEF Predecessor
+        <3>2. u \in Predecessor(G, s) /\ Op(u)
+            BY <1>1, <3>1 DEF Predecessor
+        <3>. QED
+            BY <1>5, <3>2
+    <2>. QED
+        BY <1>5, <2>1 DEF Source
+<1>. QED
+    BY <1>4, <1>5
+
+(******************************************************************************)
+(* In a finite DAG, the ancestor subgraph of a node satisfying Op has a      *)
+(* source: it is a finite DAG (a directed subgraph of G) that contains n, so  *)
+(* DG_DagSourceReaches applies to it.                                         *)
+(******************************************************************************)
+THEOREM DDG_AncestorSubGraphHasSource ==
+    ASSUME NEW G, IsDag(G), IsFiniteSet(G.node), NEW n \in G.node, NEW Op(_), Op(n)
+    PROVE  Source(AncestorSubGraph(G, n, Op)) # {}
+<1> DEFINE A == AncestorSubGraph(G, n, Op)
+<1>1. A \in DirectedSubgraph(G)
+    BY DDG_AncestorSubGraphBasic DEF IsDag
+<1>2. IsDag(A) /\ IsFiniteSet(A.node)
+    BY <1>1, DG_DirectedSubgraphProperties, FS_Subset DEF DirectedSubgraph
+<1>3. n \in A.node
+    BY DDG_AncestorSubGraphEmpty
+<1>. QED
+    BY <1>2, <1>3, DG_DagSourceReaches
+
+(******************************************************************************)
 (* An Op-blocked sink has no derivations: ~Op(n) empties the induced ancestor *)
 (* subgraph, so no subgraph of it can have {n} as its sink set. Needs neither *)
 (* n \in G.node nor any structure on G.                                       *)
