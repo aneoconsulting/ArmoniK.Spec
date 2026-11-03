@@ -256,8 +256,11 @@ THEOREM G3_GraphStateIntegrity == Spec => []GraphStateIntegrity
 (* <<Op(t)>>_v.                                                              *)
 (*****************************************************************************)
 
-DiscardOnAbortedInput(t) ==
-    Predecessor(deps, t) \intersect AbortedObject /= {} /\ DiscardTasks({t})
+DiscardOnAbortedInput(t, o) ==
+    /\ o \in objectTargets
+    /\ t \in OA(o).node
+    /\ Predecessor(deps, t) \intersect AbortedObject /= {}
+    /\ DiscardTasks({t})
 
 AssignUpstream(t, o) ==
     o \in objectTargets /\ t \in OA(o).node /\ AssignTasks({t})
@@ -290,11 +293,12 @@ LEMMA LemRefineG2WFStageTasks ==
     PROVE  WF_vars(StageTasks({t})) => (<>[]G2!EnabledStageTasks(t) => []<><<G2!StageTasks({t})>>_(G2!vars))
 
 (* WF(G2!DiscardOnAbortedInput): G3's discard domain (registered, staged,     *)
-(* paused, stopped) Bar-maps exactly onto G2's (registered, staged), so the   *)
-(* enabledness conditions coincide.                                           *)
+(* paused, stopped) Bar-maps exactly onto G2's (registered, staged), and the  *)
+(* open ancestries coincide (LemG2OpenNodeBridge), so the enabledness         *)
+(* conditions coincide.                                                       *)
 LEMMA LemRefineG2WFDiscardOnAbortedInput ==
-    ASSUME NEW t \in Task
-    PROVE  WF_vars(DiscardOnAbortedInput(t)) => (<>[]G2!EnabledDiscardOnAbortedInput(t) => []<><<G2!DiscardOnAbortedInput(t)>>_(G2!vars))
+    ASSUME NEW t \in Task, NEW o \in Object
+    PROVE  WF_vars(DiscardOnAbortedInput(t, o)) => (<>[]G2!EnabledDiscardOnAbortedInput(t, o) => []<><<G2!DiscardOnAbortedInput(t, o)>>_(G2!vars))
 
 (* WF(G2!CompleteTasks): the retention guard's excluded classes (completed,   *)
 (* aborted, retried, failed) are Bar-invariant, and a parked witness is       *)
