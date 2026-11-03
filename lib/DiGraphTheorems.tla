@@ -33,6 +33,22 @@ THEOREM DG_DirectedSubgraphProperties ==
                             => IsBipartiteWithPartitions(H, U, V)
 
 (******************************************************************************)
+(* Membership in DirectedSubgraph(G) from its definition: a well-formed      *)
+(* directed graph whose nodes and edges are nodes and edges of G.             *)
+(******************************************************************************)
+THEOREM DG_DirectedSubgraphIntro ==
+    ASSUME NEW G, NEW H, IsDirectedGraph(H),
+           H.node \subseteq G.node, H.edge \subseteq G.edge
+    PROVE  H \in DirectedSubgraph(G)
+
+(******************************************************************************)
+(* The directed-subgraph relation is transitive.                             *)
+(******************************************************************************)
+THEOREM DG_DirectedSubgraphTransitive ==
+    ASSUME NEW G, NEW H \in DirectedSubgraph(G), NEW K \in DirectedSubgraph(H)
+    PROVE  K \in DirectedSubgraph(G)
+
+(******************************************************************************)
 (* The union of two directed graphs is a directed graph.                      *)
 (******************************************************************************)
 THEOREM DG_GraphUnionIsDirected ==
@@ -163,6 +179,14 @@ THEOREM DG_AncestorDescendantProperties ==
            /\ n \in Descendant(G, n)
 
 (******************************************************************************)
+(* A node that reaches a distinct node has a successor: the second node of  *)
+(* a simple path between them.                                                *)
+(******************************************************************************)
+THEOREM DG_AreConnectedHasSuccessor ==
+    ASSUME NEW G, NEW m, NEW n, AreConnectedIn(G, m, n), m # n
+    PROVE  Successor(G, m) # {}
+
+(******************************************************************************)
 (* Every path can be shortened to a simple path with the same endpoints. The *)
 (* witness is built by well-founded induction on Len(p): if p is already     *)
 (* simple it is its own witness, otherwise a repeated node lets us splice    *)
@@ -245,6 +269,21 @@ THEOREM DG_AreConnectedLiftToUUG ==
 THEOREM DG_UnderlyingUndirectedGraphIsUndirected ==
     ASSUME NEW G, IsDirectedGraph(G)
     PROVE  IsUndirectedGraph(UnderlyingUndirectedGraph(G))
+
+(******************************************************************************)
+(* Reversal of a path of any G: the point-wise reversal                      *)
+(*   q[i] = p[Len(p) - i + 1]                                                 *)
+(* is a path of Transpose(G) of the same length, with the endpoints swapped; *)
+(* injectivity is preserved.                                                  *)
+(******************************************************************************)
+LEMMA DG_TransposePath ==
+    ASSUME NEW G, NEW p \in Path(G)
+    PROVE  LET q == [i \in 1..Len(p) |-> p[Len(p) - i + 1]] IN
+           /\ q \in Path(Transpose(G))
+           /\ Len(q) = Len(p)
+           /\ q[1] = p[Len(p)]
+           /\ q[Len(q)] = p[1]
+           /\ IsInjective(p) => IsInjective(q)
 
 (******************************************************************************)
 (* Reversal of a path in an undirected graph: the point-wise reversal        *)
@@ -335,6 +374,16 @@ THEOREM DG_DagNoBackEdge ==
     ASSUME NEW G, IsDag(G), NEW a, NEW b,
            AreConnectedIn(G, a, b), <<b, a>> \in G.edge
     PROVE  FALSE
+
+(******************************************************************************)
+(* In a finite DAG every node is reached from a source, the dual of          *)
+(* DG_DagReachesSink: applied to Transpose(G), itself a finite DAG whose      *)
+(* sinks are the sources of G, it gives a path that DG_TransposePath turns    *)
+(* back into a path of G.                                                     *)
+(******************************************************************************)
+THEOREM DG_DagSourceReaches ==
+    ASSUME NEW G, IsDag(G), IsFiniteSet(G.node), NEW m \in G.node
+    PROVE  \E s \in Source(G) : AreConnectedIn(G, s, m)
 
 (******************************************************************************)
 (* Properties of the empty graph: it is a well-formed directed graph, a DAG, *)

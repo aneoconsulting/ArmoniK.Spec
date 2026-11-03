@@ -3,8 +3,8 @@
 (* Proofs of the theorems declared in DiGraphTheorems. Checked with tlapm.    *)
 (******************************************************************************)
 
-EXTENDS DiGraphs, FiniteSetTheorems, FiniteSetsExtTheorems, FunctionTheorems,
-        SequenceTheorems, TLAPS
+EXTENDS DiGraphs, FiniteSetTheorems, FiniteSetsExtTheorems, SequenceTheorems,
+        TLAPS
 
 (******************************************************************************)
 (* Every member of DirectedGraphOf(S) is a well-formed directed graph whose   *)
@@ -55,6 +55,27 @@ THEOREM DG_DirectedSubgraphProperties ==
     BY <1>2 DEF IsBipartiteWithPartitions
 <1>. QED
     BY <1>1, <1>3, <1>4
+
+(******************************************************************************)
+(* Membership in DirectedSubgraph(G) from its definition: a well-formed      *)
+(* directed graph whose nodes and edges are nodes and edges of G.             *)
+(******************************************************************************)
+THEOREM DG_DirectedSubgraphIntro ==
+    ASSUME NEW G, NEW H, IsDirectedGraph(H),
+           H.node \subseteq G.node, H.edge \subseteq G.edge
+    PROVE  H \in DirectedSubgraph(G)
+BY DEF DirectedSubgraph, IsDirectedGraph
+
+(******************************************************************************)
+(* The directed-subgraph relation is transitive.                             *)
+(******************************************************************************)
+THEOREM DG_DirectedSubgraphTransitive ==
+    ASSUME NEW G, NEW H \in DirectedSubgraph(G), NEW K \in DirectedSubgraph(H)
+    PROVE  K \in DirectedSubgraph(G)
+<1>1. K.node \subseteq G.node /\ K.edge \subseteq G.edge /\ IsDirectedGraph(K)
+    BY DEF DirectedSubgraph
+<1>. QED
+    BY <1>1, DG_DirectedSubgraphIntro
 
 (******************************************************************************)
 (* The union of two directed graphs is a directed graph.                      *)
@@ -310,6 +331,28 @@ THEOREM DG_AncestorDescendantProperties ==
 BY DG_AreConnectedReflexive DEF Ancestor, Descendant
 
 (******************************************************************************)
+(* A node that reaches a distinct node has a successor: the second node of  *)
+(* a simple path between them.                                                *)
+(******************************************************************************)
+THEOREM DG_AreConnectedHasSuccessor ==
+    ASSUME NEW G, NEW m, NEW n, AreConnectedIn(G, m, n), m # n
+    PROVE  Successor(G, m) # {}
+<1>1. PICK p \in SimplePath(G) : p[1] = m /\ p[Len(p)] = n
+    BY DEF AreConnectedIn
+<1>2. p \in Seq(G.node) /\ Len(p) \in Nat /\ Len(p) >= 1
+      /\ \A i \in 1..(Len(p) - 1) : <<p[i], p[i+1]>> \in G.edge
+    BY <1>1, DG_SimplePathIsSeq
+<1>3. Len(p) >= 2
+    BY <1>1, <1>2
+<1>4. <<p[1], p[2]>> \in G.edge /\ p[2] \in G.node
+    <2>1. 1 \in 1..(Len(p) - 1) /\ 2 \in 1..Len(p)
+        BY <1>2, <1>3
+    <2>. QED
+        BY <1>2, <2>1, ElementOfSeq
+<1>. QED
+    BY <1>1, <1>4 DEF Successor
+
+(******************************************************************************)
 (* Properties of the empty graph: it is a well-formed directed graph, a DAG, *)
 (* bipartite over any disjoint pair (U, V), has no sources and no sinks, and *)
 (* belongs to DirectedGraphOf(S) for every S.                                 *)
@@ -414,6 +457,63 @@ THEOREM DG_UnderlyingUndirectedGraphIsUndirected ==
     BY <1>2, <1>3 DEF IsUndirectedGraph
 
 (******************************************************************************)
+(* Reversal of a path of any G: the point-wise reversal                      *)
+(*   q[i] = p[Len(p) - i + 1]                                                 *)
+(* is a path of Transpose(G) of the same length, with the endpoints swapped; *)
+(* injectivity is preserved.                                                  *)
+(******************************************************************************)
+LEMMA DG_TransposePath ==
+    ASSUME NEW G, NEW p \in Path(G)
+    PROVE  LET q == [i \in 1..Len(p) |-> p[Len(p) - i + 1]] IN
+           /\ q \in Path(Transpose(G))
+           /\ Len(q) = Len(p)
+           /\ q[1] = p[Len(p)]
+           /\ q[Len(q)] = p[1]
+           /\ IsInjective(p) => IsInjective(q)
+<1>1. p \in Seq(G.node) /\ p # << >>
+      /\ \A i \in 1..(Len(p) - 1) : <<p[i], p[i+1]>> \in G.edge
+    BY DEF Path
+<1>2. Len(p) \in Nat /\ Len(p) >= 1 /\ DOMAIN p = 1..Len(p)
+    BY <1>1, LenProperties, EmptySeq
+<1> DEFINE q == [i \in 1..Len(p) |-> p[Len(p) - i + 1]]
+<1>3. \A i \in 1..Len(p) : Len(p) - i + 1 \in 1..Len(p) /\ q[i] = p[Len(p) - i + 1]
+    BY <1>2
+<1>4. \A i \in 1..Len(p) : q[i] \in G.node
+    BY <1>1, <1>2, <1>3, ElementOfSeq
+<1>5. q \in Seq(G.node) /\ Len(q) = Len(p) /\ DOMAIN q = 1..Len(p)
+    BY <1>2, <1>4, IsASeq, LenProperties
+<1>6. q[1] = p[Len(p)] /\ q[Len(q)] = p[1]
+    BY <1>2, <1>3, <1>5
+<1>7. \A i \in 1..(Len(q) - 1) : <<q[i], q[i+1]>> \in Transpose(G).edge
+    <2> SUFFICES ASSUME NEW i \in 1..(Len(q) - 1)
+                 PROVE  <<q[i], q[i+1]>> \in Transpose(G).edge
+        OBVIOUS
+    <2>1. i \in 1..Len(p) /\ i+1 \in 1..Len(p) /\ Len(p) - i \in 1..(Len(p) - 1)
+        BY <1>2, <1>5
+    <2>2. q[i] = p[Len(p) - i + 1] /\ q[i+1] = p[Len(p) - i]
+        BY <1>2, <1>3, <2>1
+    <2>3. <<p[Len(p) - i], p[Len(p) - i + 1]>> \in G.edge
+        BY <2>1, <1>1
+    <2>. QED
+        BY <2>2, <2>3 DEF Transpose
+<1>8. q \in Path(Transpose(G))
+    BY <1>2, <1>5, <1>7, EmptySeq DEF Path, Transpose
+<1>9. IsInjective(p) => IsInjective(q)
+    <2> SUFFICES ASSUME IsInjective(p),
+                        NEW i \in DOMAIN q, NEW j \in DOMAIN q, q[i] = q[j]
+                 PROVE  i = j
+        BY DEF IsInjective
+    <2>1. i \in 1..Len(p) /\ j \in 1..Len(p)
+      /\ Len(p) - i + 1 \in 1..Len(p) /\ Len(p) - j + 1 \in 1..Len(p)
+        BY <1>2, <1>5
+    <2>2. p[Len(p) - i + 1] = p[Len(p) - j + 1]
+        BY <2>1, <1>3
+    <2>. QED
+        BY <2>1, <2>2, <1>2 DEF IsInjective
+<1>. QED
+    BY <1>5, <1>6, <1>8, <1>9
+
+(******************************************************************************)
 (* Reversal of a path in an undirected graph: the point-wise reversal        *)
 (*   q[i] = p[Len(p) - i + 1]                                                 *)
 (* is again a path of the same length, with the endpoints swapped. The      *)
@@ -432,50 +532,13 @@ LEMMA DG_PathReverse ==
            /\ q[1] = p[Len(p)]
            /\ q[Len(q)] = p[1]
            /\ IsInjective(p) => IsInjective(q)
-<1>1. p \in Seq(G.node) /\ p # << >>
-      /\ \A i \in 1..(Len(p) - 1) : <<p[i], p[i+1]>> \in G.edge
-    BY DEF Path
-<1>2. Len(p) \in Nat /\ Len(p) >= 1 /\ DOMAIN p = 1..Len(p)
-    BY <1>1, LenProperties, EmptySeq
-<1> DEFINE q == [i \in 1..Len(p) |-> p[Len(p) - i + 1]]
-<1>3. \A i \in 1..Len(p) : Len(p) - i + 1 \in 1..Len(p) /\ q[i] = p[Len(p) - i + 1]
-    BY <1>2
-<1>4. \A i \in 1..Len(p) : q[i] \in G.node
-    BY <1>1, <1>2, <1>3, ElementOfSeq
-<1>5. q \in Seq(G.node) /\ Len(q) = Len(p) /\ DOMAIN q = 1..Len(p)
-    BY <1>2, <1>4, IsASeq, LenProperties
-<1>6. q[1] = p[Len(p)]
-    BY <1>2, <1>3
-<1>7. q[Len(q)] = p[1]
-    BY <1>2, <1>3, <1>5
-<1>8. \A i \in 1..(Len(q) - 1) : <<q[i], q[i+1]>> \in G.edge
-    <2> SUFFICES ASSUME NEW i \in 1..(Len(q) - 1)
-                 PROVE  <<q[i], q[i+1]>> \in G.edge
-        OBVIOUS
-    <2>1. i \in 1..Len(p) /\ i+1 \in 1..Len(p) /\ Len(p) - i \in 1..(Len(p) - 1)
-        BY <1>2, <1>5
-    <2>2. q[i] = p[Len(p) - i + 1] /\ q[i+1] = p[Len(p) - i]
-        BY <1>2, <1>3, <2>1
-    <2>3. <<p[Len(p) - i], p[Len(p) - i + 1]>> \in G.edge
-        BY <2>1, <1>1
+<1>1. Path(Transpose(G)) \subseteq Path(G)
+    <2>1. Transpose(G).node = G.node /\ Transpose(G).edge \subseteq G.edge
+        BY DEF Transpose, IsUndirectedGraph
     <2>. QED
-        BY <2>2, <2>3 DEF IsUndirectedGraph
-<1>9. q # << >> /\ q \in Path(G)
-    BY <1>2, <1>5, <1>8, EmptySeq DEF Path
-<1>10. IsInjective(p) => IsInjective(q)
-    <2> SUFFICES ASSUME IsInjective(p),
-                        NEW i \in DOMAIN q, NEW j \in DOMAIN q, q[i] = q[j]
-                 PROVE  i = j
-        BY DEF IsInjective
-    <2>1. i \in 1..Len(p) /\ j \in 1..Len(p)
-      /\ Len(p) - i + 1 \in 1..Len(p) /\ Len(p) - j + 1 \in 1..Len(p)
-        BY <1>2, <1>5
-    <2>2. p[Len(p) - i + 1] = p[Len(p) - j + 1]
-        BY <2>1, <1>3
-    <2>. QED
-        BY <2>1, <2>2, <1>2 DEF IsInjective
+        BY <2>1 DEF Path
 <1>. QED
-    BY <1>5, <1>6, <1>7, <1>9, <1>10
+    BY <1>1, DG_TransposePath
 
 (******************************************************************************)
 (* Reachability in the underlying undirected view is symmetric: the reverse  *)
@@ -1431,6 +1494,46 @@ THEOREM DG_DagNoBackEdge ==
     BY <1>6, <1>7, <1>8, <1>10 DEF DirectedCycle
 <1>. QED
     BY <1>11 DEF IsDag, HasDirectedCycle
+
+(******************************************************************************)
+(* In a finite DAG every node is reached from a source, the dual of          *)
+(* DG_DagReachesSink: applied to Transpose(G), itself a finite DAG whose      *)
+(* sinks are the sources of G, it gives a path that DG_TransposePath turns    *)
+(* back into a path of G.                                                     *)
+(******************************************************************************)
+THEOREM DG_DagSourceReaches ==
+    ASSUME NEW G, IsDag(G), IsFiniteSet(G.node), NEW m \in G.node
+    PROVE  \E s \in Source(G) : AreConnectedIn(G, s, m)
+<1> DEFINE T == Transpose(G)
+<1>1. /\ IsDirectedGraph(G) /\ IsDirectedGraph(T)
+      /\ Transpose(T) = G /\ T.node = G.node
+    BY DG_TransposeProperties DEF IsDag, Transpose
+<1>2. IsDag(T)
+    <2> SUFFICES ASSUME NEW c \in DirectedCycle(T) PROVE FALSE
+        BY <1>1 DEF IsDag, HasDirectedCycle
+    <2> DEFINE r == [i \in 1..Len(c) |-> c[Len(c) - i + 1]]
+    <2>1. /\ r \in Path(Transpose(T))
+          /\ Len(r) = Len(c) /\ r[1] = c[Len(c)] /\ r[Len(r)] = c[1]
+        BY DG_TransposePath DEF DirectedCycle
+    <2>2. r \in DirectedCycle(G)
+        BY <1>1, <2>1 DEF DirectedCycle
+    <2>. QED
+        BY <2>2 DEF IsDag, HasDirectedCycle
+<1>3. Sink(T) = Source(G)
+    <2>1. \A n, k : <<n, k>> \in T.edge <=> <<k, n>> \in G.edge
+        BY <1>1 DEF Transpose, IsDirectedGraph
+    <2>. QED
+        BY <1>1, <2>1 DEF Sink, Source, Successor, Predecessor
+<1>4. PICK d \in Sink(T) : AreConnectedIn(T, m, d)
+    BY <1>1, <1>2, DG_DagReachesSink
+<1>5. PICK p \in SimplePath(T) : p[1] = m /\ p[Len(p)] = d
+    BY <1>4 DEF AreConnectedIn
+<1> DEFINE q == [i \in 1..Len(p) |-> p[Len(p) - i + 1]]
+<1>6. /\ q \in Path(Transpose(T)) /\ IsInjective(q)
+      /\ q[1] = d /\ q[Len(q)] = m
+    BY <1>5, DG_TransposePath DEF SimplePath
+<1>. QED
+    BY <1>1, <1>3, <1>6 DEF SimplePath, AreConnectedIn
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
