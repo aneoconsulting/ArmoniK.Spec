@@ -89,12 +89,10 @@ LEMMA LemG2Bridges ==
 (* G3's IsOpenNode coincides pointwise with G2!IsOpenNode under the Bar:      *)
 (* openness only tests the finalized classes (completed/aborted/retried task, *)
 (* completed/aborted object), all of which the Bar preserves -- parked        *)
-(* STOPPED/PAUSED tasks are open on both sides. Hence the open-induced        *)
-(* ancestor subgraphs, and so the open ancestries, are mapping-independent.   *)
+(* STOPPED/PAUSED tasks are open on both sides. Hence the open ancestries    *)
+(* are mapping-independent.                                                   *)
 LEMMA LemG2OpenNodeBridge ==
     /\ \A n : IsOpenNode(n) <=> G2!IsOpenNode(n)
-    /\ \A o : AncestorSubGraph(deps, o, IsOpenNode)
-              = G2!AncestorSubGraph(deps, o, G2!IsOpenNode)
     /\ \A o : OA(o) = G2!OA(o)
 
 (* Task3 (identity mapping) -- every state set coincides.                     *)
@@ -346,13 +344,13 @@ LEMMA LemRefineG2SFProcessTasks ==
 
 (* WF(G2!AssignUpstream(t, o)) -- the centerpiece. G2 sees a parked task as   *)
 (* STAGED, so its assignment fairness demands progress whenever the task sits *)
-(* parked on an open path to the live target o. G3 discharges it by cases on  *)
-(* how the task is parked: a STOPPED task on an open path to o is eventually  *)
-(* discarded (leaving the Bar-staged region -- contradiction); a pending stop *)
-(* request on a staged/paused task is eventually acknowledged (STOPPED,       *)
-(* previous case); a pause request pending forever is eventually resumed      *)
-(* away; and a staged task with no pending request is assignable, so G3's     *)
-(* strong assignment fairness fires through the churn.                        *)
+(* parked in the open ancestry of the live target o. G3 discharges it by      *)
+(* cases on how the task is parked: a STOPPED task in the open ancestry of o  *)
+(* is eventually discarded (leaving the Bar-staged region -- contradiction);  *)
+(* a pending stop request on a staged/paused task is eventually acknowledged  *)
+(* (STOPPED, previous case); a pause request pending forever is eventually    *)
+(* resumed away; and a staged task with no pending request is assignable, so  *)
+(* G3's strong assignment fairness fires through the churn.                   *)
 LEMMA LemRefineG2WFAssignTasks ==
     ASSUME NEW t \in Task, NEW o \in Object
     PROVE  /\ []TypeOk /\ []T3!TaskSafetyInv /\ [][Next]_vars
@@ -366,9 +364,9 @@ LEMMA LemRefineG2WFAssignTasks ==
                        /\ t \in G2!OA(o).node
                        /\ G2!AssignTasks({t})>>_(G2!vars))
 
-(* G2's UpstreamStabilization: the open ancestor subgraph and the             *)
-(* subgraph relation are mapping-independent, so each per-object conjunct     *)
-(* transfers through the boxed bridge (a subscript change on a stable value). *)
+(* G2's UpstreamStabilization: OA(o) and the subgraph relation are            *)
+(* mapping-independent, so each per-object conjunct transfers through the     *)
+(* boxed bridge (a subscript change on a stable value).                       *)
 LEMMA LemRefineG2UpstreamStabilization ==
     UpstreamStabilization => G2!UpstreamStabilization
 
