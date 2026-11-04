@@ -3187,143 +3187,47 @@ LEMMA LemRefineT2WFSetTaskRetries ==
             OBVIOUS
     \* (b) G2 can fire SetTaskRetries on an unretried task (fresh retry clone exists)
     <2>2. T2!TaskSafetyInv /\ t \in UnretriedTask => ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
-        \* Mirror the verified T2 template (Task2Theorems_proofs.tla
-        \* <1>2): expand the angle-bracket ENABLED to its existential-of-primed
-        \* form -- UNCHANGED becomes individual scalar equalities, the action-level
-        \* \E stays nested, and the inequality sits outside it -- then WITNESS the
-        \* unchanged primed vars and the retry-clone, and discharge the residue.
-        \* The expansion is a step of its own: as the proof of the SUFFICES
-        \* below, the same SMT obligation times out with the upstream tlapm.
-        <3>1. (\E depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp :
-                          /\ \E u \in Task :
-                              /\ {t} # {}
-                              /\ {t} \subseteq UnretriedTask
-                              /\ {u} \subseteq UnknownTask
-                              /\ \A v \in {u} : ~ \E w \in Task : nextAttemptOf[w] = v
-                              /\ \E f \in Bijection({t}, {u}) :
-                                      nextAttemptOfp
-                                      = [t_1 \in Task |->
-                                          IF t_1 \in {t} THEN f[t_1] ELSE nextAttemptOf[t_1]]
-                              /\ taskStatep = taskState
-                              /\ depsp = deps
-                              /\ objectStatep = objectState
-                              /\ objectTargetsp = objectTargets
-                          /\ ~ (/\ depsp = deps
-                                /\ objectStatep = objectState
-                                /\ objectTargetsp = objectTargets
-                                /\ taskStatep = taskState
-                                /\ nextAttemptOfp = nextAttemptOf))
-              => ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
-            BY ExpandENABLED, SMTT(30) DEF SetTaskRetries, vars
+        \* ENABLED is expanded on a copy of the action whose retry update is
+        \* opaque: on the function constructor, SMT and Zenon time out.
         <3>. SUFFICES ASSUME T2!TaskSafetyInv, t \in UnretriedTask
-                      PROVE  \E depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp :
-                                /\ \E u \in Task :
-                                    /\ {t} # {}
-                                    /\ {t} \subseteq UnretriedTask
-                                    /\ {u} \subseteq UnknownTask
-                                    /\ \A v \in {u} : ~ \E w \in Task : nextAttemptOf[w] = v
-                                    /\ \E f \in Bijection({t}, {u}) :
-                                            nextAttemptOfp
-                                            = [t_1 \in Task |->
-                                                IF t_1 \in {t} THEN f[t_1] ELSE nextAttemptOf[t_1]]
-                                    /\ taskStatep = taskState
-                                    /\ depsp = deps
-                                    /\ objectStatep = objectState
-                                    /\ objectTargetsp = objectTargets
-                                /\ ~ (/\ depsp = deps
-                                      /\ objectStatep = objectState
-                                      /\ objectTargetsp = objectTargets
-                                      /\ taskStatep = taskState
-                                      /\ nextAttemptOfp = nextAttemptOf)
-            BY <3>1
-        <3>2. PICK u \in Task : u \in UnknownTask /\ ~ \E v \in Task : nextAttemptOf[v] = u
+                      PROVE  ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
+            OBVIOUS
+        <3>. DEFINE Upd(f) == [t_1 \in Task |-> IF t_1 \in {t} THEN f[t_1] ELSE nextAttemptOf[t_1]]
+                    Alt(u) == /\ {u} \subseteq UnknownTask
+                              /\ \A v \in {u} : ~ \E w \in Task : nextAttemptOf[w] = v
+                              /\ \E f \in Bijection({t}, {u}) : nextAttemptOf' = Upd(f)
+                              /\ UNCHANGED <<taskState, deps, objectState, objectTargets>>
+        <3>1. <<\E u \in Task : Alt(u)>>_vars <=> <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
+            BY DEF SetTaskRetries
+        <3>2. (ENABLED <<\E u \in Task : Alt(u)>>_vars)
+              <=> (ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars)
+            BY <3>1, ENABLEDaxioms
+        <3>3. PICK c \in Task : c \in UnknownTask /\ ~ \E v \in Task : nextAttemptOf[v] = c
             BY DEF T2!TaskSafetyInv, T2!ExistsFreeUnknownTask, T2!UnknownTask, UnknownTask
-        <3>. DEFINE g               == [x \in {t} |-> u]
-                    depsp           == deps
-                    objectStatep    == objectState
-                    objectTargetsp  == objectTargets
-                    taskStatep      == taskState
-                    nextAttemptOfp  == [t_1 \in Task |->
-                                          IF t_1 \in {t} THEN g[t_1] ELSE nextAttemptOf[t_1]]
-        <3>3. g \in Bijection({t}, {u})
-            BY DEF Bijection, Injection, Surjection, IsInjective
-        <3>4. \E f \in Bijection({t}, {u}) :
-                  nextAttemptOfp
-                  = [t_1 \in Task |-> IF t_1 \in {t} THEN f[t_1] ELSE nextAttemptOf[t_1]]
+        <3>4. /\ {c} \subseteq UnknownTask
+              /\ \A v \in {c} : ~ \E w \in Task : nextAttemptOf[w] = v
             BY <3>3
-        <3>5. nextAttemptOfp /= nextAttemptOf
-            <4>1. nextAttemptOf[t] = NULL
-                BY DEF UnretriedTask, FailedTask
-            <4>2. nextAttemptOfp[t] = u
-                BY <3>3
-            <4>3. u /= NULL
-                BY Assumptions DEF UnknownTask
+        <3>5. PICK h \in Bijection({t}, {c}) : Upd(h) /= nextAttemptOf
+            <4>. DEFINE g == [x \in {t} |-> c]
+            <4>1. g \in Bijection({t}, {c})
+                BY DEF Bijection, Injection, Surjection, IsInjective
+            <4>2. Upd(g) /= nextAttemptOf
+                <5>1. nextAttemptOf[t] = NULL
+                    BY DEF UnretriedTask, FailedTask
+                <5>2. Upd(g)[t] = c
+                    OBVIOUS
+                <5>3. c /= NULL
+                    BY Assumptions DEF UnknownTask
+                <5>. QED
+                    BY <5>1, <5>2, <5>3
             <4>. QED
-                BY <4>1, <4>2, <4>3
-        \* the instantiated body at the defined witnesses, then a Zenon
-        \* \E-introduction (the WITNESS-step form of this reduction leaves the
-        \* \E-intro to SMT, which is brittle on the function constructors)
-        <3>6. \E u_1 \in Task :
-                  /\ {t} # {}
-                  /\ {t} \subseteq UnretriedTask
-                  /\ {u_1} \subseteq UnknownTask
-                  /\ \A v \in {u_1} : ~ \E w \in Task : nextAttemptOf[w] = v
-                  /\ \E f \in Bijection({t}, {u_1}) :
-                          nextAttemptOfp
-                          = [t_1 \in Task |->
-                              IF t_1 \in {t} THEN f[t_1] ELSE nextAttemptOf[t_1]]
-                  /\ taskStatep = taskState
-                  /\ depsp = deps
-                  /\ objectStatep = objectState
-                  /\ objectTargetsp = objectTargets
-            BY <3>2, <3>4, Zenon
-        <3>7. /\ \E u_1 \in Task :
-                  /\ {t} # {}
-                  /\ {t} \subseteq UnretriedTask
-                  /\ {u_1} \subseteq UnknownTask
-                  /\ \A v \in {u_1} : ~ \E w \in Task : nextAttemptOf[w] = v
-                  /\ \E f \in Bijection({t}, {u_1}) :
-                          nextAttemptOfp
-                          = [t_1 \in Task |->
-                              IF t_1 \in {t} THEN f[t_1] ELSE nextAttemptOf[t_1]]
-                  /\ taskStatep = taskState
-                  /\ depsp = deps
-                  /\ objectStatep = objectState
-                  /\ objectTargetsp = objectTargets
-              /\ ~ (/\ depsp = deps
-                    /\ objectStatep = objectState
-                    /\ objectTargetsp = objectTargets
-                    /\ taskStatep = taskState
-                    /\ nextAttemptOfp = nextAttemptOf)
-            BY ONLY <3>5, <3>6, Zenon
-        \* the \E-introduction, over an opaque body: on the unfolded body both
-        \* SMT and Zenon time out with the upstream tlapm
-        <3>. DEFINE Body(dp, osp, otp, tsp, nap) ==
-                        /\ \E u_1 \in Task :
-                            /\ {t} # {}
-                            /\ {t} \subseteq UnretriedTask
-                            /\ {u_1} \subseteq UnknownTask
-                            /\ \A v \in {u_1} : ~ \E w \in Task : nextAttemptOf[w] = v
-                            /\ \E f \in Bijection({t}, {u_1}) :
-                                    nap
-                                    = [t_1 \in Task |->
-                                        IF t_1 \in {t} THEN f[t_1] ELSE nextAttemptOf[t_1]]
-                            /\ tsp = taskState
-                            /\ dp = deps
-                            /\ osp = objectState
-                            /\ otp = objectTargets
-                        /\ ~ (/\ dp = deps
-                              /\ osp = objectState
-                              /\ otp = objectTargets
-                              /\ tsp = taskState
-                              /\ nap = nextAttemptOf)
-        <3>8. Body(depsp, objectStatep, objectTargetsp, taskStatep, nextAttemptOfp)
-            BY ONLY <3>7 DEF Body
-        <3>. HIDE DEF Body
-        <3>9. \E dp, osp, otp, tsp, nap : Body(dp, osp, otp, tsp, nap)
-            BY ONLY <3>8, Zenon
+                BY <4>1, <4>2
+        <3>6. ENABLED <<\E u \in Task : Alt(u)>>_vars
+            <4>. HIDE DEF Upd
+            <4>. QED
+                BY ONLY <3>4, <3>5, ExpandENABLED, SMT DEF vars
         <3>. QED
-            BY ONLY <3>9 DEF Body
+            BY <3>2, <3>6
     <2>. QED
         BY <2>1, <2>2
 \* --- (2) step refinement: concrete step => abstract step ---
