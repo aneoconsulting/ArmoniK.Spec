@@ -205,9 +205,9 @@ Next ==
  * Ensure that progress is eventually made for tasks that can act.
  *   - A task cannot remain indefinitely failed without being eventually
  *     linked to another task for retry.
- *   - A new task attempt cannot reamin indefinitely unknown without being
+ *   - A new task attempt cannot remain indefinitely unknown without being
  *     eventually registered.
- *   - A new task attempt cannot reamin indefinitely staged without being
+ *   - A new task attempt cannot remain indefinitely registered without being
  *     eventually staged.
  *   - A task cannot be assigned an infinite number of times
  *     without eventually being processed successfully.
@@ -249,11 +249,7 @@ Spec ==
 TaskAttemptsIntegrity ==
     /\ RetriedTask \subseteq {t \in Task: nextAttemptOf[t] /= NULL}
     /\ {t \in Task: nextAttemptOf[t] /= NULL} \subseteq FailedTask \union RetriedTask
-    /\ CompletedTask \union AbortedTask \subseteq {t \in Task: nextAttemptOf[t] = NULL}
-    /\ \A t \in Task :
-        /\ \A u, v \in Task: nextAttemptOf[u] = t /\ nextAttemptOf[v] = t
-                             => u = v
-        /\ nextAttemptOf[t] /= t
+    /\ \A t, u, v \in Task: nextAttemptOf[u] = t /\ nextAttemptOf[v] = t => u = v
 
 (**
  * SAFETY
@@ -303,6 +299,7 @@ FailedTaskEventualRetry ==
 AttemptsEventualStability ==
     \A t \in Task:
         \E S \in SUBSET Task:
+            /\ IsFiniteSet(S)
             /\ Cardinality(S) <= MaxRetries
             /\ <>[](TaskAttempts(t) = S)
 
