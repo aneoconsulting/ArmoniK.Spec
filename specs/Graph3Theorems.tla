@@ -42,13 +42,13 @@ EXTENDS Graph3
 (*****************************************************************************)
 
 (* Graph2 (Bar mapping) -- the Bar projection of each state set.              *)
-(* STOPPED and PAUSED tasks are parked: both collapse to STAGED under the     *)
+(* HALTED and PAUSED tasks are parked: both collapse to STAGED under the     *)
 (* Bar, every other class is preserved. Object-state sets are identity        *)
 (* (objectState is not remapped).                                             *)
 LEMMA LemG2BarStates ==
     /\ G2!UnknownTask = UnknownTask
     /\ G2!RegisteredTask = RegisteredTask
-    /\ G2!StagedTask = StagedTask \union PausedTask \union StoppedTask
+    /\ G2!StagedTask = StagedTask \union PausedTask \union HaltedTask
     /\ G2!AssignedTask = AssignedTask
     /\ G2!SucceededTask = SucceededTask
     /\ G2!FailedTask = FailedTask
@@ -89,7 +89,7 @@ LEMMA LemG2Bridges ==
 (* G3's IsOpenNode coincides pointwise with G2!IsOpenNode under the Bar:      *)
 (* openness only tests the finalized classes (completed/aborted/retried task, *)
 (* completed/aborted object), all of which the Bar preserves -- parked        *)
-(* STOPPED/PAUSED tasks are open on both sides. Hence the open ancestries    *)
+(* HALTED/PAUSED tasks are open on both sides. Hence the open ancestries    *)
 (* are mapping-independent.                                                   *)
 LEMMA LemG2OpenNodeBridge ==
     /\ \A n : IsOpenNode(n) <=> G2!IsOpenNode(n)
@@ -107,7 +107,7 @@ LEMMA LemT3States ==
     /\ T3!CompletedTask = CompletedTask
     /\ T3!RetriedTask = RetriedTask
     /\ T3!AbortedTask = AbortedTask
-    /\ T3!StoppedTask = StoppedTask
+    /\ T3!HaltedTask = HaltedTask
     /\ T3!PausedTask = PausedTask
     /\ T3!UnretriedTask = UnretriedTask
 
@@ -118,6 +118,11 @@ LEMMA LemT3Bridges ==
     /\ \A SS : IsFiniteSet(SS) <=> T3!IsFiniteSet(SS)
     /\ \A SS : Cardinality(SS) = T3!Cardinality(SS)
     /\ \A t \in Task : PreviousAttempts(t) = T3!PreviousAttempts(t)
+    /\ \A t \in Task : ChainId(t) = T3!ChainId(t)
+    /\ KnownChainId = T3!KnownChainId
+    /\ Intent = T3!Intent /\ RecordedIntent = T3!RecordedIntent
+    /\ \A t \in Task, i \in Intent : Intends(t, i) <=> T3!Intends(t, i)
+    /\ \A T \in SUBSET Task, i \in Intent : Requested(T, i) = T3!Requested(T, i)
 
 (* Task2 reached through Graph2 (G2!T2) and through                           *)
 (* Task3 (T3!T2) is the same instance: both substitute the same               *)
@@ -126,7 +131,7 @@ LEMMA LemT3Bridges ==
 LEMMA LemG2T2BarStates ==
     /\ G2!T2!UnknownTask = UnknownTask
     /\ G2!T2!RegisteredTask = RegisteredTask
-    /\ G2!T2!StagedTask = StagedTask \union PausedTask \union StoppedTask
+    /\ G2!T2!StagedTask = StagedTask \union PausedTask \union HaltedTask
     /\ G2!T2!AssignedTask = AssignedTask
     /\ G2!T2!SucceededTask = SucceededTask
     /\ G2!T2!FailedTask = FailedTask
@@ -156,7 +161,7 @@ LEMMA LemBarStutter == taskState' = taskState => taskStateBar' = taskStateBar
 
 LEMMA LemBarUpdate ==
     ASSUME NEW A, NEW v, NEW bv,
-           bv = (IF v \in {TASK_STOPPED, TASK_PAUSED} THEN TASK_STAGED ELSE v),
+           bv = (IF v \in {TASK_HALTED, TASK_PAUSED} THEN TASK_STAGED ELSE v),
            taskState' = [s \in Task |-> IF s \in A THEN v ELSE taskState[s]]
     PROVE  taskStateBar' =
                [s \in Task |-> IF s \in A THEN bv ELSE taskStateBar[s]]
@@ -165,22 +170,31 @@ LEMMA LemBarUpdate ==
 (* TYPE INVARIANT                                                            *)
 (*****************************************************************************)
 
-LEMMA LemTypeOk == Init /\ [][Next]_vars => []TypeOk
+(* The typing of every variable but intent, whose type rests on the          *)
+(* invariants of Task3 (the chain identifier of a known task is a task).     *)
+BaseTypeOk ==
+    /\ taskState \in [Task -> T3State]
+    /\ nextAttemptOf \in [Task -> Task \union {NULL}]
+    /\ objectState \in [Object -> O2State]
+    /\ objectTargets \in SUBSET Object
+    /\ deps \in DirectedGraphOf(Task \union Object)
 
-THEOREM G3_TypeOk == Spec => []TypeOk
+LEMMA LemBaseTypeOk == Init /\ [][Next]_vars => []BaseTypeOk
+
+LEMMA LemTypeOkBase == TypeOk => BaseTypeOk
 
 (*****************************************************************************)
 (* REFINEMENT OF Graph2 -- INITIAL STATE & STEP SIMULATION                   *)
 (*                                                                           *)
 (* Under the parked Bar every Graph3 step projects onto a                    *)
 (* Graph2 step (or a G2 stutter): the stop/pause bookkeeping and             *)
-(* the parking of a staged task (StopTasks, PauseTasks, ResumeTasks) map to  *)
-(* stutters, the STOPPED branch of ProcessTasks maps to G2!ReleaseTasks,     *)
+(* the parking of a staged task (PauseTasks, ResumeTasks) map to            *)
+(* stutters, the HALTED branch of ProcessTasks maps to G2!ReleaseTasks,     *)
 (* and every remaining action maps to its G2 namesake -- the guards involve  *)
 (* only Bar-invariant state classes.                                         *)
 (*****************************************************************************)
 
-LEMMA LemRefineG2Next == TypeOk /\ [Next]_vars => [G2!Next]_(G2!vars)
+LEMMA LemRefineG2Next == BaseTypeOk /\ [Next]_vars => [G2!Next]_(G2!vars)
 
 LEMMA LemRefineG2InitNext ==
     Init /\ [][Next]_vars => G2!Init /\ [][G2!Next]_(G2!vars)
@@ -193,7 +207,7 @@ LEMMA LemRefineG2InitNext ==
 (* a T3 stutter (the object-only actions).                                   *)
 (*****************************************************************************)
 
-LEMMA LemRefineT3Next == TypeOk /\ [Next]_vars => [T3!Next]_(T3!vars)
+LEMMA LemRefineT3Next == BaseTypeOk /\ [Next]_vars => [T3!Next]_(T3!vars)
 
 LEMMA LemRefineT3InitNext ==
     Init /\ [][Next]_vars => T3!Init /\ [][T3!Next]_(T3!vars)
@@ -210,6 +224,10 @@ LEMMA LemRefineT3InitNext ==
 (* known tasks and a paused task always has a pending pause request.          *)
 LEMMA LemT3TaskSafetyInv == Init /\ [][Next]_vars => []T3!TaskSafetyInv
 
+LEMMA LemTypeOk == Init /\ [][Next]_vars => []TypeOk
+
+THEOREM G3_TypeOk == Spec => []TypeOk
+
 (* The task lifecycle only moves forward (Task3's                             *)
 (* LemTaskStateStable).                                                       *)
 LEMMA LemT3TaskStateStable ==
@@ -220,16 +238,15 @@ LEMMA LemT3TaskStateStable ==
               => taskState'[t] \in {TASK_DISCARDED, TASK_ABORTED}
            /\ taskState[t] \in {TASK_FAILED, TASK_RETRIED}
               => taskState'[t] \in {TASK_FAILED, TASK_RETRIED}
-           /\ taskState[t] = TASK_STOPPED
-              => taskState'[t] \in {TASK_STOPPED, TASK_DISCARDED}
+           /\ taskState[t] = TASK_HALTED
+              => taskState'[t] \in {TASK_HALTED, TASK_DISCARDED}
            /\ taskState[t] \in {TASK_COMPLETED, TASK_ABORTED, TASK_RETRIED}
               => taskState'[t] = taskState[t]
 
-(* A cancellation request is never withdrawn (Task3's                         *)
-(* LemStoppingRequestStable).                                                 *)
-LEMMA LemT3StoppingRequestStable ==
-    ASSUME TypeOk, [Next]_vars, NEW t \in Task
-    PROVE  t \in stoppingRequested => (t \in stoppingRequested)'
+(* A cancellation is never withdrawn (Task3's LemCancelStable).              *)
+LEMMA LemT3CancelStable ==
+    ASSUME TypeOk, T3!TaskSafetyInv, [Next]_vars, NEW t \in Task
+    PROVE  Intends(t, INTENT_CANCEL) => Intends(t, INTENT_CANCEL)'
 
 (* G2's GSI_TaskPreds: a task past registration has completed inputs.         *)
 LEMMA LemG2GSITaskPreds == Init /\ [][Next]_vars => []G2!GSI_TaskPreds
@@ -265,14 +282,21 @@ DiscardOnAbortedInput(t, o) ==
 AssignUpstream(t, o) ==
     o \in objectTargets /\ t \in OA(o).node /\ AssignTasks({t})
 
-ResumeUpstream(t, o) ==
-    o \in objectTargets /\ t \in OA(o).node /\ ResumeTasks({t})
-
-DiscardStoppedUpstream(t, o) ==
+(* The user conditions and the cancellation acknowledgment, as named       *)
+(* operators for the same reason.                                            *)
+ResumeRequestUpstream(t, o) ==
     /\ o \in objectTargets
     /\ t \in OA(o).node
-    /\ t \in StoppedTask
-    /\ DiscardTasks({t})
+    /\ t \in PausedTask
+    /\ RequestTasks({t}, INTENT_RUN)
+
+CancelRequestUpstream(t, o) ==
+    /\ o \in objectTargets
+    /\ t \in OA(o).node
+    /\ t \in HaltedTask
+    /\ RequestTasks({t}, INTENT_CANCEL)
+
+CancelTask(t) == DiscardTasks({t}) /\ Intends(t, INTENT_CANCEL)
 
 (* WF(G2!CompleteObjects): the guards involve only objectState and            *)
 (* Bar-invariant task classes, so enabledness and steps transfer verbatim.    *)
@@ -346,22 +370,27 @@ LEMMA LemRefineG2SFProcessTasks ==
     PROVE  []TypeOk /\ [][Next]_vars /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
            => ([]<>G2!EnabledProcessTasks(t) => []<><<G2!ProcessTasks({t}) /\ t \in G2!SucceededTask'>>_(G2!vars))
 
-(* WF(G2!AssignUpstream(t, o)) -- the centerpiece. G2 sees a parked task as   *)
-(* STAGED, so its assignment fairness demands progress whenever the task sits *)
-(* parked in the open ancestry of the live target o. G3 discharges it by      *)
-(* cases on how the task is parked: a STOPPED task in the open ancestry of o  *)
-(* is eventually discarded (leaving the Bar-staged region -- contradiction);  *)
-(* a pending stop request on a staged/paused task is eventually acknowledged  *)
-(* (STOPPED, previous case); a pause request pending forever is eventually    *)
-(* resumed away; and a staged task with no pending request is assignable, so  *)
-(* G3's strong assignment fairness fires through the churn.                   *)
+(* WF(G2!AssignUpstream(t, o)) -- the centerpiece. G2 sees a paused or      *)
+(* halted task as STAGED, so its assignment fairness demands progress while  *)
+(* the task stays parked in the open ancestry of the live target o. G3       *)
+(* discharges it by contradiction: a cancelled attempt chain is discarded;   *)
+(* a halted task is eventually cancelled by the user; the user then stops    *)
+(* pausing the task, so its intent stabilizes; an attempt chain paused       *)
+(* forever is paused, then resumed by the user; and an attempt chain to run  *)
+(* is resumed, then assigned.                                                *)
 LEMMA LemRefineG2WFAssignTasks ==
     ASSUME NEW t \in Task, NEW o \in Object
     PROVE  /\ []TypeOk /\ []T3!TaskSafetyInv /\ [][Next]_vars
-           /\ SF_vars(AssignUpstream(t, o))
-           /\ WF_vars(StopTasks({t}))
-           /\ WF_vars(ResumeUpstream(t, o))
-           /\ WF_vars(DiscardStoppedUpstream(t, o))
+           /\ WF_vars(AssignUpstream(t, o))
+           /\ WF_vars(PauseTasks({t}))
+           /\ WF_vars(ResumeTasks({t}))
+           /\ WF_vars(CancelTask(t))
+           /\ WF_vars(ResumeRequestUpstream(t, o))
+           /\ WF_vars(CancelRequestUpstream(t, o))
+           /\ (<>[](/\ o \in objectTargets
+                    /\ t \in OA(o).node
+                    /\ t \in StagedTask \union PausedTask)
+               => <>[][~ PauseAttemptChain(t)]_vars)
            => (<>[]G2!EnabledAssignTasks(t, o)
                   => []<><<
                        /\ o \in objectTargets
@@ -380,11 +409,19 @@ LEMMA LemRefineG2UpstreamStabilization ==
 
 THEOREM G3_RefineGraph2 == Spec => RefineGraph2
 
+(* Initial state, step simulation and UpstreamStabilization.        *)
+
+(* Object fairness, conjunct by conjunct. *)
+
+(* Task fairness, conjunct by conjunct. *)
+
+(* Discard-on-abort and assignment fairness, per (task, object) pair. *)
+
 (*****************************************************************************)
 (* REFINEMENT OF Task3 -- FAIRNESS                                           *)
 (*                                                                           *)
 (* The task projection is the identity, so the SetTaskRetries, ProcessTasks, *)
-(* StopTasks and PauseTasks conjuncts transfer directly from G3's            *)
+(* acknowledgment conjuncts transfer directly from G3's                       *)
 (* fairness. The clone conjuncts (RegisterTasks / StageTasks on              *)
 (* nextAttemptOf[t]) and the finalization trio (Complete / Abort / Retry)    *)
 (* are not directly fair at G3 level (the graph adds guards); they are       *)
@@ -411,15 +448,19 @@ LEMMA LemRefineT3SFProcessTasks ==
     PROVE  SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
            => ([]<>T3!EnabledProcessTasks(t) => []<><<T3!ProcessTasks({t}) /\ t \in T3!SucceededTask'>>_(T3!vars))
 
-(* WF(T3!StopTasks), WF(T3!PauseTasks): direct transfer -- stop and pause     *)
-(* acknowledgments coincide under the identity mapping.                       *)
-LEMMA LemRefineT3WFStopTasks ==
+(* The acknowledgments: direct transfers, the actions coinciding on the     *)
+(* task variables and the intents of the two specifications coinciding.     *)
+LEMMA LemRefineT3WFCancelTasks ==
     ASSUME NEW t \in Task
-    PROVE  WF_vars(StopTasks({t})) => (<>[]T3!EnabledStopTasks(t) => []<><<T3!StopTasks({t})>>_(T3!vars))
+    PROVE  WF_vars(CancelTask(t)) => (<>[]T3!EnabledCancelTasks(t) => []<><<T3!DiscardTasks({t}) /\ T3!Intends(t, T3!INTENT_CANCEL)>>_(T3!vars))
 
 LEMMA LemRefineT3WFPauseTasks ==
     ASSUME NEW t \in Task
     PROVE  WF_vars(PauseTasks({t})) => (<>[]T3!EnabledPauseTasks(t) => []<><<T3!PauseTasks({t})>>_(T3!vars))
+
+LEMMA LemRefineT3WFResumeTasks ==
+    ASSUME NEW t \in Task
+    PROVE  WF_vars(ResumeTasks({t})) => (<>[]T3!EnabledResumeTasks(t) => []<><<T3!ResumeTasks({t})>>_(T3!vars))
 
 (* The finalization trio and the clone registration / staging: both sides are *)
 (* enabled on the same state class, and a Bar step of the Task2               *)
@@ -460,6 +501,13 @@ LEMMA LemRefineT3WFStageTasks ==
 
 THEOREM G3_RefineTask3 == Spec => RefineTask3
 
+(* Initial state and step simulation. *)
+
+(* Task2's fairness under the Bar, through the Graph2
+   refinement. *)
+
+(* T3's fairness, conjunct by conjunct.  *)
+
 (*****************************************************************************)
 (* REFINEMENT OF Object2                                                     *)
 (*                                                                           *)
@@ -470,5 +518,36 @@ THEOREM G3_RefineTask3 == Spec => RefineTask3
 (*****************************************************************************)
 
 THEOREM G3_RefineObject2 == Spec => RefineObject2
+
+(* The two copies of Object2 coincide on their initial states and steps once *)
+(* unfolded down to the variables: the Graph2 mapping leaves the object      *)
+(* state alone. Their fairness is compared in its ENABLED-free form, over   *)
+(* which the instantiations distribute.                                     *)
+
+(*****************************************************************************)
+(* ABORTION OF THE UNDERIVABLE TARGETS                                       *)
+(*                                                                           *)
+(* A target that stays targeted is eventually finalized (Object1, through    *)
+(* the Object2 refinement). It cannot be completed: a completed object       *)
+(* keeps a derivation through completed objects and succeeded or completed   *)
+(* tasks (Graph2), which no halted task blocks, hence a derivation under     *)
+(* Graph3's viability. So it is aborted.                                      *)
+(*****************************************************************************)
+
+(* The derivations of the two specifications are built by the same           *)
+(* operator.                                                                  *)
+LEMMA LemG2DerivationBridge ==
+    ASSUME NEW G, NEW n, NEW T, NEW Op(_)
+    PROVE  G2!Derivation(G, n, Op, T) = Derivation(G, n, Op, T)
+
+(* A completed object has a derivation under Graph3's viability.             *)
+LEMMA LemCompletedObjectHasG3Derivation ==
+    ASSUME NEW o \in Object,
+           G2!CompletedObjectHasDerivation,
+           G2!DependencyGraphCompliant, G2!DepsNodeFinite,
+           o \in CompletedObject
+    PROVE  G3Derivation(o) /= {}
+
+THEOREM G3_UnderivableObjectsEventualAbortion == Spec => UnderivableObjectsEventualAbortion
 
 ================================================================================
