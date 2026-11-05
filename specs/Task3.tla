@@ -1,25 +1,25 @@
 --------------------------------- MODULE Task3 ---------------------------------
 (******************************************************************************)
-(* This module specifies an extension of the 'Task2' specification,           *)
-(* providing a concrete implementation of task execution and finalization.    *)
+(* This module extends the 'Task2' specification with user interventions.    *)
 (*                                                                            *)
-(* Key refinements include:                                                   *)
-(* - Decomposing the abstract PROCESSED state into concrete outcomes:         *)
-(* SUCCEEDED, FAILED, or CRASHED.                                             *)
-(* - Implementing a retry mechanism where FAILED tasks are cloned and         *)
-(* re-staged, tracked via the 'nextAttemptOf' mapping.                        *)
-(* - Refining the abstract FINALIZED state into permanent terminal states:    *)
-(* COMPLETED (post-success), RETRIED (post-failure), or ABORTED (crashed).    *)
+(* - The user requests a pause, a resume or a cancellation of a set of tasks. *)
+(*   A request concerns the lineage of each task, i.e., all its attempts,    *)
+(*   past and future: it sets the intent of the lineage, identified by its   *)
+(*   root, its first attempt. The lineages to pause and to cancel are        *)
+(*   recorded; the others are to run.                                         *)
+(* - The system acknowledges the intent of a lineage on each of its attempts *)
+(*   by moving their state (PAUSED, STAGED, or DISCARDED then ABORTED).      *)
+(* - Processing may end in HALTED: the system holds a failed task back from  *)
+(*   propagation. A halted task is irreversible; only a cancellation         *)
+(*   releases it.                                                             *)
 (*                                                                            *)
-(* The module defines a refinement mapping (TPAbs) that collapses these       *)
-(* granular execution and retry steps back into the high-level states of      *)
-(* 'Task2', ensuring safety and liveness across the abstraction.              *)
+(* The refinement mapping 'taskStateBar' sends PAUSED and HALTED to STAGED.  *)
 (******************************************************************************)
 
 EXTENDS DenumerableSets, FiniteSets, Functions, Naturals, TLAPS
 
 CONSTANTS
-    Task,     \* Set of task identifiers
+    Task,       \* Set of task identifiers
     MaxRetries, \* Maximal number of retries for tasks
     NULL        \* Constant representing a null value
 
@@ -29,33 +29,27 @@ ASSUME Assumptions ==
     /\ NULL \notin Task
 
 VARIABLES
-    taskState,        \* taskState[t]: current lifecycle state of task t
-    nextAttemptOf,    \* nextAttemptOf[t]: ID of the task retrying t (NULL if none)
-    stoppingRequested,  \* stoppingRequested: set of tasks for which cancellation has been requested
-    pausingRequested  \* pausingRequested: set of tasks for which pausing has been requested
+    taskState,     \* taskState[t]: current lifecycle state of task t
+    nextAttemptOf, \* nextAttemptOf[t]: ID of the task retrying t (NULL if none)
+    intent         \* intent[i]: roots of the lineages whose intent is i (PAUSE or CANCEL)
 
-vars == << taskState, nextAttemptOf, stoppingRequested, pausingRequested >>
+vars == << taskState, nextAttemptOf, intent >>
 
 -------------------------------------------------------------------------------
 
 (**
- * Instance of the TaskStates module with SetOfTasksIn operator provided.
+ * Sets of tasks by state, retry relations and user intents.
  *)
-INSTANCE TaskRetries
+INSTANCE TaskIntents
 
 (**
  * TYPE INVARIANT
  * Claims that all state variables always take values of the expected form.
- *   - taskState is a function mapping each task to one of the defined states.
- *   - nextAttemptOf is a function mapping each task to another task or NULL.
- *   - stoppingRequested is a set of tasks.
- *   - pausingRequested is a set of tasks.
  *)
-TypeOk == 
+TypeOk ==
     /\ taskState \in [Task -> T3State]
     /\ nextAttemptOf \in [Task -> Task \union {NULL}]
-    /\ stoppingRequested \in SUBSET Task
-    /\ pausingRequested \in SUBSET Task
+    /\ intent \in [RecordedIntent -> SUBSET Task]
 
 -------------------------------------------------------------------------------
 
@@ -65,26 +59,23 @@ TypeOk ==
 
 (**
  * INITIAL STATE
- * Initially, no task has been registered. In addition, no tasks were retried
- * or requested to be canceled or paused.
+ * Initially, no task has been registered, retried or requested.
  *)
 Init ==
     /\ taskState = [t \in Task |-> TASK_UNKNOWN]
     /\ nextAttemptOf = [t \in Task |-> NULL]
-    /\ stoppingRequested = {}
-    /\ pausingRequested = {}
+    /\ intent = [i \in RecordedIntent |-> {}]
 
 (**
  * TASK REGISTRATION
- * A new set 'T' of tasks is registred i.e., known to the system but not yet
- * ready for processing.
+ * A new set 'T' of tasks is registered.
  *)
 RegisterTasks(T) ==
     /\ T /= {} /\ T \subseteq UnknownTask
     /\ IsFiniteSet(T)
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_REGISTERED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, intent >>
 
 (**
  * TASK STAGING
@@ -94,19 +85,18 @@ StageTasks(T) ==
     /\ T /= {} /\ T \subseteq RegisteredTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, intent >>
 
 (**
  * TASK BYPASS
- * A set 'T' of registered or staged tasks is moved directly to the processed
- * state, bypassing assignment and execution.
+ * A set 'T' of tasks not yet processing is discarded, bypassing execution.
  *)
 DiscardTasks(T) ==
     /\ T /= {}
-    /\ T \subseteq UNION {RegisteredTask, StagedTask, PausedTask, StoppedTask}
+    /\ T \subseteq UNION {RegisteredTask, StagedTask, PausedTask, HaltedTask}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, intent >>
 
 (**
  * TASK RETRIES RECORDING
@@ -122,20 +112,19 @@ SetTaskRetries(T, U) ==
     /\ \E f \in Bijection(T, U):
         nextAttemptOf' =
             [t \in Task |-> IF t \in T THEN f[t] ELSE nextAttemptOf[t]]
-    /\ UNCHANGED << taskState, stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << taskState, intent >>
 
 (**
  * TASK ASSIGNMENT
- * A set 'T' of staged tasks is assigned for processing. Tasks can be
- * assigned iff their cancelation or pausing have not been requested.
+ * A set 'T' of staged tasks whose lineage intent is RUN is assigned for
+ * processing.
  *)
 AssignTasks(T) ==
     /\ T /= {} /\ T \subseteq StagedTask
-    /\ T \intersect stoppingRequested = {}
-    /\ T \intersect pausingRequested = {}
+    /\ \A t \in T : Intends(t, INTENT_RUN)
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, intent >>
 
 (**
  * TASK RELEASE
@@ -145,21 +134,17 @@ ReleaseTasks(T) ==
     /\ T /= {} /\ T \subseteq AssignedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, intent >>
 
 (**
  * TASK PROCESSING
- * A set 'T' of assigned tasks completes processing. Three scenarios are
- * possible:
- *   - Task processing succeeded.
- *   - Task processing failed, but the cause may be transient — retrying
- *     execution is allowed.
- *   - Task crashed irrecoverably - re-execution is prohibited.
- *
- * When the completion of the processing of a set of tasks is acknowledged,
- * these tasks can have any of the three states mentioned above. The set 'T' is
- * therefore divided into three subsets 'S', 'F', and 'C', corresponding to each
- * of the three possible states.
+ * A set 'T' of assigned tasks completes processing, whatever their intent:
+ * a request races with the execution. Four outcomes are possible:
+ *   - processing succeeded;
+ *   - the task crashed irrecoverably and is discarded;
+ *   - processing failed, and the task may be retried;
+ *   - processing failed, and the system halts the task instead of
+ *     propagating the failure.
  *)
 ProcessTasks(T) ==
     /\ T /= {} /\ T \subseteq AssignedTask
@@ -171,8 +156,8 @@ ProcessTasks(T) ==
           /\ taskState' =
             [t \in Task |-> IF t \in T THEN TASK_FAILED ELSE taskState[t]]
        \/ taskState' =
-            [t \in Task |-> IF t \in T THEN TASK_STOPPED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
+            [t \in Task |-> IF t \in T THEN TASK_HALTED ELSE taskState[t]]
+    /\ UNCHANGED << nextAttemptOf, intent >>
 
 (**
  * TASK POST-PROCESSING
@@ -182,80 +167,52 @@ CompleteTasks(T) ==
     /\ T /= {} /\ T \subseteq SucceededTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_COMPLETED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, intent >>
 
 AbortTasks(T) ==
     /\ T /= {} /\ T \subseteq DiscardedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_ABORTED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, intent >>
 
 RetryTasks(T) ==
     /\ T /= {} /\ T \subseteq FailedTask
     /\ T \intersect UnretriedTask = {}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_RETRIED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, intent >>
 
 (**
- * TASK CANCELLATION REQUESTING
- * The cancellation of a set 'T' of tasks is requested.
+ * USER REQUEST
+ * The user requests intent 'i' (pause, resume or cancellation) on the
+ * lineages of a set 'T' of known tasks.
  *)
-RequestTasksStopping(T) ==
+RequestTasks(T, i) ==
     /\ T /= {} /\ T \intersect UnknownTask = {}
-    /\ stoppingRequested' = stoppingRequested \union T
-    /\ UNCHANGED << taskState, nextAttemptOf, pausingRequested >>
+    /\ intent' = Requested(T, i)
+    /\ UNCHANGED << taskState, nextAttemptOf >>
 
 (**
- * TASK CANCELLATION ACKNOWLEDGMENT
- * The request to cancel a set 'T' of tasks is acknowledged. STAGED or PAUSED
- * tasks are changed to the STOPPED state: only tasks eligible for execution
- * need to be parked. A request on a REGISTERED task stays pending -- it
- * already prevents assignment, and it is acknowledged if the task ever
- * stages.
- *)
-StopTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq stoppingRequested
-    /\ T \subseteq StagedTask \union PausedTask
-    /\ taskState' =
-        [t \in Task |-> IF t \in T THEN TASK_STOPPED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
-
-(**
- * TASK PAUSING REQUESTING
- * The pausing of a set 'T' of tasks is requested.
- *)
-RequestTasksPausing(T) ==
-    /\ T /= {} /\ T \intersect UnknownTask = {}
-    /\ pausingRequested' = pausingRequested \union T
-    /\ UNCHANGED << taskState, nextAttemptOf, stoppingRequested >>
-
-(**
- * TASK PAUSING ACKNOWLEDGMENT
- * The request to pause a set 'T' of staged tasks is acknowledged: they are
- * set to the PAUSED state. An assigned task is paused only once released.
+ * PAUSE ACKNOWLEDGMENT
+ * A set 'T' of staged tasks whose lineage intent is PAUSE is paused.
  *)
 PauseTasks(T) ==
-    /\ T /= {} /\ T \subseteq pausingRequested
-    /\ T \subseteq StagedTask
+    /\ T /= {} /\ T \subseteq StagedTask
+    /\ \A t \in T : Intends(t, INTENT_PAUSE)
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_PAUSED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, intent >>
 
 (**
- * TASK RESUMING
- * A set 'T' of paused tasks is resumed.
+ * RESUME ACKNOWLEDGMENT
+ * A set 'T' of paused tasks whose lineage intent is RUN is staged again.
  *)
 ResumeTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq pausingRequested
+    /\ T /= {} /\ T \subseteq PausedTask
+    /\ \A t \in T : Intends(t, INTENT_RUN)
     /\ taskState' =
-        [t \in Task |-> IF t \in (T \intersect PausedTask)
-                            THEN TASK_STAGED
-                            ELSE taskState[t]]
-    /\ pausingRequested' = pausingRequested \ T
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested >>
+        [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
+    /\ UNCHANGED << nextAttemptOf, intent >>
 
 -------------------------------------------------------------------------------
 
@@ -279,22 +236,14 @@ Next ==
         \/ CompleteTasks(T)
         \/ AbortTasks(T)
         \/ RetryTasks(T)
-        \/ RequestTasksStopping(T)
-        \/ StopTasks(T)
-        \/ RequestTasksPausing(T)
+        \/ \E i \in Intent: RequestTasks(T, i)
         \/ PauseTasks(T)
         \/ ResumeTasks(T)
 
 (**
  * FAIRNESS CONDITIONS
- * Ensure that progress is eventually made for tasks that can act.
- *   - A task cannot remain indefinitely failed without being retried.
- *   - A task cannot be assigned an infinite number of times
- *     without eventually being processed successfully.
- *   - A task cannot remain indefinitely processed without being eventually
- *     finalized (completed, retried or aborted).
- *   - A task whose cancellation (resp. pausing) request can be acknowledged
- *     is eventually stopped (resp. paused).
+ * Those of Task2, and: every acknowledgment that remains possible eventually
+ * happens, a cancellation being acknowledged by discarding the task.
  *)
 Fairness ==
     \A t \in Task:
@@ -305,8 +254,9 @@ Fairness ==
         /\ WF_vars(CompleteTasks({t}))
         /\ WF_vars(AbortTasks({t}))
         /\ WF_vars(RetryTasks({t}))
-        /\ WF_vars(StopTasks({t}))
         /\ WF_vars(PauseTasks({t}))
+        /\ WF_vars(ResumeTasks({t}))
+        /\ WF_vars(DiscardTasks({t}) /\ Intends(t, INTENT_CANCEL))
 
 (**
  * Full system specification.
@@ -324,45 +274,47 @@ Spec ==
 
 (**
  * SAFETY
- * The state of a task is valid if it meets the following conditions:
- *   - A canceled task must have received a cancellation request.
- *   - A paused task must have received a pause request.
- *   - An unknown task cannot have an associated cancellation or pause request.
+ * The lineages to pause or to cancel are known, and have a single intent.
  *)
 TaskStateIntegrity ==
-    /\ UnknownTask \intersect stoppingRequested = {}
-    /\ PausedTask \subseteq pausingRequested
-    /\ UnknownTask \intersect pausingRequested = {}
-
-PermanentStopping ==
-    \A t \in Task:
-        [](t \in StoppedTask /\ [][~ \E T \in SUBSET Task: t \in T /\ DiscardTasks(T)]_vars
-           => [](t \in StoppedTask))
-
-(**
- * LIVENESS
- * Any staged/paused task with a cancellation request must eventually reach
- * the STOPPED state (or be discarded and aborted). A REGISTERED task with a
- * pending request carries no such promise: it may never stage, in which case
- * the request only bars it from ever being assigned
- * (see StoppingRequestPreventsAssignment).
- *)
-RequestedStoppingEventualAcknowledgment ==
-    \A t \in Task:
-        /\ t \in UNION {StagedTask, PausedTask}
-        /\ t \in stoppingRequested
-        ~> t \in StoppedTask \/ t \in AbortedTask
+    /\ intent[INTENT_PAUSE] \union intent[INTENT_CANCEL] \subseteq RootTask
+    /\ intent[INTENT_PAUSE] \intersect intent[INTENT_CANCEL] = {}
 
 (**
  * SAFETY
- * A cancellation request permanently prevents execution: once a task is
- * both requested for stopping and not assigned, it can never (re-)enter the
- * ASSIGNED state.
+ * A cancellation is irrevocable.
  *)
-StoppingRequestPreventsAssignment ==
+PermanentCancellation ==
     \A t \in Task:
-        [](t \in stoppingRequested /\ ~ (t \in AssignedTask)
-           => [](~ (t \in AssignedTask)))
+        [](Intends(t, INTENT_CANCEL) => [](Intends(t, INTENT_CANCEL)))
+
+(**
+ * SAFETY
+ * A halted task is never restarted: it stays halted until it is discarded,
+ * then aborted.
+ *)
+PermanentHalting ==
+    \A t \in Task:
+        [](t \in HaltedTask =>
+            [](t \in UNION {HaltedTask, DiscardedTask, AbortedTask}))
+
+(**
+ * SAFETY
+ * Once the lineage of a task is cancelled, the task is never assigned again.
+ *)
+CancellationPreventsAssignment ==
+    \A t \in Task:
+        [](Intends(t, INTENT_CANCEL) /\ t \notin AssignedTask
+            => [](t \notin AssignedTask))
+
+(**
+ * LIVENESS
+ * The intent of the lineage of a task is eventually in effect on the task,
+ * unless it is replaced first.
+ *)
+IntentEventualAcknowledgment ==
+    \A t \in Task, i \in Intent:
+        Intends(t, i) ~> taskState[t] \in IntentEffect(i) \/ ~ Intends(t, i)
 
 (**
  * LIVENESS
@@ -370,9 +322,9 @@ StoppingRequestPreventsAssignment ==
  *)
 taskStateBar ==
     [t \in Task |->
-        CASE taskState[t] = TASK_STOPPED -> TASK_STAGED
-          [] taskState[t] = TASK_PAUSED  -> TASK_STAGED
-          [] OTHER                         -> taskState[t]
+        CASE taskState[t] = TASK_HALTED -> TASK_STAGED
+          [] taskState[t] = TASK_PAUSED -> TASK_STAGED
+          [] OTHER                      -> taskState[t]
     ]
 T2 ==
     INSTANCE Task2Theorems
