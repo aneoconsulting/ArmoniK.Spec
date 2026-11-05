@@ -3,6 +3,50 @@ EXTENDS Task3
 
 LEMMA SameAssumptions == Assumptions => T2!Assumptions
 
+(**
+ * STEP SIMULATION OF Task2. Under taskStateBar, which sends PAUSED and
+ * HALTED to STAGED, every step is a Task2 step or a stutter.
+ *)
+LEMMA LemRefineT2Init == Init => T2!Init
+
+LEMMA LemRefineT2Next == [Next]_vars => [T2!Next]_T2!vars
+
+(**
+ * The retry invariants of Task2 that this module uses, restated over its
+ * own operators: only failed or retried tasks have a next attempt, the
+ * next-attempt relation is acyclic, and every task has finitely many
+ * previous attempts.
+ *)
+AttemptsInv ==
+    /\ nextAttemptOf \in [Task -> Task \union {NULL}]
+    /\ \A t \in Task : nextAttemptOf[t] /= NULL => t \in FailedTask \union RetriedTask
+    /\ \A t \in Task : <<t, t>> \notin TCNextAttemptOfRel
+    /\ \A t \in Task : IsFiniteSet(PreviousAttempts(t))
+
+LEMMA LemAttemptsInv == Init /\ [][Next]_vars => []AttemptsInv
+
+(**
+ * IDENTIFIER OF AN ATTEMPT CHAIN. The chain identifier of a task is the task
+ * itself or one of its previous attempts, and has no previous attempts; the
+ * chain identifier of a known task is known.
+ *)
+LEMMA LemChainId ==
+    ASSUME AttemptsInv, NEW t \in Task
+    PROVE  /\ ChainId(t) \in {t} \union PreviousAttempts(t)
+           /\ PreviousAttempts(ChainId(t)) = {}
+           /\ PreviousAttempts(t) \cap UnknownTask = {}
+           /\ t \notin UnknownTask => ChainId(t) \in KnownChainId
+
+(**
+ * STABILITY OF A KNOWN CHAIN IDENTIFIER. The identifier of an attempt chain
+ * whose first attempt is known never changes, and stays the identifier of a
+ * known attempt chain: a retry only adds an edge towards a fresh task,
+ * which leaves the previous attempts of every other task unchanged.
+ *)
+LEMMA LemChainIdStable ==
+    ASSUME AttemptsInv, [Next]_vars, NEW t \in Task, ChainId(t) \in KnownChainId
+    PROVE  ChainId(t)' = ChainId(t) /\ ChainId(t) \in KnownChainId'
+
 LEMMA LemType == Init /\ [][Next]_vars => []TypeOk
 
 THEOREM T3_Type == Spec => []TypeOk
@@ -11,15 +55,9 @@ LEMMA LemTaskStateIntegrity == Init /\ [][Next]_vars => []TaskStateIntegrity
 
 THEOREM T3_TaskStateIntegrity == Spec => []TaskStateIntegrity
 
-LEMMA LemPermanentStoppingStep ==
-    ASSUME NEW t \in Task
-    PROVE t \in StoppedTask /\ [Next /\ ~ \E T \in SUBSET Task: t \in T /\ DiscardTasks(T)]_vars
-          => (t \in StoppedTask)'
-
-THEOREM T3_PermanentStopping == Spec => PermanentStopping
-
 TaskSafetyInv ==
     /\ TypeOk
+    /\ AttemptsInv
     /\ TaskStateIntegrity
 
 LEMMA LemTaskSafetyInv == Init /\ [][Next]_vars => []TaskSafetyInv
@@ -27,9 +65,19 @@ LEMMA LemTaskSafetyInv == Init /\ [][Next]_vars => []TaskSafetyInv
 THEOREM T3_TaskSafetyInv == Spec => []TaskSafetyInv
 
 (**
+ * A cancellation is never withdrawn: the identifier of a cancelled attempt
+ * chain never changes, and requests never remove one from the cancelled ones.
+ *)
+LEMMA LemCancelStable ==
+    ASSUME TaskSafetyInv, [Next]_vars, NEW t \in Task
+    PROVE  Intends(t, INTENT_CANCEL) => Intends(t, INTENT_CANCEL)'
+
+THEOREM T3_PermanentCancellation == Spec => PermanentCancellation
+
+(**
  * STEP-LEVEL STABILITY OF TASK STATES. The task lifecycle only moves forward:
  * SUCCEEDED exits to COMPLETED only, DISCARDED to ABORTED only, FAILED to
- * RETRIED only, STOPPED to DISCARDED only, and the finalized states are
+ * RETRIED only, HALTED to DISCARDED only, and the finalized states are
  * terminal. Stated for a single step so that refining specifications can lift
  * it through their step simulation.
  *)
@@ -41,17 +89,17 @@ LEMMA LemTaskStateStable ==
               => taskState'[t] \in {TASK_DISCARDED, TASK_ABORTED}
            /\ taskState[t] \in {TASK_FAILED, TASK_RETRIED}
               => taskState'[t] \in {TASK_FAILED, TASK_RETRIED}
-           /\ taskState[t] = TASK_STOPPED
-              => taskState'[t] \in {TASK_STOPPED, TASK_DISCARDED}
+           /\ taskState[t] = TASK_HALTED
+              => taskState'[t] \in {TASK_HALTED, TASK_DISCARDED}
            /\ taskState[t] \in {TASK_COMPLETED, TASK_ABORTED, TASK_RETRIED}
               => taskState'[t] = taskState[t]
 
+THEOREM T3_PermanentHalting == Spec => PermanentHalting
+
 (**
- * A cancellation request is never withdrawn.
+ * A cancelled attempt chain never runs: assignment requires the intent RUN.
  *)
-LEMMA LemStoppingRequestStable ==
-    ASSUME NEW t \in Task, [Next]_vars
-    PROVE  t \in stoppingRequested => (t \in stoppingRequested)'
+THEOREM T3_CancellationPreventsAssignment == Spec => CancellationPreventsAssignment
 
 (**
  * STEP-LEVEL CONVERSE OF THE Task2 REFINEMENT. A step whose Bar is a
@@ -87,16 +135,87 @@ LEMMA LemStageTasksFromT2Step ==
     PROVE  TypeOk /\ [Next]_vars /\ <<T2!StageTasks({u})>>_(T2!vars)
            => <<StageTasks({u})>>_vars
 
-(* A cancellation request permanently bars a non-assigned task from the      *)
-(* ASSIGNED state: stoppingRequested is monotone and AssignTasks excludes    *)
-(* requested tasks.                                                          *)
-THEOREM T3_StoppingRequestPreventsAssignment ==
-    Spec => StoppingRequestPreventsAssignment
-
-THEOREM T3_RequestedStoppingEventualAcknowledgment ==
-    Spec => RequestedStoppingEventualAcknowledgment
-
 THEOREM T3_RefineTask2 == Spec => RefineTask2
+
+(**
+ * LIVENESS INGREDIENTS. Each step of the lifecycle that the acknowledgment
+ * of an intent goes through, as a leads-to from a single fairness
+ * condition, or lifted from Task2.
+ *)
+
+(**
+ * A recorded intent on an unknown task comes from its attempt chain: the
+ * task is the next attempt of another one.
+ *)
+LEMMA LemUnknownIntended ==
+    ASSUME TaskSafetyInv, NEW t \in Task, NEW i \in RecordedIntent,
+           Intends(t, i), t \in UnknownTask
+    PROVE  \E s \in Task : nextAttemptOf[s] = t
+
+(**
+ * A next attempt is eventually registered.
+ *)
+LEMMA LemRetryRegistration ==
+    ASSUME NEW t \in Task, NEW s \in Task
+    PROVE  Spec => (t \in UnknownTask /\ nextAttemptOf[s] = t ~> t \in RegisteredTask)
+
+(**
+ * An unknown task that is the next attempt of another one is eventually
+ * registered.
+ *)
+LEMMA LemUnknownRegistration ==
+    ASSUME NEW t \in Task
+    PROVE  Spec => [](t \in UnknownTask /\ (\E s \in Task : nextAttemptOf[s] = t)
+                      => <>(t \in RegisteredTask))
+
+(**
+ * An assigned task eventually leaves ASSIGNED: forever assigned, it would
+ * eventually succeed by the strong fairness of processing.
+ *)
+LEMMA LemAssignedExit ==
+    ASSUME NEW t \in Task
+    PROVE  Spec => (t \in AssignedTask
+                    ~> t \in UNION {StagedTask, SucceededTask, DiscardedTask,
+                                    FailedTask, HaltedTask})
+
+(**
+ * The finalizations of Task2, lifted through the refinement.
+ *)
+LEMMA LemT2Finalization ==
+    ASSUME NEW t \in Task
+    PROVE  Spec => /\ t \in SucceededTask ~> t \in CompletedTask
+                   /\ t \in FailedTask ~> t \in RetriedTask
+                   /\ t \in DiscardedTask ~> t \in AbortedTask
+
+(**
+ * A staged task whose attempt chain is to pause is eventually paused, unless
+ * it is discarded or its intent changes first.
+ *)
+LEMMA LemPauseAck ==
+    ASSUME NEW t \in Task
+    PROVE  Spec => (t \in StagedTask /\ Intends(t, INTENT_PAUSE)
+                    ~> t \in PausedTask \/ t \in DiscardedTask \/ ~ Intends(t, INTENT_PAUSE))
+
+(**
+ * A paused task whose attempt chain is to run is eventually resumed, unless
+ * its intent changes first.
+ *)
+LEMMA LemResumeAck ==
+    ASSUME NEW t \in Task
+    PROVE  Spec => (t \in PausedTask /\ Intends(t, INTENT_RUN)
+                    ~> ~ (t \in PausedTask /\ Intends(t, INTENT_RUN)))
+
+(**
+ * A task of a cancelled attempt chain that has not started, or is paused or
+ * halted, is eventually discarded.
+ *)
+LEMMA LemCancelAck ==
+    ASSUME NEW t \in Task
+    PROVE  Spec => (Intends(t, INTENT_CANCEL)
+                    /\ t \in UNION {RegisteredTask, StagedTask, PausedTask, HaltedTask}
+                    ~> t \in DiscardedTask)
+
+THEOREM T3_IntentEventualAcknowledgment == Spec => IntentEventualAcknowledgment
 
 (**
  * ENABLED-FREE FAIRNESS
@@ -123,9 +242,13 @@ EnabledAbortTasks(t) == t \in DiscardedTask
 
 EnabledRetryTasks(t) == t \in FailedTask /\ ~ (t \in UnretriedTask)
 
-EnabledStopTasks(t) == t \in stoppingRequested /\ (t \in StagedTask \/ t \in PausedTask)
+EnabledPauseTasks(t) == Intends(t, INTENT_PAUSE) /\ t \in StagedTask
 
-EnabledPauseTasks(t) == t \in pausingRequested /\ t \in StagedTask
+EnabledResumeTasks(t) == Intends(t, INTENT_RUN) /\ t \in PausedTask
+
+EnabledCancelTasks(t) ==
+    /\ Intends(t, INTENT_CANCEL)
+    /\ t \in UNION {RegisteredTask, StagedTask, PausedTask, HaltedTask}
 
 FairnessEnabledFree ==
     \A t \in Task :
@@ -143,10 +266,12 @@ FairnessEnabledFree ==
            => []<><<AbortTasks({t})>>_vars
         /\ <>[]EnabledRetryTasks(t)
            => []<><<RetryTasks({t})>>_vars
-        /\ <>[]EnabledStopTasks(t)
-           => []<><<StopTasks({t})>>_vars
         /\ <>[]EnabledPauseTasks(t)
            => []<><<PauseTasks({t})>>_vars
+        /\ <>[]EnabledResumeTasks(t)
+           => []<><<ResumeTasks({t})>>_vars
+        /\ <>[]EnabledCancelTasks(t)
+           => []<><<DiscardTasks({t}) /\ Intends(t, INTENT_CANCEL)>>_vars
 
 LEMMA LemFairnessEnabledFree == FairnessEnabledFree => Fairness
 
