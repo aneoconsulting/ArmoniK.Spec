@@ -48,7 +48,7 @@ MCSpec ==
     /\ Init
     /\ [][MCNext]_vars
     /\ Fairness
-    /\ PauseStabilization
+    /\ UserStopsPausingUpstream
 
 (**
  * MC-checkable form of the Graph2 refinement. As in

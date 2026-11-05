@@ -420,6 +420,7 @@ Fairness ==
         /\ WF_vars(
             /\ o \in objectTargets
             /\ t \in OA(o).node
+            /\ t \in PausedTask
             /\ RequestTasks({t}, INTENT_RUN))
         /\ WF_vars(
             /\ o \in objectTargets
@@ -428,17 +429,28 @@ Fairness ==
             /\ RequestTasks({t}, INTENT_CANCEL))
 
 (**
- * LIVENESS CONSTRAINT
- * A task standing in the open ancestry of a target is eventually no longer
- * paused by the user there. Fairness on resuming alone does not suffice: a
- * user who alternates pausing and resuming keeps a task paused forever.
+ * USER PAUSE
+ * The user pauses the lineage of task 't', which was to run.
  *)
-PauseStabilization ==
+PauseLineage(t) ==
+    /\ Intends(t, INTENT_RUN)
+    /\ \E T \in SUBSET Task :
+        /\ \E u \in T : Root(u) = Root(t)
+        /\ RequestTasks(T, INTENT_PAUSE)
+
+(**
+ * LIVENESS CONSTRAINT
+ * The user eventually stops pausing a task that waits, staged or paused, in
+ * the open ancestry of a target. Fairness on resuming alone does not
+ * suffice: a user who alternates pausing and resuming keeps the task from
+ * ever being assigned.
+ *)
+UserStopsPausingUpstream ==
     \A o \in Object, t \in Task :
-        <>[][~ ( /\ o \in objectTargets
-                 /\ t \in OA(o).node
-                 /\ ~ Intends(t, INTENT_PAUSE)
-                 /\ Intends(t, INTENT_PAUSE)' )]_vars
+        <>[](/\ o \in objectTargets
+             /\ t \in OA(o).node
+             /\ t \in StagedTask \union PausedTask)
+        => <>[][~ PauseLineage(t)]_vars
 
 (**
  * LIVENESS CONSTRAINT
@@ -457,7 +469,7 @@ Spec ==
     /\ Init
     /\ [][Next]_vars
     /\ Fairness
-    /\ PauseStabilization
+    /\ UserStopsPausingUpstream
     /\ UpstreamStabilization
 
 -------------------------------------------------------------------------------
