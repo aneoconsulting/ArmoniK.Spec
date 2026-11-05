@@ -1,4 +1,23 @@
 -------------------------------- MODULE Graph3 ---------------------------------
+(******************************************************************************)
+(* This module extends the 'Graph2' specification with user interventions,  *)
+(* as 'Task3' does for 'Task2'.                                               *)
+(*                                                                            *)
+(* - The user requests a pause, a resume or a cancellation of the lineages   *)
+(*   of a set of tasks; the system acknowledges the intent of a lineage on   *)
+(*   each of its attempts.                                                    *)
+(* - Processing may end in HALTED: the system holds a failed task back from  *)
+(*   propagation until the user cancels it. A halted task will never produce *)
+(*   its outputs, so it is not viable.                                        *)
+(* - Interventions act on the tasks they address and on their lineages only; *)
+(*   their consequences for other tasks go through the data.                 *)
+(* - Liveness rests on user requirements restricted to the open ancestry of  *)
+(*   the targets: paused lineages are eventually resumed, pausing eventually *)
+(*   stops, and halted tasks are eventually cancelled.                        *)
+(*                                                                            *)
+(* The refinement mapping 'taskStateBar' sends PAUSED and HALTED to STAGED.  *)
+(******************************************************************************)
+
 EXTENDS DDGraphs, DenumerableSets, FiniteSets, TLAPS
 
 CONSTANTS
@@ -15,16 +34,14 @@ ASSUMPTION Assumptions ==
     /\ NULL \notin Task
 
 VARIABLES
-    deps,               \* deps: the directed dependency graph over task and object identifiers
-    objectState,        \* objectState[o]: current lifecycle state of object o
-    objectTargets,      \* objectTargets: set of objects currently marked as targets
-    taskState,          \* taskState[t]: current lifecycle state of task t
-    nextAttemptOf,      \* nextAttemptOf[t]: ID of the task retrying t (NULL if none)
-    stoppingRequested,  \* stoppingRequested: set of tasks for which cancellation has been requested
-    pausingRequested    \* pausingRequested: set of tasks for which pausing has been requested
+    deps,          \* deps: the directed dependency graph over task and object identifiers
+    objectState,   \* objectState[o]: current lifecycle state of object o
+    objectTargets, \* objectTargets: set of objects currently marked as targets
+    taskState,     \* taskState[t]: current lifecycle state of task t
+    nextAttemptOf, \* nextAttemptOf[t]: ID of the task retrying t (NULL if none)
+    intent         \* intent[i]: roots of the lineages whose intent is i (PAUSE or CANCEL)
 
-vars == << deps, objectState, objectTargets, taskState, nextAttemptOf,
-           stoppingRequested, pausingRequested >>
+vars == << deps, objectState, objectTargets, taskState, nextAttemptOf, intent >>
 
 -------------------------------------------------------------------------------
 
@@ -33,19 +50,19 @@ vars == << deps, objectState, objectTargets, taskState, nextAttemptOf,
 (*****************************************************************************)
 
 INSTANCE ObjectStates
-INSTANCE TaskRetries
+INSTANCE TaskIntents
 
 (**
  * A node is viable iff it has not reached a terminal failure state.
- * Non-viable task states: discarded, failed, aborted, retried and stopped.
+ * Non-viable task states: discarded, failed, aborted, retried and halted.
  * Non-viable object state: aborted.
  *
- * A stopped task is non-viable: once cancelled it will never produce its
- * output objects, so it can no longer contribute to a derivation.
+ * A halted task is non-viable: it is never restarted, so it will never
+ * produce its outputs.
  *)
 IsViableNode(n) ==
     n \notin UNION {DiscardedTask, FailedTask, AbortedTask, RetriedTask,
-                    StoppedTask, AbortedObject}
+                    HaltedTask, AbortedObject}
 
 (**
  * A node is open iff it has not yet been finalized. Openness makes no claim
@@ -65,14 +82,6 @@ IsOpenNode(n) ==
  *)
 OA(o) == AncestorSubGraph(deps, o, IsOpenNode)
 
-(**
- * The set of derivations of an object 'o' under the Graph3
- * viability predicate (which treats STOPPED tasks, like discarded ones, as
- * non-viable). 'o' is derivable iff this set is non-empty, i.e. there is still
- * a viable way to produce it from the sources.
- *)
-G3Derivation(o) == Derivation(deps, o, IsViableNode, Task)
-
 -------------------------------------------------------------------------------
 
 (**
@@ -85,8 +94,7 @@ TypeOk ==
     /\ objectState \in [Object -> O2State]
     /\ objectTargets \in SUBSET Object
     /\ deps \in DirectedGraphOf(Task \union Object)
-    /\ stoppingRequested \in SUBSET Task
-    /\ pausingRequested \in SUBSET Task
+    /\ intent \in [RecordedIntent -> SUBSET Task]
 
 -------------------------------------------------------------------------------
 
@@ -96,8 +104,8 @@ TypeOk ==
 
 (**
  * INITIAL STATE
- * Initially, no task or object is known, no dependency exists, and no task
- * has been requested to be stopped or paused.
+ * Initially, no task or object is known, no dependency exists, and no
+ * lineage is paused or cancelled.
  *)
 Init ==
     /\ taskState = [t \in Task |-> TASK_UNKNOWN]
@@ -105,14 +113,7 @@ Init ==
     /\ objectState = [o \in Object |-> OBJECT_UNKNOWN]
     /\ objectTargets = {}
     /\ deps = EmptyGraph
-    /\ stoppingRequested = {}
-    /\ pausingRequested = {}
-
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* GRAPH AND OBJECT ACTIONS (inherited from Graph2)                           *)
-(*****************************************************************************)
+    /\ intent = [i \in RecordedIntent |-> {}]
 
 (**
  * GRAPH REGISTRATION
@@ -144,8 +145,7 @@ RegisterGraph(G) ==
                 IF t \in G.node
                     THEN TASK_REGISTERED
                     ELSE taskState[t]]
-        /\ UNCHANGED << objectTargets, nextAttemptOf,
-                        stoppingRequested, pausingRequested >>
+        /\ UNCHANGED << objectTargets, nextAttemptOf, intent >>
 
 (**
  * OBJECT TARGETING
@@ -154,8 +154,7 @@ RegisterGraph(G) ==
 TargetObjects(O) ==
     /\ O /= {} /\ O \subseteq UNION {RegisteredObject, CompletedObject, AbortedObject}
     /\ objectTargets' = objectTargets \union O
-    /\ UNCHANGED << deps, objectState, taskState, nextAttemptOf,
-                    stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << deps, objectState, taskState, nextAttemptOf, intent >>
 
 (**
  * OBJECT UNTARGETING
@@ -164,8 +163,7 @@ TargetObjects(O) ==
 UntargetObjects(O) ==
     /\ O /= {} /\ O \subseteq objectTargets
     /\ objectTargets' = objectTargets \ O
-    /\ UNCHANGED << deps, objectState, taskState, nextAttemptOf,
-                    stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << deps, objectState, taskState, nextAttemptOf, intent >>
 
 (**
  * OBJECT COMPLETION
@@ -178,8 +176,7 @@ CompleteObjects(O) ==
        \/ \A o \in O: \E t \in Predecessor(deps, o): t \in SucceededTask
     /\ objectState' =
         [o \in Object |-> IF o \in O THEN OBJECT_COMPLETED ELSE objectState[o]]
-    /\ UNCHANGED << deps, objectTargets, taskState, nextAttemptOf,
-                    stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << deps, objectTargets, taskState, nextAttemptOf, intent >>
 
 (**
  * OBJECT ABORTION
@@ -194,14 +191,7 @@ AbortObjects(O) ==
             /\ \E t \in Predecessor(deps, o): t \in DiscardedTask
     /\ objectState' =
         [o \in Object |-> IF o \in O THEN OBJECT_ABORTED ELSE objectState[o]]
-    /\ UNCHANGED << deps, objectTargets, taskState, nextAttemptOf,
-                    stoppingRequested, pausingRequested >>
-
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* TASK ACTIONS (inherited from Graph2, extended for stop/pause)              *)
-(*****************************************************************************)
+    /\ UNCHANGED << deps, objectTargets, taskState, nextAttemptOf, intent >>
 
 (**
  * TASK RETRIES RECORDING
@@ -216,8 +206,7 @@ SetTaskRetries(T, U) ==
     /\ \E f \in Bijection(T, U):
         nextAttemptOf' =
             [t \in Task |-> IF t \in T THEN f[t] ELSE nextAttemptOf[t]]
-    /\ UNCHANGED << taskState, deps, objectState, objectTargets,
-                    stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << taskState, deps, objectState, objectTargets, intent >>
 
 (**
  * TASK STAGING
@@ -229,37 +218,30 @@ StageTasks(T) ==
     /\ UNION {Predecessor(deps, t): t \in T} \subseteq CompletedObject
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets,
-                    stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets, intent >>
 
 (**
  * TASK BYPASS
- * A set 'T' of registered, staged or paused tasks is discarded, bypassing
- * assignment and execution. Paused tasks may be discarded (e.g. when the
- * pausing window is cancelled).
+ * A set 'T' of tasks not yet processing is discarded, bypassing execution.
  *)
 DiscardTasks(T) ==
     /\ T /= {}
-    /\ T \subseteq UNION {RegisteredTask, StagedTask, PausedTask, StoppedTask}
+    /\ T \subseteq UNION {RegisteredTask, StagedTask, PausedTask, HaltedTask}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets,
-                    stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets, intent >>
 
 (**
  * TASK ASSIGNMENT
- * A set 'T' of staged tasks is assigned for processing. A task can be
- * assigned only if neither its cancellation nor its pausing has been
- * requested.
+ * A set 'T' of staged tasks whose lineage intent is RUN is assigned for
+ * processing.
  *)
 AssignTasks(T) ==
     /\ T /= {} /\ T \subseteq StagedTask
-    /\ T \intersect stoppingRequested = {}
-    /\ T \intersect pausingRequested = {}
+    /\ \A t \in T : Intends(t, INTENT_RUN)
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets,
-                    stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets, intent >>
 
 (**
  * TASK RELEASE
@@ -269,14 +251,17 @@ ReleaseTasks(T) ==
     /\ T /= {} /\ T \subseteq AssignedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets,
-                    stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets, intent >>
 
 (**
  * TASK PROCESSING
- * A set 'T' of assigned tasks completes processing. Four outcomes are
- * possible: success, irrecoverable crash (discarded), retryable failure, or
- * cancellation acknowledged mid-flight (stopped).
+ * A set 'T' of assigned tasks completes processing, whatever their intent:
+ * a request races with the execution. Four outcomes are possible:
+ *   - processing succeeded;
+ *   - the task crashed irrecoverably and is discarded;
+ *   - processing failed, and the task may be retried;
+ *   - processing failed, and the system halts the task instead of
+ *     propagating the failure.
  *)
 ProcessTasks(T) ==
     /\ T /= {} /\ T \subseteq AssignedTask
@@ -288,9 +273,8 @@ ProcessTasks(T) ==
           /\ taskState' =
                 [t \in Task |-> IF t \in T THEN TASK_FAILED ELSE taskState[t]]
        \/ taskState' =
-            [t \in Task |-> IF t \in T THEN TASK_STOPPED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets,
-                    stoppingRequested, pausingRequested >>
+            [t \in Task |-> IF t \in T THEN TASK_HALTED ELSE taskState[t]]
+    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets, intent >>
 
 (**
  * TASK COMPLETION
@@ -304,8 +288,7 @@ CompleteTasks(T) ==
             => \E t \in (Predecessor(deps, o) \ T) : t \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_COMPLETED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets,
-                    stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets, intent >>
 
 (**
  * TASK ABORTION
@@ -319,8 +302,7 @@ AbortTasks(T) ==
             => \E t \in (Predecessor(deps, o) \ T) : t \notin UNION {CompletedTask, AbortedTask, RetriedTask, FailedTask}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_ABORTED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets,
-                    stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets, intent >>
 
 (**
  * TASK RETRY FINALIZATION
@@ -335,80 +317,39 @@ RetryTasks(T) ==
             => \E u \in (Predecessor(deps, o) \ T) : u \notin UNION {CompletedTask, AbortedTask, RetriedTask}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_RETRIED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets,
-                    stoppingRequested, pausingRequested >>
-
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* STOPPING AND PAUSING ACTIONS (new in Graph3)                               *)
-(*****************************************************************************)
+    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets, intent >>
 
 (**
- * TASK CANCELLATION REQUESTING
- * The cancellation of a set 'T' of known tasks is requested, in any task
- * state. A request on a still-REGISTERED task stays pending -- it bars the
- * task from assignment and is acknowledged if the task ever stages.
+ * USER REQUEST
+ * The user requests intent 'i' (pause, resume or cancellation) on the
+ * lineages of a set 'T' of known tasks.
  *)
-RequestTasksStopping(T) ==
+RequestTasks(T, i) ==
     /\ T /= {} /\ T \intersect UnknownTask = {}
-    /\ stoppingRequested' = stoppingRequested \union T
-    /\ UNCHANGED << deps, objectState, objectTargets, taskState,
-                    nextAttemptOf, pausingRequested >>
+    /\ intent' = Requested(T, i)
+    /\ UNCHANGED << deps, objectState, objectTargets, taskState, nextAttemptOf >>
 
 (**
- * TASK CANCELLATION ACKNOWLEDGMENT
- * The request to cancel a set 'T' of tasks is acknowledged. STAGED or PAUSED
- * tasks are moved to the STOPPED state: only tasks eligible for execution
- * need to be parked.
- *)
-StopTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq stoppingRequested
-    /\ T \subseteq StagedTask \union PausedTask
-    /\ taskState' =
-        [t \in Task |-> IF t \in T THEN TASK_STOPPED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets,
-                    stoppingRequested, pausingRequested >>
-
-(**
- * TASK PAUSING REQUESTING
- * The pausing of a set 'T' of known tasks is requested.
- *)
-RequestTasksPausing(T) ==
-    /\ T /= {} /\ T \intersect UnknownTask = {}
-    /\ pausingRequested' = pausingRequested \union T
-    /\ UNCHANGED << deps, objectState, objectTargets, taskState,
-                    nextAttemptOf, stoppingRequested >>
-
-(**
- * TASK PAUSING ACKNOWLEDGMENT
- * The request to pause a set 'T' of staged tasks is acknowledged: they are
- * moved to the PAUSED state. An assigned task is paused only once released.
+ * PAUSE ACKNOWLEDGMENT
+ * A set 'T' of staged tasks whose lineage intent is PAUSE is paused.
  *)
 PauseTasks(T) ==
-    /\ T /= {} /\ T \subseteq pausingRequested
-    /\ T \subseteq StagedTask
+    /\ T /= {} /\ T \subseteq StagedTask
+    /\ \A t \in T : Intends(t, INTENT_PAUSE)
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_PAUSED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets,
-                    stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets, intent >>
 
 (**
- * TASK RESUMING
- * A set 'T' of paused tasks is resumed back to the staged pool, and the
- * pausing request is cleared.
+ * RESUME ACKNOWLEDGMENT
+ * A set 'T' of paused tasks whose lineage intent is RUN is staged again.
  *)
 ResumeTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq pausingRequested
+    /\ T /= {} /\ T \subseteq PausedTask
+    /\ \A t \in T : Intends(t, INTENT_RUN)
     /\ taskState' =
-        [t \in Task |-> IF t \in (T \intersect PausedTask)
-                            THEN TASK_STAGED
-                            ELSE taskState[t]]
-    /\ pausingRequested' = pausingRequested \ T
-    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets,
-                    stoppingRequested >>
+        [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
+    /\ UNCHANGED << nextAttemptOf, deps, objectState, objectTargets, intent >>
 
 -------------------------------------------------------------------------------
 
@@ -437,29 +378,19 @@ Next ==
         \/ CompleteTasks(T)
         \/ AbortTasks(T)
         \/ RetryTasks(T)
-        \/ RequestTasksStopping(T)
-        \/ StopTasks(T)
-        \/ RequestTasksPausing(T)
+        \/ \E i \in Intent: RequestTasks(T, i)
         \/ PauseTasks(T)
         \/ ResumeTasks(T)
 
 (**
  * FAIRNESS CONDITIONS
- * The graph/retry fairness of Graph2, adapted and augmented for
- * stopping and pausing:
- *   - a task whose stopping (resp. pausing) is acknowledgeable is eventually
- *     stopped (resp. paused);
- *   - per (task, object) pair, assignment fairness is strengthened from weak
- *     to strong: repeated pausing/resuming makes assignability flicker, and
- *     only strong fairness guarantees that a task persistently in the open
- *     ancestry of a given target is eventually assigned;
- *   - a paused or stopped task standing persistently in the open ancestry of
- *     a given target is eventually resumed (resp. discarded), so parked
- *     tasks never block a target forever; tasks not in any target's way may
- *     stay parked.
- * Abortion propagates lazily, as in Graph2: a task with an aborted input is
- * eventually discarded only if it stands persistently in the open ancestry
- * of a given target.
+ * Those of Graph2, and:
+ *   - every acknowledgment that remains possible eventually happens, a
+ *     cancellation being acknowledged by discarding the task;
+ *   - each task standing in the open ancestry of a target is eventually
+ *     released by the user: a paused lineage is resumed, and a halted task
+ *     is cancelled unless another derivation completes the target first,
+ *     which empties its open ancestry.
  *)
 Fairness ==
     /\ \A o \in Object:
@@ -473,17 +404,10 @@ Fairness ==
         /\ WF_vars(CompleteTasks({t}))
         /\ WF_vars(AbortTasks({t}))
         /\ WF_vars(RetryTasks({t}))
-        /\ WF_vars(StopTasks({t}))
         /\ WF_vars(PauseTasks({t}))
+        /\ WF_vars(ResumeTasks({t}))
+        /\ WF_vars(DiscardTasks({t}) /\ Intends(t, INTENT_CANCEL))
     /\ \A t \in Task, o \in Object :
-        /\ SF_vars(
-            /\ o \in objectTargets
-            /\ t \in OA(o).node
-            /\ AssignTasks({t}))
-        /\ WF_vars(
-            /\ o \in objectTargets
-            /\ t \in OA(o).node
-            /\ ResumeTasks({t}))
         /\ WF_vars(
             /\ o \in objectTargets
             /\ t \in OA(o).node
@@ -492,15 +416,36 @@ Fairness ==
         /\ WF_vars(
             /\ o \in objectTargets
             /\ t \in OA(o).node
-            /\ t \in StoppedTask
-            /\ DiscardTasks({t}))
+            /\ AssignTasks({t}))
+        /\ WF_vars(
+            /\ o \in objectTargets
+            /\ t \in OA(o).node
+            /\ RequestTasks({t}, INTENT_RUN))
+        /\ WF_vars(
+            /\ o \in objectTargets
+            /\ t \in OA(o).node
+            /\ t \in HaltedTask
+            /\ RequestTasks({t}, INTENT_CANCEL))
+
+(**
+ * LIVENESS CONSTRAINT
+ * A task standing in the open ancestry of a target is eventually no longer
+ * paused by the user there. Fairness on resuming alone does not suffice: a
+ * user who alternates pausing and resuming keeps a task paused forever.
+ *)
+PauseStabilization ==
+    \A o \in Object, t \in Task :
+        <>[][~ ( /\ o \in objectTargets
+                 /\ t \in OA(o).node
+                 /\ ~ Intends(t, INTENT_PAUSE)
+                 /\ Intends(t, INTENT_PAUSE)' )]_vars
 
 (**
  * LIVENESS CONSTRAINT
  * For every object, the open ancestry eventually becomes closed under
  * additions, i.e. its node set never gains another node (it may still
- * shrink). Inherited unchanged (and unconditional, exactly as in
- * Graph2, whose refinement requires it verbatim).
+ * shrink). Inherited unchanged from Graph2, whose refinement requires it
+ * verbatim.
  *)
 UpstreamStabilization ==
     \A o \in Object : <>[][OA(o)' \in DirectedSubgraph(OA(o))]_(OA(o))
@@ -512,6 +457,7 @@ Spec ==
     /\ Init
     /\ [][Next]_vars
     /\ Fairness
+    /\ PauseStabilization
     /\ UpstreamStabilization
 
 -------------------------------------------------------------------------------
@@ -520,39 +466,56 @@ Spec ==
 (* SAFETY AND LIVENESS PROPERTIES                                            *)
 (*****************************************************************************)
 
+(**
+ * SAFETY
+ * Paused and halted tasks have all their inputs completed.
+ *)
 GraphStateIntegrity ==
     \A t \in Task:
-        /\ t \in PausedTask  => Predecessor(deps, t) \subseteq CompletedObject
-        /\ t \in StoppedTask => Predecessor(deps, t) \subseteq CompletedObject
+        t \in PausedTask \union HaltedTask => Predecessor(deps, t) \subseteq CompletedObject
+
+(**
+ * The set of derivations of an object 'o' under the Graph3 viability
+ * predicate, under which halted tasks, like discarded ones, are not viable.
+ *)
+G3Derivation(o) == Derivation(deps, o, IsViableNode, Task)
+
+(**
+ * LIVENESS
+ * An object that is eventually permanently targeted and eventually
+ * permanently underivable, halted tasks counting as non-viable, is
+ * eventually aborted. Stronger than the property inherited from Graph2,
+ * under whose mapping a halted task is staged, hence viable.
+ *)
+UnderivableObjectsEventualAbortion ==
+    \A o \in Object :
+        /\ <>[](o \in objectTargets)
+        /\ <>[](G3Derivation(o) = {})
+        => <>(o \in AbortedObject)
 
 (**
  * REFINEMENT
  * Projecting the graph and object state away exhibits the task sublanguage
- * of Graph3 as a behaviour of Task3. This is the analogue of the
- * Graph1 -> Task1 refinement. The instance targets the
- * theorems module so that properties already proved at the Task3
- * level can be lifted rather than re-proved.
+ * of Graph3 as a behaviour of Task3, with the same intents.
  *)
 T3 == INSTANCE Task3Theorems
 RefineTask3 == T3!Spec
 
 (**
  * REFINEMENT
- * A stopped task is parked, not crashed: it will never produce its outputs,
- * but from Graph2's point of view it is simply a task that is never
- * scheduled -- it was STAGED or PAUSED when parked, so its inputs are
- * completed and it collapses to STAGED, exactly like a paused task. Under
- * this mapping every Graph3 step is a Graph2 step or a
- * stutter (e.g. StopTasks and PauseTasks map to stutters, ProcessTasks to
- * STOPPED maps to ReleaseTasks, DiscardTasks of a parked task to
- * DiscardTasks). The instance targets the theorems module so that the
- * Graph2 lemmas can be lifted rather than re-proved.
+ * A paused or halted task is never scheduled: from Graph2's point of view it
+ * is staged, its inputs being completed. Under this mapping every Graph3
+ * step is a Graph2 step or a stutter: PauseTasks, ResumeTasks and requests
+ * map to stutters, ProcessTasks to HALTED to ReleaseTasks, and DiscardTasks
+ * of a paused or halted task to DiscardTasks. The instance targets the
+ * theorems module so that the Graph2 lemmas can be lifted rather than
+ * re-proved.
  *)
 taskStateBar ==
     [t \in Task |->
-        CASE taskState[t] = TASK_STOPPED -> TASK_STAGED
-          [] taskState[t] = TASK_PAUSED  -> TASK_STAGED
-          [] OTHER                       -> taskState[t]
+        CASE taskState[t] = TASK_HALTED -> TASK_STAGED
+          [] taskState[t] = TASK_PAUSED -> TASK_STAGED
+          [] OTHER                      -> taskState[t]
     ]
 
 G2 == INSTANCE Graph2Theorems WITH taskState <- taskStateBar
@@ -561,16 +524,11 @@ RefineGraph2 == G2!Spec
 (**
  * REFINEMENT
  * Projecting the graph and task state away exhibits the object sublanguage
- * of Graph3 as a behaviour of Object2 (identity on
- * objectState / objectTargets). The Graph2 mapping leaves the
- * object variables untouched, so this is Graph2's own
- * Object2 refinement composed with the one above. The instance
- * targets the theorems module, like the other two.
+ * of Graph3 as a behaviour of Object2 (identity on objectState and
+ * objectTargets). The Graph2 mapping leaves the object variables untouched,
+ * so this is Graph2's own Object2 refinement composed with the one above.
  *)
 O2 == INSTANCE Object2Theorems
 RefineObject2 == O2!Spec
-
-\* TODO: add properties on the global user interaction, i.e. what relates to
-\* sessions in the implementation.
 
 ================================================================================
