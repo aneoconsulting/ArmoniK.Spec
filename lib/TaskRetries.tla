@@ -23,4 +23,10 @@ NextAttempts(t) ==
 TaskAttempts(t) ==
     PreviousAttempts(t) \union NextAttempts(t)
 
+(**
+ * The root of the lineage of task 't': its first attempt.
+ *)
+Root(t) ==
+    CHOOSE r \in {t} \union PreviousAttempts(t) : PreviousAttempts(r) = {}
+
 ====
