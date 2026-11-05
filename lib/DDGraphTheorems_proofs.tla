@@ -1326,4 +1326,68 @@ THEOREM DDG_NoDerivationMeansBlockedAncestor ==
 <1>. QED
     BY <1>1
 
+(******************************************************************************)
+(* A derivation stays one under a stronger predicate that all its nodes      *)
+(* satisfy: each node reaches n through a path of D, which then lies in the  *)
+(* subgraph induced by the stronger predicate.                                *)
+(******************************************************************************)
+THEOREM DDG_DerivationRestrict ==
+    ASSUME NEW T, NEW O, NEW G, IsDDGraph(G, T, O), IsFiniteSet(G.node),
+           NEW n \in O, NEW Op(_), NEW Op2(_), NEW D \in Derivation(G, n, Op, T),
+           \A m \in D.node : Op2(m)
+    PROVE  D \in Derivation(G, n, Op2, T)
+<1>. DEFINE N2 == {y \in G.node : Op2(y)}
+            H2 == [node |-> N2, edge |-> G.edge \cap (N2 \X N2)]
+            V2 == AncestorSubGraph(G, n, Op2)
+<1>1. /\ \A m \in D.node : AreConnectedIn(D, m, n)
+      /\ IsDirectedGraph(D)
+    <2>1. \A m \in D.node : AreConnectedIn(D, m, n)
+        BY DDG_DerivationProperties
+    <2>2. IsDirectedGraph(D)
+        BY DEF Derivation, DirectedSubgraph
+    <2>. QED
+        BY <2>1, <2>2
+<1>2. /\ D \in DirectedSubgraph(AncestorSubGraph(G, n, Op))
+      /\ Sink(D) = {n}
+      /\ Source(D) \subseteq Source(G)
+      /\ \A t \in D.node \cap T : Predecessor(G, t) \subseteq D.node
+    BY DEF Derivation
+<1>3. /\ D.node \subseteq G.node /\ D.edge \subseteq G.edge
+      /\ D.edge \subseteq D.node \X D.node
+    <2>1. AncestorSubGraph(G, n, Op) \in DirectedSubgraph(G)
+        BY DDG_AncestorSubGraphBasic DEF IsDDGraph, IsDag
+    <2>. QED
+        BY <1>1, <1>2, <2>1 DEF DirectedSubgraph, IsDirectedGraph
+<1>4. n \in D.node
+    BY <1>2 DEF Sink
+\* every node of D is an Op2-ancestor of n
+<1>5. D.node \subseteq V2.node
+    <2>. SUFFICES ASSUME NEW m \in D.node PROVE m \in V2.node
+        OBVIOUS
+    <2>1. PICK p \in SimplePath(D) : p[1] = m /\ p[Len(p)] = n
+        BY <1>1 DEF AreConnectedIn
+    <2>2. /\ \A i \in 1..Len(p) : p[i] \in D.node
+          /\ \A i \in 1..(Len(p) - 1) : <<p[i], p[i+1]>> \in D.edge
+        BY DEF SimplePath, Path
+    <2>3. p \in SimplePath(H2)
+        <3>1. \A i \in 1..Len(p) : p[i] \in H2.node
+            BY <2>2, <1>3
+        <3>2. \A i \in 1..(Len(p) - 1) : <<p[i], p[i+1]>> \in H2.edge
+            BY <2>2, <1>3
+        <3>. QED
+            BY <3>1, <3>2, DG_SimplePathLift
+    <2>4. m \in Ancestor(H2, n)
+        BY <2>1, <2>3, <1>3 DEF Ancestor, AreConnectedIn
+    <2>5. n \in N2
+        BY <1>4, <1>3
+    <2>. QED
+        BY <2>4, <2>5 DEF AncestorSubGraph
+<1>6. D \in DirectedSubgraph(V2)
+    <2>1. D.edge \subseteq V2.edge
+        BY <1>3, <1>5 DEF AncestorSubGraph
+    <2>. QED
+        BY <1>1, <1>5, <2>1, DG_DirectedSubgraphIntro
+<1>. QED
+    BY <1>2, <1>6 DEF Derivation
+
 ================================================================================
