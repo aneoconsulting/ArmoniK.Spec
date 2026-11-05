@@ -1,86 +1,110 @@
 --------------------------------- MODULE Task2 ---------------------------------
 (******************************************************************************)
-(* This module specifies an extension of the 'Task1' specification,           *)
-(* providing a detailed description of task execution and finalization.       *)
+(* Refinement of Task1 that details the outcome of processing and the retries *)
+(* of failed tasks. A processed task has succeeded, failed or been discarded, *)
+(* and is finalized accordingly: completed, retried or aborted. A failed task *)
+(* is retried by a fresh task, its next attempt, which is registered and      *)
+(* staged in its turn; the attempts of a task are retried at most MaxRetries  *)
+(* times. The refinement mapping sends the three processed states to the      *)
+(* PROCESSED state of Task1, and the three final states to its FINALIZED      *)
+(* state.                                                                     *)
 (******************************************************************************)
 
-EXTENDS DenumerableSetTheorems, FiniteSetTheorems, Functions, Naturals, TLAPS,
-        WellFoundedInduction
+EXTENDS DenumerableSets, FiniteSets, TLAPS
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                    CONSTANTS, ASSUMPTIONS AND VARIABLES                    *)
+(******************************************************************************)
 
 CONSTANTS
-    Task,     \* Set of task identifiers
-    MaxRetries, \* Maximal number of retries for tasks
-    NULL        \* Constant representing a null value
+    Task,        \* Set of task identifiers
+    MaxRetries,  \* Maximal number of retries of the attempts of a task
+    NULL         \* Next attempt of a task that has none
 
-ASSUME Assumptions ==
-    /\ IsDenumerableSet(Task)
-    /\ MaxRetries \in Nat
-    /\ NULL \notin Task
+ASSUMPTION Assumptions ==
+    /\ IsDenumerableSet(Task)  \* Unbounded supply of fresh tasks
+    /\ MaxRetries \in Nat      \* The retries are bounded
+    /\ NULL \notin Task        \* NULL is distinct from every task
 
 VARIABLES
-    taskState,        \* taskState[t]: current lifecycle state of task t
-    nextAttemptOf     \* nextAttemptOf[t]: ID of the task retrying t (NULL if none)
+    nextAttemptOf,  \* nextAttemptOf[t]: task retrying t, NULL if none
+    taskState       \* taskState[t]: lifecycle state of task t
 
-vars == << taskState, nextAttemptOf >>
+vars == << nextAttemptOf, taskState >>
 
--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                               INSTANTIATIONS                               *)
+(******************************************************************************)
 
 (**
- * Instance of the TaskStates module.
- * Provides set-based views of tasks (e.g., SucceededTask, FailedTask) 
- * by filtering Task based on the current taskState.
+ * The task states, the sets of tasks in each state, and the attempts of a
+ * task: the tasks before and after it in the chain of its retries.
  *)
 INSTANCE TaskRetries
 
 (**
- * TYPE INVARIANT
- * Claims that all state variables always take values of the expected form.
- *   - taskState is a function mapping each task to one of the defined states.
- *   - nextAttemptOf is a function mapping each task to another task or NULL.
+ * Succeeded, failed and discarded tasks are the processed tasks of Task1;
+ * completed, retried and aborted tasks are its finalized tasks.
  *)
-TypeOk == 
-    /\ taskState \in [Task -> T2State]
-    /\ nextAttemptOf \in [Task -> Task \union {NULL}]
+taskStateBar ==
+    [t \in Task |->
+        CASE taskState[t] = TASK_SUCCEEDED -> TASK_PROCESSED
+          [] taskState[t] = TASK_FAILED    -> TASK_PROCESSED
+          [] taskState[t] = TASK_DISCARDED -> TASK_PROCESSED
+          [] taskState[t] = TASK_COMPLETED -> TASK_FINALIZED
+          [] taskState[t] = TASK_RETRIED   -> TASK_FINALIZED
+          [] taskState[t] = TASK_ABORTED   -> TASK_FINALIZED
+          [] OTHER                         -> taskState[t]
+    ]
 
--------------------------------------------------------------------------------
+(**
+ * Task1 under the refinement mapping.
+ *)
+T1 == INSTANCE Task1Theorems WITH taskState <- taskStateBar
 
-(*****************************************************************************)
-(* SYSTEM INITIAL STATE AND TRANSITIONS                                      *)
-(*****************************************************************************)
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                    SYSTEM INITIAL STATE AND TRANSITIONS                    *)
+(******************************************************************************)
 
 (**
  * INITIAL STATE
- * Initially, no task has been registered and retried.
+ * No task is known, and none has a next attempt.
  *)
 Init ==
-    /\ taskState = [t \in Task |-> TASK_UNKNOWN]
     /\ nextAttemptOf = [t \in Task |-> NULL]
+    /\ taskState = [t \in Task |-> TASK_UNKNOWN]
 
 (**
- * TASK REGISTRATION
- * Introduces a finite set of tasks 'T' into the system (TASK_REGISTERED).
+ * ACTION
+ * A finite set 'T' of unknown tasks is registered: known to the system, but
+ * not yet ready for processing.
  *)
 RegisterTasks(T) ==
-    /\ T /= {} /\ T \subseteq UnknownTask
+    /\ T /= {}
+    /\ T \subseteq UnknownTask
     /\ IsFiniteSet(T)
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_REGISTERED ELSE taskState[t]]
     /\ UNCHANGED nextAttemptOf
 
 (**
- * TASK STAGING
- * Moves tasks 'T' from REGISTERED to STAGED, making them available for assignment.
+ * ACTION
+ * A set 'T' of registered tasks is staged: made ready for processing.
  *)
 StageTasks(T) ==
-    /\ T /= {} /\ T \subseteq RegisteredTask
+    /\ T /= {}
+    /\ T \subseteq RegisteredTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
     /\ UNCHANGED nextAttemptOf
 
 (**
- * TASK BYPASS
- * A set 'T' of registered or staged tasks is moved directly to the processed
- * state, bypassing assignment and execution.
+ * ACTION
+ * A set 'T' of registered or staged tasks is discarded, bypassing assignment
+ * and processing.
  *)
 DiscardTasks(T) ==
     /\ T /= {}
@@ -90,109 +114,125 @@ DiscardTasks(T) ==
     /\ UNCHANGED nextAttemptOf
 
 (**
- * TASK RETRIES RECORDING
- * Maps a set of failed tasks 'T' to a set of new, unknown tasks 'U'.
- * This effectively "links" the failure of 'T' to the future execution of 'U'.
+ * ACTION
+ * Each failed task of 'T' without a next attempt is given one: a distinct
+ * unknown task of 'U' that is the next attempt of no task.
  *)
 SetTaskRetries(T, U) ==
     /\ T /= {}
     /\ T \subseteq UnretriedTask
     /\ U \subseteq UnknownTask
-    /\ \A u \in U: ~ \E t \in Task: nextAttemptOf[t] = u
-    /\ \E f \in Bijection(T, U):
+    /\ \A u \in U : ~ \E t \in Task : nextAttemptOf[t] = u
+    /\ \E f \in Bijection(T, U) :
         nextAttemptOf' =
             [t \in Task |-> IF t \in T THEN f[t] ELSE nextAttemptOf[t]]
     /\ UNCHANGED taskState
 
 (**
- * TASK ASSIGNMENT
+ * ACTION
  * A set 'T' of staged tasks is assigned for processing.
  *)
 AssignTasks(T) ==
-    /\ T /= {} /\ T \subseteq StagedTask
+    /\ T /= {}
+    /\ T \subseteq StagedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
     /\ UNCHANGED nextAttemptOf
 
 (**
- * TASK RELEASE
- * A set 'T' of assigned tasks is released back to the STAGED state.
+ * ACTION
+ * A set 'T' of assigned tasks is released back to the staged ones.
  *)
 ReleaseTasks(T) ==
-    /\ T /= {} /\ T \subseteq AssignedTask
+    /\ T /= {}
+    /\ T \subseteq AssignedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
     /\ UNCHANGED nextAttemptOf
 
 (**
- * TASK PROCESSING
- * A set 'T' of assigned tasks finishes processing, sorted according to the
- * possible processing states i.e., Success (S), Failure (F), or Crash (C). 
- * Failed tasks are tasks that can be retried (their execution will be retried
- * by another task), while crashed tasks will simply be aborted.  A task can
- * only fail (F) if it hasn't exceeded the maximum number of retries.
+ * ACTION
+ * A set 'T' of assigned tasks completes processing with one outcome: the
+ * tasks succeed, are discarded, or fail. Failed tasks will be retried, which
+ * is only possible while each of them has fewer than MaxRetries previous
+ * attempts.
  *)
 ProcessTasks(T) ==
-    /\ T /= {} /\ T \subseteq AssignedTask
+    /\ T /= {}
+    /\ T \subseteq AssignedTask
     /\ \/ taskState' =
             [t \in Task |-> IF t \in T THEN TASK_SUCCEEDED ELSE taskState[t]]
        \/ taskState' =
             [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
-       \/ /\ \A t \in T: Cardinality(PreviousAttempts(t)) < MaxRetries
+       \/ /\ \A t \in T : Cardinality(PreviousAttempts(t)) < MaxRetries
           /\ taskState' =
             [t \in Task |-> IF t \in T THEN TASK_FAILED ELSE taskState[t]]
     /\ UNCHANGED nextAttemptOf
 
 (**
- * TASK COMPLETION
- * Finalizes successfully processed tasks 'T' into the terminal COMPLETED state.
+ * ACTION
+ * A set 'T' of succeeded tasks is completed.
  *)
 CompleteTasks(T) ==
-    /\ T /= {} /\ T \subseteq SucceededTask
+    /\ T /= {}
+    /\ T \subseteq SucceededTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_COMPLETED ELSE taskState[t]]
     /\ UNCHANGED nextAttemptOf
 
 (**
- * TASK ABORTION
- * Finalizes crashed tasks 'T' into the terminal ABORTED state. 
- * Crashed tasks cannot be retried.
+ * ACTION
+ * A set 'T' of discarded tasks is aborted: they will never be retried.
  *)
 AbortTasks(T) ==
-    /\ T /= {} /\ T \subseteq DiscardedTask
+    /\ T /= {}
+    /\ T \subseteq DiscardedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_ABORTED ELSE taskState[t]]
     /\ UNCHANGED nextAttemptOf
 
 (**
- * TASK RETRY FINALIZATION
- * Finalizes failed tasks 'T' into the RETRIED state.
- * A task can only move to RETRIED once its 'nextAttemptOf' mapping
- * has been established (i.e., it's no longer 'Unretried').
+ * ACTION
+ * A set 'T' of failed tasks that all have a next attempt is retried.
  *)
 RetryTasks(T) ==
-    /\ T /= {} /\ T \subseteq FailedTask
+    /\ T /= {}
+    /\ T \subseteq FailedTask
     /\ T \intersect UnretriedTask = {}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_RETRIED ELSE taskState[t]]
     /\ UNCHANGED nextAttemptOf
 
--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                               ACTION HELPERS                               *)
+(******************************************************************************)
 
-(*****************************************************************************)
-(* FULL SYSTEM SPECIFICATION                                                 *)
-(*****************************************************************************)
+(**
+ * A step in which the user drives no new work: every registered task is the
+ * next attempt of a task. Registering next attempts is how the system retries
+ * failed tasks, not a user action.
+ *)
+NoUserAction ==
+    ~ \E T \in SUBSET Task :
+        /\ RegisterTasks(T)
+        /\ ~ (T \subseteq {nextAttemptOf[t] : t \in Task})
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                            SYSTEM SPECIFICATION                            *)
+(******************************************************************************)
 
 (**
  * NEXT-STATE RELATION
- * Defines all possible atomic transitions of the system.
+ * All the atomic transitions of the system.
  *)
 Next ==
-    \E T \in SUBSET Task:
+    \E T \in SUBSET Task :
         \/ RegisterTasks(T)
         \/ StageTasks(T)
         \/ DiscardTasks(T)
-        \/ \E U \in SUBSET Task: SetTaskRetries(T, U)
+        \/ \E U \in SUBSET Task : SetTaskRetries(T, U)
         \/ AssignTasks(T)
         \/ ReleaseTasks(T)
         \/ ProcessTasks(T)
@@ -202,24 +242,25 @@ Next ==
 
 (**
  * FAIRNESS CONDITIONS
- * Ensure that progress is eventually made for tasks that can act.
- *   - A task cannot remain indefinitely failed without being eventually
- *     linked to another task for retry.
- *   - A new task attempt cannot remain indefinitely unknown without being
- *     eventually registered.
- *   - A new task attempt cannot remain indefinitely registered without being
- *     eventually staged.
- *   - A task cannot be assigned an infinite number of times
- *     without eventually being processed successfully.
- *   - A task cannot remain indefinitely succeeded without being eventually
- *     completed.
- *   - A task cannot remain indefinitely crashed without being eventually
- *     aborted.
- *   - A task cannot remain indefinitely failed without being eventually
- *     retried.
+ * - Weak fairness of SetTaskRetries: a task that stays failed without a next
+ *   attempt, while a fresh task is available, is eventually given one.
+ * - Weak fairness of RegisterTasks: the next attempt of a task 't' that stays
+ *   unknown is eventually registered.
+ * - Weak fairness of StageTasks: the next attempt of a task 't' that stays
+ *   registered is eventually staged.
+ * - Strong fairness of ProcessTasks: a task assigned infinitely often
+ *   eventually succeeds.
+ * - Weak fairness of CompleteTasks: a task that stays succeeded is
+ *   eventually completed.
+ * - Weak fairness of AbortTasks: a task that stays discarded is eventually
+ *   aborted.
+ * - Weak fairness of RetryTasks: a failed task that stays with a next attempt
+ *   is eventually retried.
+ * The conditions on RegisterTasks and StageTasks act on the next attempt of
+ * 't', but are indexed by 't'.
  *)
 Fairness ==
-    \A t \in Task:
+    \A t \in Task :
         /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
         /\ WF_vars(RegisterTasks({nextAttemptOf[t]}))
         /\ WF_vars(StageTasks({nextAttemptOf[t]}))
@@ -236,101 +277,143 @@ Spec ==
     /\ [][Next]_vars
     /\ Fairness
 
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* SAFETY AND LIVENESS PROPERTIES                                            *)
-(*****************************************************************************)
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                       SAFETY AND LIVENESS PROPERTIES                       *)
+(******************************************************************************)
 
 (**
- * SAFETY
- * Ensures consistent relationship between a task's status and its retry chain.
+ * INVARIANT
+ * The state variables belong to their expected domains.
+ *)
+TypeOk ==
+    /\ nextAttemptOf \in [Task -> Task \union {NULL}]
+    /\ taskState \in [Task -> T2State]
+
+(**
+ * INVARIANT
+ * Only failed and retried tasks have a next attempt, every retried task has
+ * one, and no two tasks have the same next attempt.
  *)
 TaskAttemptsIntegrity ==
-    /\ RetriedTask \subseteq {t \in Task: nextAttemptOf[t] /= NULL}
-    /\ {t \in Task: nextAttemptOf[t] /= NULL} \subseteq FailedTask \union RetriedTask
-    /\ \A t, u, v \in Task: nextAttemptOf[u] = t /\ nextAttemptOf[v] = t => u = v
+    /\ RetriedTask \subseteq {t \in Task : nextAttemptOf[t] /= NULL}
+    /\ {t \in Task : nextAttemptOf[t] /= NULL}
+        \subseteq FailedTask \union RetriedTask
+    /\ \A t, u, v \in Task :
+        nextAttemptOf[u] = t /\ nextAttemptOf[v] = t => u = v
 
 (**
- * SAFETY
- * Ensures a task is never retried more than the maximum number allowed.
+ * INVARIANT
+ * No task is one of its own attempts: the chains of retries have no cycle.
  *)
-AttemptsIsBounded ==
-    \A t \in Task:
-        Cardinality(TaskAttempts(t)) <= MaxRetries
+Acyclic ==
+    \A t \in Task : <<t, t>> \notin TCNextAttemptOfRel
+
+(**
+ * INVARIANT
+ * Every task has finitely many attempts.
+ *)
+FiniteTaskAttempts ==
+    \A t \in Task : IsFiniteSet(TaskAttempts(t))
+
+(**
+ * INVARIANT
+ * Some unknown task is the next attempt of no task, so that a failed task can
+ * always be given a fresh next attempt. It only holds for infinitely many
+ * tasks, and is left out of the model.
+ *)
+ExistsFreeUnknownTask ==
+    \E t \in Task :
+        /\ t \in UnknownTask
+        /\ ~ \E u \in Task : nextAttemptOf[u] = t
+
+(**
+ * INVARIANT
+ * A task has at most MaxRetries other attempts, and a task that failed
+ * without a next attempt yet has fewer than MaxRetries previous attempts, so
+ * that its next attempt keeps within the bound.
+ *)
+AttemptsWithinMaxRetries ==
+    \A t \in Task :
+        /\ Cardinality(TaskAttempts(t)) <= MaxRetries
+        /\ t \in UnretriedTask => Cardinality(PreviousAttempts(t)) < MaxRetries
 
 (**
  * SAFETY
- * Guarantees that the set of attempts for a task can only increase.
+ * The set of attempts of a task never shrinks.
  *)
 AttemptsIsIncreasing ==
-    \A t \in Task:
+    \A t \in Task :
         [][TaskAttempts(t) \subseteq TaskAttempts(t)']_(TaskAttempts(t))
 
 (**
  * SAFETY
- * Terminal states (Completed, Retried, Aborted) are sinks; once entered, 
- * the state cannot change.
+ * A completed, retried or aborted task keeps its state.
  *)
 PermanentFinalization ==
-    \A t \in Task:
+    \A t \in Task :
         /\ [](t \in CompletedTask => [](t \in CompletedTask))
         /\ [](t \in RetriedTask => [](t \in RetriedTask))
         /\ [](t \in AbortedTask => [](t \in AbortedTask))
 
 (**
  * LIVENESS
- * Guarantees that every task failure eventually leads to the next attempt
- * being staged.
+ * A task that failed without a next attempt is eventually given one, which
+ * is registered; a registered next attempt is eventually staged or discarded.
  *)
 FailedTaskEventualRetry ==
-    \A t \in Task:
-        /\ t \in UnretriedTask ~> nextAttemptOf[t] \in RegisteredTask
-        /\ [][~ \E T \in SUBSET Task: nextAttemptOf[t] \in T /\ DiscardTasks(T)]_vars
-           => nextAttemptOf[t] \in RegisteredTask ~> nextAttemptOf[t] \in StagedTask
+    \A t \in Task :
+        At(t) ::
+            /\ t \in UnretriedTask ~> nextAttemptOf[t] \in RegisteredTask
+            /\ nextAttemptOf[t] \in RegisteredTask
+               ~> nextAttemptOf[t] \in StagedTask \union DiscardedTask
 
 (**
  * LIVENESS
- * Guarantees that the number of attempts for a task is bounded by the
- * maximum number of attempts and that the set of all attempts eventually
- * stabilize. This means that the last attempt is eventually completed or
- * aborted.
- *)
-AttemptsEventualStability ==
-    \A t \in Task:
-        \E S \in SUBSET Task:
-            /\ IsFiniteSet(S)
-            /\ Cardinality(S) <= MaxRetries
-            /\ <>[](TaskAttempts(t) = S)
-
-(**
- * LIVENESS
- * Guarantees that temporary processing states (Succeeded, Failed, Crashed) 
- * always transition to terminal states.
+ * A succeeded task is eventually completed, a failed task eventually retried,
+ * and a discarded task eventually aborted.
  *)
 EventualFinalization ==
-    \A t \in Task:
-        /\ t \in SucceededTask ~> t \in CompletedTask
-        /\ t \in FailedTask ~> t \in RetriedTask
-        /\ t \in DiscardedTask ~> t \in AbortedTask
+    \A t \in Task :
+        At(t) ::
+            /\ t \in SucceededTask ~> t \in CompletedTask
+            /\ t \in FailedTask ~> t \in RetriedTask
+            /\ t \in DiscardedTask ~> t \in AbortedTask
 
 (**
  * LIVENESS
- * This specification refines the Task1 specification.
+ * The attempts of a task eventually stop changing, and keep at most
+ * MaxRetries elements.
  *)
-taskStateBar ==
-    [t \in Task |->
-        CASE taskState[t] = TASK_SUCCEEDED -> TASK_PROCESSED
-          [] taskState[t] = TASK_FAILED    -> TASK_PROCESSED
-          [] taskState[t] = TASK_DISCARDED -> TASK_PROCESSED
-          [] taskState[t] = TASK_COMPLETED -> TASK_FINALIZED
-          [] taskState[t] = TASK_RETRIED   -> TASK_FINALIZED
-          [] taskState[t] = TASK_ABORTED   -> TASK_FINALIZED
-          [] OTHER                         -> taskState[t]
-    ]
-T1 ==
-    INSTANCE Task1Theorems
-        WITH taskState <- taskStateBar
-RefineTask1 == T1!Spec
+AttemptsEventualStability ==
+    \A t \in Task :
+        At(t) ::
+            \E S \in SUBSET Task :
+                /\ IsFiniteSet(S)
+                /\ Cardinality(S) <= MaxRetries
+                /\ <>[](TaskAttempts(t) = S)
+
+(**
+ * REFINEMENT
+ * Task2 refines Task1 under the refinement mapping.
+ *)
+RefineTask1 ==
+    T1!Spec
+
+(**
+ * LIVENESS
+ * If the user eventually stops driving the system, eventually no task is
+ * assigned or processed and the state stops changing. Restated from Task1,
+ * whose NoUserAction also forbids registering the next attempts of failed
+ * tasks. The conclusion is written as a conjunction that TLC can check, as in
+ * Task1.
+ *)
+EventualTermination ==
+    <>[][NoUserAction]_vars
+    => /\ <>[](/\ AssignedTask = {}
+               /\ SucceededTask = {}
+               /\ FailedTask = {}
+               /\ DiscardedTask = {})
+       /\ <>[][FALSE]_vars
 
 ================================================================================

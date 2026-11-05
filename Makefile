@@ -87,7 +87,7 @@ locate = test -n "$(MODULE)" || { echo "usage: make $@ MODULE=<module>$(1)" >&2;
          test -n "$(MODULE_DIR)" || { echo "$(MODULE).tla: no such module in $(MODULE_DIRS)" >&2; exit 2; }
 
 .PHONY: help install install-tlapm-opt check check-commits python-env build-java test \
-        sany tlc tlapm tlapm-opt chunks clean clean-tools
+        sany tlc tlapm tlapm-opt chunks style clean clean-tools
 
 help:
 	@echo "targets:"
@@ -104,6 +104,7 @@ help:
 	@echo "                       add BEGIN=<line> END=<line> to check one range only"
 	@echo "  tlapm-opt MODULE=<mod>     Same, with the optimized tlapm build"
 	@echo "  chunks [MODULE=<mod>]      Print the ranges of <mod> (default: every proof module)"
+	@echo "  style [MODULE=<mod>]       Check <mod> against the module convention (default: every module)"
 	@echo "  clean          Remove TLC scratch state, *.out logs and compiled .class files"
 	@echo "  clean-tools    Remove $(TOOLS_DIR)/ and $(VENV)/ entirely"
 	@echo
@@ -114,6 +115,7 @@ help:
 	@echo "  \$$(PYTHON) -m scripts.check_property_coverage $(SPECS_DIR)/<mod>.tla"
 	@echo "  \$$(PYTHON) -m scripts.check_thm_interface <dir>/<mod>Theorems.tla"
 	@echo "  \$$(PYTHON) -m scripts.check_state_space <dir>/<mod>.cfg <dir>/<mod>.tlc.out"
+	@echo "  \$$(PYTHON) -m scripts.check_reformat <dir>/<mod>.tla [--rev <rev>] [--rename OLD=NEW]"
 	@echo "  make check-commits RANGE=<base>..<head>"
 
 install: python-env
@@ -179,6 +181,11 @@ tlapm-opt: $(TLAPM_OPT)
 chunks:
 	@test -z "$(MODULE)" || { $(call locate); }
 	python3 -m scripts.chunk_proofs $(CHUNK_OPTS) $(if $(MODULE),$(MODULE_DIR)/$(MODULE).tla)
+
+# The mechanical rules of .docs/module-conventions.md.
+style: $(PY_STAMP)
+	@test -z "$(MODULE)" || { $(call locate); }
+	$(PYTHON) -m scripts.check_module_style $(if $(MODULE),$(MODULE_DIR)/$(MODULE).tla)
 
 # A .class lands next to its .java.
 %.class: %.java $(TLA2TOOLS_JAR) $(COMMUNITY_MODULES_JAR)

@@ -1,21 +1,21 @@
 ------------------------------- MODULE Task1_mc --------------------------------
-(*******************************************************************************)
-(* This specification adapts the Task1 specification to make it                *)
-(* verifiable on finite models by TLC.                                         *)
-(*******************************************************************************)
+(******************************************************************************)
+(* Model of Task1 for TLC, on finitely many tasks.                            *)
+(******************************************************************************)
 
 EXTENDS Task1
 
 --------------------------------------------------------------------------------
+(******************************************************************************)
+(*                                 OVERRIDES                                  *)
+(******************************************************************************)
 
 (**
- * TERMINAL STATE
- * Stuttering step enabled once no task is assigned or processed. With finitely
- * many identifiers, the system reaches states where no action of Next is
- * enabled, which TLC reports as deadlocks. This step only serves model
- * checking: it adds no behaviour to Spec, since [Next \/ Terminating]_vars
- * equals [Next]_vars, and it keeps deadlock checking meaningful, as a state
- * where Next is disabled before termination is still reported.
+ * Stuttering step enabled once no task is assigned or processed.
+ * With finitely many tasks, every behavior reaches a state where Next is
+ * disabled, which TLC reports as a deadlock. This step makes the expected
+ * terminal states legal and leaves the others reported. It adds no behavior,
+ * since [Next \/ Terminating]_vars equals [Next]_vars.
  *)
 Terminating ==
     /\ AssignedTask = {}
@@ -23,13 +23,15 @@ Terminating ==
     /\ UNCHANGED vars
 
 (**
- * Next-state relation checked by TLC: the specification's, with the
- * Terminating step.
+ * The next-state relation of the specification, with the terminal step.
  *)
 MCNext ==
     \/ Next
     \/ Terminating
 
+(**
+ * The specification with MCNext.
+ *)
 MCSpec ==
     /\ Init
     /\ [][MCNext]_vars

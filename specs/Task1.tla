@@ -1,140 +1,148 @@
 --------------------------------- MODULE Task1 ---------------------------------
-(*****************************************************************************)
-(* This module specifies an abstract distributed task scheduling system.     *)
-(* Tasks are dynamically submitted and executed. The specification models    *)
-(* the allowed behaviors of task assignment and processing, abstracting away *)
-(* from concrete scheduling or coordination mechanisms. It also defines and  *)
-(* asserts key safety and liveness properties of the system.                 *)
-(*****************************************************************************)
+(******************************************************************************)
+(* Abstract lifecycle of the tasks of the system. A task is registered,       *)
+(* staged, assigned, processed, then finalized, after which it never changes. *)
+(* An assigned task may be released back to the staged ones, and a registered *)
+(* or staged task may be discarded: it is then processed without being        *)
+(* assigned. The contents of the tasks and their execution are abstracted     *)
+(* away.                                                                      *)
+(******************************************************************************)
 
 EXTENDS DenumerableSets, FiniteSets
 
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                    CONSTANTS, ASSUMPTIONS AND VARIABLES                    *)
+(******************************************************************************)
+
 CONSTANTS
-    Task     \* Abstract set of all tasks
+    Task  \* Set of task identifiers
 
 ASSUMPTION Assumptions ==
-    IsDenumerableSet(Task)
+    IsDenumerableSet(Task)  \* Unbounded supply of fresh tasks
 
 VARIABLES
-    taskState       \* taskState[t] records the current lifecycle state of task t
+    taskState  \* taskState[t]: lifecycle state of task t
 
 vars == << taskState >>
 
--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                               INSTANTIATIONS                               *)
+(******************************************************************************)
 
 (**
- * Imports the definition of the states of tasks and sets of tasks sharing
- * the same state.
+ * The task states and the sets of tasks in each state.
  *)
 INSTANCE TaskStates
 
-(**
- * TYPE INVARIANT
- * Claims that all state variables always take values of the expected form.
- *   - taskState is a function mapping each task to one of the defined states.
- *)
-TypeOk ==
-    taskState \in [Task -> T1State]
-
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* SYSTEM INITIAL STATE AND TRANSITIONS                                      *)
-(*****************************************************************************)
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                    SYSTEM INITIAL STATE AND TRANSITIONS                    *)
+(******************************************************************************)
 
 (**
  * INITIAL STATE
- * Initially, no task has been registered.
+ * No task is known.
  *)
 Init ==
     taskState = [t \in Task |-> TASK_UNKNOWN]
 
 (**
- * TASK STAGING
- * A new finite set 'T' of tasks is registered i.e., known to the system but
+ * ACTION
+ * A finite set 'T' of unknown tasks is registered: known to the system, but
  * not yet ready for processing.
  *)
 RegisterTasks(T) ==
-    /\ T /= {} /\ T \subseteq UnknownTask
+    /\ T /= {}
+    /\ T \subseteq UnknownTask
     /\ IsFiniteSet(T)
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_REGISTERED ELSE taskState[t]]
 
 (**
- * TASK STAGING
- * A new set 'T' of tasks is staged i.e., made available to the system for processing.
+ * ACTION
+ * A set 'T' of registered tasks is staged: made ready for processing.
  *)
 StageTasks(T) ==
-    /\ T /= {} /\ T \subseteq RegisteredTask
+    /\ T /= {}
+    /\ T \subseteq RegisteredTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
 
 (**
- * TASK BYPASS
+ * ACTION
  * A set 'T' of registered or staged tasks is moved directly to the processed
- * state, bypassing assignment and execution.
+ * state, bypassing assignment and processing.
  *)
 DiscardTasks(T) ==
-    /\ T /= {} 
+    /\ T /= {}
     /\ T \subseteq RegisteredTask \union StagedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_PROCESSED ELSE taskState[t]]
 
 (**
- * TASK ASSIGNMENT
+ * ACTION
  * A set 'T' of staged tasks is assigned for processing.
  *)
 AssignTasks(T) ==
-    /\ T /= {} /\ T \subseteq StagedTask
+    /\ T /= {}
+    /\ T \subseteq StagedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
 
 (**
- * TASK RELEASE
- * A set 'T' of assigned tasks is released back to the staged pool.
+ * ACTION
+ * A set 'T' of assigned tasks is released back to the staged ones.
  *)
 ReleaseTasks(T) ==
-    /\ T /= {} /\ T \subseteq AssignedTask
+    /\ T /= {}
+    /\ T \subseteq AssignedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
 
 (**
- * TASK PROCESSING
+ * ACTION
  * A set 'T' of assigned tasks completes processing.
  *)
 ProcessTasks(T) ==
-    /\ T /= {} /\ T \subseteq AssignedTask
+    /\ T /= {}
+    /\ T \subseteq AssignedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_PROCESSED ELSE taskState[t]]
 
 (**
- * TASK POST-PROCESSING
- * A set 'T' of tasks is post-processed.
+ * ACTION
+ * A set 'T' of processed tasks is post-processed, which finalizes them.
  *)
 FinalizeTasks(T) ==
-    /\ T /= {} /\ T \subseteq ProcessedTask
+    /\ T /= {}
+    /\ T \subseteq ProcessedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_FINALIZED ELSE taskState[t]]
 
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                               ACTION HELPERS                               *)
+(******************************************************************************)
+
 (**
- * USER QUIESCENCE
  * A step in which the user drives no new work: no task is registered.
  *)
 NoUserAction ==
     ~ \E T \in SUBSET Task : RegisterTasks(T)
 
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* FULL SYSTEM SPECIFICATION                                                 *)
-(*****************************************************************************)
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                            SYSTEM SPECIFICATION                            *)
+(******************************************************************************)
 
 (**
  * NEXT-STATE RELATION
- * Defines all possible atomic transitions of the system.
+ * All the atomic transitions of the system.
  *)
 Next ==
-    \E T \in SUBSET Task:
+    \E T \in SUBSET Task :
         \/ RegisterTasks(T)
         \/ StageTasks(T)
         \/ DiscardTasks(T)
@@ -145,14 +153,13 @@ Next ==
 
 (**
  * FAIRNESS CONDITIONS
- * Ensure that progress is eventually made for tasks that can act.
- *   - A task cannot be assigned an infinite number of times
- *     without eventually being processed.
- *   - A task cannot remain indefinitely processed without being eventually
- *     finalized.
+ * - Strong fairness of ProcessTasks: a task assigned infinitely often is
+ *   eventually processed.
+ * - Weak fairness of FinalizeTasks: a task that stays processed is eventually
+ *   finalized.
  *)
 Fairness ==
-    \A t \in Task:
+    \A t \in Task :
         /\ SF_vars(ProcessTasks({t}))
         /\ WF_vars(FinalizeTasks({t}))
 
@@ -164,75 +171,78 @@ Spec ==
     /\ [][Next]_vars
     /\ Fairness
 
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* SAFETY AND LIVENESS PROPERTIES                                            *)
-(*****************************************************************************)
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                       SAFETY AND LIVENESS PROPERTIES                       *)
+(******************************************************************************)
 
 (**
- * SAFETY
- * Only finitely many tasks are known to the system, since a registration adds
- * finitely many tasks at a time.
+ * INVARIANT
+ * The state variables belong to their expected domains.
+ *)
+TypeOk ==
+    taskState \in [Task -> T1State]
+
+(**
+ * INVARIANT
+ * Finitely many tasks are known, since each registration adds finitely many.
  *)
 FiniteKnownTasks ==
     IsFiniteSet(Task \ UnknownTask)
 
 (**
  * SAFETY
- * Once a task reaches the FINALIZED state, it remains there permanently.
+ * A finalized task stays finalized.
  *)
 PermanentFinalization ==
-    \A t \in Task: [](t \in FinalizedTask => [](t \in FinalizedTask))
+    \A t \in Task :
+        [](t \in FinalizedTask => [](t \in FinalizedTask))
 
 (**
  * LIVENESS
- * Any task assigned will eventually be either released back 
- * to the staged pool or successfully processed.
+ * An assigned task is eventually released back to the staged ones or
+ * processed.
  *)
 EventualDeallocation ==
     \A t \in Task :
-        t \in AssignedTask ~> t \in StagedTask \/ t \in ProcessedTask
+        At(t) :: t \in AssignedTask ~> t \in StagedTask \/ t \in ProcessedTask
 
 (**
  * LIVENESS
- * If a task is repeatedly assigned, it must eventually reach 
- * the processed state.
+ * A task assigned infinitely often is eventually processed.
  *)
 EventualProcessing ==
     \A t \in Task :
-        []<>(t \in AssignedTask) => <>(t \in ProcessedTask)
+        At(t) :: []<>(t \in AssignedTask) => <>(t \in ProcessedTask)
 
 (**
  * LIVENESS
- * Every processed task will eventually reach the finalized state.
+ * A processed task is eventually finalized.
  *)
 EventualFinalization ==
     \A t \in Task :
-        t \in ProcessedTask ~> t \in FinalizedTask
+        At(t) :: t \in ProcessedTask ~> t \in FinalizedTask
 
 (**
  * LIVENESS
- * Any staged task ultimately remains in the STAGED or FINALIZED state.
+ * A registered task eventually stays registered, staged or finalized
+ * forever.
  *)
 EventualQuiescence ==
     \A t \in Task :
-        t \in RegisteredTask ~>
-            \/ [](t \in RegisteredTask)
-            \/ [](t \in StagedTask)
-            \/ [](t \in FinalizedTask)
+        At(t) ::
+            t \in RegisteredTask ~>
+                \/ [](t \in RegisteredTask)
+                \/ [](t \in StagedTask)
+                \/ [](t \in FinalizedTask)
 
 (**
  * LIVENESS
- * If the user eventually stops driving the system -- from some point on, no
- * task is registered anymore -- then the system eventually terminates: no
- * task remains assigned or processed and the state never changes again. This
- * rests on FiniteKnownTasks: with infinitely many registered tasks, a
- * behavior could process a fresh task at every step.
- *
- * The conclusion is the conjunction of two suffix-stable formulas, which is
- * equivalent to <>([](AssignedTask = {} /\ ProcessedTask = {}) /\ [][FALSE]_vars).
- * This shape is checkable directly by TLC.
+ * If the user eventually stops driving the system, eventually no task is
+ * assigned or processed and the state stops changing. The
+ * conclusion is equivalent to
+ * <>([](AssignedTask = {} /\ ProcessedTask = {}) /\ [][FALSE]_vars),
+ * written as a conjunction that TLC can check.
  *)
 EventualTermination ==
     <>[][NoUserAction]_vars

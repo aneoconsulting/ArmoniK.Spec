@@ -4,11 +4,10 @@ For a specification module <Spec>.tla, every operator defined after the
 "SAFETY AND LIVENESS PROPERTIES" banner is a property, and must be restated in
 the companion <Spec>Theorems.tla interface as a theorem
 
-    <Short>_<P> == Spec => []<P>    (safety invariant, box outside)
-    <Short>_<P> == Spec => <P>      (temporal property, box inside <P>)
+    Thm<P> == Spec => []<P>    (safety invariant, box outside)
+    Thm<P> == Spec => <P>      (temporal property, box inside <P>)
 
-where <Short> abbreviates the module name (Graph1 -> G1). That the
-theorem is *proven* is enforced by tlapm on the proof file; that the proof file
+(see .docs/module-conventions.md). That the theorem is *proven* is enforced by tlapm on the proof file; that the proof file
 restates the interface verbatim is enforced by check_thm_interface.
 """
 
@@ -19,6 +18,9 @@ from pathlib import Path
 
 from . import tla_tooling as tla
 from .naming import INTERFACE_SUFFIX
+
+# The theorem restating property P over Spec is named Thm<P>.
+THEOREM_PREFIX = "Thm"
 
 
 def check_coverage(spec: Path) -> list[str]:
@@ -33,11 +35,10 @@ def check_coverage(spec: Path) -> list[str]:
         # a specification without a single property is asserting nothing.
         return ["the properties section defines no property operator; nothing to cover"]
 
-    short = tla.short_name(spec.stem)
     theorems = tla.theorems(interface)
     errors: list[str] = []
     for prop in props:
-        name = f"{short}_{prop}"
+        name = f"{THEOREM_PREFIX}{prop}"
         theorem = theorems.get(name)
         if theorem is None:
             errors.append(f"property {prop}: expected theorem {name} missing from {interface.name}")
@@ -61,7 +62,7 @@ def main() -> int:
     for error in errors:
         print(error, file=sys.stderr)
     if not errors:
-        print(f"{spec}: all properties are covered by {tla.short_name(spec.stem)}_* theorems")
+        print(f"{spec}: all properties are covered by {THEOREM_PREFIX}* theorems")
     return 1 if errors else 0
 
 

@@ -1,218 +1,230 @@
 --------------------------------- MODULE Task3 ---------------------------------
 (******************************************************************************)
-(* This module specifies an extension of the 'Task2' specification,           *)
-(* providing a concrete implementation of task execution and finalization.    *)
-(*                                                                            *)
-(* Key refinements include:                                                   *)
-(* - Decomposing the abstract PROCESSED state into concrete outcomes:         *)
-(* SUCCEEDED, FAILED, or CRASHED.                                             *)
-(* - Implementing a retry mechanism where FAILED tasks are cloned and         *)
-(* re-staged, tracked via the 'nextAttemptOf' mapping.                        *)
-(* - Refining the abstract FINALIZED state into permanent terminal states:    *)
-(* COMPLETED (post-success), RETRIED (post-failure), or ABORTED (crashed).    *)
-(*                                                                            *)
-(* The module defines a refinement mapping (TPAbs) that collapses these       *)
-(* granular execution and retry steps back into the high-level states of      *)
-(* 'Task2', ensuring safety and liveness across the abstraction.              *)
+(* Refinement of Task2 that lets the user request the stopping or the pausing *)
+(* of tasks, and resume paused tasks. A task whose stopping or pausing is     *)
+(* requested is no longer assigned; once staged, it is stopped or paused, and *)
+(* a paused task is staged again when resumed. Processing may also end with   *)
+(* the task stopped. Paused and stopped tasks can be discarded. The           *)
+(* refinement mapping sends the STOPPED and PAUSED states to the STAGED state *)
+(* of Task2.                                                                  *)
 (******************************************************************************)
 
-EXTENDS DenumerableSets, FiniteSets, Functions, Naturals, TLAPS
+EXTENDS DenumerableSets, FiniteSets, TLAPS
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                    CONSTANTS, ASSUMPTIONS AND VARIABLES                    *)
+(******************************************************************************)
 
 CONSTANTS
-    Task,     \* Set of task identifiers
-    MaxRetries, \* Maximal number of retries for tasks
-    NULL        \* Constant representing a null value
+    Task,        \* Set of task identifiers
+    MaxRetries,  \* Maximal number of retries of the attempts of a task
+    NULL         \* Next attempt of a task that has none
 
-ASSUME Assumptions ==
-    /\ IsDenumerableSet(Task)
-    /\ MaxRetries \in Nat
-    /\ NULL \notin Task
+ASSUMPTION Assumptions ==
+    /\ IsDenumerableSet(Task)  \* Unbounded supply of fresh tasks
+    /\ MaxRetries \in Nat      \* The retries are bounded
+    /\ NULL \notin Task        \* NULL is distinct from every task
 
 VARIABLES
-    taskState,        \* taskState[t]: current lifecycle state of task t
-    nextAttemptOf,    \* nextAttemptOf[t]: ID of the task retrying t (NULL if none)
-    stoppingRequested,  \* stoppingRequested: set of tasks for which cancellation has been requested
-    pausingRequested  \* pausingRequested: set of tasks for which pausing has been requested
+    nextAttemptOf,      \* nextAttemptOf[t]: task retrying t, NULL if none
+    pausingRequested,   \* Tasks whose pausing is requested
+    stoppingRequested,  \* Tasks whose stopping is requested
+    taskState           \* taskState[t]: lifecycle state of task t
 
-vars == << taskState, nextAttemptOf, stoppingRequested, pausingRequested >>
+vars == << nextAttemptOf, pausingRequested, stoppingRequested, taskState >>
 
--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                               INSTANTIATIONS                               *)
+(******************************************************************************)
 
 (**
- * Instance of the TaskStates module with SetOfTasksIn operator provided.
+ * The task states, the sets of tasks in each state, and the attempts of a
+ * task: the tasks before and after it in the chain of its retries.
  *)
 INSTANCE TaskRetries
 
 (**
- * TYPE INVARIANT
- * Claims that all state variables always take values of the expected form.
- *   - taskState is a function mapping each task to one of the defined states.
- *   - nextAttemptOf is a function mapping each task to another task or NULL.
- *   - stoppingRequested is a set of tasks.
- *   - pausingRequested is a set of tasks.
+ * Stopped and paused tasks are staged tasks of Task2 that are not assigned.
  *)
-TypeOk == 
-    /\ taskState \in [Task -> T3State]
-    /\ nextAttemptOf \in [Task -> Task \union {NULL}]
-    /\ stoppingRequested \in SUBSET Task
-    /\ pausingRequested \in SUBSET Task
+taskStateBar ==
+    [t \in Task |->
+        CASE taskState[t] = TASK_STOPPED -> TASK_STAGED
+          [] taskState[t] = TASK_PAUSED  -> TASK_STAGED
+          [] OTHER                       -> taskState[t]
+    ]
 
--------------------------------------------------------------------------------
+(**
+ * Task2 under the refinement mapping.
+ *)
+T2 == INSTANCE Task2Theorems WITH taskState <- taskStateBar
 
-(*****************************************************************************)
-(* SYSTEM INITIAL STATE AND TRANSITIONS                                      *)
-(*****************************************************************************)
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                    SYSTEM INITIAL STATE AND TRANSITIONS                    *)
+(******************************************************************************)
 
 (**
  * INITIAL STATE
- * Initially, no task has been registered. In addition, no tasks were retried
- * or requested to be canceled or paused.
+ * No task is known, none has a next attempt, and no stopping or pausing is
+ * requested.
  *)
 Init ==
-    /\ taskState = [t \in Task |-> TASK_UNKNOWN]
     /\ nextAttemptOf = [t \in Task |-> NULL]
-    /\ stoppingRequested = {}
     /\ pausingRequested = {}
+    /\ stoppingRequested = {}
+    /\ taskState = [t \in Task |-> TASK_UNKNOWN]
 
 (**
- * TASK REGISTRATION
- * A new set 'T' of tasks is registred i.e., known to the system but not yet
- * ready for processing.
+ * ACTION
+ * A finite set 'T' of unknown tasks is registered: known to the system, but
+ * not yet ready for processing.
  *)
 RegisterTasks(T) ==
-    /\ T /= {} /\ T \subseteq UnknownTask
+    /\ T /= {}
+    /\ T \subseteq UnknownTask
     /\ IsFiniteSet(T)
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_REGISTERED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, pausingRequested, stoppingRequested >>
 
 (**
- * TASK STAGING
- * A new set 'T' of tasks is staged i.e., made available to the system for processing.
+ * ACTION
+ * A set 'T' of registered tasks is staged: made ready for processing.
  *)
 StageTasks(T) ==
-    /\ T /= {} /\ T \subseteq RegisteredTask
+    /\ T /= {}
+    /\ T \subseteq RegisteredTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, pausingRequested, stoppingRequested >>
 
 (**
- * TASK BYPASS
- * A set 'T' of registered or staged tasks is moved directly to the processed
- * state, bypassing assignment and execution.
+ * ACTION
+ * A set 'T' of registered, staged, paused or stopped tasks is discarded,
+ * bypassing assignment and processing.
  *)
 DiscardTasks(T) ==
     /\ T /= {}
-    /\ T \subseteq UNION {RegisteredTask, StagedTask, PausedTask, StoppedTask}
+    /\ T \subseteq
+        RegisteredTask \union StagedTask \union PausedTask \union StoppedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, pausingRequested, stoppingRequested >>
 
 (**
- * TASK RETRIES RECORDING
- * A set of tasks 'T' that have not yet been recognized as retried are recorded
- * as such by a set of tasks 'U' (each task in 'T' being associated with a
- * single task in 'U' by the bijection 'f').
+ * ACTION
+ * Each failed task of 'T' without a next attempt is given one: a distinct
+ * unknown task of 'U' that is the next attempt of no task.
  *)
 SetTaskRetries(T, U) ==
     /\ T /= {}
     /\ T \subseteq UnretriedTask
     /\ U \subseteq UnknownTask
-    /\ \A u \in U: ~ \E t \in Task: nextAttemptOf[t] = u
-    /\ \E f \in Bijection(T, U):
+    /\ \A u \in U : ~ \E t \in Task : nextAttemptOf[t] = u
+    /\ \E f \in Bijection(T, U) :
         nextAttemptOf' =
             [t \in Task |-> IF t \in T THEN f[t] ELSE nextAttemptOf[t]]
-    /\ UNCHANGED << taskState, stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << pausingRequested, stoppingRequested, taskState >>
 
 (**
- * TASK ASSIGNMENT
- * A set 'T' of staged tasks is assigned for processing. Tasks can be
- * assigned iff their cancelation or pausing have not been requested.
+ * ACTION
+ * A set 'T' of staged tasks whose stopping and pausing are not requested is
+ * assigned for processing.
  *)
 AssignTasks(T) ==
-    /\ T /= {} /\ T \subseteq StagedTask
+    /\ T /= {}
+    /\ T \subseteq StagedTask
     /\ T \intersect stoppingRequested = {}
     /\ T \intersect pausingRequested = {}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, pausingRequested, stoppingRequested >>
 
 (**
- * TASK RELEASE
- * A set 'T' of assigned tasks is released back to the staged pool.
+ * ACTION
+ * A set 'T' of assigned tasks is released back to the staged ones.
  *)
 ReleaseTasks(T) ==
-    /\ T /= {} /\ T \subseteq AssignedTask
+    /\ T /= {}
+    /\ T \subseteq AssignedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, pausingRequested, stoppingRequested >>
 
 (**
- * TASK PROCESSING
- * A set 'T' of assigned tasks completes processing. Three scenarios are
- * possible:
- *   - Task processing succeeded.
- *   - Task processing failed, but the cause may be transient — retrying
- *     execution is allowed.
- *   - Task crashed irrecoverably - re-execution is prohibited.
- *
- * When the completion of the processing of a set of tasks is acknowledged,
- * these tasks can have any of the three states mentioned above. The set 'T' is
- * therefore divided into three subsets 'S', 'F', and 'C', corresponding to each
- * of the three possible states.
+ * ACTION
+ * A set 'T' of assigned tasks completes processing with one outcome: the
+ * tasks succeed, are discarded, fail, or are stopped. Failed tasks will be
+ * retried, which is only possible while each of them has fewer than
+ * MaxRetries previous attempts.
  *)
 ProcessTasks(T) ==
-    /\ T /= {} /\ T \subseteq AssignedTask
+    /\ T /= {}
+    /\ T \subseteq AssignedTask
     /\ \/ taskState' =
             [t \in Task |-> IF t \in T THEN TASK_SUCCEEDED ELSE taskState[t]]
        \/ taskState' =
             [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
-       \/ /\ \A t \in T: Cardinality(PreviousAttempts(t)) < MaxRetries
+       \/ /\ \A t \in T : Cardinality(PreviousAttempts(t)) < MaxRetries
           /\ taskState' =
             [t \in Task |-> IF t \in T THEN TASK_FAILED ELSE taskState[t]]
        \/ taskState' =
             [t \in Task |-> IF t \in T THEN TASK_STOPPED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, pausingRequested, stoppingRequested >>
 
 (**
- * TASK POST-PROCESSING
- * A set 'T' of tasks is post-processed based on the task processing states.
+ * ACTION
+ * A set 'T' of succeeded tasks is completed.
  *)
 CompleteTasks(T) ==
-    /\ T /= {} /\ T \subseteq SucceededTask
+    /\ T /= {}
+    /\ T \subseteq SucceededTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_COMPLETED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, pausingRequested, stoppingRequested >>
 
+(**
+ * ACTION
+ * A set 'T' of discarded tasks is aborted: they will never be retried.
+ *)
 AbortTasks(T) ==
-    /\ T /= {} /\ T \subseteq DiscardedTask
+    /\ T /= {}
+    /\ T \subseteq DiscardedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_ABORTED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, pausingRequested, stoppingRequested >>
 
+(**
+ * ACTION
+ * A set 'T' of failed tasks that all have a next attempt is retried.
+ *)
 RetryTasks(T) ==
-    /\ T /= {} /\ T \subseteq FailedTask
+    /\ T /= {}
+    /\ T \subseteq FailedTask
     /\ T \intersect UnretriedTask = {}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_RETRIED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, pausingRequested, stoppingRequested >>
 
 (**
- * TASK CANCELLATION REQUESTING
- * The cancellation of a set 'T' of tasks is requested.
+ * ACTION
+ * The stopping of a set 'T' of known tasks is requested.
  *)
 RequestTasksStopping(T) ==
-    /\ T /= {} /\ T \intersect UnknownTask = {}
+    /\ T /= {}
+    /\ T \intersect UnknownTask = {}
     /\ stoppingRequested' = stoppingRequested \union T
-    /\ UNCHANGED << taskState, nextAttemptOf, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, pausingRequested, taskState >>
 
 (**
- * TASK CANCELLATION ACKNOWLEDGMENT
- * The request to cancel a set 'T' of tasks is acknowledged. STAGED or PAUSED
- * tasks are changed to the STOPPED state: only tasks eligible for execution
- * need to be parked. A request on a REGISTERED task stays pending -- it
- * already prevents assignment, and it is acknowledged if the task ever
- * stages.
+ * ACTION
+ * The stopping requests of a set 'T' of staged or paused tasks are
+ * acknowledged: the tasks are stopped. Only the tasks that could be assigned
+ * need to be parked. A request on a registered task stays pending: it already
+ * bars the assignment of the task, and it is acknowledged if the task is ever
+ * staged.
  *)
 StopTasks(T) ==
     /\ T /= {}
@@ -220,59 +232,80 @@ StopTasks(T) ==
     /\ T \subseteq StagedTask \union PausedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STOPPED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, pausingRequested, stoppingRequested >>
 
 (**
- * TASK PAUSING REQUESTING
- * The pausing of a set 'T' of tasks is requested.
+ * ACTION
+ * The pausing of a set 'T' of known tasks is requested.
  *)
 RequestTasksPausing(T) ==
-    /\ T /= {} /\ T \intersect UnknownTask = {}
+    /\ T /= {}
+    /\ T \intersect UnknownTask = {}
     /\ pausingRequested' = pausingRequested \union T
-    /\ UNCHANGED << taskState, nextAttemptOf, stoppingRequested >>
+    /\ UNCHANGED << nextAttemptOf, stoppingRequested, taskState >>
 
 (**
- * TASK PAUSING ACKNOWLEDGMENT
- * The request to pause a set 'T' of staged tasks is acknowledged: they are
- * set to the PAUSED state. An assigned task is paused only once released.
+ * ACTION
+ * The pausing requests of a set 'T' of staged tasks are acknowledged: the
+ * tasks are paused. An assigned task is paused only once released.
  *)
 PauseTasks(T) ==
-    /\ T /= {} /\ T \subseteq pausingRequested
+    /\ T /= {}
+    /\ T \subseteq pausingRequested
     /\ T \subseteq StagedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_PAUSED ELSE taskState[t]]
-    /\ UNCHANGED << nextAttemptOf, stoppingRequested, pausingRequested >>
+    /\ UNCHANGED << nextAttemptOf, pausingRequested, stoppingRequested >>
 
 (**
- * TASK RESUMING
- * A set 'T' of paused tasks is resumed.
+ * ACTION
+ * The pausing requests of a set 'T' of tasks are withdrawn, and the paused
+ * tasks of 'T' are staged again.
  *)
 ResumeTasks(T) ==
     /\ T /= {}
     /\ T \subseteq pausingRequested
+    /\ pausingRequested' = pausingRequested \ T
     /\ taskState' =
         [t \in Task |-> IF t \in (T \intersect PausedTask)
                             THEN TASK_STAGED
                             ELSE taskState[t]]
-    /\ pausingRequested' = pausingRequested \ T
     /\ UNCHANGED << nextAttemptOf, stoppingRequested >>
 
--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                               ACTION HELPERS                               *)
+(******************************************************************************)
 
-(*****************************************************************************)
-(* FULL SYSTEM SPECIFICATION                                                 *)
-(*****************************************************************************)
+(**
+ * A step in which the user drives no new work: every registered task is the
+ * next attempt of a task, and no stopping, pausing or resuming is requested.
+ * Registering next attempts, stopping and pausing tasks are how the system
+ * answers failures and requests, not user actions.
+ *)
+NoUserAction ==
+    ~ \E T \in SUBSET Task :
+        \/ /\ RegisterTasks(T)
+           /\ ~ (T \subseteq {nextAttemptOf[t] : t \in Task})
+        \/ RequestTasksStopping(T)
+        \/ RequestTasksPausing(T)
+        \/ ResumeTasks(T)
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                            SYSTEM SPECIFICATION                            *)
+(******************************************************************************)
 
 (**
  * NEXT-STATE RELATION
- * Defines all possible atomic transitions of the system.
+ * All the atomic transitions of the system.
  *)
 Next ==
-    \E T \in SUBSET Task:
+    \E T \in SUBSET Task :
         \/ RegisterTasks(T)
         \/ StageTasks(T)
         \/ DiscardTasks(T)
-        \/ \E U \in SUBSET Task: SetTaskRetries(T, U)
+        \/ \E U \in SUBSET Task : SetTaskRetries(T, U)
         \/ AssignTasks(T)
         \/ ReleaseTasks(T)
         \/ ProcessTasks(T)
@@ -287,17 +320,29 @@ Next ==
 
 (**
  * FAIRNESS CONDITIONS
- * Ensure that progress is eventually made for tasks that can act.
- *   - A task cannot remain indefinitely failed without being retried.
- *   - A task cannot be assigned an infinite number of times
- *     without eventually being processed successfully.
- *   - A task cannot remain indefinitely processed without being eventually
- *     finalized (completed, retried or aborted).
- *   - A task whose cancellation (resp. pausing) request can be acknowledged
- *     is eventually stopped (resp. paused).
+ * - Weak fairness of SetTaskRetries: a task that stays failed without a next
+ *   attempt, while a fresh task is available, is eventually given one.
+ * - Weak fairness of RegisterTasks: the next attempt of a task 't' that stays
+ *   unknown is eventually registered.
+ * - Weak fairness of StageTasks: the next attempt of a task 't' that stays
+ *   registered is eventually staged.
+ * - Strong fairness of ProcessTasks: a task assigned infinitely often
+ *   eventually succeeds.
+ * - Weak fairness of CompleteTasks: a task that stays succeeded is
+ *   eventually completed.
+ * - Weak fairness of AbortTasks: a task that stays discarded is eventually
+ *   aborted.
+ * - Weak fairness of RetryTasks: a failed task that stays with a next attempt
+ *   is eventually retried.
+ * - Weak fairness of StopTasks: a staged or paused task whose stopping stays
+ *   requested is eventually stopped.
+ * - Weak fairness of PauseTasks: a staged task whose pausing stays requested
+ *   is eventually paused.
+ * The conditions on RegisterTasks and StageTasks act on the next attempt of
+ * 't', but are indexed by 't'.
  *)
 Fairness ==
-    \A t \in Task:
+    \A t \in Task :
         /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
         /\ WF_vars(RegisterTasks({nextAttemptOf[t]}))
         /\ WF_vars(StageTasks({nextAttemptOf[t]}))
@@ -316,67 +361,127 @@ Spec ==
     /\ [][Next]_vars
     /\ Fairness
 
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* SAFETY AND LIVENESS PROPERTIES                                            *)
-(*****************************************************************************)
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                       SAFETY AND LIVENESS PROPERTIES                       *)
+(******************************************************************************)
 
 (**
- * SAFETY
- * The state of a task is valid if it meets the following conditions:
- *   - A canceled task must have received a cancellation request.
- *   - A paused task must have received a pause request.
- *   - An unknown task cannot have an associated cancellation or pause request.
+ * INVARIANT
+ * The state variables belong to their expected domains.
+ *)
+TypeOk ==
+    /\ nextAttemptOf \in [Task -> Task \union {NULL}]
+    /\ pausingRequested \in SUBSET Task
+    /\ stoppingRequested \in SUBSET Task
+    /\ taskState \in [Task -> T3State]
+
+(**
+ * INVARIANT
+ * An unknown task has no stopping request, a paused task has a pausing
+ * request, and an unknown task has no pausing request.
  *)
 TaskStateIntegrity ==
     /\ UnknownTask \intersect stoppingRequested = {}
     /\ PausedTask \subseteq pausingRequested
     /\ UnknownTask \intersect pausingRequested = {}
 
-PermanentStopping ==
-    \A t \in Task:
-        [](t \in StoppedTask /\ [][~ \E T \in SUBSET Task: t \in T /\ DiscardTasks(T)]_vars
-           => [](t \in StoppedTask))
-
 (**
- * LIVENESS
- * Any staged/paused task with a cancellation request must eventually reach
- * the STOPPED state (or be discarded and aborted). A REGISTERED task with a
- * pending request carries no such promise: it may never stage, in which case
- * the request only bars it from ever being assigned
- * (see StoppingRequestPreventsAssignment).
+ * SAFETY
+ * A stopped task stays stopped until it is discarded.
  *)
-RequestedStoppingEventualAcknowledgment ==
-    \A t \in Task:
-        /\ t \in UNION {StagedTask, PausedTask}
-        /\ t \in stoppingRequested
-        ~> t \in StoppedTask \/ t \in AbortedTask
+PermanentStopping ==
+    \A t \in Task :
+        [][(t \in StoppedTask)
+           => (t \in StoppedTask \/ t \in DiscardedTask)']_vars
 
 (**
  * SAFETY
- * A cancellation request permanently prevents execution: once a task is
- * both requested for stopping and not assigned, it can never (re-)enter the
- * ASSIGNED state.
+ * A stopping request bars assignment for good: a task whose stopping is
+ * requested and that is not assigned is never assigned again.
  *)
 StoppingRequestPreventsAssignment ==
-    \A t \in Task:
+    \A t \in Task :
         [](t \in stoppingRequested /\ ~ (t \in AssignedTask)
            => [](~ (t \in AssignedTask)))
 
 (**
  * LIVENESS
- * This specification refines the Task2 specification.
+ * A staged or paused task whose stopping is requested is eventually stopped,
+ * or discarded and aborted. A registered task with a pending request carries
+ * no such promise: it may never be staged, in which case the request only
+ * bars its assignment (see StoppingRequestPreventsAssignment).
  *)
-taskStateBar ==
-    [t \in Task |->
-        CASE taskState[t] = TASK_STOPPED -> TASK_STAGED
-          [] taskState[t] = TASK_PAUSED  -> TASK_STAGED
-          [] OTHER                         -> taskState[t]
-    ]
-T2 ==
-    INSTANCE Task2Theorems
-        WITH taskState <- taskStateBar
-RefineTask2 == T2!Spec
+RequestedStoppingEventualAcknowledgment ==
+    \A t \in Task :
+        At(t) ::
+            /\ t \in StagedTask \union PausedTask
+            /\ t \in stoppingRequested
+            ~> t \in StoppedTask \/ t \in AbortedTask
+
+(**
+ * REFINEMENT
+ * Task3 refines Task2 under the refinement mapping.
+ *)
+RefineTask2 ==
+    T2!Spec
+
+(**
+ * LIVENESS
+ * An assigned task is eventually released back to the staged ones or
+ * processed: succeeded, failed, discarded or stopped. Restated from Task1,
+ * whose staged tasks also include the stopped ones.
+ *)
+EventualDeallocation ==
+    \A t \in Task :
+        At(t) ::
+            t \in AssignedTask
+            ~> t \in StagedTask \union SucceededTask \union FailedTask
+                     \union DiscardedTask \union StoppedTask
+
+(**
+ * LIVENESS
+ * A registered task eventually stays registered, staged, paused or stopped,
+ * or completed, retried or aborted, forever. Restated from Task1, whose
+ * staged tasks also include the paused and stopped ones, and whose finalized
+ * tasks are the completed, retried and aborted ones.
+ *)
+EventualQuiescence ==
+    \A t \in Task :
+        At(t) ::
+            t \in RegisteredTask ~>
+                \/ [](t \in RegisteredTask)
+                \/ [](t \in StagedTask \union PausedTask \union StoppedTask)
+                \/ [](t \in CompletedTask \union RetriedTask \union AbortedTask)
+
+(**
+ * LIVENESS
+ * A task that failed without a next attempt is eventually given one, which
+ * is registered; a registered next attempt is eventually staged or
+ * discarded. Restated from Task2, whose staged tasks also include the paused
+ * and stopped ones.
+ *)
+FailedTaskEventualRetry ==
+    \A t \in Task :
+        At(t) ::
+            /\ t \in UnretriedTask ~> nextAttemptOf[t] \in RegisteredTask
+            /\ nextAttemptOf[t] \in RegisteredTask
+               ~> nextAttemptOf[t] \in StagedTask \union DiscardedTask
+
+(**
+ * LIVENESS
+ * If the user eventually stops driving the system, eventually no task is
+ * assigned or processed and the state stops changing. Restated from Task2,
+ * whose NoUserAction allows the requests and the resumptions, which Task2
+ * sees as stutters. The conclusion is written as a conjunction that TLC can
+ * check, as in Task1.
+ *)
+EventualTermination ==
+    <>[][NoUserAction]_vars
+    => /\ <>[](/\ AssignedTask = {}
+               /\ SucceededTask = {}
+               /\ FailedTask = {}
+               /\ DiscardedTask = {})
+       /\ <>[][FALSE]_vars
 
 ================================================================================
