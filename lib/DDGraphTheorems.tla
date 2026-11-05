@@ -296,4 +296,15 @@ THEOREM DDG_NoDerivationMeansBlockedAncestor ==
            NEW n \in G.node, NEW Op(_)
     PROVE  Derivation(G, n, Op, T) = {} => \E m \in Ancestor(G, n) : ~Op(m)
 
+(******************************************************************************)
+(* A derivation stays one under a stronger predicate that all its nodes      *)
+(* satisfy: each node reaches n through a path of D, which then lies in the  *)
+(* subgraph induced by the stronger predicate.                                *)
+(******************************************************************************)
+THEOREM DDG_DerivationRestrict ==
+    ASSUME NEW T, NEW O, NEW G, IsDDGraph(G, T, O), IsFiniteSet(G.node),
+           NEW n \in O, NEW Op(_), NEW Op2(_), NEW D \in Derivation(G, n, Op, T),
+           \A m \in D.node : Op2(m)
+    PROVE  D \in Derivation(G, n, Op2, T)
+
 ================================================================================
