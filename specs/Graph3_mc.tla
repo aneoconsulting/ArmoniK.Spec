@@ -40,15 +40,15 @@ MCNext ==
     \/ Terminating
 
 (**
- * Model-checking specification used for the safety invariants. As in
- * Graph2_mc, the UpstreamStabilization liveness constraint is
- * dropped here -- it is only needed to discharge the refinement / liveness
- * obligations, not the state invariants.
+ * Model-checking specification. As in Graph2_mc, the UpstreamStabilization
+ * liveness constraint is dropped: its subscript is not a tuple of variables,
+ * which TLC rejects.
  *)
 MCSpec ==
     /\ Init
     /\ [][MCNext]_vars
     /\ Fairness
+    /\ UserStopsPausingUpstream
 
 (**
  * MC-checkable form of the Graph2 refinement. As in
