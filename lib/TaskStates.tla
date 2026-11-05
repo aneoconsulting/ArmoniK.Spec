@@ -30,7 +30,7 @@ TASK_FINALIZED  == "TASK_FINALIZED"  \* Task post-processing is completed
 TASK_COMPLETED  == "TASK_COMPLETED"  \* Task processing and post-processed completed successfully
 TASK_RETRIED    == "TASK_RETRIED"    \* The task processing failed and it was cloned to try again
 TASK_ABORTED    == "TASK_ABORTED"    \* Task processing unsuccessful but post-processing completed successfully
-TASK_STOPPED    == "TASK_STOPPED"    \* Task processing was stopped and no post-processing has been performed
+TASK_HALTED     == "TASK_HALTED"     \* Task failed and is held back from propagation until cancelled
 TASK_PAUSED     == "TASK_PAUSED"     \* Task processing is postponed by the user
 
 (**
@@ -43,7 +43,7 @@ T2State == {TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED,
              TASK_RETRIED, TASK_ABORTED}
 T3State == {TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED,
              TASK_SUCCEEDED, TASK_FAILED, TASK_DISCARDED, TASK_COMPLETED,
-             TASK_RETRIED, TASK_ABORTED, TASK_STOPPED, TASK_PAUSED}
+             TASK_RETRIED, TASK_ABORTED, TASK_HALTED, TASK_PAUSED}
 
 (**
  * Sets of tasks by state.
@@ -60,7 +60,7 @@ FinalizedTask  == {t \in Task: taskState[t] = TASK_FINALIZED}
 CompletedTask  == {t \in Task: taskState[t] = TASK_COMPLETED}
 RetriedTask    == {t \in Task: taskState[t] = TASK_RETRIED}
 AbortedTask    == {t \in Task: taskState[t] = TASK_ABORTED}
-StoppedTask    == {t \in Task: taskState[t] = TASK_STOPPED}
+HaltedTask     == {t \in Task: taskState[t] = TASK_HALTED}
 PausedTask     == {t \in Task: taskState[t] = TASK_PAUSED}
 
 ===============================================================================
