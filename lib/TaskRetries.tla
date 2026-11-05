@@ -23,4 +23,10 @@ NextAttempts(t) ==
 TaskAttempts(t) ==
     PreviousAttempts(t) \union NextAttempts(t)
 
+(**
+ * The identifier of the attempt chain of task 't': its first attempt.
+ *)
+ChainId(t) ==
+    CHOOSE r \in {t} \union PreviousAttempts(t) : PreviousAttempts(r) = {}
+
 ====
