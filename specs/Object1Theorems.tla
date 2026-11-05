@@ -1,49 +1,76 @@
 ---------------------------- MODULE Object1Theorems ----------------------------
+(******************************************************************************)
+(* Proofs of all the properties of Object1.                                   *)
+(******************************************************************************)
+
 EXTENDS Object1
 
-LEMMA LemType == Init /\ [][Next]_vars => []TypeOk
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                               HELPER LEMMAS                                *)
+(******************************************************************************)
 
-THEOREM O1_Type == Spec => []TypeOk
+(**
+ * A targeted object is registered or finalized.
+ *)
+LEMMA LemTargetsAreKnown ==
+    ASSUME NEW o \in objectTargets, TypeOk, TargetValidity
+    PROVE  o \in RegisteredObject \/ o \in FinalizedObject
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                              TYPE CORRECTNESS                              *)
+(******************************************************************************)
+
+LEMMA LemTypeOk == Init /\ [][Next]_vars => []TypeOk
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                                 INVARIANTS                                 *)
+(******************************************************************************)
 
 LEMMA LemTargetValidity == Init /\ [][Next]_vars => []TargetValidity
 
-THEOREM O1_TargetValidity == Spec => []TargetValidity
-
 LEMMA LemFiniteKnownObjects == Init /\ [][Next]_vars => []FiniteKnownObjects
 
-THEOREM O1_FiniteKnownObjects == Spec => []FiniteKnownObjects
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                            INDUCTIVE INVARIANT                             *)
+(******************************************************************************)
 
-ObjectSafetyInv ==
+(**
+ * The invariants used by the liveness proofs.
+ *)
+Inv ==
     /\ TypeOk
     /\ TargetValidity
     /\ FiniteKnownObjects
 
-LEMMA LemObjectSafetyInv == Init /\ [][Next]_vars => []ObjectSafetyInv
+LEMMA LemInv == Init /\ [][Next]_vars => []Inv
 
-THEOREM O1_ObjectSafetyInv == Spec => []ObjectSafetyInv
-
-THEOREM O1_PermanentFinalization == Spec => PermanentFinalization
-
-LEMMA LemTargetsAreKnown ==
-        ASSUME NEW o \in objectTargets, ObjectSafetyInv
-        PROVE o \in RegisteredObject \/ o \in FinalizedObject
-
-THEOREM O1_EventualTargetFinalization == Spec => EventualTargetFinalization
-
-THEOREM O1_EventualTargetResolution == Spec => EventualTargetResolution
-
-LEMMA LemEventualTermination ==
-    []ObjectSafetyInv /\ [][Next]_vars /\ Fairness => EventualTermination
-
-THEOREM O1_EventualTermination == Spec => EventualTermination
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                          OTHER SAFETY PROPERTIES                           *)
+(******************************************************************************)
 
 (**
- * ENABLED-FREE FAIRNESS
- * Fairness restated without ENABLED: finalizing a targeted object is enabled
- * exactly when the object is registered. Substitution does not distribute
- * over ENABLED, hence not over WF, but it does over this form: a refinement
- * proves the instantiated FairFinalizeObjects(o) and recovers the
- * instantiated Fairness through LemFairnessEnabledFree.
+ * A finalized object stays finalized at every step.
+ *)
+LEMMA LemPermanentFinalization ==
+    ASSUME NEW o \in Object, [Next]_vars
+    PROVE  o \in FinalizedObject => (o \in FinalizedObject)'
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                           ENABLED-FREE FAIRNESS                            *)
+(******************************************************************************)
+
+(**
+ * The fairness condition restated without ENABLED, which a substitution does
+ * not distribute over: a refinement proves the instantiated
+ * FairFinalizeObjects(o) and recovers the instantiated Fairness through
+ * LemFairnessEnabledFree. Finalizing a targeted object is enabled exactly
+ * when the object is registered.
  *)
 EnabledFinalizeObjects(o) == o \in objectTargets /\ o \in RegisteredObject
 
@@ -53,5 +80,36 @@ FairFinalizeObjects(o) ==
 
 LEMMA LemFairnessEnabledFree ==
     Fairness <=> \A o \in Object : FairFinalizeObjects(o)
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                                  LIVENESS                                  *)
+(******************************************************************************)
+
+LEMMA LemEventualTargetFinalization ==
+    ASSUME NEW o \in Object
+    PROVE  []Inv /\ [][Next]_vars /\ FairFinalizeObjects(o)
+           => EventualTargetFinalization!At(o)
+
+LEMMA LemEventualTermination ==
+    []Inv /\ [][Next]_vars /\ (\A o \in Object : FairFinalizeObjects(o))
+    => EventualTermination
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                           SPECIFICATION THEOREMS                           *)
+(******************************************************************************)
+
+THEOREM ThmTypeOk == Spec => []TypeOk
+
+THEOREM ThmTargetValidity == Spec => []TargetValidity
+
+THEOREM ThmFiniteKnownObjects == Spec => []FiniteKnownObjects
+
+THEOREM ThmPermanentFinalization == Spec => PermanentFinalization
+
+THEOREM ThmEventualTargetFinalization == Spec => EventualTargetFinalization
+
+THEOREM ThmEventualTermination == Spec => EventualTermination
 
 ================================================================================

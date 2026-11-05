@@ -1,121 +1,120 @@
 -------------------------------- MODULE Object1 --------------------------------
-(*****************************************************************************)
-(* This module specifies an abstract data management system.                 *)
-(* Objects represent data units with associated metadata and lifecycle       *)
-(* states. The specification abstracts away from object contents and focuses *)
-(* solely on the allowed transitions between lifecycle states and targeting  *)
-(* behaviors. It also defines and asserts key safety and liveness properties *)
-(* of the system.                                                            *)
-(*****************************************************************************)
+(******************************************************************************)
+(* Abstract lifecycle of the data objects of the system. An object is         *)
+(* registered, then finalized, after which it never changes. The user marks   *)
+(* the objects it wants finalized as targets. The contents of the objects are *)
+(* abstracted away.                                                           *)
+(******************************************************************************)
 
 EXTENDS DenumerableSets, FiniteSets
 
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                    CONSTANTS, ASSUMPTIONS AND VARIABLES                    *)
+(******************************************************************************)
+
 CONSTANTS
-    Object  \* Abstract set of all objects
+    Object  \* Set of object identifiers
 
 ASSUMPTION Assumptions ==
-    IsDenumerableSet(Object) \* Object is an infinitely countable set
+    IsDenumerableSet(Object)  \* Unbounded supply of fresh objects
 
 VARIABLES
-    objectState,  \* objectState[o] records the current lifecycle state of object o
-    objectTargets \* objectTargets is the set of objects currently marked as targets
+    objectState,   \* objectState[o]: lifecycle state of object o
+    objectTargets  \* Set of the objects the user wants finalized
 
 vars == << objectState, objectTargets >>
 
--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                               INSTANTIATIONS                               *)
+(******************************************************************************)
 
 (**
- * Imports the definition of the states of objects and sets of objects sharing
- * the same state.
+ * The object states and the sets of objects in each state.
  *)
 INSTANCE ObjectStates
 
-(**
- * TYPE INVARIANT
- * Claims that all state variables always take values of the expected form.
- *   - objectState is a function mapping each object to one of the defined states.
- *   - objectTargets is a subset of valid object identifiers.
- *)
-TypeOk ==
-    /\ objectState \in [Object -> O1State]
-    /\ objectTargets \in SUBSET Object
-
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* SYSTEM INITIAL STATE AND TRANSITIONS                                      *)
-(*****************************************************************************)
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                    SYSTEM INITIAL STATE AND TRANSITIONS                    *)
+(******************************************************************************)
 
 (**
  * INITIAL STATE
- * Initially, all objects are unknown and none are marked as targets.
+ * No object is known, and none is targeted.
  *)
 Init ==
     /\ objectState = [o \in Object |-> OBJECT_UNKNOWN]
     /\ objectTargets = {}
 
 (**
- * OBJECT REGISTRATION
- * A new finite set 'O' of objects is registered in the system, i.e., it is
- * created with the metadata provided and empty data.
+ * ACTION
+ * A finite set 'O' of unknown objects is registered.
  *)
 RegisterObjects(O) ==
-    /\ O /= {} /\ O \subseteq UnknownObject
+    /\ O /= {}
+    /\ O \subseteq UnknownObject
     /\ IsFiniteSet(O)
     /\ objectState' =
         [o \in Object |-> IF o \in O THEN OBJECT_REGISTERED ELSE objectState[o]]
     /\ UNCHANGED objectTargets
 
 (**
- * OBJECT TARGETING
- * A set 'O' of existing objects is marked as targeted, meaning that the user
- * wants these objects to be finalized.
+ * ACTION
+ * The user targets a set 'O' of known objects.
  *)
 TargetObjects(O) ==
-    /\ O /= {} /\ O \subseteq (RegisteredObject \union FinalizedObject)
+    /\ O /= {}
+    /\ O \subseteq (RegisteredObject \union FinalizedObject)
     /\ objectTargets' = objectTargets \union O
     /\ UNCHANGED objectState
 
 (**
- * OBJECT UNTARGETING
- * A set 'O' of currently targeted objects is unmarked.
+ * ACTION
+ * The user untargets a set 'O' of targeted objects.
  *)
 UntargetObjects(O) ==
-    /\ O /= {} /\ O \subseteq objectTargets
+    /\ O /= {}
+    /\ O \subseteq objectTargets
     /\ objectTargets' = objectTargets \ O
     /\ UNCHANGED objectState
 
 (**
- * OBJECT FINALIZATION
- * A set 'O' of objects is finalized, meaning that these objects are now
- * immutable (will never be modified).
+ * ACTION
+ * A set 'O' of registered objects is finalized: their data will never change.
  *)
 FinalizeObjects(O) ==
-    /\ O /= {} /\ O \subseteq RegisteredObject
+    /\ O /= {}
+    /\ O \subseteq RegisteredObject
     /\ objectState' =
         [o \in Object |-> IF o \in O THEN OBJECT_FINALIZED ELSE objectState[o]]
     /\ UNCHANGED objectTargets
 
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                               ACTION HELPERS                               *)
+(******************************************************************************)
+
 (**
- * USER QUIESCENCE
  * A step in which the user drives no new work: no object is registered,
  * targeted or untargeted.
  *)
 NoUserAction ==
-    ~ \E O \in SUBSET Object : RegisterObjects(O) \/ TargetObjects(O) \/ UntargetObjects(O)
+    ~ \E O \in SUBSET Object :
+        RegisterObjects(O) \/ TargetObjects(O) \/ UntargetObjects(O)
 
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* FULL SYSTEM SPECIFICATION                                                 *)
-(*****************************************************************************)
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                            SYSTEM SPECIFICATION                            *)
+(******************************************************************************)
 
 (**
  * NEXT-STATE RELATION
- * Defines all possible atomic transitions of the system.
+ * All the atomic transitions of the system.
  *)
 Next ==
-    \E O \in SUBSET Object:
+    \E O \in SUBSET Object :
         \/ RegisterObjects(O)
         \/ TargetObjects(O)
         \/ UntargetObjects(O)
@@ -123,12 +122,11 @@ Next ==
 
 (**
  * FAIRNESS CONDITIONS
- * Ensure that progress is eventually made for actionable objects.
- *   - A targeted object cannot remain indefinitely registered without being
- *     eventually finalized.
+ * - Weak fairness of FinalizeObjects: a registered object that stays
+ *   targeted is eventually finalized.
  *)
 Fairness ==
-    \A o \in Object:
+    \A o \in Object :
         WF_vars(o \in objectTargets /\ FinalizeObjects({o}))
 
 (**
@@ -139,64 +137,57 @@ Spec ==
     /\ [][Next]_vars
     /\ Fairness
 
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* SAFETY AND LIVENESS PROPERTIES                                            *)
-(*****************************************************************************)
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                       SAFETY AND LIVENESS PROPERTIES                       *)
+(******************************************************************************)
 
 (**
- * SAFETY
- * An object can only be targeted if it is known to the system.
+ * INVARIANT
+ * The state variables belong to their expected domains.
+ *)
+TypeOk ==
+    /\ objectState \in [Object -> O1State]
+    /\ objectTargets \in SUBSET Object
+
+(**
+ * INVARIANT
+ * Only known objects are targeted.
  *)
 TargetValidity ==
     objectTargets \intersect UnknownObject = {}
 
 (**
- * SAFETY
- * Only finitely many objects are known to the system, since a registration
- * adds finitely many objects at a time.
+ * INVARIANT
+ * Finitely many objects are known, since each registration adds finitely many.
  *)
 FiniteKnownObjects ==
     IsFiniteSet(Object \ UnknownObject)
 
 (**
  * SAFETY
- * Once an object reaches the FINALIZED state, it remains there permanently.
+ * A finalized object stays finalized.
  *)
 PermanentFinalization ==
-    \A o \in Object:
+    \A o \in Object :
         [](o \in FinalizedObject => [](o \in FinalizedObject))
 
 (**
  * LIVENESS
- * Every targeted object is eventually either finalized or untargeted.
+ * An object targeted forever from some point on is eventually finalized for
+ * good.
  *)
 EventualTargetFinalization ==
-    \A o \in Object:
-        <>[](o \in objectTargets) => <>(o \in FinalizedObject)
-
-(**
- * LIVENESS
- * Any object added to the target set must eventually be resolved,
- * meaning it is either finalized or removed from the target set.
- *)
-EventualTargetResolution ==
     \A o \in Object :
-        o \in objectTargets ~> (o \in FinalizedObject \/ ~ o \in objectTargets)
+        At(o) :: <>[](o \in objectTargets) => <>[](o \in FinalizedObject)
 
 (**
  * LIVENESS
- * If the user eventually stops driving the system -- from some point on, no
- * object is registered, targeted or untargeted anymore -- then the system
- * eventually terminates: every targeted object is finalized and the state
- * never changes again. This rests on FiniteKnownObjects: with infinitely many
- * registered objects, a behavior could finalize a fresh object at every step
- * without ever exhausting the targets.
- *
- * The conclusion is the conjunction of two suffix-stable formulas, which is
- * equivalent to <>([](objectTargets \subseteq FinalizedObject) /\ [][FALSE]_vars).
- * This shape is checkable directly by TLC.
+ * If the user eventually stops driving the system, every target is
+ * eventually finalized and the state eventually stops changing. The
+ * conclusion is equivalent to
+ * <>([](objectTargets \subseteq FinalizedObject) /\ [][FALSE]_vars),
+ * written as a conjunction that TLC can check.
  *)
 EventualTermination ==
     <>[][NoUserAction]_vars
