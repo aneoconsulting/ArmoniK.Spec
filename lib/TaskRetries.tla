@@ -7,8 +7,8 @@ CONSTANT
 VARIABLE
     nextAttemptOf
 
-UnretriedTask ==
-    {t \in FailedTask: nextAttemptOf[t] = NULL}
+LinkedTask ==
+    {t \in Task : nextAttemptOf[t] /= NULL}
 
 NextAttemptOfRel == {ss \in Task \X Task : nextAttemptOf[ss[1]] = ss[2]}
 
