@@ -27,14 +27,14 @@ VARIABLE
 THEOREM EventualConstancy ==
     <>[][FALSE]_v => \E K : <>[](v = K)
 <1>1. [][FALSE]_v => \E K : [](v = K)
-    <2>1. PICK K : v = K
-        OBVIOUS
-    <2>2. v = K /\ [FALSE]_v => (v = K)'
-        OBVIOUS
-    <2>3. [][FALSE]_v => [](v = K)
-        BY <2>1, <2>2, PTL
+    <2>1. ASSUME NEW K
+          PROVE  v = K /\ [][FALSE]_v => [](v = K)
+        <3>1. v = K /\ [FALSE]_v => (v = K)'
+            OBVIOUS
+        <3>. QED
+            BY <3>1, PTL
     <2>. QED
-        BY <2>3
+        BY <2>1
 <1>2. <>(\E K : [](v = K)) => \E K : <>[](v = K)
     OBVIOUS
 <1>. QED
