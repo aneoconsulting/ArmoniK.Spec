@@ -1,127 +1,159 @@
 -------------------------------- MODULE Object2 --------------------------------
-(*****************************************************************************)
-(* This module specifies an extended object lifecycle system that refines    *)
-(* the 'Object1' specification. It provides a more granular                  *)
-(* implementation of the finalization process by decomposing the abstract    *)
-(* FINALIZED state into two concrete outcomes: COMPLETED and ABORTED.        *)
-(*                                                                           *)
-(* The specification defines a refinement mapping that projects these        *)
-(* detailed states back onto the abstract states of 'Object1',               *)
-(* while asserting that the system's targeting behaviors and safety          *)
-(* invariants remain consistent across this refinement.                      *)
-(*****************************************************************************)
+(******************************************************************************)
+(* Refinement of Object1 that splits finalization into two outcomes: an       *)
+(* object is either completed, its data written, or aborted, its data never   *)
+(* provided. The refinement mapping sends both COMPLETED and ABORTED to the   *)
+(* FINALIZED state of Object1.                                                *)
+(******************************************************************************)
 
 EXTENDS DenumerableSets, FiniteSets, TLAPS
 
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                    CONSTANTS, ASSUMPTIONS AND VARIABLES                    *)
+(******************************************************************************)
+
 CONSTANTS
-    Object  \* Abstract set of all objects
+    Object  \* Set of object identifiers
 
 ASSUMPTION Assumptions ==
-    IsDenumerableSet(Object) \* Object is an infinitely countable set
+    IsDenumerableSet(Object)  \* Unbounded supply of fresh objects
 
 VARIABLES
-    objectState,  \* objectState[o] records the current lifecycle state of object o
-    objectTargets \* objectTargets is the set of objects currently marked as targets
+    objectState,   \* objectState[o]: lifecycle state of object o
+    objectTargets  \* Set of the objects the user wants finalized
 
 vars == << objectState, objectTargets >>
 
--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                               INSTANTIATIONS                               *)
+(******************************************************************************)
 
 (**
- * Imports the definition of the states of objects and sets of objects sharing
- * the same state.
+ * The object states and the sets of objects in each state.
  *)
 INSTANCE ObjectStates
 
 (**
- * TYPE INVARIANT
- * Claims that all state variables always take values of the expected form.
- *   - objectState is a function mapping each object to one of the defined states.
- *   - objectTargets is a subset of valid object identifiers.
+ * Completed and aborted objects are the finalized objects of Object1.
  *)
-TypeOk ==
-    /\ objectState \in [Object -> O2State]
-    /\ objectTargets \in SUBSET Object
+objectStateBar ==
+    [o \in Object |->
+        CASE objectState[o] = OBJECT_COMPLETED -> OBJECT_FINALIZED
+          [] objectState[o] = OBJECT_ABORTED   -> OBJECT_FINALIZED
+          [] OTHER                             -> objectState[o]
+    ]
 
--------------------------------------------------------------------------------
+(**
+ * Object1 under the refinement mapping.
+ *)
+O1 == INSTANCE Object1Theorems WITH objectState <- objectStateBar
 
-(*****************************************************************************)
-(* SYSTEM INITIAL STATE AND TRANSITIONS                                      *)
-(*****************************************************************************)
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                                  HELPERS                                   *)
+(******************************************************************************)
+
+(**
+ * Every target is completed or aborted: no work is pending.
+ *)
+Idle ==
+    objectTargets \subseteq CompletedObject \union AbortedObject
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                    SYSTEM INITIAL STATE AND TRANSITIONS                    *)
+(******************************************************************************)
 
 (**
  * INITIAL STATE
- * Initially, all objects are unknown and none are marked as targets.
+ * No object is known, and none is targeted.
  *)
 Init ==
     /\ objectState = [o \in Object |-> OBJECT_UNKNOWN]
     /\ objectTargets = {}
 
 (**
- * OBJECT REGISTRATION
- * A new finite set 'O' of objects is registered in the system, i.e., it is
- * created with the metadata provided and empty data.
+ * ACTION
+ * A finite set 'O' of unknown objects is registered.
  *)
 RegisterObjects(O) ==
-    /\ O /= {} /\ O \subseteq UnknownObject
+    /\ O /= {}
+    /\ O \subseteq UnknownObject
     /\ IsFiniteSet(O)
     /\ objectState' =
         [o \in Object |-> IF o \in O THEN OBJECT_REGISTERED ELSE objectState[o]]
     /\ UNCHANGED objectTargets
 
 (**
- * OBJECT TARGETING
- * A set 'O' of existing objects is marked as targeted, meaning that the user
- * wants these objects to be finalized (completed or aborted).
+ * ACTION
+ * The user targets a set 'O' of known objects.
  *)
 TargetObjects(O) ==
-    /\ O # {} /\ O \subseteq UNION {RegisteredObject, CompletedObject, AbortedObject}
+    /\ O /= {}
+    /\ O \subseteq UNION {RegisteredObject, CompletedObject, AbortedObject}
     /\ objectTargets' = objectTargets \union O
     /\ UNCHANGED objectState
 
 (**
- * OBJECT UNTARGETING
- * A set 'O' of currently targeted objects is unmarked.
+ * ACTION
+ * The user untargets a set 'O' of targeted objects.
  *)
 UntargetObjects(O) ==
-    /\ O /= {} /\ O \subseteq objectTargets
+    /\ O /= {}
+    /\ O \subseteq objectTargets
     /\ objectTargets' = objectTargets \ O
     /\ UNCHANGED objectState
 
 (**
- * OBJECT FINALIZATION
- * A set 'O' of objects is completed, meaning that their data has been
- * written and will never be modified.
+ * ACTION
+ * A set 'O' of registered objects is completed: their data is written and
+ * will never change.
  *)
 CompleteObjects(O) ==
-    /\ O /= {} /\ O \subseteq RegisteredObject
+    /\ O /= {}
+    /\ O \subseteq RegisteredObject
     /\ objectState' =
         [o \in Object |-> IF o \in O THEN OBJECT_COMPLETED ELSE objectState[o]]
     /\ UNCHANGED objectTargets
 
 (**
- * OBJECT FINALIZATION
- * A set 'O' of objects is aborted, meaning that these objects have been
- * generated with empty data and no data will never be provided.
+ * ACTION
+ * A set 'O' of registered objects is aborted: their data will never be
+ * provided.
  *)
 AbortObjects(O) ==
-    /\ O /= {} /\ O \subseteq RegisteredObject
+    /\ O /= {}
+    /\ O \subseteq RegisteredObject
     /\ objectState' =
         [o \in Object |-> IF o \in O THEN OBJECT_ABORTED ELSE objectState[o]]
     /\ UNCHANGED objectTargets
 
--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                               ACTION HELPERS                               *)
+(******************************************************************************)
 
-(*****************************************************************************)
-(* FULL SYSTEM SPECIFICATION                                                 *)
-(*****************************************************************************)
+(**
+ * A step in which the user drives no new work: no object is registered,
+ * targeted or untargeted.
+ *)
+NoUserAction ==
+    ~ \E O \in SUBSET Object :
+        RegisterObjects(O) \/ TargetObjects(O) \/ UntargetObjects(O)
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                            SYSTEM SPECIFICATION                            *)
+(******************************************************************************)
 
 (**
  * NEXT-STATE RELATION
- * Defines all possible atomic transitions of the system.
+ * All the atomic transitions of the system.
  *)
 Next ==
-    \E O \in SUBSET Object:
+    \E O \in SUBSET Object :
         \/ RegisterObjects(O)
         \/ TargetObjects(O)
         \/ UntargetObjects(O)
@@ -130,11 +162,9 @@ Next ==
 
 (**
  * FAIRNESS CONDITIONS
- * Ensure that progress is eventually made for actionable objects.
- *   - A targeted object cannot remain indefinitely registered without being
- *     eventually finalized. Completion alone is required to be fair:
- *     abortion is a possible outcome, never an obligation, so a registered
- *     target may be aborted but is otherwise eventually completed.
+ * - Weak fairness of CompleteObjects: a registered object that stays
+ *   targeted is eventually completed or aborted. Only completion is fair:
+ *   abortion is a possible outcome, never an obligation.
  *)
 Fairness ==
     \A o \in Object :
@@ -148,33 +178,57 @@ Spec ==
     /\ [][Next]_vars
     /\ Fairness
 
--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                       SAFETY AND LIVENESS PROPERTIES                       *)
+(******************************************************************************)
 
-(*****************************************************************************)
-(* SAFETY AND LIVENESS PROPERTIES                                            *)
-(*****************************************************************************)
+(**
+ * INVARIANT
+ * The state variables belong to their expected domains.
+ *)
+TypeOk ==
+    /\ objectState \in [Object -> O2State]
+    /\ objectTargets \in SUBSET Object
 
 (**
  * SAFETY
- * Once an object reaches the completed or aborted state, it remains there
- * permanently.
+ * A completed object stays completed, and an aborted object stays aborted.
  *)
 PermanentFinalization ==
-    \A o \in Object:
+    \A o \in Object :
         /\ [](o \in CompletedObject => [](o \in CompletedObject))
         /\ [](o \in AbortedObject => [](o \in AbortedObject))
 
 (**
- * LIVENESS
- * This specification refines the Object1 specification.
+ * REFINEMENT
+ * Object2 refines Object1 under the refinement mapping.
  *)
-objectStateBar ==
-    [o \in Object |->
-        CASE objectState[o] = OBJECT_COMPLETED -> OBJECT_FINALIZED
-          [] objectState[o] = OBJECT_ABORTED   -> OBJECT_FINALIZED
-          [] OTHER                             -> objectState[o]
-    ]
-O1 == INSTANCE Object1Theorems WITH objectState <- objectStateBar
-RefineObject1 == O1!Spec
+RefineObject1 ==
+    O1!Spec
+
+(**
+ * LIVENESS
+ * An object targeted forever from some point on is eventually completed for
+ * good or aborted for good.
+ *)
+EventualTargetFinalization ==
+    \A o \in Object :
+        At(o) ::
+            <>[](o \in objectTargets)
+            => \/ <>[](o \in CompletedObject)
+               \/ <>[](o \in AbortedObject)
+
+(**
+ * LIVENESS
+ * If the user eventually stops driving the system, the system eventually
+ * stays idle and its state stops changing.
+ * The conclusion is written as a conjunction that TLC can check, as in
+ * Object1.
+ *)
+EventualQuiescence ==
+    <>[][NoUserAction]_vars
+    => /\ <>[]Idle
+       /\ <>[][FALSE]_vars
 
 ================================================================================
