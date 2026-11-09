@@ -1674,11 +1674,29 @@ LEMMA LemRegisteredObjectHasOpenProducer ==
     <2>7. ASSUME NEW T \in SUBSET Task, CompleteTasks(T)
           PROVE  (\E w \in Predecessor(deps, o) :
                       w \notin UNION {CompletedTask, AbortedTask, RetriedTask})'
-        BY <2>6, <2>7 DEF CompleteTasks
+        <3>1. \A o2 \in UNION {Successor(deps, x): x \in T} :
+                  o2 \in RegisteredObject
+                      => \E v \in (Predecessor(deps, o2) \ T) :
+                             v \notin UNION {CompletedTask, AbortedTask, RetriedTask}
+            BY <2>7 DEF CompleteTasks
+        <3>2. /\ UNCHANGED << deps, objectState >>
+              /\ \A x \in Task : x \notin T => taskState'[x] = taskState[x]
+            BY <2>7 DEF CompleteTasks
+        <3>. QED
+            BY <2>6, <3>1, <3>2
     <2>8. ASSUME NEW T \in SUBSET Task, AbortTasks(T)
           PROVE  (\E w \in Predecessor(deps, o) :
                       w \notin UNION {CompletedTask, AbortedTask, RetriedTask})'
-        BY <2>6, <2>8 DEF AbortTasks
+        <3>1. \A o2 \in UNION {Successor(deps, x): x \in T} :
+                  o2 \in RegisteredObject
+                      => \E v \in (Predecessor(deps, o2) \ T) :
+                             v \notin UNION {CompletedTask, AbortedTask, RetriedTask}
+            BY <2>8 DEF AbortTasks
+        <3>2. /\ UNCHANGED << deps, objectState >>
+              /\ \A x \in Task : x \notin T => taskState'[x] = taskState[x]
+            BY <2>8 DEF AbortTasks
+        <3>. QED
+            BY <2>6, <3>1, <3>2
     <2>9. ASSUME NEW T \in SUBSET Task, RetryTasks(T)
           PROVE  (\E w \in Predecessor(deps, o) :
                       w \notin UNION {CompletedTask, AbortedTask, RetriedTask})'
@@ -5507,7 +5525,7 @@ LEMMA LemRefineT2SFProcessTasks ==
 (* []ENABLED <<StageTasks({nextAttemptOf[u]})>>_vars the clone is registered,    *)
 (* hence nextAttemptOf[u] /= NULL and frozen (only SetTaskRetries writes it, and *)
 (* only on UnretriedTask, i.e. at NULL) -- so a RIGID t \in Task with            *)
-(* [](nextAttemptOf[u] = t) can be PICKed (the T2_AttemptsEventualStability      *)
+(* [](nextAttemptOf[u] = t) exists (the T2_AttemptsEventualStability             *)
 (* extraction recipe), the \A instantiated at t (DEFINE/HIDE), and the ENABLED   *)
 (* and the fired step transported across the equality in both directions.       *)
 LEMMA LemNextAttemptStageWF ==
@@ -5556,7 +5574,7 @@ LEMMA LemNextAttemptStageWF ==
         DEF AbortObjects, AbortTasks, AssignTasks, CompleteObjects, CompleteTasks,
             DiscardTasks, Next, ProcessTasks, RegisterGraph, ReleaseTasks, RetryTasks,
             StageTasks, TargetObjects, UntargetObjects, vars
-\* --- (3) PICK a rigid clone id: registered now, frozen forever ---
+\* --- (3) a rigid clone id: registered now, frozen forever ---
 <1>. DEFINE Q(s) == [](nextAttemptOf[u] = s)
 <1>. HIDE DEF Q
 <1>4. \E s \in Task : Q(s)
@@ -5574,44 +5592,43 @@ LEMMA LemNextAttemptStageWF ==
         BY <2>2 DEF Q
     <2>. QED
         BY <2>3, Zenon
-<1>5. PICK c \in Task : Q(c)
-    BY <1>4, Zenon
-<1>6. [](nextAttemptOf[u] = c)
-    BY <1>5 DEF Q
-\* --- (4) transport the boxed enabledness to the rigid argument ---
-<1>7. []ENABLED <<StageTasks({c})>>_vars
-    <2>1. /\ TypeOk /\ nextAttemptOf[u] = c
-          /\ ENABLED <<StageTasks({nextAttemptOf[u]})>>_vars
-          => ENABLED <<StageTasks({c})>>_vars
-        <3>. SUFFICES ASSUME TypeOk, nextAttemptOf[u] = c,
-                             ENABLED <<StageTasks({nextAttemptOf[u]})>>_vars
-                      PROVE  ENABLED <<StageTasks({c})>>_vars
-            OBVIOUS
-        <3>1. c \in RegisteredTask
-              /\ UNION {Predecessor(deps, x) : x \in {c}} \subseteq CompletedObject
-            BY <1>2, Zenon
+\* At any rigid id c, as an implication rather than a PICK, so that the steps
+\* below are proved in a context PTL may still necessitate.
+<1>5. ASSUME NEW c \in Task
+      PROVE  Q(c) => <><<StageTasks({nextAttemptOf[u]})>>_vars
+    <2>. USE DEF Q
+    \* --- (4) transport the boxed enabledness to the rigid argument ---
+    <2>1. Q(c) => []ENABLED <<StageTasks({c})>>_vars
+        <3>1. /\ TypeOk /\ nextAttemptOf[u] = c
+              /\ ENABLED <<StageTasks({nextAttemptOf[u]})>>_vars
+              => ENABLED <<StageTasks({c})>>_vars
+            <4>. SUFFICES ASSUME TypeOk, nextAttemptOf[u] = c,
+                                 ENABLED <<StageTasks({nextAttemptOf[u]})>>_vars
+                          PROVE  ENABLED <<StageTasks({c})>>_vars
+                OBVIOUS
+            <4>1. c \in RegisteredTask
+                  /\ UNION {Predecessor(deps, x) : x \in {c}} \subseteq CompletedObject
+                BY <1>2, Zenon
+            <4>. QED
+                BY <4>1, ExpandENABLED DEF StageTasks, vars, RegisteredTask
         <3>. QED
-            BY <3>1, ExpandENABLED DEF StageTasks, vars, RegisteredTask
-    <2>2. [](/\ TypeOk /\ nextAttemptOf[u] = c
-             /\ ENABLED <<StageTasks({nextAttemptOf[u]})>>_vars
-             => ENABLED <<StageTasks({c})>>_vars)
-        BY <2>1, PTL
+            BY <3>1, PTL
+    \* --- (5) fire the rigid WF ---
+    <2>2. WF_vars(StageTasks({c}))
+        <3>1. Fairness
+            BY PTL
+        <3>. QED
+            BY <3>1, Isa DEF Fairness
+    <2>3. Q(c) => <><<StageTasks({c})>>_vars
+        BY <2>1, <2>2, PTL
+    \* --- (6) transport the fired step back to the flexible argument ---
+    <2>4. <<StageTasks({c})>>_vars /\ nextAttemptOf[u] = c
+          => <<StageTasks({nextAttemptOf[u]})>>_vars
+        BY Zenon DEF StageTasks, vars
     <2>. QED
-        BY <1>6, <2>2, PTL
-\* --- (5) fire the rigid WF ---
-<1>8. WF_vars(StageTasks({c}))
-    <2>1. Fairness
-        BY PTL
-    <2>. QED
-        BY <2>1, Isa DEF Fairness
-<1>9. <><<StageTasks({c})>>_vars
-    BY <1>7, <1>8, PTL
-\* --- (6) transport the fired step back to the flexible argument ---
-<1>10. <<StageTasks({c})>>_vars /\ nextAttemptOf[u] = c
-      => <<StageTasks({nextAttemptOf[u]})>>_vars
-    BY Zenon DEF StageTasks, vars
+        BY <2>3, <2>4, PTL
 <1>. QED
-    BY <1>9, <1>6, <1>10, PTL
+    BY <1>4, <1>5, Zenon
 
 (* G2!StageTasks carries a "all inputs COMPLETED" guard absent from T2!StageTasks   *)
 (* (which only asks the task be REGISTERED). The gap is closed by invariants: a     *)

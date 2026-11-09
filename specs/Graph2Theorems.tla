@@ -1053,7 +1053,7 @@ LEMMA LemRefineT2SFProcessTasks ==
 (* []ENABLED <<StageTasks({nextAttemptOf[u]})>>_vars the clone is registered,    *)
 (* hence nextAttemptOf[u] /= NULL and frozen (only SetTaskRetries writes it, and *)
 (* only on UnretriedTask, i.e. at NULL) -- so a RIGID t \in Task with            *)
-(* [](nextAttemptOf[u] = t) can be PICKed (the T2_AttemptsEventualStability      *)
+(* [](nextAttemptOf[u] = t) exists (the T2_AttemptsEventualStability             *)
 (* extraction recipe), the \A instantiated at t (DEFINE/HIDE), and the ENABLED   *)
 (* and the fired step transported across the equality in both directions.       *)
 LEMMA LemNextAttemptStageWF ==
