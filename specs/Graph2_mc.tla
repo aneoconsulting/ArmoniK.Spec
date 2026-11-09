@@ -1,54 +1,76 @@
 ------------------------------- MODULE Graph2_mc -------------------------------
+(******************************************************************************)
+(* Model of Graph2 for TLC, on finitely many tasks and objects.               *)
+(******************************************************************************)
 
 EXTENDS Graph2
 
-MCDirectedGraphOf(N) == DDGraphOf(N \cap Task, N \cap Object)
-
-MCRefineGraph1 ==
-    /\ G1!Init
-    /\ [][G1!Next]_(G1!vars)
-    /\ G1!Fairness
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                                 OVERRIDES                                  *)
+(******************************************************************************)
 
 (**
- * TERMINAL STATE
- * Stuttering step enabled once every targeted object is completed or aborted
- * and no task is assigned, succeeded, failed or discarded. With finitely many
- * identifiers, the system reaches states where no action of Next is enabled,
- * which TLC reports as deadlocks. This step only serves model checking: it adds
- * no behaviour to Spec, since [Next \/ Terminating]_vars equals [Next]_vars,
- * and it keeps deadlock checking meaningful, as a state where Next is disabled
- * before termination is still reported.
+ * The graphs that TLC enumerates for a registration: the data-dependency
+ * graphs over the given nodes, substituted for DirectedGraphOf in the
+ * configuration file. A graph that a registration accepts is one: it is a
+ * subgraph of the data-dependency graph it extends the dependencies into,
+ * and its tasks are unknown, hence have no edge in the current graph, so that
+ * its roots and leaves are objects. The substitution hides no registration.
+ *)
+MCDirectedGraphOf(N) == DDGraphOf(N \intersect Task, N \intersect Object)
+
+(**
+ * Stuttering step enabled once the system is idle. With finitely many
+ * identifiers, every behavior reaches a state where Next is disabled, which TLC
+ * reports as a deadlock. This step makes the expected terminal states legal and
+ * leaves the others reported. It adds no behavior, since [Next \/
+ * Terminating]_vars equals [Next]_vars.
  *)
 Terminating ==
-    /\ objectTargets \subseteq (CompletedObject \union AbortedObject)
-    /\ AssignedTask = {}
-    /\ SucceededTask = {}
-    /\ FailedTask = {}
-    /\ DiscardedTask = {}
+    /\ Idle
     /\ UNCHANGED vars
 
 (**
- * Next-state relation checked by TLC: the specification's, with the
- * Terminating step.
+ * The next-state relation of the specification, with the terminal step.
  *)
 MCNext ==
     \/ Next
     \/ Terminating
 
+(**
+ * The specification with MCNext, without UpstreamStabilization, which holds
+ * in every behavior of the model: with finitely many identifiers, the
+ * dependency graph grows finitely many times, and only its growth enlarges an
+ * open ancestry, since a finalized node never reopens.
+ *)
 MCSpec ==
     /\ Init
     /\ [][MCNext]_vars
     /\ Fairness
 
+(**
+ * RefineGraph1 without the liveness assumption of Graph1, which holds in
+ * every behavior of the model for the same reason as UpstreamStabilization.
+ *)
+MCRefineGraph1 ==
+    /\ G1!Init
+    /\ [][G1!Next]_G1!vars
+    /\ G1!Fairness
+
 --------------------------------------------------------------------------------
+(******************************************************************************)
+(*                        MODEL-CHECKING CONFIGURATION                        *)
+(******************************************************************************)
 
 (**
- * The finiteness of the task ID set can lead to a suttering when all task IDs
- * are "known" and a failed task cannot be retried because no new task can be
- * found for retry. This constraint restricts system actions during model-checking
- * to prevent such a wrong behavior.
+ * With finitely many tasks, a failed task cannot be given a next attempt once
+ * every task is known, and stays failed forever. This constraint keeps an
+ * unknown task available for each failed task without a next attempt, as the
+ * infinitely many tasks of the specification do; it hides no behavior that
+ * the specification allows with them.
  *)
 ActionConstraint ==
-    Cardinality(UnknownTask') >= Cardinality(UnretriedTask')
+    Cardinality(UnknownTask') >= Cardinality((FailedTask \ LinkedTask)')
 
 ================================================================================

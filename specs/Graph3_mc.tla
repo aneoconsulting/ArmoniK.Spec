@@ -1,48 +1,49 @@
 ------------------------------- MODULE Graph3_mc -------------------------------
-(*******************************************************************************)
-(* Bounded model-checking harness for Graph3.                                  *)
-(*                                                                             *)
-(* For model checking the task/object identifier sets are materialized and    *)
-(* finite. The DD-graph enumerator DirectedGraphOf is overridden by           *)
-(* MCDirectedGraphOf (backed by the DDGraphs.class Java override), and the     *)
-(* graph predicates HasDirectedCycle / SimplePath by their MC variants from   *)
-(* DiGraphs.                                                                   *)
-(*******************************************************************************)
+(******************************************************************************)
+(* Model of Graph3 for TLC, on finitely many tasks and objects.               *)
+(******************************************************************************)
 
 EXTENDS Graph3
 
-MCDirectedGraphOf(N) == DDGraphOf(N \cap Task, N \cap Object)
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                                 OVERRIDES                                  *)
+(******************************************************************************)
 
 (**
- * TERMINAL STATE
- * Stuttering step enabled once every targeted object is completed or aborted
- * and no task is assigned, succeeded, failed or discarded. With finitely many
- * identifiers, the system reaches states where no action of Next is enabled,
- * which TLC reports as deadlocks. This step only serves model checking: it adds
- * no behaviour to Spec, since [Next \/ Terminating]_vars equals [Next]_vars,
- * and it keeps deadlock checking meaningful, as a state where Next is disabled
- * before termination is still reported.
+ * The graphs that TLC enumerates for a registration: the data-dependency
+ * graphs over the given nodes, substituted for DirectedGraphOf in the
+ * configuration file. A graph that a registration accepts is one: it is a
+ * subgraph of the data-dependency graph it extends the dependencies into,
+ * and its tasks are unknown, hence have no edge in the current graph, so that
+ * its roots and leaves are objects. The substitution hides no registration.
+ *)
+MCDirectedGraphOf(N) == DDGraphOf(N \intersect Task, N \intersect Object)
+
+(**
+ * Stuttering step enabled once the system is idle. With finitely many
+ * identifiers, every behavior reaches a state where Next is disabled, which TLC
+ * reports as a deadlock. This step makes the expected terminal states legal and
+ * leaves the others reported. It adds no behavior, since [Next \/
+ * Terminating]_vars equals [Next]_vars.
  *)
 Terminating ==
-    /\ objectTargets \subseteq (CompletedObject \union AbortedObject)
-    /\ AssignedTask = {}
-    /\ SucceededTask = {}
-    /\ FailedTask = {}
-    /\ DiscardedTask = {}
+    /\ Idle
     /\ UNCHANGED vars
 
 (**
- * Next-state relation checked by TLC: the specification's, with the
- * Terminating step.
+ * The next-state relation of the specification, with the terminal step.
  *)
 MCNext ==
     \/ Next
     \/ Terminating
 
 (**
- * Model-checking specification. As in Graph2_mc, the UpstreamStabilization
- * liveness constraint is dropped: its subscript is not a tuple of variables,
- * which TLC rejects.
+ * The specification with MCNext, without UpstreamStabilization, which holds
+ * in every behavior of the model: with finitely many identifiers, the
+ * dependency graph grows finitely many times, and only its growth enlarges an
+ * open ancestry, since a finalized node never reopens. It serves the
+ * invariants and the properties alike.
  *)
 MCSpec ==
     /\ Init
@@ -51,26 +52,27 @@ MCSpec ==
     /\ UserStopsPausingUpstream
 
 (**
- * MC-checkable form of the Graph2 refinement. As in
- * Graph1_mc, the UpstreamStabilization liveness conjunct of the target Spec
- * is dropped: TLC rejects its <>[][A]_G shape as a property, and it is a
- * spec-level assumption discharged separately (by proof), not part of the
- * step/fairness refinement we exercise here.
+ * RefineGraph2 without the liveness assumption of Graph2, which holds in
+ * every behavior of the model for the same reason as UpstreamStabilization.
  *)
 MCRefineGraph2 ==
     /\ G2!Init
-    /\ [][G2!Next]_(G2!vars)
+    /\ [][G2!Next]_G2!vars
     /\ G2!Fairness
 
 --------------------------------------------------------------------------------
+(******************************************************************************)
+(*                        MODEL-CHECKING CONFIGURATION                        *)
+(******************************************************************************)
 
 (**
- * The finiteness of the task ID set can cause a spurious deadlock when every
- * task ID is "known" and a failed task cannot be retried because no fresh task
- * ID remains. This constraint restricts the explored transitions to avoid that
- * artefact (same as Graph2_mc / Task3_mc).
+ * With finitely many tasks, a failed task cannot be given a next attempt once
+ * every task is known, and stays failed forever. This constraint keeps an
+ * unknown task available for each failed task without a next attempt, as the
+ * infinitely many tasks of the specification do; it hides no behavior that
+ * the specification allows with them.
  *)
 ActionConstraint ==
-    Cardinality(UnknownTask') >= Cardinality(UnretriedTask')
+    Cardinality(UnknownTask') >= Cardinality((FailedTask \ LinkedTask)')
 
 ================================================================================
