@@ -1,34 +1,36 @@
 ------------------------------ MODULE Object2_mc -------------------------------
-(*******************************************************************************)
-(* This specification adapts the Object2 specification to make it              *)
-(* verifiable on finite models by TLC.                                         *)
-(*******************************************************************************)
+(******************************************************************************)
+(* Model of Object2 for TLC, on finitely many objects.                        *)
+(******************************************************************************)
 
 EXTENDS Object2
 
 --------------------------------------------------------------------------------
+(******************************************************************************)
+(*                                 OVERRIDES                                  *)
+(******************************************************************************)
 
 (**
- * TERMINAL STATE
- * Stuttering step enabled once every targeted object is completed or aborted.
- * With finitely many identifiers, the system reaches states where no action of
- * Next is enabled, which TLC reports as deadlocks. This step only serves model
- * checking: it adds no behaviour to Spec, since [Next \/ Terminating]_vars
- * equals [Next]_vars, and it keeps deadlock checking meaningful, as a state
- * where Next is disabled before termination is still reported.
+ * Stuttering step enabled once the system is idle. With finitely many objects,
+ * every behavior reaches a state where Next is disabled, which TLC reports as a
+ * deadlock. This step makes the expected terminal states legal and leaves the
+ * others reported. It adds no behavior, since [Next \/ Terminating]_vars equals
+ * [Next]_vars.
  *)
 Terminating ==
-    /\ objectTargets \subseteq (CompletedObject \union AbortedObject)
+    /\ Idle
     /\ UNCHANGED vars
 
 (**
- * Next-state relation checked by TLC: the specification's, with the
- * Terminating step.
+ * The next-state relation of the specification, with the terminal step.
  *)
 MCNext ==
     \/ Next
     \/ Terminating
 
+(**
+ * The specification with MCNext.
+ *)
 MCSpec ==
     /\ Init
     /\ [][MCNext]_vars
