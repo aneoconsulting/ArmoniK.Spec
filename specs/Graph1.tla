@@ -1,110 +1,116 @@
 -------------------------------- MODULE Graph1 ---------------------------------
-(*****************************************************************************)
-(* This module specifies an abstract decentralized distributed task graph    *)
-(* processing system.                                                        *)
-(*                                                                           *)
-(*   - Tasks produce and consume data objects.                               *)
-(*   - Task and object dependencies form a directed acyclic bipartite graph. *)
-(*   - Tasks are dynamically processed.                                      *)
-(*   - Tasks and objects may be dynamically registred over time.             *)
-(*                                                                           *)
-(* The specification defines the allowable transitions of the system,        *)
-(* together with its key safety and liveness properties.                     *)
-(*****************************************************************************)
+(******************************************************************************)
+(* Abstract processing of a graph of tasks and data objects. Tasks consume    *)
+(* and produce objects, and these data dependencies form an acyclic bipartite *)
+(* graph that grows as the user registers new graphs. The user targets the    *)
+(* objects it wants finalized. A task is staged once its inputs are           *)
+(* finalized, and an object is finalized when it is a root of the graph or    *)
+(* one of its producers has been processed. This specification refines Task1  *)
+(* and Object1, whose lifecycles it links through the dependency graph.       *)
+(******************************************************************************)
 
-EXTENDS DenumerableSets, DDGraphs, TLAPS
+EXTENDS DDGraphs, DenumerableSets, TLAPS
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                    CONSTANTS, ASSUMPTIONS AND VARIABLES                    *)
+(******************************************************************************)
 
 CONSTANTS
-    Object,  \* Set of object identifiers (theoretically infinite)
-    Task     \* Set of task identifiers (theoretically infinite)
+    Object,  \* Set of object identifiers
+    Task     \* Set of task identifiers
 
 ASSUMPTION Assumptions ==
-    /\ Task \cap Object = {}
-    /\ IsDenumerableSet(Object)
-    /\ IsDenumerableSet(Task)
+    /\ Task \intersect Object = {}  \* A node is a task or an object
+    /\ IsDenumerableSet(Object)     \* Unbounded supply of fresh objects
+    /\ IsDenumerableSet(Task)       \* Unbounded supply of fresh tasks
 
 VARIABLES
-    deps,           \* deps is the directed dependency graph over task and object identifiers
-    objectState,    \* objectState[o] records the current lifecycle state of object o
-    objectTargets,  \* objectTargets is the set of objects currently marked as targets
-    taskState       \* taskState[t] records the current lifecycle state of task t
+    deps,           \* Dependency graph over the known tasks and objects
+    objectState,    \* objectState[o]: lifecycle state of object o
+    objectTargets,  \* Set of the objects the user wants finalized
+    taskState       \* taskState[t]: lifecycle state of task t
 
 vars == << deps, objectState, objectTargets, taskState >>
 
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* MODULE INSTANCES                                                          *)
-(*****************************************************************************)
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                               INSTANTIATIONS                               *)
+(******************************************************************************)
 
 (**
- * Instance of the ObjectStates module with SetOfObjectsIn operator provided.
+ * The object states and the sets of objects in each state.
  *)
 INSTANCE ObjectStates
 
 (**
- * Instance of the TaskStates module with SetOfTasksIn operator provided.
+ * The task states and the sets of tasks in each state.
  *)
 INSTANCE TaskStates
 
--------------------------------------------------------------------------------
-
 (**
- * TYPE INVARIANT
- * Claims that all state variables always take values of the expected form.
- *   - Each object has one of the defined object lifecycle states.
- *   - Targeted objects are valid object identifiers.
- *   - Each task has one of the defined task lifecycle states.
- *   - The dependency graph links only valid task and object identifiers
- *     and is a proper graph object (i.e., a record with 'node' and 'edge'
- *     as fields).
+ * Task1 under the identity refinement mapping: its task states are those of
+ * this specification.
  *)
-TypeOk ==
-    /\ taskState \in [Task -> T1State]
-    /\ objectState \in [Object -> O1State]
-    /\ objectTargets \in SUBSET Object
-    /\ deps \in DirectedGraphOf(Task \union Object)
+T1 == INSTANCE Task1Theorems
 
 (**
- * A node is open iff it has not yet been finalized. Openness makes no claim
- * about future progress: an open node may remain in its current non-final
- * state forever if another producer finalizes the object it was meant to
+ * Object1 under the identity refinement mapping: its object states and
+ * targets are those of this specification.
+ *)
+O1 == INSTANCE Object1Theorems
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                                  HELPERS                                   *)
+(******************************************************************************)
+
+(**
+ * A node is open while it is not finalized. An open node may stay in its
+ * state forever: another producer may finalize the object it was meant to
  * produce.
  *)
 IsOpenNode(n) ==
-    ~ (n \in FinalizedTask \/ n \in FinalizedObject)
+    n \notin FinalizedTask \union FinalizedObject
 
 (**
- * The open ancestry of object 'o': the subgraph spanning 'o' and its
- * ancestors reachable through open nodes, i.e. the part of the graph that
- * can still (directly or indirectly) contribute to producing 'o'. It is
- * empty unless 'o' is an open node of the graph.
+ * The open ancestry of object 'o': the subgraph of 'o' and of its ancestors
+ * reachable through open nodes, which can still contribute to producing 'o'.
+ * It is empty unless 'o' is an open node of the graph.
  *)
 OA(o) == AncestorSubGraph(deps, o, IsOpenNode)
 
--------------------------------------------------------------------------------
 
-(*****************************************************************************)
-(* SYSTEM INITIAL STATE AND TRANSITIONS                                      *)
-(*****************************************************************************)
+(**
+ * Every target is finalized and no task is assigned or processed: no work
+ * is pending or in progress.
+ *)
+Idle ==
+    /\ objectTargets \subseteq FinalizedObject
+    /\ AssignedTask = {}
+    /\ ProcessedTask = {}
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                    SYSTEM INITIAL STATE AND TRANSITIONS                    *)
+(******************************************************************************)
 
 (**
  * INITIAL STATE
- * Initially, no tasks, objects, or dependencies exist.
+ * No task or object is known, none is targeted, and the graph is empty.
  *)
 Init ==
-    /\ taskState = [t \in Task |-> TASK_UNKNOWN]
+    /\ deps = EmptyGraph
     /\ objectState = [o \in Object |-> OBJECT_UNKNOWN]
     /\ objectTargets = {}
-    /\ deps = EmptyGraph
+    /\ taskState = [t \in Task |-> TASK_UNKNOWN]
 
 (**
- * GRAPH REGISTRATION
- * A new graph 'G' of tasks and objects is submitted to the system. This
- * registration must not affect the compliance of the dependency graph.
- * In addition, it is not possible to modify the dependencies of tasks that have
- * already been submitted, nor to submit tasks for which all output objects have
- * already been finalized.
+ * ACTION
+ * A finite graph 'G' is added to the dependency graph, which stays a
+ * data-dependency graph. Its tasks are unknown, and none of them produces a
+ * finalized root object. Its tasks and unknown objects are registered: the
+ * dependencies of a known task never change.
  *)
 RegisterGraph(G) ==
     LET
@@ -112,9 +118,10 @@ RegisterGraph(G) ==
     IN
         /\ G /= EmptyGraph
         /\ IsFiniteSet(G.node)
-        /\ G.node \cap Task \subseteq UnknownTask
-        /\ \A t \in G.node \cap Task:
-            Successor(G, t) \intersect Source(deps) \intersect FinalizedObject = {}
+        /\ G.node \intersect Task \subseteq UnknownTask
+        /\ \A t \in G.node \intersect Task :
+            Successor(G, t) \intersect Source(deps) \intersect FinalizedObject
+                = {}
         /\ IsDDGraph(newDeps, Task, Object)
         /\ deps' = newDeps
         /\ objectState' =
@@ -130,54 +137,57 @@ RegisterGraph(G) ==
         /\ UNCHANGED objectTargets
 
 (**
- * OBJECT TARGETING
- * A set 'O' of existing objects is marked as being targeted. Root objects
- * cannot be targeted.
+ * ACTION
+ * The user targets a set 'O' of known objects.
  *)
 TargetObjects(O) ==
-    /\ O /= {} /\ O \subseteq (RegisteredObject \union FinalizedObject)
+    /\ O /= {}
+    /\ O \subseteq (RegisteredObject \union FinalizedObject)
     /\ objectTargets' = objectTargets \union O
     /\ UNCHANGED << deps, objectState, taskState >>
 
 (**
- * OBJECT UNTARGETING
- * A set 'O' of targeted objects is unmarked.
+ * ACTION
+ * The user untargets a set 'O' of targeted objects.
  *)
 UntargetObjects(O) ==
-    /\ O /= {} /\ O \subseteq objectTargets
+    /\ O /= {}
+    /\ O \subseteq objectTargets
     /\ objectTargets' = objectTargets \ O
     /\ UNCHANGED << deps, objectState, taskState >>
 
 (**
- * OBJECT FINALIZATION
- * A set 'O' of objects is finalized. Objects can be finalized if:
- *   - They have no producing tasks i.e., they are roots (external finalization), or
- *   - At least one of their producing tasks has been processed.
+ * ACTION
+ * A set 'O' of registered objects is finalized. Either all of them are roots
+ * of the graph, whose data come from outside, or each has a processed
+ * producer.
  *)
 FinalizeObjects(O) ==
-    /\ O /= {} /\ O \subseteq RegisteredObject
+    /\ O /= {}
+    /\ O \subseteq RegisteredObject
     /\ \/ O \subseteq Source(deps)
-       \/ \A o \in O: \E t \in Predecessor(deps, o): t \in ProcessedTask
+       \/ \A o \in O : \E t \in Predecessor(deps, o) : t \in ProcessedTask
     /\ objectState' =
         [o \in Object |-> IF o \in O THEN OBJECT_FINALIZED ELSE objectState[o]]
     /\ UNCHANGED << deps, objectTargets, taskState >>
 
 (**
- * TASK STAGING
- * A set 'T' of registered tasks becomes staged once all input objects
- * are finalized.
+ * ACTION
+ * A set 'T' of registered tasks whose inputs are finalized is staged: made
+ * ready for processing.
  *)
 StageTasks(T) ==
-    /\ \A t \in T: Predecessor(deps, t) \subseteq FinalizedObject
-    /\ T /= {} /\ T \subseteq RegisteredTask
+    /\ T /= {}
+    /\ T \subseteq RegisteredTask
+    /\ \A t \in T : Predecessor(deps, t) \subseteq FinalizedObject
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
     /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
- * TASK BYPASS
+ * ACTION
  * A set 'T' of registered or staged tasks is moved directly to the processed
- * state, bypassing assignment and execution.
+ * state, bypassing assignment and processing.
  *)
 DiscardTasks(T) ==
     /\ T /= {}
@@ -187,65 +197,60 @@ DiscardTasks(T) ==
     /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
- * TASK ASSIGNMENT
+ * ACTION
  * A set 'T' of staged tasks is assigned for processing.
  *)
 AssignTasks(T) ==
-    /\ T /= {} /\ T \subseteq StagedTask
+    /\ T /= {}
+    /\ T \subseteq StagedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
     /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
- * TASK RELEASE
- * A set 'T' of assigned tasks is released back to the staged pool.
+ * ACTION
+ * A set 'T' of assigned tasks is released back to the staged ones.
  *)
 ReleaseTasks(T) ==
-    /\ T /= {} /\ T \subseteq AssignedTask
+    /\ T /= {}
+    /\ T \subseteq AssignedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
     /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
- * TASK PROCESSING
+ * ACTION
  * A set 'T' of assigned tasks completes processing.
  *)
 ProcessTasks(T) ==
-    /\ T /= {} /\ T \subseteq AssignedTask
+    /\ T /= {}
+    /\ T \subseteq AssignedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_PROCESSED ELSE taskState[t]]
     /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
- * TASK FINALIZATION
- * A set 'T' of processed tasks is finalized (i.e., post-processed) when all
- * their output objects that can now only be produced by them are finalized.
- * Indeed, an output object may have multiple parent tasks. So as long as there
- * is at least one parent that has not been finalized, the others can ignore the
- * object and finalize.
+ * ACTION
+ * A set 'T' of processed tasks is post-processed, which finalizes them. Each
+ * registered output object keeps an unfinalized producer outside 'T': the
+ * last producer of an object waits for the object to be finalized.
  *)
 FinalizeTasks(T) ==
-    /\ T /= {} /\ T \subseteq ProcessedTask
-    /\ \A o \in UNION {Successor(deps, t): t \in T} :
+    /\ T /= {}
+    /\ T \subseteq ProcessedTask
+    /\ \A o \in UNION {Successor(deps, t) : t \in T} :
         o \in RegisteredObject
             => \E u \in (Predecessor(deps, o) \ T) : u \notin FinalizedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_FINALIZED ELSE taskState[t]]
     /\ UNCHANGED << deps, objectState, objectTargets >>
 
-(**
- * TERMINAL STATE PREDICATE
- * The system is in a terminal state once all targeted objects have been
- * finalized and no task remains in an intermediate processing state
- * (assigned or processed).
- *)
-terminated ==
-    /\ objectTargets \subseteq FinalizedObject
-    /\ AssignedTask = {}
-    /\ ProcessedTask = {}
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                               ACTION HELPERS                               *)
+(******************************************************************************)
 
 (**
- * USER QUIESCENCE
  * A step in which the user drives no new work: no graph is registered and no
  * object is targeted or untargeted.
  *)
@@ -253,23 +258,22 @@ NoUserAction ==
     /\ ~ \E G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G)
     /\ ~ \E O \in SUBSET Object : TargetObjects(O) \/ UntargetObjects(O)
 
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* FULL SYSTEM SPECIFICATION                                                 *)
-(*****************************************************************************)
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                            SYSTEM SPECIFICATION                            *)
+(******************************************************************************)
 
 (**
  * NEXT-STATE RELATION
- * Defines all atomic transitions of the system.
+ * All the atomic transitions of the system.
  *)
 Next ==
-    \/ \E G \in DirectedGraphOf(Task \union Object): RegisterGraph(G)
-    \/ \E O \in SUBSET Object:
+    \/ \E G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G)
+    \/ \E O \in SUBSET Object :
         \/ TargetObjects(O)
         \/ UntargetObjects(O)
         \/ FinalizeObjects(O)
-    \/ \E T \in SUBSET Task:
+    \/ \E T \in SUBSET Task :
         \/ StageTasks(T)
         \/ DiscardTasks(T)
         \/ AssignTasks(T)
@@ -279,17 +283,18 @@ Next ==
 
 (**
  * FAIRNESS CONDITIONS
- * These conditions guarantee eventual progress for all eligible objects
- * and tasks in the system:
- *   - Every object that becomes eligible for finalization is eventually finalized.
- *   - Every registered task whose input objects are finalized and that lies
- *     persistently in the open ancestry of a given target object is
- *     eventually staged.
- *   - Every task that lies persistently in the open ancestry of a given
- *     target object is eventually assigned.
- *   - Every assigned task is eventually processed.
- *   - Every processed task whose outputs become eligible for finalization is
- *     eventually finalized.
+ * - Weak fairness of FinalizeObjects: an object that stays finalizable is
+ *   eventually finalized.
+ * - Strong fairness of ProcessTasks: a task assigned infinitely often is
+ *   eventually processed.
+ * - Weak fairness of FinalizeTasks: a task that stays finalizable is
+ *   eventually finalized.
+ * - Weak fairness of StageTasks, for a task 't' and an object 'o': a task
+ *   that stays stageable in the open ancestry of the target 'o' is
+ *   eventually staged.
+ * - Weak fairness of AssignTasks, for a task 't' and an object 'o': a task
+ *   that stays staged in the open ancestry of the target 'o' is eventually
+ *   assigned.
  *)
 Fairness ==
     /\ \A o \in Object :
@@ -298,26 +303,21 @@ Fairness ==
         /\ SF_vars(ProcessTasks({t}))
         /\ WF_vars(FinalizeTasks({t}))
     /\ \A t \in Task, o \in Object :
-        /\ WF_vars(
-            /\ o \in objectTargets
-            /\ t \in OA(o).node
-            /\ StageTasks({t}))
-        /\ WF_vars(
-            /\ o \in objectTargets
-            /\ t \in OA(o).node
-            /\ AssignTasks({t}))
+        /\ WF_vars(o \in objectTargets /\ t \in OA(o).node /\ StageTasks({t}))
+        /\ WF_vars(o \in objectTargets /\ t \in OA(o).node /\ AssignTasks({t}))
 
 (**
- * LIVENESS CONSTRAINT
- * For every object that is currently a target, the open ancestry eventually
- * becomes closed under additions, i.e. it never gains another node or edge
- * (it may still shrink). Combined with the fairness conditions above,
- * this ensures every targeted object is eventually finalized, and thus
- * establishes the refinement of Object1.
+ * LIVENESS ASSUMPTION
+ * The open ancestry of an object targeted forever from some point on
+ * eventually stops growing: it may still lose nodes and edges, but never
+ * gains one. With the fairness conditions, it gets every such target
+ * finalized, as Object1 requires.
  *)
 UpstreamStabilization ==
     \A o \in Object :
-        []([](o \in objectTargets) => <>[][OA(o)' \in DirectedSubgraph(OA(o))]_(OA(o)))
+        At(o) ::
+            <>[](o \in objectTargets)
+            => <>[][OA(o)' \in DirectedSubgraph(OA(o))]_(OA(o))
 
 (**
  * Full system specification.
@@ -328,23 +328,43 @@ Spec ==
     /\ Fairness
     /\ UpstreamStabilization
 
--------------------------------------------------------------------------------
-
-(*****************************************************************************)
-(* SAFETY AND LIVENESS PROPERTIES                                            *)
-(*****************************************************************************)
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                       SAFETY AND LIVENESS PROPERTIES                       *)
+(******************************************************************************)
 
 (**
- * SAFETY
- * The dependency graph is always ArmoniK-compliant.
+ * INVARIANT
+ * The state variables belong to their expected domains.
  *)
-DependencyGraphCompliant ==
+TypeOk ==
+    /\ deps \in DirectedGraphOf(Task \union Object)
+    /\ objectState \in [Object -> O1State]
+    /\ objectTargets \in SUBSET Object
+    /\ taskState \in [Task -> T1State]
+
+(**
+ * INVARIANT
+ * The dependency graph is a data-dependency graph: acyclic, bipartite between
+ * tasks and objects, with objects as its roots and leaves.
+ *)
+DepsCompliant ==
     IsDDGraph(deps, Task, Object)
 
 (**
- * SAFETY
- * Ensures consistent relationships between graph structure and task/object
- * states.
+ * INVARIANT
+ * The dependency graph is finite, since each registration adds a finite
+ * graph.
+ *)
+DepsFinite ==
+    IsFiniteSet(deps.node)
+
+(**
+ * INVARIANT
+ * The graph agrees with the lifecycle states. Its nodes are the known tasks
+ * and objects. A staged or assigned task has finalized inputs. An object that
+ * is not a root is registered only while one of its producers is not
+ * finalized, and finalized only once one of them has been processed.
  *)
 GraphStateIntegrity ==
     /\ \A t \in Task : t \in deps.node <=> t \notin UnknownTask
@@ -353,68 +373,64 @@ GraphStateIntegrity ==
         t \in StagedTask \union AssignedTask
            => Predecessor(deps, t) \subseteq FinalizedObject
     /\ \A o \in Object :
-        o \notin Source(deps) =>
-            /\ o \in RegisteredObject => ~(Predecessor(deps, o) \subseteq FinalizedTask)
-            /\ o \in FinalizedObject => Predecessor(deps, o) \intersect (ProcessedTask \union FinalizedTask) /= {}
+        o \notin Source(deps) /\ o \in RegisteredObject
+           => Predecessor(deps, o) \ FinalizedTask /= {}
+    /\ \A o \in Object :
+        o \notin Source(deps) /\ o \in FinalizedObject
+           => Predecessor(deps, o)
+                \intersect (ProcessedTask \union FinalizedTask) /= {}
 
 (**
  * SAFETY
- * The dependency graph is finite: it has finitely many nodes (and therefore
- * finitely many edges). In particular every task has a finite number of input
- * and output data dependencies.
+ * The dependency graph only grows: each step keeps it as a subgraph.
  *)
-DependencyGraphFinite ==
-    IsFiniteSet(deps.node)
+DepsMonotone ==
+    [][(deps \in DirectedSubgraph(deps'))]_deps
 
 (**
- * Ensures that a finalized source object remains a source forever.
+ * SAFETY
+ * A finalized root object stays a finalized root: no producer is ever added
+ * to it.
  *)
-FinalizedSourcesInvariant ==
+PermanentFinalizedSource ==
     \A o \in Object :
-        [](o \in Source(deps) /\ o \in FinalizedObject => [](o \in Source(deps)))
+        [](o \in Source(deps) /\ o \in FinalizedObject
+           => [](o \in Source(deps) /\ o \in FinalizedObject))
 
 (**
  * SAFETY
- * The data dependencies of each task remain immutable throughout execution.
+ * Once a task is known, its inputs and its outputs never change. TLC cannot
+ * check this form, which the model leaves out.
  *)
-TaskDataDependenciesInvariant ==
-    \A t \in Task:
-        [](t \notin UnknownTask =>
-            [][ /\ Predecessor(deps, t) = Predecessor(deps', t)
-                /\ Successor(deps, t) = Successor(deps', t) ]_deps)
+ImmutableTaskDependencies ==
+    \A t \in Task :
+        [](t \notin UnknownTask
+           => [][/\ Predecessor(deps, t) = Predecessor(deps', t)
+                 /\ Successor(deps, t) = Successor(deps', t)]_deps)
 
 (**
- * LIVENESS
- * This specification refines the Task1 specification.
+ * REFINEMENT
+ * Graph1 refines Task1.
  *)
-T1 == INSTANCE Task1Theorems
 RefineTask1 ==
     T1!Spec
 
 (**
- * LIVENESS
- * This specification refines the Object1 specification.
+ * REFINEMENT
+ * Graph1 refines Object1.
  *)
-O1 == INSTANCE Object1Theorems
 RefineObject1 ==
     O1!Spec
 
 (**
  * LIVENESS
- * If the user eventually stops driving the system -- no further graph is
- * ever registered and no object is ever targeted or untargeted again -- then
- * the system eventually terminates: it reaches a terminal state (all targeted
- * objects finalized, no task assigned or processed) and its state never
- * changes again.
- *
- * The conclusion is the conjunction of two suffix-stable formulas, which is
- * equivalent to <>([]terminated /\ [][FALSE]_vars). This shape is checkable
- * directly by TLC, which restricts temporal formulas containing actions to
- * the forms <>[]A and []<>A.
+ * If the user eventually stops driving the system, the system eventually
+ * stays idle and its state stops changing. The conclusion is written as a
+ * conjunction that TLC can check, as in Task1 and Object1.
  *)
-EventualTermination ==
+EventualQuiescence ==
     <>[][NoUserAction]_vars
-    => /\ <>[]terminated
+    => /\ <>[]Idle
        /\ <>[][FALSE]_vars
 
 ================================================================================
