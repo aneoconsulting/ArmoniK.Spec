@@ -1,20 +1,20 @@
------------------------------ MODULE TaskIntents ------------------------------
-(*****************************************************************************)
-(* This module defines the user intents on tasks. An intent is the latest    *)
-(* user decision on an attempt chain, i.e., a task and all its retries,      *)
-(* which the system acknowledges on each attempt. An attempt chain is        *)
-(* identified by its first attempt, which never changes; the attempt chains  *)
-(* to pause and to cancel are recorded, and the other known ones are to run. *)
-(*****************************************************************************)
+------------------------------ MODULE TaskIntents ------------------------------
+(******************************************************************************)
+(* This module defines the user intents on tasks. An intent is the latest     *)
+(* user decision on an attempt chain, i.e., a task and all its retries, which *)
+(* the system acknowledges on each attempt. An attempt chain is identified by *)
+(* its first attempt, which never changes; the attempt chains to pause and to *)
+(* cancel are recorded, and the other known ones are to run.                  *)
+(******************************************************************************)
 
 EXTENDS TaskRetries
 
 VARIABLE
-    intent  \* intent[i]: IDs of the attempt chains whose intent is i (PAUSE or CANCEL)
+    intent  \* intent[i]: identifiers of the chains whose recorded intent is i
 
-INTENT_RUN    == "INTENT_RUN"    \* May run: the intent of a submitted attempt chain, restored by a resume
-INTENT_PAUSE  == "INTENT_PAUSE"  \* To be paused (revocable)
-INTENT_CANCEL == "INTENT_CANCEL" \* To be cancelled (irrevocable)
+INTENT_RUN    == "INTENT_RUN"     \* May run; given at submission and on resume
+INTENT_PAUSE  == "INTENT_PAUSE"   \* To be paused (revocable)
+INTENT_CANCEL == "INTENT_CANCEL"  \* To be cancelled (irrevocable)
 
 Intent == {INTENT_RUN, INTENT_PAUSE, INTENT_CANCEL}
 
@@ -61,4 +61,4 @@ IntentEffect(i) ==
                                TASK_COMPLETED, TASK_RETRIED, TASK_ABORTED}
       [] i = INTENT_CANCEL -> {TASK_COMPLETED, TASK_RETRIED, TASK_ABORTED}
 
-===============================================================================
+================================================================================
