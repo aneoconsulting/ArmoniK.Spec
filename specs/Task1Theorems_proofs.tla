@@ -1,275 +1,106 @@
 ------------------------- MODULE Task1Theorems_proofs --------------------------
-EXTENDS Task1, FiniteSetTheorems, TLAPS
+(******************************************************************************)
+(* Proofs of all the properties of Task1.                                     *)
+(******************************************************************************)
 
-USE DEF TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED, TASK_PROCESSED,
-TASK_FINALIZED
+EXTENDS FiniteSetTheorems, Task1, TLAPS
 
-LEMMA LemType == Init /\ [][Next]_vars => []TypeOk
-<1>. USE DEF TypeOk, T1State
+USE DEF TASK_ASSIGNED, TASK_FINALIZED, TASK_PROCESSED, TASK_REGISTERED,
+    TASK_STAGED, TASK_UNKNOWN
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                              TYPE CORRECTNESS                              *)
+(******************************************************************************)
+
+LEMMA LemTypeOk == Init /\ [][Next]_vars => []TypeOk
+<1>. USE DEF T1State, TypeOk
 <1>1. Init => TypeOk
     BY DEF Init
 <1>2. TypeOk /\ [Next]_vars => TypeOk'
-    BY DEF Next, vars, RegisterTasks, StageTasks, DiscardTasks, AssignTasks,
-    ReleaseTasks, ProcessTasks, FinalizeTasks, UnknownTask,
-    RegisteredTask, StagedTask, AssignedTask, ProcessedTask, FinalizedTask
+    BY DEF AssignedTask, AssignTasks, DiscardTasks, FinalizedTask,
+        FinalizeTasks, Next, ProcessedTask, ProcessTasks, RegisteredTask,
+        RegisterTasks, ReleaseTasks, StagedTask, StageTasks, UnknownTask, vars
 <1>. QED
     BY <1>1, <1>2, PTL
 
-THEOREM T1_Type == Spec => []TypeOk
-BY LemType DEF Spec
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                                 INVARIANTS                                 *)
+(******************************************************************************)
 
 LEMMA LemFiniteKnownTasks == Init /\ [][Next]_vars => []FiniteKnownTasks
 <1>. USE DEF FiniteKnownTasks, UnknownTask
 <1>1. Init => FiniteKnownTasks
     BY FS_EmptySet DEF Init
-(* A registration adds its finite set to the known tasks; no other step
-   changes them. *)
 <1>2. FiniteKnownTasks /\ [Next]_vars => FiniteKnownTasks'
     <2>1. ASSUME NEW T \in SUBSET Task, RegisterTasks(T), FiniteKnownTasks
-          PROVE FiniteKnownTasks'
-        <3>1. (Task \ UnknownTask)' = (Task \ UnknownTask) \cup T
+          PROVE  FiniteKnownTasks'
+        <3>1. (Task \ UnknownTask)' = (Task \ UnknownTask) \union T
             BY <2>1 DEF RegisterTasks
         <3>. QED
             BY <2>1, <3>1, FS_Union DEF RegisterTasks
     <2>2. ASSUME NEW T \in SUBSET Task,
                  \/ StageTasks(T) \/ DiscardTasks(T) \/ AssignTasks(T)
                  \/ ReleaseTasks(T) \/ ProcessTasks(T) \/ FinalizeTasks(T)
-          PROVE (Task \ UnknownTask)' = Task \ UnknownTask
-        BY <2>2 DEF AssignTasks, AssignedTask, DiscardTasks, FinalizeTasks, ProcessTasks,
-        ProcessedTask, RegisteredTask, ReleaseTasks, StagedTask, StageTasks
+          PROVE  (Task \ UnknownTask)' = Task \ UnknownTask
+        BY <2>2 DEF AssignedTask, AssignTasks, DiscardTasks, FinalizeTasks,
+            ProcessedTask, ProcessTasks, RegisteredTask, ReleaseTasks,
+            StagedTask, StageTasks
     <2>. QED
         BY <2>1, <2>2 DEF Next, vars
 <1>. QED
     BY <1>1, <1>2, PTL
 
-THEOREM T1_FiniteKnownTasks == Spec => []FiniteKnownTasks
-BY LemFiniteKnownTasks DEF Spec
-
-THEOREM T1_PermanentFinalization == Spec => PermanentFinalization
-<1>. SUFFICES ASSUME NEW t \in Task
-                PROVE Spec => [](t \in FinalizedTask => [](t \in FinalizedTask))
-    BY DEF PermanentFinalization
-<1>1. TypeOk /\ t \in FinalizedTask /\ [Next]_vars
-            => (t \in FinalizedTask)'
-    BY DEF TypeOk, Next, vars, RegisterTasks,
-    StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks,
-    FinalizeTasks, UnknownTask, RegisteredTask, StagedTask,
-    AssignedTask, ProcessedTask, FinalizedTask
-<1>2. QED
-    BY <1>1, T1_Type, PTL DEF Spec
-
-LEMMA AssignmentEnablesProcessing ==
-        ASSUME NEW t \in Task, TypeOk
-        PROVE t \in AssignedTask
-              => ENABLED <<ProcessTasks({t})>>_vars
-BY ExpandENABLED DEF ProcessTasks, AssignedTask, vars
-
-LEMMA LemEventualDeallocation == []TypeOk /\ [][Next]_vars /\ Fairness => EventualDeallocation
-<1>. SUFFICES ASSUME NEW t \in Task
-              PROVE []TypeOk /\ [][Next]_vars /\ Fairness
-                    => t \in AssignedTask ~> t \in StagedTask \/ t \in ProcessedTask
-    BY DEF EventualDeallocation
-<1>1. t \in AssignedTask /\ [Next]_vars => \/ (t \in AssignedTask)'
-                                           \/ (t \in StagedTask)'
-                                           \/ (t \in ProcessedTask)'
-    <2>. SUFFICES ASSUME NEW T \in SUBSET Task, t \in AssignedTask
-                  PROVE [\/ RegisterTasks(T)
-                         \/ StageTasks(T)
-                         \/ DiscardTasks(T)
-                         \/ AssignTasks(T)
-                         \/ ReleaseTasks(T)
-                         \/ ProcessTasks(T)
-                         \/ FinalizeTasks(T)]_vars => \/ (t \in AssignedTask)'
-                                                      \/ (t \in StagedTask)'
-                                                      \/ (t \in ProcessedTask)'
-        BY Zenon DEF Next
-    <2>. QED
-        BY DEF RegisterTasks, StageTasks, DiscardTasks, AssignTasks, ReleaseTasks,
-        ProcessTasks, FinalizeTasks, vars, UnknownTask, RegisteredTask,
-        StagedTask, AssignedTask, ProcessedTask, FinalizedTask
-<1>2. TypeOk /\ t \in AssignedTask /\ <<ProcessTasks({t})>>_vars
-      => (t \in ProcessedTask)'
-    BY DEF TypeOk, ProcessTasks, AssignedTask, ProcessedTask
-<1>3. TypeOk /\ t \in AssignedTask
-      => ENABLED <<ProcessTasks({t})>>_vars
-    BY AssignmentEnablesProcessing
-<1>4. Fairness => SF_vars(ProcessTasks({t}))
-    BY Isa DEF Fairness
-<1>. QED
-    BY <1>1, <1>2, <1>3, <1>4, PTL
-
-THEOREM T1_EventualDeallocation == Spec => EventualDeallocation
-BY LemEventualDeallocation, T1_Type, PTL DEF Spec
-
-LEMMA LemEventualProcessing == []TypeOk /\ [][Next]_vars /\ Fairness => EventualProcessing
-<1>. SUFFICES ASSUME NEW t \in Task
-              PROVE []TypeOk /\ [][Next]_vars /\ Fairness
-                    => ([]<>(t \in AssignedTask) => <>(t \in ProcessedTask))
-    BY DEF EventualProcessing
-<1>1. TypeOk /\ t \in AssignedTask
-      => ENABLED <<ProcessTasks({t})>>_vars
-    BY AssignmentEnablesProcessing
-<1>2. <<ProcessTasks({t})>>_vars
-      => (t \in ProcessedTask)'
-    BY DEF ProcessTasks, ProcessedTask
-<1>3. Fairness => SF_vars(ProcessTasks({t}))
-    BY Isa DEF Fairness
-<1>. QED
-    BY <1>1, <1>2, <1>3, PTL
-
-THEOREM T1_EventualProcessing == Spec => EventualProcessing
-BY LemEventualProcessing, T1_Type, PTL DEF Spec
-
-LEMMA LemEventualFinalization == []TypeOk /\ [][Next]_vars /\ Fairness => EventualFinalization
-<1>. SUFFICES ASSUME NEW t \in Task
-                PROVE []TypeOk /\ [][Next]_vars /\ Fairness
-                      => t \in ProcessedTask ~> t \in FinalizedTask
-    BY DEF EventualFinalization
-<1>1. TypeOk /\ t \in ProcessedTask /\ [Next]_vars
-      => (t \in ProcessedTask)' \/ (t \in FinalizedTask)'
-    BY DEF TypeOk, Next, vars, RegisterTasks,
-    StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks, FinalizeTasks,
-    UnknownTask, RegisteredTask, StagedTask, AssignedTask, ProcessedTask,
-    FinalizedTask
-<1>2. t \in ProcessedTask => ENABLED <<FinalizeTasks({t})>>_vars
-    BY ExpandENABLED DEF FinalizeTasks, vars, ProcessedTask
-<1>3. t \in ProcessedTask /\ <<FinalizeTasks({t})>>_vars => (t \in FinalizedTask)'
-    BY DEF FinalizeTasks, ProcessedTask, FinalizedTask
-<1>4. Fairness => WF_vars(FinalizeTasks({t}))
-    BY Isa DEF Fairness
-<1>. QED
-    BY <1>1, <1>2, <1>3, <1>4, PTL
-
-THEOREM T1_EventualFinalization == Spec => EventualFinalization
-BY LemEventualFinalization, T1_Type, PTL DEF Spec
-
-THEOREM T1_EventualQuiescence == Spec => EventualQuiescence
-<1>. SUFFICES ASSUME NEW t \in Task
-              PROVE Spec => (t \in RegisteredTask ~> \/ [](t \in RegisteredTask)
-                                                     \/ [](t \in StagedTask)
-                                                     \/ [](t \in FinalizedTask))
-    BY DEF EventualQuiescence
-<1>1. TypeOk /\ t \in RegisteredTask /\ [Next]_vars
-      => (t \in RegisteredTask)' \/ (t \in StagedTask)'  \/ (t \in ProcessedTask)'
-    BY DEF TypeOk, Next, vars, RegisterTasks,
-    StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks, FinalizeTasks,
-    UnknownTask, RegisteredTask, StagedTask, AssignedTask, ProcessedTask,
-    FinalizedTask
-<1>2. TypeOk /\ t \in StagedTask /\ [Next]_vars
-      => (t \in StagedTask)' \/ (t \in AssignedTask)' \/ (t \in ProcessedTask)'
-    BY DEF TypeOk, Next, vars, RegisterTasks,
-    StageTasks, DiscardTasks, AssignTasks, ReleaseTasks, ProcessTasks, FinalizeTasks,
-    UnknownTask, RegisteredTask, StagedTask, AssignedTask, ProcessedTask,
-    FinalizedTask
-<1>3. Spec => (t \in AssignedTask ~> t \in StagedTask \/ t \in ProcessedTask)
-    BY T1_EventualDeallocation DEF EventualDeallocation
-<1>4. Spec => ([]<>(t \in AssignedTask) => <>(t \in ProcessedTask))
-    BY T1_EventualProcessing DEF EventualProcessing
-<1>5. Spec => (t \in ProcessedTask ~> t \in FinalizedTask)
-    BY T1_EventualFinalization DEF EventualFinalization
-<1>6. Spec => [](t \in FinalizedTask => [](t \in FinalizedTask))
-    BY T1_PermanentFinalization DEF PermanentFinalization
-<1>. QED
-    BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, T1_Type, PTL DEF Spec
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                            INDUCTIVE INVARIANT                             *)
+(******************************************************************************)
 
 (**
- * Tasks that are neither assigned nor processed: a task has settled once it
- * stays in this set forever.
+ * The invariants used by the liveness proofs.
  *)
-Settled == {t \in Task : ~ t \in AssignedTask /\ ~ t \in ProcessedTask}
+Inv ==
+    /\ TypeOk
+    /\ FiniteKnownTasks
+
+LEMMA LemInv == Init /\ [][Next]_vars => []Inv
+BY LemFiniteKnownTasks, LemTypeOk, PTL DEF Inv
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                          OTHER SAFETY PROPERTIES                           *)
+(******************************************************************************)
 
 (**
- * Finite-stabilization arguments: the known tasks settle together (Joint) and
- * the registered set ranks the quiescent steps of a settled system (Stutter).
+ * A finalized task stays finalized at every step.
  *)
-Joint == INSTANCE FrozenJointStabilityTheorems
-            WITH S <- Task \ UnknownTask, T <- Settled
-Stutter == INSTANCE EventualStutteringTheorems
-            WITH S <- RegisteredTask, v <- vars
+LEMMA LemPermanentFinalization ==
+    ASSUME NEW t \in Task, [Next]_vars
+    PROVE  t \in FinalizedTask => (t \in FinalizedTask)'
+BY DEF AssignedTask, AssignTasks, DiscardTasks, FinalizedTask, FinalizeTasks,
+    Next, ProcessedTask, ProcessTasks, RegisteredTask, RegisterTasks,
+    ReleaseTasks, StagedTask, StageTasks, UnknownTask, vars
 
-LEMMA LemEventualTermination ==
-    []TypeOk /\ []FiniteKnownTasks /\ [][Next]_vars /\ Fairness => EventualTermination
-(* Parked(t): t eventually settles forever. Kept opaque, since temporal atoms
-   only coalesce under identical bound names and the library quantifies over x
-   where the spec quantifies over t. *)
-<1>. DEFINE Parked(t) == <>[](t \in Settled)
-<1>. HIDE DEF Parked
-(* The tasks, under the name FrozenJointStability binds its domain to: tlapm
-   matches its temporal conclusion at that name only. *)
-<1>. PICK D : D = Task
-    OBVIOUS
-(* (a) Every task parks: assigned infinitely often it would be processed, and a
-   processed task is finalized, permanently and exclusively. *)
-<1>1. []TypeOk /\ [][Next]_vars /\ Fairness => \A x \in Task : Parked(x)
-    <2>. SUFFICES ASSUME NEW t \in Task
-                  PROVE []TypeOk /\ [][Next]_vars /\ Fairness => Parked(t)
-        OBVIOUS
-    <2>1. []TypeOk /\ [][Next]_vars /\ Fairness
-          => ([]<>(t \in AssignedTask) => <>(t \in ProcessedTask))
-        BY LemEventualProcessing DEF EventualProcessing
-    <2>2. []TypeOk /\ [][Next]_vars /\ Fairness => (t \in ProcessedTask ~> t \in FinalizedTask)
-        BY LemEventualFinalization DEF EventualFinalization
-    <2>3. t \in FinalizedTask /\ [Next]_vars => (t \in FinalizedTask)'
-        BY DEF AssignTasks, AssignedTask, DiscardTasks, FinalizeTasks, FinalizedTask, Next,
-        ProcessTasks, ProcessedTask, RegisterTasks, RegisteredTask, ReleaseTasks, StageTasks,
-        StagedTask, UnknownTask, vars
-    <2>4. /\ t \in FinalizedTask => t \in Settled
-          /\ t \in Settled <=> ~ t \in AssignedTask /\ ~ t \in ProcessedTask
-        BY DEF AssignedTask, FinalizedTask, ProcessedTask, Settled
-    <2>. QED
-        BY <2>1, <2>2, <2>3, <2>4, PTL DEF Parked
-(* (b) A quiescent step registers nothing: the set of known tasks is frozen. *)
-<1>2. [Next]_vars /\ [NoUserAction]_vars => UNCHANGED (Task \ UnknownTask)
-    BY DEF AssignTasks, AssignedTask, DiscardTasks, FinalizeTasks, Next, NoUserAction,
-    ProcessTasks, ProcessedTask, RegisterTasks, RegisteredTask, ReleaseTasks, StageTasks,
-    StagedTask, UnknownTask, vars
-(* (c) Finitely many known tasks park together, emptying the assigned and
-   processed sets. *)
-<1>3. /\ <>[]IsFiniteSet(Task \ UnknownTask)
-      /\ <>[][FALSE]_(Task \ UnknownTask)
-      /\ \A x \in Task : Parked(x)
-      => <>[]((Task \ UnknownTask) \cap D \subseteq Settled)
-    BY Joint!FrozenJointStability DEF Joint!IsFiniteSet, IsFiniteSet, Parked
-<1>4. (Task \ UnknownTask) \cap D \subseteq Settled
-      => AssignedTask = {} /\ ProcessedTask = {}
-    BY DEF AssignedTask, ProcessedTask, Settled, UnknownTask
-(* (d) In a settled system, a quiescent step can only stage registered tasks: the
-   finite registered set ranks the remaining steps, which therefore stop. *)
-<1>5. /\ AssignedTask = {} /\ ProcessedTask = {}
-      /\ (AssignedTask = {} /\ ProcessedTask = {})'
-      /\ [Next]_vars /\ [NoUserAction]_vars
-      => RegisteredTask' \subseteq RegisteredTask /\ [RegisteredTask' # RegisteredTask]_vars
-    BY DEF AssignTasks, AssignedTask, DiscardTasks, FinalizeTasks, Next, NoUserAction,
-    ProcessTasks, ProcessedTask, RegisterTasks, RegisteredTask, ReleaseTasks, StageTasks,
-    StagedTask, UnknownTask, vars
-<1>6. FiniteKnownTasks => IsFiniteSet(Task \ UnknownTask) /\ IsFiniteSet(RegisteredTask)
-    BY FS_Subset DEF FiniteKnownTasks, RegisteredTask, UnknownTask
-<1>7. /\ <>[]IsFiniteSet(RegisteredTask)
-      /\ <>[][RegisteredTask' \subseteq RegisteredTask]_RegisteredTask
-      /\ <>[][RegisteredTask' # RegisteredTask]_vars
-      => <>[][FALSE]_vars
-    BY Stutter!EventualStuttering DEF Stutter!IsFiniteSet, IsFiniteSet
-<1>. QED
-    BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, PTL DEF EventualTermination
-
-THEOREM T1_EventualTermination == Spec => EventualTermination
-BY LemEventualTermination, T1_FiniteKnownTasks, T1_Type, PTL DEF Spec
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                           ENABLED-FREE FAIRNESS                            *)
+(******************************************************************************)
 
 (**
- * ENABLED-FREE FAIRNESS
- * Fairness restated without ENABLED: processing a task is enabled exactly
- * when it is assigned, and finalizing it exactly when it is processed.
- * Substitution does not distribute over ENABLED, hence not over WF and SF,
- * but it does over this form: a refinement proves the instantiated
+ * The fairness conditions restated without ENABLED, which a substitution does
+ * not distribute over: a refinement proves the instantiated
  * FairProcessTasks(t) and FairFinalizeTasks(t) and recovers the instantiated
- * Fairness through LemFairnessEnabledFree.
+ * Fairness through LemFairnessEnabledFree. Processing a task is enabled
+ * exactly when it is assigned, and finalizing it exactly when it is
+ * processed.
  *)
 EnabledProcessTasks(t) == t \in AssignedTask
 
-EnabledFinalizeTasks(t) == t \in ProcessedTask
-
 FairProcessTasks(t) ==
     []<>EnabledProcessTasks(t) => []<><<ProcessTasks({t})>>_vars
+
+EnabledFinalizeTasks(t) == t \in ProcessedTask
 
 FairFinalizeTasks(t) ==
     <>[]EnabledFinalizeTasks(t) => []<><<FinalizeTasks({t})>>_vars
@@ -283,8 +114,224 @@ LEMMA LemFairnessEnabledFree ==
 <1>1. (ENABLED <<ProcessTasks({t})>>_vars) <=> EnabledProcessTasks(t)
     BY ExpandENABLED DEF AssignedTask, EnabledProcessTasks, ProcessTasks, vars
 <1>2. (ENABLED <<FinalizeTasks({t})>>_vars) <=> EnabledFinalizeTasks(t)
-    BY ExpandENABLED DEF EnabledFinalizeTasks, FinalizeTasks, ProcessedTask, vars
+    BY ExpandENABLED DEF EnabledFinalizeTasks, FinalizeTasks, ProcessedTask,
+        vars
 <1>. QED
     BY <1>1, <1>2, PTL DEF FairFinalizeTasks, FairProcessTasks
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                                  LIVENESS                                  *)
+(******************************************************************************)
+
+LEMMA LemEventualProcessing ==
+    ASSUME NEW t \in Task
+    PROVE  [][Next]_vars /\ FairProcessTasks(t) => EventualProcessing!At(t)
+<1>1. <<ProcessTasks({t})>>_vars => (t \in ProcessedTask)'
+    BY DEF ProcessedTask, ProcessTasks
+<1>. QED
+    BY <1>1, PTL DEF EnabledProcessTasks, FairProcessTasks
+
+LEMMA LemEventualFinalization ==
+    ASSUME NEW t \in Task
+    PROVE  [][Next]_vars /\ FairFinalizeTasks(t) => EventualFinalization!At(t)
+<1>1. t \in ProcessedTask /\ [Next]_vars
+        => (t \in ProcessedTask)' \/ (t \in FinalizedTask)'
+    BY DEF AssignedTask, AssignTasks, DiscardTasks, FinalizedTask,
+        FinalizeTasks, Next, ProcessedTask, ProcessTasks, RegisteredTask,
+        RegisterTasks, ReleaseTasks, StagedTask, StageTasks, UnknownTask, vars
+<1>2. <<FinalizeTasks({t})>>_vars => (t \in FinalizedTask)'
+    BY DEF FinalizedTask, FinalizeTasks
+<1>. QED
+    BY <1>1, <1>2, PTL DEF EnabledFinalizeTasks, FairFinalizeTasks
+
+LEMMA LemEventualStability ==
+    ASSUME NEW t \in Task
+    PROVE  /\ []Inv
+           /\ [][Next]_vars
+           /\ FairProcessTasks(t)
+           /\ FairFinalizeTasks(t)
+           => EventualStability!At(t)
+<1>1. [Next]_vars
+      => /\ t \in UnknownTask
+            => (t \in UnknownTask)' \/ (t \in RegisteredTask)'
+         /\ t \in RegisteredTask
+            => (t \in RegisteredTask)' \/ (t \in StagedTask)'
+               \/ (t \in ProcessedTask)'
+         /\ t \in StagedTask
+            => (t \in StagedTask)' \/ (t \in AssignedTask)'
+               \/ (t \in ProcessedTask)'
+         /\ t \in AssignedTask
+            => (t \in AssignedTask)' \/ (t \in StagedTask)'
+               \/ (t \in ProcessedTask)'
+         /\ t \in ProcessedTask
+            => (t \in ProcessedTask)' \/ (t \in FinalizedTask)'
+         /\ t \in FinalizedTask => (t \in FinalizedTask)'
+    BY DEF AssignedTask, AssignTasks, DiscardTasks, FinalizedTask,
+        FinalizeTasks, Next, ProcessedTask, ProcessTasks, RegisteredTask,
+        RegisterTasks, ReleaseTasks, StagedTask, StageTasks, UnknownTask, vars
+<1>2. Inv
+      => \/ t \in UnknownTask
+         \/ t \in RegisteredTask
+         \/ t \in StagedTask
+         \/ t \in AssignedTask
+         \/ t \in ProcessedTask
+         \/ t \in FinalizedTask
+    BY DEF AssignedTask, FinalizedTask, Inv, ProcessedTask, RegisteredTask,
+        StagedTask, T1State, TypeOk, UnknownTask
+<1>3. [][Next]_vars /\ FairProcessTasks(t) => EventualProcessing!At(t)
+    BY LemEventualProcessing
+<1>4. [][Next]_vars /\ FairFinalizeTasks(t) => EventualFinalization!At(t)
+    BY LemEventualFinalization
+<1>. QED
+    BY <1>1, <1>2, <1>3, <1>4, PTL
+
+(**
+ * Tasks that are neither assigned nor processed: the tasks of a quiescent
+ * system.
+ *)
+Settled == {t \in Task : t \notin AssignedTask /\ t \notin ProcessedTask}
+
+(**
+ * The temporal theorems behind quiescence. Joint: finitely many frozen known
+ * tasks that each eventually stay settled eventually stay settled together.
+ * Stutter: the registered tasks, finite and shrinking at each change of the
+ * state, cannot shrink forever, so the state eventually stops changing.
+ *)
+Joint == INSTANCE FrozenJointStabilityTheorems
+            WITH S <- Task \ UnknownTask, T <- Settled
+
+Stutter == INSTANCE EventualStutteringTheorems
+            WITH S <- RegisteredTask, v <- vars
+
+LEMMA LemEventualQuiescence ==
+    /\ []Inv
+    /\ [][Next]_vars
+    /\ (\A t \in Task : FairProcessTasks(t) /\ FairFinalizeTasks(t))
+    => EventualQuiescence
+(* Each task eventually stays settled (1). Once the user stops, the finitely
+   many known tasks freeze, so they eventually stay settled together (2). A
+   step then only stages registered tasks, finitely many: the state freezes
+   (3). *)
+<1>1. /\ []Inv
+      /\ [][Next]_vars
+      /\ (\A t \in Task : FairProcessTasks(t) /\ FairFinalizeTasks(t))
+      => \A t \in Task : <>[](t \in Settled)
+    <2>. SUFFICES ASSUME NEW t \in Task
+                  PROVE  /\ []Inv
+                         /\ [][Next]_vars
+                         /\ FairProcessTasks(t)
+                         /\ FairFinalizeTasks(t)
+                         => <>[](t \in Settled)
+        OBVIOUS
+    <2>1. /\ []Inv
+          /\ [][Next]_vars
+          /\ FairProcessTasks(t)
+          /\ FairFinalizeTasks(t)
+          => EventualStability!At(t)
+        BY LemEventualStability
+    <2>2. /\ t \in UnknownTask => t \in Settled
+          /\ t \in RegisteredTask => t \in Settled
+          /\ t \in StagedTask => t \in Settled
+          /\ t \in FinalizedTask => t \in Settled
+        BY DEF AssignedTask, FinalizedTask, ProcessedTask, RegisteredTask,
+            Settled, StagedTask, UnknownTask
+    <2>. QED
+        BY <2>1, <2>2, PTL
+<1>2. /\ []Inv
+      /\ [][Next]_vars
+      /\ <>[][NoUserAction]_vars
+      /\ \A t \in Task : <>[](t \in Settled)
+      => <>[]Idle
+    (* tlapm: FrozenJointStability is matched at a domain named D. *)
+    <2>. PICK D : D = Task
+        OBVIOUS
+    <2>1. [Next]_vars /\ [NoUserAction]_vars => UNCHANGED (Task \ UnknownTask)
+        BY DEF AssignedTask, AssignTasks, DiscardTasks, FinalizeTasks, Next,
+            NoUserAction, ProcessedTask, ProcessTasks, RegisteredTask,
+            RegisterTasks, ReleaseTasks, StagedTask, StageTasks, UnknownTask,
+            vars
+    <2>2. Inv => IsFiniteSet(Task \ UnknownTask)
+        BY DEF FiniteKnownTasks, Inv
+    <2>3. /\ <>[]IsFiniteSet(Task \ UnknownTask)
+          /\ <>[][FALSE]_(Task \ UnknownTask)
+          /\ \A t \in Task : <>[](t \in Settled)
+          => <>[]((Task \ UnknownTask) \cap D \subseteq Settled)
+        BY Joint!FrozenJointStability, Isa DEF IsFiniteSet, Joint!IsFiniteSet
+    <2>4. (Task \ UnknownTask) \cap D \subseteq Settled => Idle
+        BY DEF AssignedTask, Idle, ProcessedTask, Settled, UnknownTask
+    <2>. QED
+        BY <2>1, <2>2, <2>3, <2>4, PTL
+<1>3. []Inv /\ [][Next]_vars /\ <>[][NoUserAction]_vars /\ <>[]Idle
+      => <>[][FALSE]_vars
+    <2>1. Idle /\ Idle' /\ [Next]_vars /\ [NoUserAction]_vars
+            => /\ RegisteredTask' \subseteq RegisteredTask
+               /\ [RegisteredTask' # RegisteredTask]_vars
+        BY DEF AssignedTask, AssignTasks, DiscardTasks, FinalizeTasks, Idle,
+            Next, NoUserAction, ProcessedTask, ProcessTasks, RegisteredTask,
+            RegisterTasks, ReleaseTasks, StagedTask, StageTasks, UnknownTask,
+            vars
+    <2>2. Inv => IsFiniteSet(RegisteredTask)
+        BY FS_Subset DEF FiniteKnownTasks, Inv, RegisteredTask, UnknownTask
+    <2>3. /\ <>[]IsFiniteSet(RegisteredTask)
+          /\ <>[][RegisteredTask' \subseteq RegisteredTask]_RegisteredTask
+          /\ <>[][RegisteredTask' # RegisteredTask]_vars
+          => <>[][FALSE]_vars
+        BY Stutter!EventualStuttering DEF IsFiniteSet, Stutter!IsFiniteSet
+    <2>. QED
+        BY <2>1, <2>2, <2>3, PTL
+<1>. QED
+    BY <1>1, <1>2, <1>3, PTL DEF EventualQuiescence
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                           SPECIFICATION THEOREMS                           *)
+(******************************************************************************)
+
+THEOREM ThmTypeOk == Spec => []TypeOk
+BY LemTypeOk DEF Spec
+
+THEOREM ThmFiniteKnownTasks == Spec => []FiniteKnownTasks
+BY LemFiniteKnownTasks DEF Spec
+
+THEOREM ThmPermanentFinalization == Spec => PermanentFinalization
+<1>. SUFFICES
+        ASSUME NEW t \in Task
+        PROVE  Spec => [](t \in FinalizedTask => [](t \in FinalizedTask))
+    BY DEF PermanentFinalization
+<1>1. [Next]_vars => (t \in FinalizedTask => (t \in FinalizedTask)')
+    BY LemPermanentFinalization
+<1>. QED
+    BY <1>1, PTL DEF Spec
+
+THEOREM ThmEventualProcessing == Spec => EventualProcessing
+<1>. SUFFICES ASSUME NEW t \in Task
+              PROVE  Spec => EventualProcessing!At(t)
+    BY DEF EventualProcessing
+<1>1. Fairness => FairProcessTasks(t)
+    BY LemFairnessEnabledFree, Isa
+<1>. QED
+    BY <1>1, LemEventualProcessing, PTL DEF Spec
+
+THEOREM ThmEventualFinalization == Spec => EventualFinalization
+<1>. SUFFICES ASSUME NEW t \in Task
+              PROVE  Spec => EventualFinalization!At(t)
+    BY DEF EventualFinalization
+<1>1. Fairness => FairFinalizeTasks(t)
+    BY LemFairnessEnabledFree, Isa
+<1>. QED
+    BY <1>1, LemEventualFinalization, PTL DEF Spec
+
+THEOREM ThmEventualStability == Spec => EventualStability
+<1>. SUFFICES ASSUME NEW t \in Task
+              PROVE  Spec => EventualStability!At(t)
+    BY DEF EventualStability
+<1>1. Fairness => FairProcessTasks(t) /\ FairFinalizeTasks(t)
+    BY LemFairnessEnabledFree, Isa
+<1>. QED
+    BY <1>1, LemEventualStability, LemInv, PTL DEF Spec
+
+THEOREM ThmEventualQuiescence == Spec => EventualQuiescence
+BY LemEventualQuiescence, LemFairnessEnabledFree, LemInv, PTL DEF Spec
 
 ================================================================================
