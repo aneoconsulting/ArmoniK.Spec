@@ -48,14 +48,14 @@ THEOREM FrozenJointStability ==
            => <>[](S \cap D \subseteq T)
 (* A permanently unchanged S keeps a constant value. *)
 <1>1. [][FALSE]_S => \E K : [](S = K)
-    <2>1. PICK K : S = K
-        OBVIOUS
-    <2>2. S = K /\ [FALSE]_S => (S = K)'
-        OBVIOUS
-    <2>3. [][FALSE]_S => [](S = K)
-        BY <2>1, <2>2, PTL
+    <2>1. ASSUME NEW K
+          PROVE  S = K /\ [][FALSE]_S => [](S = K)
+        <3>1. S = K /\ [FALSE]_S => (S = K)'
+            OBVIOUS
+        <3>. QED
+            BY <3>1, PTL
     <2>. QED
-        BY <2>3
+        BY <2>1
 (* The per-element facts are suffix-stable: box them into an invariant. *)
 <1>2. (\A x \in D : <>[](x \in T)) => [](\A x \in D : <>[](x \in T))
     <2>1. ASSUME NEW x \in D
