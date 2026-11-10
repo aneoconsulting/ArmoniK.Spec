@@ -1,7 +1,7 @@
 name: CI
 
-# One `verify` job runs per module of specs/, lib/ and lib/temporal/; the
-# module's kind, as scripts/naming.py defines it, decides which checks it runs:
+# One `verify` job runs per module of specs/ and lib/; the module's kind, as
+# scripts/naming.py defines it, decides which checks it runs:
 # SANY for every module, property coverage for the specifications, TLC and its
 # state-space statistics for a module with a .cfg, interface consistency for a
 # theorem interface. The `proofs` jobs run tlapm over the ranges that
@@ -46,9 +46,9 @@ jobs:
 
       # A name that cannot be a TLA+ module never reaches a shell downstream.
       - id: list
-        name: List the modules of specs/, lib/ and lib/temporal/
+        name: List the modules of specs/ and lib/
         run: |
-          specs=$(basename -s .tla specs/*.tla lib/*.tla lib/temporal/*.tla \
+          specs=$(basename -s .tla specs/*.tla lib/*.tla \
             | grep -v '_TTrace_' | grep -xE '[A-Za-z][A-Za-z0-9_]*' \
             | jq -Rsc 'split("\n") | map(select(. != ""))')
           echo "specs=$specs" | tee -a "$GITHUB_OUTPUT"
@@ -93,7 +93,7 @@ jobs:
 
       # Standard library only, like the commits job: no venv to build.
       - name: Check interface / proof / config pairing
-        run: python3 -m scripts.check_proof_pairing specs lib lib/temporal
+        run: python3 -m scripts.check_proof_pairing specs lib
 
   tests:
     name: Script tests
