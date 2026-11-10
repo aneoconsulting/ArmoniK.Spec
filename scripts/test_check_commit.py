@@ -156,7 +156,8 @@ def test_atomicity_requires_a_file_of_the_commit_type_and_scope():
     assert any("no spec change to Task1" in error for error in errors)
 
 
-def test_atomicity_accepts_a_temporal_theorem_with_its_proof():
+def test_atomicity_still_judges_the_former_proof_directory():
+    # The commits of the history that hold a temporal theorem there, or remove it.
     header = Header(type="proof", scope="EventualStuttering", breaking=False, description="prove x")
     pair = ["lib/temporal/EventualStutteringTheorems.tla", "lib/temporal/EventualStutteringTheorems_proofs.tla"]
     assert check_atomicity(header, pair, {}) == []
