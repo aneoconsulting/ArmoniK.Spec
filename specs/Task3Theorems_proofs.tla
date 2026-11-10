@@ -3,8 +3,8 @@
 (* Proofs of all the properties of Task3.                                     *)
 (******************************************************************************)
 
-EXTENDS FiniteSetTheorems, NaturalsInduction, Task3, TLAPS,
-    WellFoundedInduction
+EXTENDS FiniteSetTheorems, NaturalsInduction, Task3, TemporalLogicTheorems,
+    TLAPS, WellFoundedInduction
 
 USE DEF INTENT_CANCEL, INTENT_PAUSE, INTENT_RUN, TASK_ABORTED,
     T2!TASK_ABORTED, TASK_ASSIGNED, T2!TASK_ASSIGNED, TASK_COMPLETED,
@@ -1423,12 +1423,6 @@ AckRank ==
     \union {t \in PausedTask : Intends(t, INTENT_RUN)}
 
 (**
- * The temporal theorem behind the termination of the pausing and resuming:
- * the finitely many tasks of AckRank rank the remaining changes.
- *)
-Stut == INSTANCE EventualStutteringTheorems WITH S <- AckRank, v <- vars
-
-(**
  * Lifted from Task2, whose state eventually stops changing: then, without
  * user action, the intents no longer change, and the tasks can only be paused
  * or resumed, finitely many times.
@@ -1511,7 +1505,9 @@ LEMMA LemEventualQuiescence ==
             BY <3>5, <3>6 DEF NoUserAction
     <2>. QED
         BY <2>1, <2>2
-<1>5. Inv => IsFiniteSet(AckRank)
+(* tlapm: TL_FiniteSetDescent is cited at the bound name S. *)
+<1>. DEFINE S == AckRank
+<1>5. Inv => IsFiniteSet(S)
     <2>1. Inv => IsFiniteSet(Task \ UnknownTask)
         BY Assumptions, T2!LemT1BarStates, LemT2Assumptions, LemT2BarStates
         DEF T2!T1!FiniteKnownTasks, Inv, T2!Inv, T2!T1!Inv, IsFiniteSet,
@@ -1523,11 +1519,9 @@ LEMMA LemEventualQuiescence ==
 <1>6. /\ [Next]_vars
       /\ [NoUserAction]_vars
       /\ [FALSE]_T2!vars
-      => /\ [AckRank' \subseteq AckRank]_AckRank
-         /\ [AckRank' # AckRank]_vars
+      => [S' \subseteq S]_S /\ [S' # S]_vars
     <2>. SUFFICES ASSUME [Next]_vars, [NoUserAction]_vars, UNCHANGED T2!vars
-                  PROVE  /\ [AckRank' \subseteq AckRank]_AckRank
-                         /\ [AckRank' # AckRank]_vars
+                  PROVE  [S' \subseteq S]_S /\ [S' # S]_vars
         OBVIOUS
     (* A step that keeps the intents, the next attempts and the unknown
        tasks keeps the intent of every task. *)
@@ -1629,32 +1623,31 @@ LEMMA LemEventualQuiescence ==
         BY <2>10 DEF NoUserAction
     <2>. QED
         BY <2>5, <2>6, <2>7, <2>8, <2>9, <2>10 DEF Next
-<1>7. /\ <>[]IsFiniteSet(AckRank)
-      /\ <>[][AckRank' \subseteq AckRank]_AckRank
-      /\ <>[][AckRank' # AckRank]_vars
-      => <>[][FALSE]_vars
-    BY Stut!EventualStuttering DEF IsFiniteSet, Stut!IsFiniteSet
-<1>8. T2!Idle
+<1>7. T2!Idle
       <=> /\ AssignedTask = {}
           /\ SucceededTask = {}
           /\ FailedTask = {}
           /\ DiscardedTask = {}
     BY LemT2BarStates DEF T2!Idle
-<1>9. /\ []Inv
+<1>8. /\ []Inv
       /\ [][Next]_vars
       /\ \A t \in Task : F(t)
       /\ <>[][NoUserAction]_vars
       => /\ <>[]T2!Idle
          /\ <>[][FALSE]_T2!vars
     BY <1>1, <1>2, <1>3, <1>4, PTL DEF T2!EventualQuiescence, T2!Idle
-<1>10. /\ []Inv
-       /\ [][Next]_vars
-       /\ <>[][NoUserAction]_vars
-       /\ <>[][FALSE]_T2!vars
-       => <>[][FALSE]_vars
-    BY <1>5, <1>6, <1>7, PTL
+<1>9. /\ []Inv
+      /\ [][Next]_vars
+      /\ <>[][NoUserAction]_vars
+      /\ <>[][FALSE]_T2!vars
+      => <>[][FALSE]_vars
+    <2>1. [S' # S]_vars /\ [FALSE]_S => [FALSE]_vars
+        OBVIOUS
+    <2>. HIDE DEF S
+    <2>. QED
+        BY <1>5, <1>6, <2>1, TL_FiniteSetDescent, PTL
 <1>. QED
-    BY <1>8, <1>9, <1>10, PTL DEF EventualQuiescence, Idle
+    BY <1>7, <1>8, <1>9, PTL DEF EventualQuiescence, Idle
 
 (**
  * The acknowledgment of an intent goes through the lifecycle of the task: an
@@ -1725,15 +1718,18 @@ LEMMA LemIntentEventualAcknowledgment ==
 (* An unknown next attempt is eventually registered. *)
 <1>2. []Inv /\ [][Next]_vars /\ (\A s \in Task : FairRegisterTasks(s))
       => [](Unk => <>Reg)
+    (* tlapm: TL_LeadsToExists is cited at the bound names F, G and x. *)
     <2>. DEFINE P(s) == t \in UnknownTask /\ nextAttemptOf[s] = t
-    <2>1. ASSUME NEW s \in Task
-          PROVE  []Inv /\ [][Next]_vars /\ FairRegisterTasks(s)
-                 => [](P(s) => <>Reg)
-        <3>1. Inv /\ P(s) /\ [Next]_vars => P(s)' \/ Reg'
-            <4>. SUFFICES ASSUME Inv, P(s), [Next]_vars
-                          PROVE  P(s)' \/ Reg'
+                F(x) == x \in Task /\ P(x)
+                G == Reg
+    <2>1. ASSUME NEW x \in Task
+          PROVE  []Inv /\ [][Next]_vars /\ FairRegisterTasks(x)
+                 => (F(x) ~> G)
+        <3>1. Inv /\ P(x) /\ [Next]_vars => P(x)' \/ Reg'
+            <4>. SUFFICES ASSUME Inv, P(x), [Next]_vars
+                          PROVE  P(x)' \/ Reg'
                 OBVIOUS
-            <4>1. nextAttemptOf'[s] = t
+            <4>1. nextAttemptOf'[x] = t
                 BY Assumptions DEF AbortTasks, AssignTasks, CompleteTasks,
                     DiscardTasks, FailedTask, LinkedTask, Next, PauseTasks,
                     ProcessTasks, RegisterTasks, ReleaseTasks, RequestTasks,
@@ -1745,22 +1741,26 @@ LEMMA LemIntentEventualAcknowledgment ==
                     RegisteredTask, RegisterTasks, ReleaseTasks, RequestTasks,
                     ResumeTasks, RetriedTask, RetryTasks, SetTaskRetries,
                     StagedTask, StageTasks, SucceededTask, UnknownTask, vars
-        <3>2. /\ P(s) => EnabledRegisterTasks(s)
-              /\ P(s) /\ <<RegisterTasks({nextAttemptOf[s]})>>_vars => Reg'
+        <3>2. /\ P(x) => EnabledRegisterTasks(x)
+              /\ P(x) /\ <<RegisterTasks({nextAttemptOf[x]})>>_vars => Reg'
             BY DEF EnabledRegisterTasks, RegisteredTask, RegisterTasks,
                 UnknownTask
         <3>. QED
             BY <3>1, <3>2, PTL DEF FairRegisterTasks
-    <2>2. []Inv /\ [][Next]_vars /\ (\A s \in Task : FairRegisterTasks(s))
-          => \A s \in Task : [](P(s) => <>Reg)
-        BY <2>1
-    <2>3. (\A s \in Task : [](P(s) => <>Reg))
-          <=> [](\A s \in Task : P(s) => <>Reg)
-        OBVIOUS
-    <2>4. (\A s \in Task : P(s) => <>Reg) => (Unk => <>Reg)
+    <2>2. ASSUME NEW x, ~(x \in Task)
+          PROVE  F(x) ~> G
+        BY <2>2, PTL
+    <2>3. []Inv /\ [][Next]_vars /\ (\A s \in Task : FairRegisterTasks(s))
+          => \A x : F(x) ~> G
+        BY <2>1, <2>2
+    <2>4. ((\E x : F(x)) ~> G) <=> (\A x : F(x) ~> G)
+        <3>. HIDE DEF F, G
+        <3>. QED
+            BY TL_LeadsToExists, PTL
+    <2>5. Unk => \E x : F(x)
         OBVIOUS
     <2>. QED
-        BY <2>2, <2>3, <2>4, PTL
+        BY <2>3, <2>4, <2>5, PTL
 (* An assigned task eventually leaves ASSIGNED: forever assigned, it would
    eventually succeed by the strong fairness of processing. *)
 <1>3. [][Next]_vars /\ FairProcessTasks(t) => (Asg ~> Out)

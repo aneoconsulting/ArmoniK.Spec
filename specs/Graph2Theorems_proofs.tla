@@ -5,7 +5,7 @@
 
 (******************************************************************************)
 
-EXTENDS DDGraphTheorems, FiniteSetTheorems, Graph2, TLAPS
+EXTENDS DDGraphTheorems, FiniteSetTheorems, Graph2, TemporalLogicTheorems, TLAPS
 
 USE DEF OBJECT_ABORTED, O2!OBJECT_ABORTED, OBJECT_COMPLETED,
     O2!OBJECT_COMPLETED, OBJECT_FINALIZED, G1!O1!OBJECT_FINALIZED,
@@ -4620,11 +4620,6 @@ LEMMA LemProducersEventuallyFixed ==
 NotFailed == Task \ FailedTask
 
 (**
- * The joint stability of the tasks that are not failed over a finite set.
- *)
-JointNotFailed == INSTANCE JointStabilityTheorems WITH T <- NotFailed
-
-(**
  * While an object stays registered and its open ancestry never grows, none
  * of its producers eventually stays failed: the producers are a fixed
  * finite set, each of which is eventually retried.
@@ -4644,7 +4639,8 @@ LEMMA LemNoFailedProducersUnderQuiescence ==
                            ~ (x \in Predecessor(deps, o) /\ x \in FailedTask))
 <1>. DEFINE S          == OA(o).node
             Preds      == Predecessor(deps, o)
-            Retired(x) == <>[](x \in NotFailed)
+            F(x)       == x \in NotFailed
+            Retired(x) == <>[]F(x)
             FairT ==
                 \A x \in Task :
                     /\ FairSetTaskRetries(x)
@@ -4657,12 +4653,12 @@ LEMMA LemNoFailedProducersUnderQuiescence ==
         BY DEF NotFailed
     <2>. QED
         BY <2>1, PTL
-<1>2. ASSUME NEW P \in SUBSET Task
-      PROVE  [](P \subseteq NotFailed /\ Preds = P
+<1>2. ASSUME NEW P \in SUBSET Task, NEW K, K = P
+      PROVE  []((\A x \in K : F(x)) /\ Preds = P
                 => \A x \in Task : ~ (x \in Preds /\ x \in FailedTask))
-    <2>1. P \subseteq NotFailed /\ Preds = P
+    <2>1. (\A x \in K : F(x)) /\ Preds = P
           => \A x \in Task : ~ (x \in Preds /\ x \in FailedTask)
-        BY DEF NotFailed
+        BY <1>2 DEF NotFailed
     <2>. QED
         BY <2>1, PTL
 <1>. SUFFICES ASSUME []Inv,
@@ -4685,7 +4681,10 @@ LEMMA LemNoFailedProducersUnderQuiescence ==
         BY PTL
     <2>. QED
         BY <2>1, LemProducersEventuallyFixed
-<1>5. FairT => \A x \in P : Retired(x)
+(* tlapm: TL_EventuallyAlwaysForall is cited at the names K and F. *)
+<1>. PICK K : K = P /\ IsFiniteSet(K)
+    BY <1>4
+<1>5. FairT => \A x \in K : Retired(x)
     <2>1. ASSUME NEW t \in P
           PROVE  FairT => Retired(t)
         <3>1. t \in Task
@@ -4699,14 +4698,12 @@ LEMMA LemNoFailedProducersUnderQuiescence ==
             BY <1>4, <3>2, <3>3, PTL DEF Retired
     <2>. QED
         BY <2>1
-<1>6. (\A x \in P : Retired(x)) => <>[](P \subseteq NotFailed)
-    BY <1>4, JointNotFailed!JointStability DEF IsFiniteSet,
-        JointNotFailed!IsFiniteSet, Retired
-<1>7. [](P \subseteq NotFailed /\ Preds = P
+<1>6. []((\A x \in K : F(x)) /\ Preds = P
          => \A x \in Task : ~ (x \in Preds /\ x \in FailedTask))
     BY <1>2, <1>4
+<1>. HIDE DEF F
 <1>. QED
-    BY <1>4, <1>5, <1>6, <1>7, PTL
+    BY <1>4, <1>5, <1>6, TL_EventuallyAlwaysForall, PTL DEF Retired
 
 (**
  * An output of a producer eventually stays registered or stays out of the
@@ -4986,22 +4983,6 @@ LEMMA LemOutputRetained ==
     BY <1>1, <1>2, <1>3, <1>4, PTL
 
 (**
- * The pairs of a task and an output that is not registered or keeps another
- * producer than the task that can still produce it.
- *)
-Retained ==
-    {p \in Task \X Object :
-        p[2] \in RegisteredObject =>
-            \E x \in Predecessor(deps, p[2]) \ {p[1]} :
-                x \notin UNION {CompletedTask, AbortedTask, RetriedTask,
-                                FailedTask}}
-
-(**
- * The joint stability of the retained pairs over a finite set.
- *)
-JointRetained == INSTANCE JointStabilityTheorems WITH T <- Retained
-
-(**
  * A task that is succeeded or discarded is eventually for good completable
  * or abortable: each registered output keeps another producer that can still
  * produce it. The task eventually stays succeeded or discarded, or neither;
@@ -5030,7 +5011,8 @@ LEMMA LemCompleteAbortTasksEventuallyEnabled ==
                     \E x \in Predecessor(deps, o) \ {t} :
                         x \notin UNION {CompletedTask, AbortedTask, RetriedTask,
                                         FailedTask}
-            Kept(p) == <>[](p \in Retained)
+            F(x)    == RetainedOutput(x)
+            Kept(x) == <>[]F(x)
             FairO == \A o \in Object : FairCompleteObjects(o) /\
                 FairAbortObjects(o)
             FairT ==
@@ -5061,28 +5043,12 @@ LEMMA LemCompleteAbortTasksEventuallyEnabled ==
         BY DEF DirectedGraphOf, Inv, IsDirectedGraph, TypeOk
     <2>. QED
         BY <2>1, <2>2, SMT DEF Predecessor
-<1>3. ASSUME NEW p \in Task \X Object, NEW o \in Object, p[1] = t, p[2] = o
-      PROVE  p \in Retained <=> RetainedOutput(o)
-    BY <1>3 DEF Retained
-<1>4. ASSUME NEW Q \in SUBSET Object, NEW P, P = {t} \X Q
-      PROVE  Inv /\ P \subseteq Retained /\ Out = Q => Goal
-    <2>. SUFFICES ASSUME Inv, P \subseteq Retained, Out = Q
-                  PROVE  \A o \in Out :
-                             o \in RegisteredObject
-                             => \E x \in Predecessor(deps, o) \ {t} :
-                                    x \notin UNION {CompletedTask, AbortedTask,
-                                                    RetriedTask, FailedTask}
-        BY DEF EnabledAbortTasks, EnabledCompleteTasks, Goal
-    <2>. TAKE o \in Out
-    <2>1. o \in Object
-        BY LemOutputsAreObjects DEF Inv, G1!Inv
-    <2>2. <<t, o>> \in P
-        BY <1>4
-    <2>. QED
-        BY <2>1, <2>2 DEF Retained
-<1>5. ~SD => Goal
+<1>3. ASSUME NEW Q \in SUBSET Object, NEW K, K = Q
+      PROVE  (\A x \in K : F(x)) /\ Out = Q => Goal
+    BY <1>3 DEF EnabledAbortTasks, EnabledCompleteTasks, Goal
+<1>4. ~SD => Goal
     BY DEF Goal
-<1>6. FairO => []FairO
+<1>5. FairO => []FairO
     <2>1. ASSUME NEW o \in Object
           PROVE  FairCompleteObjects(o) /\ FairAbortObjects(o)
                  => [](FairCompleteObjects(o) /\ FairAbortObjects(o))
@@ -5092,7 +5058,7 @@ LEMMA LemCompleteAbortTasksEventuallyEnabled ==
         OBVIOUS
     <2>. QED
         BY <2>1, <2>2
-<1>7. FairT => []FairT
+<1>6. FairT => []FairT
     <2>1. ASSUME NEW x \in Task
           PROVE  /\ FairSetTaskRetries(x)
                  /\ FairRegisterGraph(x)
@@ -5109,25 +5075,25 @@ LEMMA LemCompleteAbortTasksEventuallyEnabled ==
         OBVIOUS
     <2>. QED
         BY <2>1, <2>2
-<1>8. UpstreamStabilization => []UpstreamStabilization
+<1>7. UpstreamStabilization => []UpstreamStabilization
     BY LemUpstreamStabilizationStable
 <1>. HIDE DEF FairO, FairT, Goal, Kept
 <1>. SUFFICES ASSUME []Inv, [][Next]_vars, []FairO, []FairT,
                      []UpstreamStabilization
               PROVE  <>[]Goal
-    BY <1>6, <1>7, <1>8, PTL
-<1>9. FairO /\ FairT /\ UpstreamStabilization
+    BY <1>5, <1>6, <1>7, PTL
+<1>8. FairO /\ FairT /\ UpstreamStabilization
     BY PTL
-<1>10. \/ <>[](t \in SucceededTask)
-       \/ <>[](t \in DiscardedTask)
-       \/ <>[](~ SD)
+<1>9. \/ <>[](t \in SucceededTask)
+      \/ <>[](t \in DiscardedTask)
+      \/ <>[](~ SD)
     BY LemT2SucceededDiscardedStabilize, PTL
-<1>11. <>[](~ SD) => <>[]Goal
-    BY <1>5, PTL
-<1>12. ASSUME <>[](t \in SucceededTask) \/ <>[](t \in DiscardedTask)
+<1>10. <>[](~ SD) => <>[]Goal
+    BY <1>4, PTL
+<1>11. ASSUME <>[](t \in SucceededTask) \/ <>[](t \in DiscardedTask)
        PROVE  <>[]Goal
     <2>1. <>[](~ (t \in UnknownTask))
-        BY <1>1, <1>12, PTL
+        BY <1>1, <1>11, PTL
     <2>2. PICK Q \in SUBSET Object : IsFiniteSet(Q) /\ <>[](Out = Q)
         BY <2>1, LemOutputsEventuallyFixed
     <2>3. ASSUME NEW o \in Q
@@ -5137,43 +5103,27 @@ LEMMA LemCompleteAbortTasksEventuallyEnabled ==
         <3>2. <>[](t \in Predecessor(deps, o))
             BY <1>2, <2>2, <3>1, PTL
         <3>3. FairCompleteObjects(o) /\ FairAbortObjects(o)
-            BY <1>9, <3>1 DEF FairO
+            BY <1>8, <3>1 DEF FairO
         <3>4. UpstreamStabilization!At(o)
-            BY <1>9, <3>1 DEF UpstreamStabilization
+            BY <1>8, <3>1 DEF UpstreamStabilization
         <3>. QED
-            BY <1>9, <1>12, <3>1, <3>2, <3>3, <3>4, LemOutputRetained DEF FairT
-    <2>4. PICK P : P = {t} \X Q
-        BY Zenon
-    <2>5. IsFiniteSet(P)
-        <3>1. IsFiniteSet({t})
-            BY FS_Singleton
-        <3>2. IsFiniteSet({t} \X Q)
-            BY <2>2, <3>1, FS_Product
-        <3>. QED
-            BY <2>4, <3>2
-    <2>6. \A p \in P : Kept(p)
-        <3>. SUFFICES ASSUME NEW p \in P
-                      PROVE  Kept(p)
+            BY <1>8, <1>11, <3>1, <3>2, <3>3, <3>4, LemOutputRetained DEF FairT
+    (* tlapm: TL_EventuallyAlwaysForall is cited at the names K and F. *)
+    <2>4. PICK K : K = Q /\ IsFiniteSet(K)
+        BY <2>2
+    <2>5. \A x \in K : Kept(x)
+        <3>. SUFFICES ASSUME NEW o \in K
+                      PROVE  Kept(o)
             OBVIOUS
-        <3>1. PICK o \in Q : p = <<t, o>>
-            BY <2>4
-        <3>2. o \in Object /\ p \in Task \X Object /\ p[1] = t /\ p[2] = o
-            BY <2>2, <3>1
-        <3>3. <>[](RetainedOutput(o))
-            BY <2>3, <3>1
-        <3>4. [](p \in Retained <=> RetainedOutput(o))
-            BY <1>3, <3>2, PTL
         <3>. QED
-            BY <3>3, <3>4, PTL DEF Kept
-    <2>7. (\A p \in P : Kept(p)) => <>[](P \subseteq Retained)
-        BY <2>5, JointRetained!JointStability DEF IsFiniteSet,
-            JointRetained!IsFiniteSet, Kept
-    <2>8. [](Inv /\ P \subseteq Retained /\ Out = Q => Goal)
-        BY <1>4, <2>4, PTL
+            BY <2>3, <2>4 DEF Kept
+    <2>6. []((\A x \in K : F(x)) /\ Out = Q => Goal)
+        BY <1>3, <2>4, PTL
+    <2>. HIDE DEF F
     <2>. QED
-        BY <2>2, <2>6, <2>7, <2>8, PTL
+        BY <2>2, <2>4, <2>5, <2>6, TL_EventuallyAlwaysForall, PTL DEF Kept
 <1>. QED
-    BY <1>10, <1>11, <1>12, PTL
+    BY <1>9, <1>10, <1>11, PTL
 
 (**
  * A task eventually stays neither succeeded nor discarded: if it stays
@@ -5340,12 +5290,6 @@ LEMMA LemPreserveT2WFAbortTasks ==
 Settled == Task \ (SucceededTask \union DiscardedTask)
 
 (**
- * The joint stability of the tasks that are neither succeeded nor discarded
- * over a finite set.
- *)
-JointSettled == INSTANCE JointStabilityTheorems WITH T <- Settled
-
-(**
  * An object that stays registered with a root or a succeeded, discarded or
  * failed producer is eventually completed. Its open ancestry eventually
  * stops growing; its producers are then a fixed finite set, each of which
@@ -5372,7 +5316,8 @@ LEMMA LemCompleteObjectsFires ==
            => <><<CompleteObjects({o})>>_vars
 <1>. DEFINE S         == OA(o).node
             Preds     == Predecessor(deps, o)
-            Settle(x) == <>[](x \in Settled)
+            F(x)      == x \in Settled
+            Settle(x) == <>[]F(x)
             Fin       ==
                 \/ o \in Source(deps)
                 \/ \E t \in Preds :
@@ -5404,13 +5349,13 @@ LEMMA LemCompleteObjectsFires ==
 <1>1. ASSUME NEW t \in Task
       PROVE  ~ (t \in SucceededTask) /\ ~ (t \in DiscardedTask) => t \in Settled
     BY DEF Settled
-<1>2. ASSUME NEW P \in SUBSET Task
-      PROVE  /\ P \subseteq Settled
+<1>2. ASSUME NEW P \in SUBSET Task, NEW K, K = P
+      PROVE  /\ \A x \in K : F(x)
              /\ Preds = P
              /\ \A x \in Task : ~ (x \in Preds /\ x \in FailedTask)
              /\ Fin
              => o \in Source(deps)
-    BY Zenon DEF Settled
+    BY <1>2, Zenon DEF Settled
 <1>3. o \in RegisteredObject /\ o \in Source(deps) => EnabledCompleteObjects(o)
     BY DEF EnabledCompleteObjects
 <1>4. FairO => []FairO
@@ -5496,7 +5441,10 @@ LEMMA LemCompleteObjectsFires ==
         BY <1>13, <2>1, <2>2, PTL
 <1>15. PICK P \in SUBSET Task : IsFiniteSet(P) /\ <>[](Preds = P)
     BY <1>13, LemProducersEventuallyFixed
-<1>16. \A x \in P : Settle(x)
+(* tlapm: TL_EventuallyAlwaysForall is cited at the names K and F. *)
+<1>. PICK K : K = P /\ IsFiniteSet(K)
+    BY <1>15
+<1>16. \A x \in K : Settle(x)
     <2>. SUFFICES ASSUME NEW t \in P
                   PROVE  Settle(t)
         OBVIOUS
@@ -5509,21 +5457,20 @@ LEMMA LemCompleteObjectsFires ==
         BY <1>1, <2>1, PTL
     <2>. QED
         BY <2>2, <2>3, PTL DEF Settle
-<1>17. (\A x \in P : Settle(x)) => <>[](P \subseteq Settled)
-    BY <1>15, JointSettled!JointStability DEF IsFiniteSet,
-        JointSettled!IsFiniteSet, Settle
-<1>18. [](/\ P \subseteq Settled
+<1>17. [](/\ \A x \in K : F(x)
           /\ Preds = P
           /\ \A x \in Task : ~ (x \in Preds /\ x \in FailedTask)
           /\ Fin
           => o \in Source(deps))
     BY <1>2, <1>15, PTL
-<1>19. <>[](o \in Source(deps))
-    BY <1>14, <1>15, <1>16, <1>17, <1>18, PTL
-<1>20. FairCompleteObjects(o)
+<1>18. <>[](o \in Source(deps))
+    <2>. HIDE DEF F
+    <2>. QED
+        BY <1>14, <1>15, <1>16, <1>17, TL_EventuallyAlwaysForall, PTL DEF Settle
+<1>19. FairCompleteObjects(o)
     BY <1>10, <1>12
 <1>. QED
-    BY <1>3, <1>19, <1>20, PTL DEF FairCompleteObjects
+    BY <1>3, <1>18, <1>19, PTL DEF FairCompleteObjects
 
 (**
  * The weak fairness of the finalization of an object in Graph1 holds under

@@ -4,7 +4,7 @@
 (******************************************************************************)
 
 EXTENDS DenumerableSetTheorems, FiniteSetTheorems, NaturalsInduction, Task2,
-    TLAPS, WellFoundedInduction
+    TemporalLogicTheorems, TLAPS, WellFoundedInduction
 
 USE DEF TASK_ABORTED, TASK_ASSIGNED, T1!TASK_ASSIGNED, TASK_COMPLETED,
     TASK_DISCARDED, TASK_FAILED, TASK_FINALIZED, T1!TASK_FINALIZED,
@@ -1230,17 +1230,6 @@ CoveredTask == {r \in Task : TaskAttempts(r) \subseteq KnownTask}
 SettledRetry == {x \in Task : nextAttemptOf[x] \notin UnknownTask}
 
 (**
- * The temporal theorems behind quiescence. Joint: the first attempts, which
- * only the user creates, eventually freeze, and each eventually stays
- * covered, so they eventually stay covered jointly. Each: the finitely many
- * attempts of a task eventually settle their retries jointly.
- *)
-Joint == INSTANCE FrozenJointStabilityTheorems
-            WITH S <- FirstAttempt, T <- CoveredTask
-
-Each == INSTANCE JointStabilityTheorems WITH T <- SettledRetry
-
-(**
  * Lifted from Task1, once the next attempts stop being registered: under
  * user quiescence, the chains of retries eventually have all their attempts
  * known.
@@ -1270,10 +1259,6 @@ LEMMA LemEventualQuiescence ==
                     /\ FairRetryTasks(t)
             Hyp == []Inv /\ [][Next]_vars /\ Fair
             Covered(t) == <>[](t \in CoveredTask)
-(* tlapm matches the conclusion of FrozenJointStability at the name of its
-   domain only. *)
-<1>. PICK D : D = Task
-    OBVIOUS
 <1>1. Inv => IsFiniteSet(KnownTask)
     BY LemT1BarStates DEF T1!FiniteKnownTasks, Inv, T1!Inv, IsFiniteSet,
         T1!IsFiniteSet, KnownTask
@@ -1322,27 +1307,27 @@ LEMMA LemEventualQuiescence ==
         BY LemAttemptsEventualStability DEF AttemptsEventualStability
     <2>2. ASSUME NEW S \in SUBSET Task, IsFiniteSet(S)
           PROVE  H /\ Pinned(S) => Covered(t)
-        <3>. PICK P : P = S \union {t}
+        (* tlapm: TL_EventuallyAlwaysForall is cited at the names K, F and
+           x. *)
+        <3>. PICK K : K = S \union {t}
             OBVIOUS
-        <3>. DEFINE Stays(x) == <>[](x \in SettledRetry)
+        <3>. DEFINE F(x) == x \in SettledRetry
+                    Stays(x) == <>[]F(x)
         <3>. HIDE DEF H, Stays
-        <3>1. IsFiniteSet(P)
+        <3>1. IsFiniteSet(K)
             BY <2>2, FS_AddElement
-        <3>2. H => \A x \in P : Stays(x)
-            <4>. SUFFICES ASSUME NEW y \in P
+        <3>2. H => \A x \in K : Stays(x)
+            <4>. SUFFICES ASSUME NEW y \in K
                           PROVE  H => Stays(y)
                 OBVIOUS
             <4>1. Settles(y)
                 BY <1>2
             <4>. QED
                 BY <4>1 DEF H, Settles, Stays
-        <3>3. (\A x \in P : Stays(x)) => <>[](P \subseteq SettledRetry)
-            BY <3>1, Each!JointStability DEF IsFiniteSet, Each!IsFiniteSet,
-                Stays
-        <3>4. Inv /\ TaskAttempts(t) = S /\ P \subseteq SettledRetry
+        <3>3. Inv /\ TaskAttempts(t) = S /\ (\A x \in K : F(x))
                 => t \in CoveredTask
             <4>. SUFFICES ASSUME Inv, TaskAttempts(t) = S,
-                                 P \subseteq SettledRetry, NEW s \in S
+                                 \A x \in K : F(x), NEW s \in S
                           PROVE  s \in KnownTask
                 BY DEF CoveredTask
             <4>1. CASE <<s, t>> \in TCNextAttemptOfRel
@@ -1357,15 +1342,17 @@ LEMMA LemEventualQuiescence ==
                           /\ <<x, s>> \in NextAttemptOfRel
                           /\ t = x \/ <<t, x>> \in TCNextAttemptOfRel
                     BY <4>2, TransitiveClosureChopLast DEF TCNextAttemptOfRel
-                <5>2. x \in P
+                <5>2. x \in K
                     BY <5>1 DEF NextAttempts, TaskAttempts
                 <5>. QED
                     BY <5>1, <5>2 DEF KnownTask, NextAttemptOfRel,
                         SettledRetry
             <4>. QED
                 BY <4>1, <4>2 DEF NextAttempts, PreviousAttempts, TaskAttempts
+        <3>. HIDE DEF F
         <3>. QED
-            BY <3>2, <3>3, <3>4, PTL DEF Covered, H, Pinned
+            BY <3>1, <3>2, <3>3, TL_EventuallyAlwaysForall, PTL
+            DEF Covered, H, Pinned, Stays
     <2>. HIDE DEF Covered, H, Pinned
     <2>. QED
         BY <2>1, <2>2, Isa DEF H
@@ -1489,11 +1476,11 @@ LEMMA LemEventualQuiescence ==
         BY <2>1, <2>5, FS_CardinalityType DEF KnownTask, Q
 (* Once the first attempts are covered, only the user registers tasks. *)
 <1>7. /\ Inv
-      /\ FirstAttempt \cap D \subseteq CoveredTask
+      /\ \A x \in FirstAttempt : x \in CoveredTask
       /\ [Next]_vars
       /\ [NoUserAction]_vars
       => [T1!NoUserAction]_T1!vars
-    <2>. SUFFICES ASSUME Inv, FirstAttempt \cap D \subseteq CoveredTask,
+    <2>. SUFFICES ASSUME Inv, \A x \in FirstAttempt : x \in CoveredTask,
                          [Next]_vars, [NoUserAction]_vars
                   PROVE  [T1!NoUserAction]_T1!vars
         OBVIOUS
@@ -1609,8 +1596,27 @@ LEMMA LemEventualQuiescence ==
 <1>12. /\ <>[]IsFiniteSet(FirstAttempt)
        /\ <>[][FALSE]_FirstAttempt
        /\ \A x \in Task : Covered(x)
-       => <>[](FirstAttempt \cap D \subseteq CoveredTask)
-    BY Joint!FrozenJointStability DEF Covered, IsFiniteSet, Joint!IsFiniteSet
+       => <>[](\A x \in FirstAttempt : x \in CoveredTask)
+    (* tlapm: TL_EventuallyAlwaysForallStationary is cited at the names S, G
+       and x. *)
+    <2>. DEFINE S == FirstAttempt
+                G(x) == x \in CoveredTask
+    <2>1. ASSUME NEW x
+          PROVE  Covered(x) => <>[](x \in S => G(x))
+        BY PTL DEF Covered
+    <2>2. ASSUME NEW x, ~(x \in Task)
+          PROVE  <>[](x \in S => G(x))
+        <3>1. ~(x \in S)
+            BY <2>2 DEF FirstAttempt, KnownTask
+        <3>. QED
+            BY <3>1, PTL
+    <2>3. <>[]IsFiniteSet(S) /\ <>[][FALSE]_S
+          => ((\A x : <>[](x \in S => G(x))) <=> <>[](\A x \in S : G(x)))
+        <3>. HIDE DEF G, S
+        <3>. QED
+            BY TL_EventuallyAlwaysForallStationary, PTL
+    <2>. QED
+        BY <2>1, <2>2, <2>3
 <1>. QED
     BY <1>4, <1>5, <1>7, <1>8, <1>9, <1>10, <1>11, <1>12, PTL
     DEF EventualQuiescence, T1!EventualQuiescence, Hyp, Idle, Inv

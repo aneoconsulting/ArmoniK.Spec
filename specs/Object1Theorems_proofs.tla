@@ -3,7 +3,7 @@
 (* Proofs of all the properties of Object1.                                   *)
 (******************************************************************************)
 
-EXTENDS FiniteSetTheorems, Object1, TLAPS
+EXTENDS FiniteSetTheorems, Object1, TemporalLogicTheorems, TLAPS
 
 USE DEF OBJECT_FINALIZED, OBJECT_REGISTERED, OBJECT_UNKNOWN
 
@@ -140,17 +140,6 @@ LEMMA LemEventualTargetFinalization ==
 <1>. QED
     BY <1>1, <1>2, <1>3, PTL DEF FairFinalizeObjects
 
-(**
- * The temporal theorems behind quiescence. Stutter: the registered objects,
- * finite and never growing under user quiescence, cannot shrink forever, so
- * the state eventually stops changing. Constancy: the state then keeps one
- * value.
- *)
-Stutter == INSTANCE EventualStutteringTheorems
-            WITH S <- RegisteredObject, v <- vars
-
-Constancy == INSTANCE EventualConstancyTheorems WITH v <- vars
-
 LEMMA LemEventualQuiescence ==
     []Inv /\ [][Next]_vars /\ (\A o \in Object : FairFinalizeObjects(o))
     => EventualQuiescence
@@ -159,31 +148,38 @@ LEMMA LemEventualQuiescence ==
    state, every target is finalized: an unfinalized target would stay
    finalizable forever, and fairness would finalize it, changing the state. *)
 <1>1. []Inv /\ [][Next]_vars /\ <>[][NoUserAction]_vars => <>[][FALSE]_vars
+    (* tlapm: TL_FiniteSetDescent is cited at the bound name S. *)
+    <2>. DEFINE S == RegisteredObject
     <2>1. [Next]_vars /\ [NoUserAction]_vars
-            => /\ RegisteredObject' \subseteq RegisteredObject
-               /\ [RegisteredObject' /= RegisteredObject]_vars
+            => [S' \subseteq S]_S /\ ([FALSE]_S => [FALSE]_vars)
         BY DEF FinalizeObjects, Next, NoUserAction, RegisteredObject,
             RegisterObjects, TargetObjects, UnknownObject, UntargetObjects, vars
-    <2>2. Inv => IsFiniteSet(RegisteredObject)
+    <2>2. Inv => IsFiniteSet(S)
         BY FS_Subset DEF FiniteKnownObjects, Inv, RegisteredObject,
             UnknownObject
+    <2>. HIDE DEF S
     <2>. QED
-        BY <2>1, <2>2, Stutter!EventualStuttering, PTL
-            DEF IsFiniteSet, Stutter!IsFiniteSet
+        BY <2>1, <2>2, TL_FiniteSetDescent, PTL
 <1>. DEFINE Fair == \A o \in Object : FairFinalizeObjects(o)
 <1>. HIDE DEF Fair
 <1>2. []Inv /\ [][Next]_vars /\ Fair /\ <>[][FALSE]_vars
       => <>[](objectTargets \subseteq FinalizedObject)
+    (* tlapm: TL_EventualConstancy is cited at the bound name v. *)
+    <2>. DEFINE v == vars
+    <2>1. <>[][FALSE]_v <=> \E K : <>[](v = K)
+        <3>. HIDE DEF v
+        <3>. QED
+            BY TL_EventualConstancy, PTL
     <2>. SUFFICES ASSUME NEW K
                   PROVE  []Inv /\ [][Next]_vars /\ Fair /\ <>[](vars = K)
                          => <>[](objectTargets \subseteq FinalizedObject)
-        BY Constancy!EventualConstancy, Isa
+        BY <2>1, Isa
     <2>. DEFINE Clean ==
                     \A o \in Object : o \in K[2] => K[1][o] = OBJECT_FINALIZED
                 Stuck(o) == o \in K[2] /\ K[1][o] /= OBJECT_FINALIZED
     <2>. HIDE DEF Clean, Stuck
     (* Clean and Stuck(o) are constants: PTL needs their stability. *)
-    <2>1. Clean
+    <2>2. Clean
           => ([]Inv /\ [][Next]_vars /\ Fair /\ <>[](vars = K)
               => <>[](objectTargets \subseteq FinalizedObject))
         <3>1. Clean' <=> Clean
@@ -193,7 +189,7 @@ LEMMA LemEventualQuiescence ==
             BY DEF Clean, FinalizedObject, Inv, TypeOk, vars
         <3>. QED
             BY <3>1, <3>2, PTL
-    <2>2. ASSUME NEW o \in Object
+    <2>3. ASSUME NEW o \in Object
           PROVE  Stuck(o)
                  => ([]Inv /\ [][Next]_vars /\ Fair /\ <>[](vars = K)
                      => <>[](objectTargets \subseteq FinalizedObject))
@@ -207,10 +203,10 @@ LEMMA LemEventualQuiescence ==
             BY LemEventualTargetFinalization DEF Fair
         <3>. QED
             BY <3>1, <3>2, <3>3, PTL DEF EventualTargetFinalization
-    <2>3. Clean \/ \E o \in Object : Stuck(o)
+    <2>4. Clean \/ \E o \in Object : Stuck(o)
         BY DEF Clean, Stuck
     <2>. QED
-        BY <2>1, <2>2, <2>3, Zenon
+        BY <2>2, <2>3, <2>4, Zenon
 <1>. QED
     BY <1>1, <1>2, PTL DEF EventualQuiescence, Fair, Idle
 
