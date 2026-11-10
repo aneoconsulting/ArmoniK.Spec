@@ -22,20 +22,18 @@
     // (lib/*.class produced by `make build-java`) on TLC's classpath, with
     // the module directories. The vscode-tlaplus extension preserves our
     // -cp and appends its bundled tla2tools.jar.
-    "tlaplus.java.options": "-XX:+UseParallelGC -cp __REPO_ROOT__/.tlatools/CommunityModules-deps.jar:__REPO_ROOT__/lib:__REPO_ROOT__/lib/temporal:__REPO_ROOT__/specs",
+    "tlaplus.java.options": "-XX:+UseParallelGC -cp __REPO_ROOT__/.tlatools/CommunityModules-deps.jar:__REPO_ROOT__/lib:__REPO_ROOT__/specs",
 
     // SANY / TLC search path. Includes the CommunityModules sources, the
     // tlapm-bundled stdlib (TLAPS.tla, FiniteSetTheorems.tla, etc.) and the
-    // three module directories -- the specifications of specs/ EXTEND the
-    // libraries of lib/, and their proofs INSTANCE the temporal theorems of
-    // lib/temporal/ -- so any module can be parsed and model-checked in
+    // two module directories -- the specifications of specs/ EXTEND the
+    // libraries of lib/ -- so any module can be parsed and model-checked in
     // VSCode. The extension does not resolve these relative to the
     // workspace, so they must be absolute.
     "tlaplus.moduleSearchPaths": [
         "__REPO_ROOT__/.tlatools/CommunityModules/modules",
         "__REPO_ROOT__/.tlatools/tlapm/lib/tlapm/stdlib",
         "__REPO_ROOT__/lib",
-        "__REPO_ROOT__/lib/temporal",
         "__REPO_ROOT__/specs"
     ],
 
