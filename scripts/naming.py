@@ -4,13 +4,9 @@ Nothing here is configured; everything is derived from file names. A specificati
 <X>.tla states its theorems in <X>Theorems.tla, discharges them in
 <X>Theorems_proofs.tla, and is model-checked through <X>_mc.tla with <X>_mc.cfg.
 A library module carries its TLC unit tests in <X>Tests.tla with <X>Tests.cfg.
-A temporal theorem has an interface of its own, <X>Theorems.tla, stating it over
-the module's VARIABLE declarations, its constants being parameters of the
-statement, and <X>Theorems_proofs.tla, a copy of the interface with the proof
-added.
-The specifications live in specs/, the library modules they build on in lib/,
-and the temporal theorems in lib/temporal/; a module name is unique across the
-three directories, so a module is located by name alone (`module_path`).
+The specifications live in specs/ and the library modules they build on in
+lib/; a module name is unique across the two directories, so a module is
+located by name alone (`module_path`).
 
 This module is the single source of truth for that vocabulary. It maps a path to
 the *kind* of change it carries -- which is the commit type, see
@@ -44,13 +40,14 @@ TESTS_SUFFIX = "Tests"
 # The specifications proper, as opposed to the library modules they build on.
 SPEC_MODULE = re.compile(r"^(Graph|Task|Object|Session)\d+$")
 
-# The directories holding the modules: the specifications, the libraries they
-# build on, and the temporal theorems -- one theorem per interface. All three are
-# flat, and a module name is unique across them.
+# The directories holding the modules: the specifications and the libraries they
+# build on. Both are flat, and a module name is unique across them.
 SPECS_DIR = "specs"
 LIB_DIR = "lib"
-TEMPORAL_DIR = "lib/temporal"
-MODULE_DIRS = (SPECS_DIR, LIB_DIR, TEMPORAL_DIR)
+MODULE_DIRS = (SPECS_DIR, LIB_DIR)
+# Where the temporal theorems lived, one interface and its proof per theorem,
+# before they joined lib/: owned so that the commits of that history still check.
+FORMER_PROOF_DIR = "lib/temporal"
 # The kinds a library directory holds: no specification and no model instance.
 LIB_KINDS = ("lib", "proof", "test")
 
@@ -87,11 +84,6 @@ def _module_kind(stem: str) -> str:
     return "spec" if SPEC_MODULE.match(stem) else "lib"
 
 
-def is_temporal_dir(directory: str | Path) -> bool:
-    """Whether `directory` is the temporal-theorem directory, wherever the tree is rooted."""
-    return Path(directory).parts[-2:] == Path(TEMPORAL_DIR).parts
-
-
 def kind_of(path: str | Path) -> str | None:
     """Kind of change the repository path `path` carries, None if it has no kind.
 
@@ -102,8 +94,8 @@ def kind_of(path: str | Path) -> str | None:
     specs/ still owns a library module there (a lib), as the history before the
     libraries moved to lib/ has them -- and git reports the source side of that
     move; lib/ owns the library kinds alone, so that a specification or a model
-    instance cannot drift into it. lib/temporal/ holds theorem interfaces and
-    their proofs only: every module there is a proof.
+    instance cannot drift into it. The former proof directory, as the history
+    has it, held theorem interfaces and their proofs only.
     """
     path = Path(path)
     parts = path.parts
@@ -113,7 +105,7 @@ def kind_of(path: str | Path) -> str | None:
     # Documentation is docs in the module directories too.
     if path.suffix == ".md" and parts[:1] in ((SPECS_DIR,), (LIB_DIR,)):
         return "docs"
-    if parts[:-1] == Path(TEMPORAL_DIR).parts:
+    if parts[:-1] == Path(FORMER_PROOF_DIR).parts:
         return "proof" if _file_kind(path) == "proof" else None
     # The module directories are flat: a module inside a subdirectory is not one.
     if len(parts) == 2 and parts[0] in (SPECS_DIR, LIB_DIR):
@@ -148,7 +140,7 @@ def _file_kind(path: Path) -> str | None:
 def scope_of(path: str | Path) -> str | None:
     """Module the repository path `path` is about, None for a path outside the module directories."""
     path = Path(path)
-    if path.parts[:-1] == Path(TEMPORAL_DIR).parts:
+    if path.parts[:-1] == Path(FORMER_PROOF_DIR).parts:
         return _scope(path.stem) if path.suffix == ".tla" else None
     if len(path.parts) != 2 or path.parts[0] not in (SPECS_DIR, LIB_DIR):
         return None

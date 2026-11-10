@@ -3,7 +3,6 @@
 import pytest
 
 from scripts.naming import (
-    is_temporal_dir,
     kind_of,
     module_path,
     proof_modules,
@@ -28,12 +27,11 @@ from scripts.naming import (
         ("lib/DDGraphTheorems_proofs.tla", "proof"),
         ("lib/DDGraphsTests.tla", "test"),
         ("lib/DDGraphsTests.cfg", "test"),
-        # A temporal theorem: its interface and its proof are both proofs.
+        # The history before the temporal theorems joined lib/: interfaces and proofs only.
         ("lib/temporal/EventualStutteringTheorems.tla", "proof"),
         ("lib/temporal/EventualStutteringTheorems_proofs.tla", "proof"),
-        ("lib/temporal/EventualStuttering.tla", None),  # nothing but theorems there
-        ("lib/temporal/EventualStutteringTheorems.cfg", None),  # nothing to model-check there
-        ("lib/temporal/nested/Module.tla", None),
+        ("lib/temporal/EventualStuttering.tla", None),
+        ("lib/temporal/EventualStutteringTheorems.cfg", None),
         # The history before the move: a library under specs/ keeps its kind.
         ("specs/DiGraphs.tla", "lib"),
         ("specs/DDGraphs.java", "lib"),
@@ -50,7 +48,6 @@ from scripts.naming import (
         ("README.md", "docs"),
         ("specs/README.md", "docs"),  # *.md is docs in the module directories too
         ("lib/README.md", "docs"),
-        ("lib/temporal/README.md", "docs"),
         (".claude/skills/tlaps-proof/SKILL.md", "ai"),  # .claude/ wins over *.md
         (".claude/skills/tlaps-proof/prove.py", "ai"),
         (".claude/settings.json", "ai"),
@@ -88,10 +85,9 @@ def test_kind_of(path, kind):
         ("lib/DDGraphsTests.tla", "DDGraphs"),
         ("lib/DDGraphs.java", "DDGraphs"),
         ("specs/DDGraphs.java", "DDGraphs"),  # the history before the move
-        # A temporal theorem is the scope of its interface and of its proof.
+        # The history before the temporal theorems joined lib/: one scope per theorem.
         ("lib/temporal/EventualStutteringTheorems.tla", "EventualStuttering"),
         ("lib/temporal/EventualStutteringTheorems_proofs.tla", "EventualStuttering"),
-        ("lib/temporal/README.md", None),  # not a module file
         ("scripts/naming.py", None),  # outside the module directories
         ("specs/README.md", None),  # not a module file
         ("lib/nested/Module.tla", None),  # the module directories are flat
@@ -113,49 +109,36 @@ def test_scopes_of_collects_tla_modules_only():
 
 @pytest.fixture
 def tree(tmp_path):
-    """The three module directories, each with one module and one proof file."""
-    specs, lib, temporal = tmp_path / "specs", tmp_path / "lib", tmp_path / "lib" / "temporal"
+    """The two module directories, each with one module and one proof file."""
+    specs, lib = tmp_path / "specs", tmp_path / "lib"
     specs.mkdir()
     lib.mkdir()
-    temporal.mkdir()
     for path in (
         specs / "Task1.tla",
         specs / "Task1Theorems_proofs.tla",
         lib / "DiGraphs.tla",
         lib / "DiGraphTheorems_proofs.tla",
-        temporal / "EventualConstancyTheorems.tla",
-        temporal / "EventualConstancyTheorems_proofs.tla",
     ):
         path.write_text("")
-    return specs, lib, temporal
+    return specs, lib
 
 
 def test_scopes_spans_the_directories(tree):
-    specs, lib, temporal = tree
+    specs, lib = tree
     assert scopes(specs) == {"Task1"}
-    assert scopes(specs, lib, temporal) == {"Task1", "DiGraphs", "EventualConstancy"}
+    assert scopes(specs, lib) == {"Task1", "DiGraphs"}
 
 
 def test_proof_modules_spans_the_directories_in_module_order(tree):
-    specs, lib, temporal = tree
-    assert proof_modules(specs, lib, temporal) == [
+    specs, lib = tree
+    assert proof_modules(specs, lib) == [
         lib / "DiGraphTheorems_proofs.tla",
-        temporal / "EventualConstancyTheorems_proofs.tla",
         specs / "Task1Theorems_proofs.tla",
     ]
 
 
 def test_module_path_finds_the_directory_holding_the_module(tree):
-    specs, lib, temporal = tree
-    assert module_path("DiGraphs", [specs, lib, temporal]) == lib / "DiGraphs.tla"
-    assert module_path("Task1", [specs, lib, temporal]) == specs / "Task1.tla"
-    assert module_path("EventualConstancyTheorems", [specs, lib, temporal]) == temporal / "EventualConstancyTheorems.tla"
+    specs, lib = tree
+    assert module_path("DiGraphs", [specs, lib]) == lib / "DiGraphs.tla"
+    assert module_path("Task1", [specs, lib]) == specs / "Task1.tla"
     assert module_path("Task1", [lib]) is None
-
-
-def test_is_temporal_dir_wherever_the_tree_is_rooted(tree):
-    specs, lib, temporal = tree
-    assert is_temporal_dir(temporal)
-    assert is_temporal_dir("lib/temporal")
-    assert not is_temporal_dir(lib)
-    assert not is_temporal_dir(specs)

@@ -1,8 +1,8 @@
 """check-pairing: theorem interfaces, proof files and configurations come in sets.
 
 Checks the naming convention file-wise over every module of each directory
-given -- specs/, lib/ and lib/temporal/ by default, each on its own, since a
-pair sits together: each interface <X>Theorems.tla must have a proof file
+given -- specs/ and lib/ by default, each on its own, since a pair sits
+together: each interface <X>Theorems.tla must have a proof file
 <X>Theorems_proofs.tla and vice versa, with no orphan on either side. A
 *_proofs.tla module whose base name does not end in Theorems is a violation of
 the convention itself. A model instance <X>_mc.tla or test module <X>Tests.tla
@@ -11,9 +11,8 @@ exist too -- without it, CI silently skips the module. (A plain specification's
 .cfg is optional -- some specs are model-checked through their _mc instance
 instead -- so its absence cannot be flagged here.)
 
-lib/temporal/ holds nothing else: every file there is a theorem interface or
-its proof. And a module name is unique across the directories given, since
-the tools locate a module by name.
+A module name is unique across the directories given, since the tools locate
+a module by name.
 
 The declaration-level consistency of each pair is enforced separately by
 check_thm_interface.
@@ -23,21 +22,12 @@ import argparse
 import sys
 from pathlib import Path
 
-from .naming import (
-    INTERFACE_SUFFIX,
-    MC_SUFFIX,
-    MODULE_DIRS,
-    PROOF_SUFFIX,
-    TESTS_SUFFIX,
-    is_temporal_dir,
-)
+from .naming import INTERFACE_SUFFIX, MC_SUFFIX, MODULE_DIRS, PROOF_SUFFIX, TESTS_SUFFIX
 
 
 def check_pairing(specs_dir: Path) -> list[str]:
     """Return every interface/proof/config pairing violation among `specs_dir`'s modules."""
     errors: list[str] = []
-    if is_temporal_dir(specs_dir):
-        errors += _check_temporal_contents(specs_dir)
     stems = {path.stem for path in specs_dir.glob("*.tla")}
     cfgs = {path.stem for path in specs_dir.glob("*.cfg")}
     for stem in sorted(stems):
@@ -73,16 +63,6 @@ def check_unique_names(dirs: list[Path]) -> list[str]:
         f"{name}: in {' and '.join(str(d) for d in where)}; a module name must be unique"
         for name, where in sorted(holders.items())
         if len(where) > 1
-    ]
-
-
-def _check_temporal_contents(temporal_dir: Path) -> list[str]:
-    """Return every file of `temporal_dir` that is neither an interface nor its proof."""
-    return [
-        f"{path.name}: only theorem interfaces and their proofs belong here"
-        for path in sorted(temporal_dir.iterdir())
-        if path.is_file()
-        and not (path.suffix == ".tla" and path.stem.removesuffix(PROOF_SUFFIX).endswith(INTERFACE_SUFFIX))
     ]
 
 
