@@ -24,7 +24,7 @@ def test_chunks_without_a_module_plans_every_proof_module():
 
 def test_a_line_range_needs_both_ends():
     # /bin/true stands in for tlapm, which `make -n` does not run anyway.
-    module = "MODULE=EventualConstancyTheorems_proofs"
+    module = "MODULE=DiGraphTheorems_proofs"
     for bound in ("BEGIN=1", "END=5"):
         result = _make("-n", "tlapm", "TLAPM=/bin/true", module, bound)
         assert result.returncode != 0

@@ -28,23 +28,11 @@ def test_a_specs_directory_pairs_interfaces_proofs_and_configs(tmp_path):
     assert any("Task5_mc.tla: missing Task5_mc.cfg" in error for error in errors)
 
 
-def test_the_temporal_directory_holds_interfaces_and_proofs_only(tmp_path):
-    temporal = _touch(
-        tmp_path / "lib" / "temporal", "EventualConstancyTheorems.tla", "EventualConstancyTheorems_proofs.tla"
-    )
-    assert check_pairing(temporal) == []
-
-    _touch(temporal, "EventualStutteringTheorems.tla", "EventualStuttering.tla", "EventualConstancy.cfg")
-    errors = check_pairing(temporal)
-    assert any("EventualStutteringTheorems.tla: orphan interface" in error for error in errors)
-    assert any("EventualStuttering.tla: only theorem interfaces and their proofs" in error for error in errors)
-    assert any("EventualConstancy.cfg: only theorem interfaces and their proofs" in error for error in errors)
-
-
 def test_a_module_name_is_unique_across_the_directories(tmp_path):
     specs = _touch(tmp_path / "specs", "Task1.tla", "FooTheorems.tla", "FooTheorems_proofs.tla")
     lib = _touch(tmp_path / "lib", "DiGraphs.tla", "FooTheorems.tla", "FooTheorems_proofs.tla")
-    assert check_unique_names([tmp_path / "specs", tmp_path / "lib" / "temporal"]) == []
+    other = _touch(tmp_path / "other", "DDGraphs.tla")
+    assert check_unique_names([specs, other]) == []
     errors = check_unique_names([specs, lib])
     assert any("FooTheorems.tla" in error and "specs" in error and "lib" in error for error in errors)
     assert any("FooTheorems_proofs.tla" in error for error in errors)
