@@ -167,9 +167,8 @@ def check_header(header: str, known_scopes: set[str] | None = None) -> list[str]
     elif parsed.scope is not None and parsed.type in MODULE_TYPES:
         if known_scopes is not None and parsed.scope not in known_scopes:
             errors.append(
-                f"unknown module {parsed.scope!r}; scopes are the modules of specs/, "
-                "lib/ and lib/temporal/, their Theorems, _proofs, _mc and Tests suffixes "
-                "dropped"
+                f"unknown module {parsed.scope!r}; scopes are the modules of specs/ "
+                "and lib/, their Theorems, _proofs, _mc and Tests suffixes dropped"
             )
     elif parsed.scope is not None and not FREE_SCOPE.match(parsed.scope):
         errors.append(f"scope {parsed.scope!r} must be lowercase and hyphenated")

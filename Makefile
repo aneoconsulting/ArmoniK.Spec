@@ -6,12 +6,11 @@
 # variables (TLA_CP, TLA_LIB, TLAPM, TLAPM_OPT, JAVA_OPTS, TLAPM_OPTS,
 # TLAPM_OPT_OPTS, TLAPM_GC) for ad-hoc invocations from the shell.
 #
-# The modules live in three flat directories: specs/ holds the specifications,
-# lib/ the library modules they build on, lib/temporal/ the temporal theorems
-# (one per interface <X>Theorems.tla, proved in <X>Theorems_proofs.tla). A module
-# name is unique across them, so the single-module targets take a bare
-# MODULE=<name> and locate it in whichever directory holds it; the three
-# directories are on the search path and the classpath every tool gets.
+# The modules live in two flat directories: specs/ holds the specifications,
+# lib/ the library modules they build on. A module name is unique across them,
+# so the single-module targets take a bare MODULE=<name> and locate it in
+# whichever directory holds it; both directories are on the search path and the
+# classpath every tool gets.
 #
 # scripts/chunk_proofs.py plans how each proof module is checked (see its
 # docstring); `make chunks` prints the plan.
@@ -22,8 +21,7 @@ SHELL := /usr/bin/env bash
 TOOLS_DIR  := .tlatools
 SPECS_DIR  := specs
 LIB_DIR    := lib
-TEMPORAL_DIR := lib/temporal
-MODULE_DIRS := $(SPECS_DIR) $(LIB_DIR) $(TEMPORAL_DIR)
+MODULE_DIRS := $(SPECS_DIR) $(LIB_DIR)
 
 TLA2TOOLS_JAR        := $(TOOLS_DIR)/tla2tools.jar
 COMMUNITY_MODULES_JAR := $(TOOLS_DIR)/CommunityModules-deps.jar
@@ -38,17 +36,16 @@ PY_DEV_STAMP := $(VENV)/.dev-stamp
 # sany and tlc targets run from the module's directory. TLA_LIB
 # carries the module search path: the TLAPS-importing modules need tlapm's
 # stdlib (not on the classpath; without it SANY and TLC cannot resolve EXTENDS
-# TLAPS), a specification needs the libraries of $(LIB_DIR), and its proofs the
-# temporal theorems of $(TEMPORAL_DIR) they instantiate. The .class overrides
-# of $(LIB_DIR) are reached through the classpath, hence TLA_CP lists the
-# module directories too.
+# TLAPS), and a specification needs the libraries of $(LIB_DIR). The .class
+# overrides of $(LIB_DIR) are reached through the classpath, hence TLA_CP lists
+# the module directories too.
 JAVA_OPTS  ?= -XX:+UseParallelGC
-TLA_CP     := $(CURDIR)/$(TLA2TOOLS_JAR):$(CURDIR)/$(COMMUNITY_MODULES_JAR):$(CURDIR)/$(LIB_DIR):$(CURDIR)/$(TEMPORAL_DIR):$(CURDIR)/$(SPECS_DIR)
-TLA_LIB    := -DTLA-Library=$(CURDIR)/$(COMMUNITY_MODULES_SRC):$(CURDIR)/$(TOOLS_DIR)/tlapm/lib/tlapm/stdlib:$(CURDIR)/$(LIB_DIR):$(CURDIR)/$(TEMPORAL_DIR):$(CURDIR)/$(SPECS_DIR)
+TLA_CP     := $(CURDIR)/$(TLA2TOOLS_JAR):$(CURDIR)/$(COMMUNITY_MODULES_JAR):$(CURDIR)/$(LIB_DIR):$(CURDIR)/$(SPECS_DIR)
+TLA_LIB    := -DTLA-Library=$(CURDIR)/$(COMMUNITY_MODULES_SRC):$(CURDIR)/$(TOOLS_DIR)/tlapm/lib/tlapm/stdlib:$(CURDIR)/$(LIB_DIR):$(CURDIR)/$(SPECS_DIR)
 TLAPM      := $(TOOLS_DIR)/tlapm/bin/tlapm
 TLAPM_OPT  := $(TOOLS_DIR)/tlapm-opt/bin/tlapm
 # --strict, as CI runs it: omitted and unproved obligations are errors locally too.
-TLAPM_OPTS := --strict -I $(CURDIR)/$(COMMUNITY_MODULES_SRC) -I $(CURDIR)/$(LIB_DIR) -I $(CURDIR)/$(TEMPORAL_DIR) -I $(CURDIR)/$(SPECS_DIR)
+TLAPM_OPTS := --strict -I $(CURDIR)/$(COMMUNITY_MODULES_SRC) -I $(CURDIR)/$(LIB_DIR) -I $(CURDIR)/$(SPECS_DIR)
 # The optimized build reaches the Isabelle-bound obligations of the liveness
 # proofs far more concurrently, so they must share the machine instead of having
 # it to themselves; --stretch buys back the time that costs them. Measured on
@@ -107,8 +104,7 @@ help:
 	@echo "  clean          Remove TLC scratch state, *.out logs and compiled .class files"
 	@echo "  clean-tools    Remove $(TOOLS_DIR)/ and $(VENV)/ entirely"
 	@echo
-	@echo "<mod> is a bare module name, found in $(SPECS_DIR)/ (specifications), $(LIB_DIR)/ (libraries)"
-	@echo "or $(TEMPORAL_DIR)/ (temporal theorems)."
+	@echo "<mod> is a bare module name, found in $(SPECS_DIR)/ (specifications) or $(LIB_DIR)/ (libraries)."
 	@echo
 	@echo "ad-hoc usage:"
 	@echo "  \$$(PYTHON) -m scripts.check_property_coverage $(SPECS_DIR)/<mod>.tla"
