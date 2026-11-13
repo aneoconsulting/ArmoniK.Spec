@@ -1,48 +1,53 @@
 ------------------------------- MODULE Graph1_mc -------------------------------
-(*******************************************************************************)
-(* Bounded model-checking extension of Graph1.                                 *)
-(*                                                                             *)
-(* For model checking, the sets of task and object identifiers must be finite  *)
-(* and explicitly materialized. Since the number of tasks and objects are       *)
-(* finite, the system eventually reaches a state where no new graph can be     *)
-(* registered, which leads to an artificial deadlock.                           *)
-(*                                                                             *)
-(* To avoid this spurious deadlock, MCSpec adds to the next-state relation    *)
-(* the Terminating stuttering step, enabled in the terminal states, allowing   *)
-(* the model checker to terminate exploration gracefully.                      *)
-(*                                                                             *)
-(* In addition, optimizations are provided to speed up model checking.         *)
-(*******************************************************************************)
+(******************************************************************************)
+(* Model of Graph1 for TLC, on finitely many tasks and objects.               *)
+(******************************************************************************)
 
 EXTENDS Graph1
 
-MCDirectedGraphOf(N) == DDGraphOf(N \cap Task, N \cap Object)
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                                 OVERRIDES                                  *)
+(******************************************************************************)
 
 (**
- * TERMINAL STATE
- * Stuttering step enabled once the system has terminated: every targeted object
- * is finalized and no task is assigned or processed. With finitely many
- * identifiers, the system reaches states where no action of Next is enabled,
- * which TLC reports as deadlocks. This step only serves model checking: it adds
- * no behaviour to Spec, since [Next \/ Terminating]_vars equals [Next]_vars,
- * and it keeps deadlock checking meaningful, as a state where Next is disabled
- * before termination is still reported.
+ * The graphs that TLC enumerates for a registration: the data-dependency
+ * graphs over the given nodes, substituted for DirectedGraphOf in the
+ * configuration file. A graph that a registration accepts is one: it is a
+ * subgraph of the data-dependency graph it extends the dependencies into,
+ * and its tasks are unknown, hence have no edge in the current graph, so that
+ * its roots and leaves are objects. The substitution hides no registration.
+ *)
+MCDirectedGraphOf(N) == DDGraphOf(N \intersect Task, N \intersect Object)
+
+(**
+ * Stuttering step enabled once the system is idle. With finitely many
+ * identifiers, every behavior reaches a state where Next is disabled, which TLC
+ * reports as a deadlock. This step makes the expected terminal states legal and
+ * leaves the others reported. It adds no behavior, since [Next \/
+ * Terminating]_vars equals [Next]_vars.
  *)
 Terminating ==
-    /\ terminated
+    /\ Idle
     /\ UNCHANGED vars
 
 (**
- * Next-state relation checked by TLC: the specification's, with the
- * Terminating step.
+ * The next-state relation of the specification, with the terminal step.
  *)
 MCNext ==
     \/ Next
     \/ Terminating
 
+(**
+ * The specification with MCNext for Next. UpstreamStabilization holds in
+ * every behavior of the model: with finitely many identifiers, the dependency
+ * graph grows finitely many times, and only its growth enlarges an open
+ * ancestry, since a finalized node never reopens.
+ *)
 MCSpec ==
     /\ Init
     /\ [][MCNext]_vars
     /\ Fairness
+    /\ UpstreamStabilization
 
 ================================================================================
