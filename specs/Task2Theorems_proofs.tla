@@ -3,8 +3,8 @@
 (* Proofs of all the properties of Task2.                                     *)
 (******************************************************************************)
 
-EXTENDS BoundedGrowthTheorems, DenumerableSetTheorems, FiniteSetTheorems,
-    NaturalsInduction, Task2, TLAPS, WellFoundedInduction
+EXTENDS DenumerableSetTheorems, FiniteSetTheorems, NaturalsInduction, Task2,
+    TemporalLogicTheorems, TLAPS, WellFoundedInduction
 
 USE DEF TASK_ABORTED, TASK_ASSIGNED, T1!TASK_ASSIGNED, TASK_COMPLETED,
     TASK_DISCARDED, TASK_FAILED, TASK_FINALIZED, T1!TASK_FINALIZED,
@@ -1125,107 +1125,50 @@ LEMMA LemPreserveT1WFFinalizeTasks ==
 
 (**
  * ----
- * Rule: bounded growth. The attempts of 't' never shrink and stay within
- * MaxRetries elements, so they eventually stop changing, and the value they
- * keep is the witness.
+ * Rule: bounded ascent, then eventual constancy. The attempts of 't' always
+ * are a finite set of at most MaxRetries tasks (1) and never shrink, so they
+ * eventually stop changing (2), and then keep one such set as their value
+ * (3).
  *)
 LEMMA LemAttemptsEventualStability ==
     ASSUME NEW t \in Task
     PROVE  []Inv /\ [][Next]_vars => AttemptsEventualStability!At(t)
-<1>. DEFINE Fits(S) ==
-                /\ S \in SUBSET Task
-                /\ IsFiniteSet(S)
-                /\ Cardinality(S) <= MaxRetries
-<1>. SUFFICES ASSUME []Inv, [][Next]_vars
-              PROVE  \E S : Fits(S) /\ <>[](TaskAttempts(t) = S)
-    BY DEF AttemptsEventualStability
-<1>1. <>[][FALSE]_(TaskAttempts(t))
-    <2>. DEFINE S == TaskAttempts(t)
-                N == MaxRetries
-    <2>1. Inv => IsFiniteSet(S) /\ Cardinality(S) <= N
-        BY DEF AttemptsWithinMaxRetries, FiniteTaskAttempts, Inv
-    <2>2. [Next]_vars => [S \subseteq S']_S
-        BY LemAttemptsMonotone
-    (* tlapm: BoundedGrowth does not match at hidden definitions; its proof
-       is inlined. *)
-    <2>3. /\ <>[]IsFiniteSet(S)
-          /\ <>[](Cardinality(S) <= N)
-          /\ <>[][S \subseteq S']_S
-          => <>[][FALSE]_S
-        <3>. HIDE DEF N, S
-        <3>. DEFINE Bounded(n) == IsFiniteSet(S) /\ Cardinality(S) <= n
-                    P(n) == []Bounded(n) /\ [][S \subseteq S']_S
-                                => <>[][FALSE]_S
-        <3>1. \A n \in Nat : P(n)
-            <4>1. P(0)
-                <5>1. Bounded(0) /\ Bounded(0)' => [FALSE]_S
-                    BY FS_CardinalityType, FS_EmptySet
-                <5>. QED
-                    BY <5>1, PTL
-            <4>2. ASSUME NEW n \in Nat
-                  PROVE  /\ ~[]Bounded(n)
-                         /\ []Bounded(n + 1)
-                         /\ [][S \subseteq S']_S
-                         => <>[][FALSE]_S
-                <5>. DEFINE Full == IsFiniteSet(S) /\ Cardinality(S) = n + 1
-                <5>1. ~Bounded(n) /\ Bounded(n + 1) => Full
-                    BY FS_CardinalityType
-                <5>2. ASSUME NEW U, NEW V, IsFiniteSet(U), IsFiniteSet(V),
-                             Cardinality(U) = n + 1, Cardinality(V) <= n + 1,
-                             U \subseteq V
-                      PROVE  V = U
-                    BY <5>2, FS_CardinalityType, FS_Subset
-                <5>3. Full /\ Bounded(n + 1)' /\ [S \subseteq S']_S => [FALSE]_S
-                    BY <5>2
-                <5>4. Full /\ [FALSE]_S => Full'
-                    OBVIOUS
-                <5>. QED
-                    BY <5>1, <5>3, <5>4, PTL
-            <4>3. ASSUME NEW n \in Nat
-                  PROVE  P(n) => P(n + 1)
-                BY <4>2, PTL
-            <4>. HIDE DEF P
-            <4>. QED
-                BY <4>1, <4>3, NatInduction, Isa
-        <3>. HIDE DEF P
-        <3>2. P(N)
-            BY <3>1, Assumptions DEF N
-        <3>. QED
-            BY <3>2, PTL DEF P
-    <2>. QED
-        BY <2>1, <2>2, <2>3, PTL
-(* tlapm: the witness is bound as S, the name the goal binds. *)
-<1>2. Inv /\ [][FALSE]_(TaskAttempts(t))
-      => \E S : Fits(S) /\ [](TaskAttempts(t) = S)
-    <2>1. ASSUME NEW S
-          PROVE  TaskAttempts(t) = S /\ [][FALSE]_(TaskAttempts(t))
-                 => [](TaskAttempts(t) = S)
-        <3>1. TaskAttempts(t) = S /\ [FALSE]_(TaskAttempts(t))
-              => (TaskAttempts(t) = S)'
-            OBVIOUS
-        <3>. QED
-            BY <3>1, PTL
-    <2>2. Inv => \E S : Fits(S) /\ TaskAttempts(t) = S
-        BY DEF AttemptsWithinMaxRetries, FiniteTaskAttempts, Inv,
-            NextAttempts, PreviousAttempts, TaskAttempts
-    <2>. QED
-        BY <2>1, <2>2
-<1>3. <>(\E S : Fits(S) /\ [](TaskAttempts(t) = S))
-      => \E S : Fits(S) /\ <>[](TaskAttempts(t) = S)
-    <2>1. <>(\E S : Fits(S) /\ [](TaskAttempts(t) = S))
-          => \E S : <>(Fits(S) /\ [](TaskAttempts(t) = S))
+(* tlapm: TL_EventualConstancyIn is cited at the names D and v. *)
+<1>. PICK D : D = {A \in SUBSET Task :
+                      IsFiniteSet(A) /\ Cardinality(A) <= MaxRetries}
+    OBVIOUS
+<1>. DEFINE v          == TaskAttempts(t)
+            StaysAt(K) == <>[](v = K)
+<1>1. Inv => v \in D
+    BY DEF AttemptsWithinMaxRetries, FiniteTaskAttempts, Inv, NextAttempts,
+        PreviousAttempts, TaskAttempts
+<1>2. []Inv /\ [][Next]_vars => <>[][FALSE]_v
+    (* tlapm: TL_BoundedSetAscent is cited at the names S and N. *)
+    <2>. PICK N : N = MaxRetries
         OBVIOUS
-    <2>2. ASSUME NEW S
-          PROVE  <>(Fits(S) /\ [](TaskAttempts(t) = S))
-                 => Fits(S) /\ <>[](TaskAttempts(t) = S)
-        <3>1. <>Fits(S) => Fits(S)
-            OBVIOUS
-        <3>. QED
-            BY <3>1, PTL
+    <2>. DEFINE S == v
+    <2>1. N \in Nat
+        BY Assumptions
+    <2>2. Inv => IsFiniteSet(S) /\ Cardinality(S) <= N
+        BY <1>1
+    <2>3. [Next]_vars => [S \subseteq S']_S
+        BY LemAttemptsMonotone
+    <2>4. [FALSE]_S => [FALSE]_v
+        OBVIOUS
+    <2>. HIDE DEF S, v
     <2>. QED
-        BY <2>1, <2>2
+        BY <2>1, <2>2, <2>3, <2>4, TL_BoundedSetAscent, PTL
+<1>. HIDE DEF v
+<1>3. []Inv /\ [][Next]_vars => \E K \in D : StaysAt(K)
+    BY <1>1, <1>2, TL_EventualConstancyIn, PTL DEF StaysAt
+(* tlapm: a temporal formula under a binder needs a hidden name. *)
+<1>. HIDE DEF StaysAt
+<1>4. []Inv /\ [][Next]_vars
+      => \E S \in SUBSET Task :
+             IsFiniteSet(S) /\ Cardinality(S) <= MaxRetries /\ StaysAt(S)
+    BY <1>3
 <1>. QED
-    BY <1>1, <1>2, <1>3, PTL
+    BY <1>4 DEF AttemptsEventualStability, StaysAt, v
 
 (**
  * Known tasks; the known tasks that are the next attempt of no task, which
@@ -1241,27 +1184,18 @@ CoveredTask == {r \in Task : TaskAttempts(r) \subseteq KnownTask}
 SettledRetry == {x \in Task : nextAttemptOf[x] \notin UnknownTask}
 
 (**
- * The temporal theorems behind quiescence. Joint: the first attempts, which
- * only the user creates, eventually freeze, and each eventually stays
- * covered, so they eventually stay covered jointly. Each: the finitely many
- * attempts of a task eventually settle their retries jointly.
- *)
-Joint == INSTANCE FrozenJointStabilityTheorems
-            WITH S <- FirstAttempt, T <- CoveredTask
-
-Each == INSTANCE JointStabilityTheorems WITH T <- SettledRetry
-
-(**
  * Lifted from Task1, once the next attempts stop being registered: under
  * user quiescence, the chains of retries eventually have all their attempts
  * known.
  * ----
- * Rule: lift of Task1's EventualQuiescence. Every task eventually stays
- * covered (1). Once the user stops, the first attempts freeze, so they
- * eventually stay covered together (2), after which Task1 sees no user action
- * (3). Task1 then quiesces under the refinement mapping (4, 5, 8), with the
- * same idle states (6), and a step it sees as a stutter is a stutter once no
- * task has failed (7).
+ * Rule: lift of Task1's EventualQuiescence. A task with a next attempt is
+ * known (1). The chain of a task eventually stops changing and each of its
+ * next attempts is eventually registered, so every task eventually stays
+ * covered (2). Once the user stops, the first attempts freeze, so they
+ * eventually stay covered together (3), after which every known task is
+ * covered and Task1 sees no user action (4). Task1 then quiesces under the
+ * refinement mapping (5, 6, 9), with the same idle states (7), and a step it
+ * sees as a stutter is a stutter once no task has failed (8).
  *)
 LEMMA LemEventualQuiescence ==
     /\ []Inv
@@ -1274,44 +1208,51 @@ LEMMA LemEventualQuiescence ==
            /\ FairAbortTasks(t)
            /\ FairRetryTasks(t)
     => EventualQuiescence
-<1>1. /\ []Inv
-      /\ [][Next]_vars
-      /\ \A t \in Task :
-             /\ FairSetTaskRetries(t)
-             /\ FairRegisterTasks(t)
-             /\ FairProcessTasks(t)
-             /\ FairCompleteTasks(t)
-             /\ FairAbortTasks(t)
-             /\ FairRetryTasks(t)
-      => \A t \in Task : <>[](t \in CoveredTask)
-    <2>. SUFFICES ASSUME NEW t \in Task
-                  PROVE  /\ []Inv
-                         /\ [][Next]_vars
-                         /\ \A x \in Task : FairRegisterTasks(x)
-                         => <>[](t \in CoveredTask)
-        BY Isa
-    <2>1. ASSUME NEW x \in Task
-          PROVE  []Inv /\ [][Next]_vars /\ FairRegisterTasks(x)
-                 => <>[](x \in SettledRetry)
-        <3>1. /\ Inv
-              /\ nextAttemptOf[x] \in KnownTask
-              /\ [Next]_vars
+<1>. DEFINE Fair ==
+                \A t \in Task :
+                    /\ FairSetTaskRetries(t)
+                    /\ FairRegisterTasks(t)
+                    /\ FairProcessTasks(t)
+                    /\ FairCompleteTasks(t)
+                    /\ FairAbortTasks(t)
+                    /\ FairRetryTasks(t)
+<1>1. Inv => \A x \in Task : nextAttemptOf[x] \in Task => x \in KnownTask
+    BY Assumptions DEF FailedTask, Inv, KnownTask, LinkedTask, RetriedTask,
+        TaskAttemptsIntegrity, UnknownTask
+<1>2. ASSUME NEW t \in Task
+      PROVE  []Inv /\ [][Next]_vars /\ Fair => <>[](t \in CoveredTask)
+    (* tlapm: TL_EventuallyAlwaysForallStationary is cited at the bound names
+       S, G and x. *)
+    <2>1. []Inv /\ [][Next]_vars => <>[][FALSE]_(TaskAttempts(t))
+        <3>1. ASSUME NEW S
+              PROVE  <>[](TaskAttempts(t) = S)
+                     => <>[][FALSE]_(TaskAttempts(t))
+            <4>1. TaskAttempts(t) = S /\ (TaskAttempts(t) = S)'
+                  => [FALSE]_(TaskAttempts(t))
+                OBVIOUS
+            <4>. QED
+                BY <4>1, PTL
+        <3>. QED
+            BY <3>1, LemAttemptsEventualStability, Isa
+            DEF AttemptsEventualStability
+    <2>. DEFINE S == TaskAttempts(t) \union {t}
+                G(x) == x \in SettledRetry
+    <2>2. Inv => IsFiniteSet(S)
+        BY FS_AddElement DEF FiniteTaskAttempts, Inv
+    <2>3. [FALSE]_(TaskAttempts(t)) => [FALSE]_S
+        OBVIOUS
+    <2>4. ASSUME NEW x \in Task
+          PROVE  []Inv /\ [][Next]_vars /\ Fair => <>[]G(x)
+        <3>1. nextAttemptOf[x] \in KnownTask /\ [Next]_vars
               => (nextAttemptOf[x] \in KnownTask)'
             BY Assumptions, LemNextAttemptFrozen DEF AbortTasks, AssignedTask,
                 AssignTasks, CompleteTasks, DiscardedTask, DiscardTasks,
-                FailedTask, Inv, KnownTask, Next, ProcessTasks, RegisteredTask,
+                FailedTask, KnownTask, Next, ProcessTasks, RegisteredTask,
                 RegisterTasks, ReleaseTasks, RetryTasks, SetTaskRetries,
                 StagedTask, StageTasks, SucceededTask, UnknownTask, vars
-        <3>2. /\ Inv
-              /\ nextAttemptOf[x] \in UnknownTask
-              /\ [Next]_vars
-              => \/ (nextAttemptOf[x] \in UnknownTask)'
-                 \/ (nextAttemptOf[x] \in KnownTask)'
-            BY Assumptions, LemNextAttemptFrozen DEF AbortTasks, AssignedTask,
-                AssignTasks, CompleteTasks, DiscardedTask, DiscardTasks,
-                FailedTask, Inv, KnownTask, Next, ProcessTasks, RegisteredTask,
-                RegisterTasks, ReleaseTasks, RetryTasks, SetTaskRetries,
-                StagedTask, StageTasks, SucceededTask, UnknownTask, vars
+        <3>2. nextAttemptOf[x] \in UnknownTask /\ [Next]_vars
+              => ~ (nextAttemptOf[x] = NULL)'
+            BY Assumptions, LemNextAttemptFrozen DEF UnknownTask
         <3>3. <<RegisterTasks({nextAttemptOf[x]})>>_vars
                 => (nextAttemptOf[x] \in KnownTask)'
             BY DEF KnownTask, RegisterTasks, UnknownTask, vars
@@ -1321,72 +1262,71 @@ LEMMA LemEventualQuiescence ==
                  \/ nextAttemptOf[x] \in KnownTask
             BY DEF Inv, KnownTask, TypeOk
         <3>5. nextAttemptOf[x] = NULL \/ nextAttemptOf[x] \in KnownTask
-                => x \in SettledRetry
+                => G(x)
             BY Assumptions DEF KnownTask, SettledRetry, UnknownTask
+        <3>6. Fair => FairRegisterTasks(x)
+            BY Isa
         <3>. QED
-            BY <3>1, <3>2, <3>3, <3>4, <3>5, PTL DEF EnabledRegisterTasks,
-                FairRegisterTasks
-    <2>2. []Inv /\ [][Next]_vars
-          => \E S \in SUBSET Task :
-                IsFiniteSet(S) /\ <>[](TaskAttempts(t) = S)
-        BY LemAttemptsEventualStability DEF AttemptsEventualStability
-    <2>3. ASSUME NEW S \in SUBSET Task, IsFiniteSet(S)
-          PROVE  /\ []Inv
-                 /\ [][Next]_vars
-                 /\ \A x \in Task : FairRegisterTasks(x)
-                 /\ <>[](TaskAttempts(t) = S)
-                 => <>[](t \in CoveredTask)
-        (* tlapm: JointStability is matched at a set named P. *)
-        <3>. PICK P : P = S \union {t}
+            BY <3>1, <3>2, <3>3, <3>4, <3>5, <3>6, PTL
+            DEF EnabledRegisterTasks, FairRegisterTasks
+    <2>5. []Inv /\ [][Next]_vars /\ Fair => \A x : <>[](x \in S => G(x))
+        <3>. SUFFICES ASSUME NEW x
+                      PROVE  []Inv /\ [][Next]_vars /\ Fair
+                             => <>[](x \in S => G(x))
             OBVIOUS
-        <3>1. IsFiniteSet(P)
-            BY <2>3, FS_AddElement
-        <3>2. /\ []Inv
-              /\ [][Next]_vars
-              /\ \A x \in Task : FairRegisterTasks(x)
-              => \A x \in P : <>[](x \in SettledRetry)
-            BY <2>1
-        <3>3. (\A x \in P : <>[](x \in SettledRetry))
-                => <>[](P \subseteq SettledRetry)
-            BY <3>1, Each!JointStability DEF IsFiniteSet, Each!IsFiniteSet
-        <3>4. Inv /\ TaskAttempts(t) = S /\ P \subseteq SettledRetry
-                => t \in CoveredTask
-            <4>. SUFFICES ASSUME Inv, TaskAttempts(t) = S,
-                                 P \subseteq SettledRetry, NEW s \in S
-                          PROVE  s \in KnownTask
-                BY DEF CoveredTask
-            <4>1. CASE <<s, t>> \in TCNextAttemptOfRel
-                <5>1. nextAttemptOf[s] \in Task
-                    BY <4>1, LemNextAttemptsFirstStep
-                <5>. QED
-                    BY <5>1, Assumptions DEF FailedTask, Inv, KnownTask,
-                        LinkedTask, RetriedTask, TaskAttemptsIntegrity,
-                        UnknownTask
-            <4>2. CASE <<t, s>> \in TCNextAttemptOfRel
-                <5>1. PICK x \in Task :
-                          /\ <<x, s>> \in NextAttemptOfRel
-                          /\ t = x \/ <<t, x>> \in TCNextAttemptOfRel
-                    BY <4>2, TransitiveClosureChopLast DEF TCNextAttemptOfRel
-                <5>2. x \in P
-                    BY <5>1 DEF NextAttempts, TaskAttempts
-                <5>. QED
-                    BY <5>1, <5>2 DEF KnownTask, NextAttemptOfRel,
-                        SettledRetry
+        <3>1. CASE x \in Task
+            <4>1. []Inv /\ [][Next]_vars /\ Fair => <>[]G(x)
+                BY <2>4, <3>1
             <4>. QED
-                BY <4>1, <4>2 DEF NextAttempts, PreviousAttempts, TaskAttempts
+                BY <4>1, PTL
+        <3>2. CASE x \notin Task
+            <4>1. ~ (x \in S)
+                BY <3>2 DEF NextAttempts, PreviousAttempts, TaskAttempts
+            <4>. QED
+                BY <4>1, PTL
         <3>. QED
-            BY <3>2, <3>3, <3>4, PTL
+            BY <3>1, <3>2
+    <2>6. Inv /\ (\A x \in S : G(x)) => t \in CoveredTask
+        <3>. SUFFICES ASSUME Inv, \A x \in S : G(x),
+                             NEW s \in TaskAttempts(t)
+                      PROVE  s \in KnownTask
+            BY DEF CoveredTask
+        <3>1. CASE s \in PreviousAttempts(t)
+            BY <1>1, <3>1, LemNextAttemptsFirstStep DEF PreviousAttempts
+        <3>2. CASE s \in NextAttempts(t)
+            <4>1. PICK x \in Task :
+                      /\ <<x, s>> \in NextAttemptOfRel
+                      /\ t = x \/ <<t, x>> \in TCNextAttemptOfRel
+                BY <3>2, TransitiveClosureChopLast
+                DEF NextAttempts, TCNextAttemptOfRel
+            <4>2. x \in SettledRetry
+                BY <4>1 DEF NextAttempts, TaskAttempts
+            <4>3. nextAttemptOf[x] = s
+                BY <4>1 DEF NextAttemptOfRel
+            <4>. QED
+                BY <3>2, <4>2, <4>3 DEF KnownTask, NextAttempts, SettledRetry
+        <3>. QED
+            BY <3>1, <3>2 DEF TaskAttempts
+    <2>. HIDE DEF G, S
     <2>. QED
-        BY <2>2, <2>3, Isa
-<1>2. /\ []Inv
+        BY <2>1, <2>2, <2>3, <2>5, <2>6, TL_EventuallyAlwaysForallStationary,
+            PTL
+<1>3. /\ []Inv
       /\ [][Next]_vars
+      /\ Fair
       /\ <>[][NoUserAction]_vars
-      /\ \A t \in Task : <>[](t \in CoveredTask)
       => <>[](FirstAttempt \subseteq CoveredTask)
-    (* tlapm: FrozenJointStability is matched at a domain named D. *)
-    <2>. PICK D : D = Task
-        OBVIOUS
-    <2>1. Inv /\ [Next]_vars /\ [NoUserAction]_vars => UNCHANGED FirstAttempt
+    (* tlapm: TL_EventuallyAlwaysForallStationary is cited at the bound names
+       S, G and x. *)
+    <2>. DEFINE S == FirstAttempt
+                G(x) == x \in CoveredTask
+    <2>1. Inv => IsFiniteSet(S)
+        <3>1. Inv => IsFiniteSet(KnownTask)
+            BY LemT1BarStates DEF T1!FiniteKnownTasks, Inv, T1!Inv,
+                IsFiniteSet, T1!IsFiniteSet, KnownTask
+        <3>. QED
+            BY <3>1, FS_Subset DEF FirstAttempt
+    <2>2. Inv /\ [Next]_vars /\ [NoUserAction]_vars => [FALSE]_S
         <3>. SUFFICES ASSUME Inv, [Next]_vars, [NoUserAction]_vars
                       PROVE  FirstAttempt' = FirstAttempt
             OBVIOUS
@@ -1419,36 +1359,37 @@ LEMMA LemEventualQuiescence ==
                 KnownTask, Next, ProcessTasks, RegisteredTask, ReleaseTasks,
                 RetryTasks, StagedTask, StageTasks, SucceededTask, UnknownTask,
                 vars
-    <2>2. Inv => IsFiniteSet(FirstAttempt)
-        <3>1. Inv => IsFiniteSet(KnownTask)
-            BY LemT1BarStates DEF T1!FiniteKnownTasks, Inv, T1!Inv,
-                IsFiniteSet, T1!IsFiniteSet, KnownTask
-        <3>. QED
-            BY <3>1, FS_Subset DEF FirstAttempt
-    <2>3. (\A t \in Task : <>[](t \in CoveredTask))
-            => \A x \in Task : <>[](x \in CoveredTask)
-        (* tlapm: a temporal atom depends on its bound names. *)
-        <3>. DEFINE StaysCovered(y) == <>[](y \in CoveredTask)
-        <3>1. (\A t \in Task : <>[](t \in CoveredTask))
-                => \A t \in Task : StaysCovered(t)
+    <2>3. []Inv /\ [][Next]_vars /\ Fair => \A x : <>[](x \in S => G(x))
+        <3>. SUFFICES ASSUME NEW x
+                      PROVE  []Inv /\ [][Next]_vars /\ Fair
+                             => <>[](x \in S => G(x))
             OBVIOUS
-        <3>2. (\A x \in Task : StaysCovered(x))
-                => \A x \in Task : <>[](x \in CoveredTask)
-            OBVIOUS
-        <3>. HIDE DEF StaysCovered
+        <3>1. CASE x \in Task
+            (* tlapm: a temporal formula is instantiated through a hidden
+               definition. *)
+            <4>. DEFINE Stays(u) ==
+                            []Inv /\ [][Next]_vars /\ Fair
+                            => <>[](u \in CoveredTask)
+            <4>1. \A t \in Task : Stays(t)
+                BY <1>2
+            <4>. HIDE DEF Stays
+            <4>2. Stays(x)
+                BY <3>1, <4>1
+            <4>. QED
+                BY <4>2, PTL DEF Stays
+        <3>2. CASE x \notin Task
+            <4>1. ~ (x \in S)
+                BY <3>2 DEF FirstAttempt, KnownTask
+            <4>. QED
+                BY <4>1, PTL
         <3>. QED
             BY <3>1, <3>2
-    <2>4. /\ <>[]IsFiniteSet(FirstAttempt)
-          /\ <>[][FALSE]_FirstAttempt
-          /\ \A x \in Task : <>[](x \in CoveredTask)
-          => <>[](FirstAttempt \cap D \subseteq CoveredTask)
-        BY Joint!FrozenJointStability, Isa DEF IsFiniteSet, Joint!IsFiniteSet
-    <2>5. FirstAttempt \cap D \subseteq CoveredTask
-            => FirstAttempt \subseteq CoveredTask
-        BY DEF FirstAttempt, KnownTask
+    <2>4. (\A x \in S : G(x)) => FirstAttempt \subseteq CoveredTask
+        OBVIOUS
+    <2>. HIDE DEF G, S
     <2>. QED
-        BY <2>1, <2>2, <2>3, <2>4, <2>5, PTL
-<1>3. /\ Inv
+        BY <2>1, <2>2, <2>3, <2>4, TL_EventuallyAlwaysForallStationary, PTL
+<1>4. /\ Inv
       /\ FirstAttempt \subseteq CoveredTask
       /\ [Next]_vars
       /\ [NoUserAction]_vars
@@ -1457,109 +1398,74 @@ LEMMA LemEventualQuiescence ==
                          [Next]_vars, [NoUserAction]_vars
                   PROVE  [T1!NoUserAction]_T1!vars
         OBVIOUS
-    <2>1. \A x \in KnownTask :
-              \E r \in FirstAttempt : r = x \/ <<r, x>> \in TCNextAttemptOfRel
-        <3>. DEFINE Rooted(x) ==
-                        \E r \in FirstAttempt :
-                            r = x \/ <<r, x>> \in TCNextAttemptOfRel
-                    Q(n) ==
+    (* By induction on the number of previous attempts. *)
+    <2>1. KnownTask \subseteq CoveredTask
+        <3>. DEFINE Q(n) ==
                         \A x \in KnownTask :
-                            Cardinality(PreviousAttempts(x)) <= n => Rooted(x)
-        <3>1. \A x \in Task : IsFiniteSet(PreviousAttempts(x))
-            BY FS_Subset DEF FiniteTaskAttempts, Inv, TaskAttempts
-        <3>2. ASSUME NEW x \in KnownTask, ~ (x \in FirstAttempt)
-              PROVE  \E y \in KnownTask :
-                        /\ nextAttemptOf[y] = x
-                        /\ y \in PreviousAttempts(x)
-                        /\ PreviousAttempts(y)
-                           \subseteq PreviousAttempts(x) \ {y}
-            <4>1. PICK y \in Task : nextAttemptOf[y] = x
-                BY <3>2 DEF FirstAttempt
-            <4>2. y \in KnownTask
-                BY <4>1, Assumptions DEF FailedTask, Inv, KnownTask,
-                    LinkedTask, RetriedTask, TaskAttemptsIntegrity, UnknownTask
-            <4>3. <<y, x>> \in TCNextAttemptOfRel
+                            Cardinality(PreviousAttempts(x)) = n
+                            => x \in CoveredTask
+        <3>1. \A x \in Task :
+                  /\ IsFiniteSet(PreviousAttempts(x))
+                  /\ Cardinality(PreviousAttempts(x)) \in Nat
+            BY FS_CardinalityType, FS_Subset
+            DEF FiniteTaskAttempts, Inv, TaskAttempts
+        <3>2. ASSUME NEW n \in Nat, \A m \in 0..(n - 1) : Q(m)
+              PROVE  Q(n)
+            <4>. SUFFICES ASSUME NEW x \in KnownTask,
+                                 Cardinality(PreviousAttempts(x)) = n,
+                                 x \notin FirstAttempt
+                          PROVE  x \in CoveredTask
+                OBVIOUS
+            <4>1. PICK y \in KnownTask : nextAttemptOf[y] = x
+                BY <1>1 DEF FirstAttempt, KnownTask
+            <4>2. <<y, x>> \in TCNextAttemptOfRel
                 BY <4>1, TransitiveClosureThm DEF KnownTask, NextAttemptOfRel,
                     TCNextAttemptOfRel
-            <4>4. y \notin PreviousAttempts(y)
-                BY DEF Inv, KnownTask, LinkedTask, PreviousAttempts,
-                    TaskAttemptsIntegrity
-            <4>5. PreviousAttempts(y) \subseteq PreviousAttempts(x)
-                BY <4>3, TCTCTC DEF KnownTask, PreviousAttempts,
+            <4>3. y \in CoveredTask
+                <5>1. PreviousAttempts(y) \subseteq PreviousAttempts(x)
+                    BY <4>2, TCTCTC DEF KnownTask, PreviousAttempts,
+                        TCNextAttemptOfRel
+                <5>2. /\ y \in PreviousAttempts(x)
+                      /\ y \notin PreviousAttempts(y)
+                    BY <4>2 DEF Inv, KnownTask, PreviousAttempts,
+                        TaskAttemptsIntegrity
+                <5>3. Cardinality(PreviousAttempts(y))
+                        < Cardinality(PreviousAttempts(x))
+                    BY <3>1, <5>1, <5>2, FS_Subset DEF KnownTask
+                <5>4. Cardinality(PreviousAttempts(y)) \in 0..(n - 1)
+                    BY <3>1, <5>3 DEF KnownTask
+                <5>. QED
+                    BY <3>2, <5>4
+            <4>4. PreviousAttempts(x) \subseteq KnownTask
+                BY <1>1, LemNextAttemptsFirstStep DEF KnownTask,
+                    PreviousAttempts
+            <4>5. NextAttempts(x) \subseteq NextAttempts(y)
+                BY <4>2, TCTCTC DEF KnownTask, NextAttempts,
                     TCNextAttemptOfRel
             <4>. QED
-                BY <4>1, <4>2, <4>3, <4>4, <4>5 DEF KnownTask,
-                    PreviousAttempts
-        <3>3. Q(0)
-            <4>. SUFFICES ASSUME NEW x \in KnownTask,
-                                 Cardinality(PreviousAttempts(x)) <= 0
-                          PROVE  Rooted(x)
-                OBVIOUS
-            <4>1. PreviousAttempts(x) = {}
-                BY <3>1, FS_CardinalityType, FS_EmptySet DEF KnownTask
-            <4>. QED
-                BY <3>2, <4>1
-        <3>4. ASSUME NEW n \in Nat, Q(n)
-              PROVE  Q(n + 1)
-            <4>. SUFFICES ASSUME NEW x \in KnownTask,
-                                 Cardinality(PreviousAttempts(x)) <= n + 1
-                          PROVE  Rooted(x)
-                OBVIOUS
-            <4>1. CASE x \in FirstAttempt
-                BY <4>1
-            <4>2. CASE ~ (x \in FirstAttempt)
-                <5>1. PICK y \in KnownTask :
-                          /\ nextAttemptOf[y] = x
-                          /\ y \in PreviousAttempts(x)
-                          /\ PreviousAttempts(y)
-                             \subseteq PreviousAttempts(x) \ {y}
-                    BY <3>2, <4>2
-                <5>2. Cardinality(PreviousAttempts(y)) <= n
-                    <6>1. /\ IsFiniteSet(PreviousAttempts(x) \ {y})
-                          /\ Cardinality(PreviousAttempts(x) \ {y})
-                             = Cardinality(PreviousAttempts(x)) - 1
-                        BY <3>1, <5>1, FS_RemoveElement DEF KnownTask
-                    <6>2. Cardinality(PreviousAttempts(y))
-                            <= Cardinality(PreviousAttempts(x) \ {y})
-                        BY <5>1, <6>1, FS_Subset
-                    <6>. QED
-                        BY <3>1, <6>1, <6>2, FS_CardinalityType DEF KnownTask
-                <5>3. Rooted(y)
-                    BY <3>4, <5>1, <5>2
-                <5>. QED
-                    BY <5>1, <5>3, TCTCTC DEF FirstAttempt, KnownTask,
-                        PreviousAttempts, TCNextAttemptOfRel
-            <4>. QED
-                BY <4>1, <4>2
+                BY <4>3, <4>4, <4>5 DEF CoveredTask, KnownTask, TaskAttempts
         <3>. HIDE DEF Q
-        <3>5. \A n \in Nat : Q(n)
-            BY <3>3, <3>4, NatInduction, Isa
+        <3>3. \A n \in Nat : Q(n)
+            BY <3>2, GeneralNatInduction, Isa
         <3>. QED
-            BY <3>1, <3>5, FS_CardinalityType DEF KnownTask, Q
-    <2>2. CASE UNCHANGED vars
-        BY <2>2 DEF taskStateBar, vars, T1!vars
-    <2>3. \A x \in Task :
-              nextAttemptOf[x] \in Task => nextAttemptOf[x] \in KnownTask
-        <3>. SUFFICES ASSUME NEW x \in Task, nextAttemptOf[x] \in Task
-                      PROVE  nextAttemptOf[x] \in KnownTask
+            BY <3>1, <3>3 DEF KnownTask, Q
+    <2>2. \A x \in Task : nextAttemptOf[x] \notin UnknownTask
+        <3>. SUFFICES ASSUME NEW x \in Task, nextAttemptOf[x] \in UnknownTask
+                      PROVE  FALSE
             OBVIOUS
-        <3>1. x \in KnownTask
-            BY Assumptions DEF FailedTask, Inv, KnownTask, LinkedTask,
-                RetriedTask, TaskAttemptsIntegrity, UnknownTask
-        <3>2. PICK r \in FirstAttempt : r = x \/ <<r, x>> \in TCNextAttemptOfRel
-            BY <2>1, <3>1
-        <3>3. <<x, nextAttemptOf[x]>> \in TCNextAttemptOfRel
-            BY TransitiveClosureThm DEF NextAttemptOfRel, TCNextAttemptOfRel
-        <3>4. <<r, nextAttemptOf[x]>> \in TCNextAttemptOfRel
-            BY <3>2, <3>3, TCTCTC DEF FirstAttempt, KnownTask,
-                TCNextAttemptOfRel
+        <3>1. x \in CoveredTask
+            BY <1>1, <2>1 DEF UnknownTask
+        <3>2. <<x, nextAttemptOf[x]>> \in TCNextAttemptOfRel
+            BY TransitiveClosureThm DEF NextAttemptOfRel, TCNextAttemptOfRel,
+                UnknownTask
         <3>. QED
-            BY <3>2, <3>4 DEF CoveredTask, FirstAttempt, KnownTask,
-                NextAttempts, TaskAttempts
+            BY <3>1, <3>2 DEF CoveredTask, KnownTask, NextAttempts,
+                TaskAttempts, UnknownTask
+    <2>3. CASE UNCHANGED vars
+        BY <2>3 DEF taskStateBar, vars, T1!vars
     <2>4. CASE NoUserAction
         <3>1. ~ \E T \in SUBSET Task : RegisterTasks(T)
-            BY <2>3, <2>4 DEF KnownTask, NoUserAction, RegisterTasks,
-                UnknownTask
+            BY <2>2, <2>4 DEF NoUserAction, RegisterTasks
         <3>2. \A u \in UnknownTask : taskState'[u] = TASK_UNKNOWN
             BY <3>1 DEF AbortTasks, AssignedTask, AssignTasks, CompleteTasks,
                 DiscardedTask, DiscardTasks, FailedTask, Next, ProcessTasks,
@@ -1569,19 +1475,11 @@ LEMMA LemEventualQuiescence ==
             BY <3>2 DEF T1!NoUserAction, T1!RegisterTasks, taskStateBar,
                 UnknownTask, T1!UnknownTask
     <2>. QED
-        BY <2>2, <2>4
-<1>4. /\ []Inv
-      /\ [][Next]_vars
-      /\ \A t \in Task :
-             /\ FairSetTaskRetries(t)
-             /\ FairRegisterTasks(t)
-             /\ FairProcessTasks(t)
-             /\ FairCompleteTasks(t)
-             /\ FairAbortTasks(t)
-             /\ FairRetryTasks(t)
+        BY <2>3, <2>4
+<1>5. []Inv /\ [][Next]_vars /\ Fair
       => \A t \in Task : T1!FairProcessTasks(t) /\ T1!FairFinalizeTasks(t)
     BY LemPreserveT1SFProcessTasks, LemPreserveT1WFFinalizeTasks, Isa
-<1>5. /\ []T1!Inv
+<1>6. /\ []T1!Inv
       /\ [][T1!Next]_T1!vars
       /\ \A t \in Task : T1!FairProcessTasks(t) /\ T1!FairFinalizeTasks(t)
       => (<>[][T1!NoUserAction]_T1!vars
@@ -1589,9 +1487,9 @@ LEMMA LemEventualQuiescence ==
              /\ <>[][FALSE]_T1!vars)
     BY Assumptions, T1!LemEventualQuiescence, LemT1Assumptions, Isa
         DEF T1!EventualQuiescence
-<1>6. Inv => (T1!Idle <=> Idle)
+<1>7. Inv => (T1!Idle <=> Idle)
     BY LemT1BarStates DEF Idle, T1!Idle, Inv
-<1>7. [Next]_vars /\ UNCHANGED T1!vars /\ FailedTask = {} => UNCHANGED vars
+<1>8. [Next]_vars /\ UNCHANGED T1!vars /\ FailedTask = {} => UNCHANGED vars
     <2>. SUFFICES ASSUME [Next]_vars, UNCHANGED T1!vars, FailedTask = {}
                   PROVE  UNCHANGED vars
         OBVIOUS
@@ -1624,10 +1522,10 @@ LEMMA LemEventualQuiescence ==
         BY <2>2 DEF LinkedTask, SetTaskRetries
     <2>. QED
         BY <2>1, <2>2 DEF Next
-<1>8. []Inv /\ [][Next]_vars => []T1!Inv /\ [][T1!Next]_T1!vars
+<1>9. []Inv /\ [][Next]_vars => []T1!Inv /\ [][T1!Next]_T1!vars
     BY LemNextSimulateT1Next, PTL DEF Inv
 <1>. QED
-    BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8, PTL
+    BY <1>3, <1>4, <1>5, <1>6, <1>7, <1>8, <1>9, PTL
         DEF EventualQuiescence, Idle
 
 --------------------------------------------------------------------------------

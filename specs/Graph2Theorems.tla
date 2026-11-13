@@ -518,8 +518,8 @@ LEMMA LemUnderivableQuiescence ==
  * While an object is registered and its open ancestry does not grow, a step
  * does not change its producers: a new producer would be a new open node of the
  * open ancestry. Not a property: the step from which
- * LemProducersEventuallyFixed, LemNoFailedProducersUnderQuiescence and
- * LemCompleteAbortTasksEventuallyEnabled freeze the producers of an object.
+ * LemNoFailedProducersUnderQuiescence, LemCompleteAbortTasksEventuallyEnabled
+ * and LemPreserveG1WFFinalizeObjects freeze the producers of an object.
  *)
 LEMMA LemProducersFrozenUnderQuiescence ==
     ASSUME NEW o \in Object, Inv, [Next]_vars, (o \in RegisteredObject)',
@@ -792,22 +792,6 @@ LEMMA LemPreserveT2WFRegisterTasks ==
     ASSUME NEW t \in Task
     PROVE  []Inv /\ [][Next]_vars /\ FairRegisterGraph(t)
            => T2!FairRegisterTasks(t)
-
-(**
- * While an object stays registered and its open ancestry eventually stops
- * growing, its producers eventually are a fixed finite set of tasks. Not a
- * property: shared by LemNoFailedProducersUnderQuiescence and
- * LemPreserveG1WFFinalizeObjects.
- *)
-LEMMA LemProducersEventuallyFixed ==
-    ASSUME NEW o \in Object
-    PROVE  LET S == OA(o).node
-           IN  /\ []Inv
-               /\ [][Next]_vars
-               /\ [](o \in RegisteredObject)
-               /\ <>[][S' \subseteq S]_vars
-               => \E P \in SUBSET Task :
-                      IsFiniteSet(P) /\ <>[](Predecessor(deps, o) = P)
 
 (**
  * While an object stays registered and its open ancestry never grows, none of

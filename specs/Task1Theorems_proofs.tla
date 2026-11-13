@@ -3,7 +3,7 @@
 (* Proofs of all the properties of Task1.                                     *)
 (******************************************************************************)
 
-EXTENDS FiniteSetTheorems, Task1, TLAPS
+EXTENDS FiniteSetTheorems, Task1, TemporalLogicTheorems, TLAPS
 
 USE DEF TASK_ASSIGNED, TASK_FINALIZED, TASK_PROCESSED, TASK_REGISTERED,
     TASK_STAGED, TASK_UNKNOWN
@@ -192,18 +192,6 @@ LEMMA LemEventualStability ==
  *)
 Settled == {t \in Task : t \notin AssignedTask /\ t \notin ProcessedTask}
 
-(**
- * The temporal theorems behind quiescence. Joint: finitely many frozen known
- * tasks that each eventually stay settled eventually stay settled together.
- * Stutter: the registered tasks, finite and shrinking at each change of the
- * state, cannot shrink forever, so the state eventually stops changing.
- *)
-Joint == INSTANCE FrozenJointStabilityTheorems
-            WITH S <- Task \ UnknownTask, T <- Settled
-
-Stutter == INSTANCE EventualStutteringTheorems
-            WITH S <- RegisteredTask, v <- vars
-
 LEMMA LemEventualQuiescence ==
     /\ []Inv
     /\ [][Next]_vars
@@ -243,56 +231,55 @@ LEMMA LemEventualQuiescence ==
       /\ <>[][NoUserAction]_vars
       /\ \A t \in Task : <>[](t \in Settled)
       => <>[]Idle
-    (* tlapm: FrozenJointStability is matched at a domain named D. *)
-    <2>. PICK D : D = Task
-        OBVIOUS
-    <2>1. [Next]_vars /\ [NoUserAction]_vars => UNCHANGED (Task \ UnknownTask)
+    (* tlapm: TL_EventuallyAlwaysForallStationary is cited at the bound names
+       S, G and x. *)
+    <2>. DEFINE S == Task \ UnknownTask
+                G(x) == x \in Settled
+    <2>1. [Next]_vars /\ [NoUserAction]_vars => [FALSE]_S
         BY DEF AssignedTask, AssignTasks, DiscardTasks, FinalizeTasks, Next,
             NoUserAction, ProcessedTask, ProcessTasks, RegisteredTask,
             RegisterTasks, ReleaseTasks, StagedTask, StageTasks, UnknownTask,
             vars
-    <2>2. Inv => IsFiniteSet(Task \ UnknownTask)
+    <2>2. Inv => IsFiniteSet(S)
         BY DEF FiniteKnownTasks, Inv
     <2>3. (\A t \in Task : <>[](t \in Settled))
-            => \A x \in Task : <>[](x \in Settled)
-        (* tlapm: a temporal atom depends on its bound names. *)
-        <3>. DEFINE StaysSettled(y) == <>[](y \in Settled)
-        <3>1. (\A t \in Task : <>[](t \in Settled))
-                => \A t \in Task : StaysSettled(t)
+          => \A x : <>[](x \in S => G(x))
+        <3>. DEFINE Stays(x) == <>[](x \in Settled)
+        <3>1. ASSUME NEW x
+              PROVE  Stays(x) => <>[](x \in S => G(x))
+            BY PTL
+        <3>2. ASSUME NEW x, ~(x \in Task)
+              PROVE  <>[](x \in S => G(x))
+            <4>1. ~(x \in S)
+                BY <3>2
+            <4>. QED
+                BY <4>1, PTL
+        <3>3. (\A t \in Task : <>[](t \in Settled))
+              => \A t \in Task : Stays(t)
             OBVIOUS
-        <3>2. (\A x \in Task : StaysSettled(x))
-                => \A x \in Task : <>[](x \in Settled)
-            OBVIOUS
-        <3>. HIDE DEF StaysSettled
+        <3>. HIDE DEF Stays
         <3>. QED
-            BY <3>1, <3>2
-    <2>4. /\ <>[]IsFiniteSet(Task \ UnknownTask)
-          /\ <>[][FALSE]_(Task \ UnknownTask)
-          /\ \A x \in Task : <>[](x \in Settled)
-          => <>[]((Task \ UnknownTask) \cap D \subseteq Settled)
-        BY Joint!FrozenJointStability, Isa DEF IsFiniteSet, Joint!IsFiniteSet
-    <2>5. (Task \ UnknownTask) \cap D \subseteq Settled => Idle
+            BY <3>1, <3>2, <3>3
+    <2>4. (\A x \in S : G(x)) => Idle
         BY DEF AssignedTask, Idle, ProcessedTask, Settled, UnknownTask
+    <2>. HIDE DEF G, S
     <2>. QED
-        BY <2>1, <2>2, <2>3, <2>4, <2>5, PTL
+        BY <2>1, <2>2, <2>3, <2>4, TL_EventuallyAlwaysForallStationary, PTL
 <1>3. []Inv /\ [][Next]_vars /\ <>[][NoUserAction]_vars /\ <>[]Idle
       => <>[][FALSE]_vars
+    (* tlapm: TL_FiniteSetDescent is cited at the bound name S. *)
+    <2>. DEFINE S == RegisteredTask
     <2>1. Idle /\ Idle' /\ [Next]_vars /\ [NoUserAction]_vars
-            => /\ RegisteredTask' \subseteq RegisteredTask
-               /\ [RegisteredTask' # RegisteredTask]_vars
+            => [S' \subseteq S]_S /\ ([FALSE]_S => [FALSE]_vars)
         BY DEF AssignedTask, AssignTasks, DiscardTasks, FinalizeTasks, Idle,
             Next, NoUserAction, ProcessedTask, ProcessTasks, RegisteredTask,
             RegisterTasks, ReleaseTasks, StagedTask, StageTasks, UnknownTask,
             vars
-    <2>2. Inv => IsFiniteSet(RegisteredTask)
+    <2>2. Inv => IsFiniteSet(S)
         BY FS_Subset DEF FiniteKnownTasks, Inv, RegisteredTask, UnknownTask
-    <2>3. /\ <>[]IsFiniteSet(RegisteredTask)
-          /\ <>[][RegisteredTask' \subseteq RegisteredTask]_RegisteredTask
-          /\ <>[][RegisteredTask' # RegisteredTask]_vars
-          => <>[][FALSE]_vars
-        BY Stutter!EventualStuttering DEF IsFiniteSet, Stutter!IsFiniteSet
+    <2>. HIDE DEF S
     <2>. QED
-        BY <2>1, <2>2, <2>3, PTL
+        BY <2>1, <2>2, TL_FiniteSetDescent, PTL
 <1>. QED
     BY <1>1, <1>2, <1>3, PTL DEF EventualQuiescence
 

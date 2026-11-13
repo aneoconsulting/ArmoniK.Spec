@@ -3,7 +3,7 @@
 (* Proofs of all the properties of Object1.                                   *)
 (******************************************************************************)
 
-EXTENDS FiniteSetTheorems, Object1, TLAPS
+EXTENDS FiniteSetTheorems, Object1, TemporalLogicTheorems, TLAPS
 
 USE DEF OBJECT_FINALIZED, OBJECT_REGISTERED, OBJECT_UNKNOWN
 
@@ -140,79 +140,70 @@ LEMMA LemEventualTargetFinalization ==
 <1>. QED
     BY <1>1, <1>2, <1>3, PTL DEF FairFinalizeObjects
 
-(**
- * The temporal theorems behind quiescence. Stutter: the registered objects,
- * finite and never growing under user quiescence, cannot shrink forever, so
- * the state eventually stops changing. Constancy: the state then keeps one
- * value.
- *)
-Stutter == INSTANCE EventualStutteringTheorems
-            WITH S <- RegisteredObject, v <- vars
-
-Constancy == INSTANCE EventualConstancyTheorems WITH v <- vars
-
 LEMMA LemEventualQuiescence ==
     []Inv /\ [][Next]_vars /\ (\A o \in Object : FairFinalizeObjects(o))
     => EventualQuiescence
-(* (1) Under user quiescence, a step only finalizes some of the finitely many
-   registered objects: the state eventually stops changing. (2) In the frozen
-   state, every target is finalized: an unfinalized target would stay
-   finalizable forever, and fairness would finalize it, changing the state. *)
-<1>1. []Inv /\ [][Next]_vars /\ <>[][NoUserAction]_vars => <>[][FALSE]_vars
+(* Each object targeted forever is eventually finalized for good (1). Once
+   the user stops, the finitely many targets freeze, so they eventually stay
+   finalized together (2). A step then only finalizes registered objects,
+   finitely many: the state freezes (3). *)
+<1>1. []Inv /\ [][Next]_vars /\ (\A o \in Object : FairFinalizeObjects(o))
+      => EventualTargetFinalization
+    BY LemEventualTargetFinalization DEF EventualTargetFinalization
+<1>2. /\ []Inv
+      /\ [][Next]_vars
+      /\ <>[][NoUserAction]_vars
+      /\ EventualTargetFinalization
+      => <>[]Idle
+    (* tlapm: TL_EventuallyAlwaysForallStationary is cited at the bound names
+       S, G and x. *)
+    <2>. DEFINE S == objectTargets
+                G(x) == x \in FinalizedObject
+    <2>1. [Next]_vars /\ [NoUserAction]_vars => [FALSE]_S
+        BY DEF FinalizeObjects, Next, NoUserAction, vars
+    <2>2. Inv => IsFiniteSet(S)
+        BY FS_Subset DEF FiniteKnownObjects, Inv, TargetValidity, TypeOk
+    <2>3. []Inv /\ <>[][FALSE]_S /\ EventualTargetFinalization
+          => \A x : <>[](x \in S => G(x))
+        (* tlapm: a temporal formula under a binder is folded. *)
+        <3>. DEFINE Final(o) == EventualTargetFinalization!At(o)
+        <3>1. ASSUME NEW x \in Object
+              PROVE  <>[][FALSE]_S /\ Final(x) => <>[](x \in S => G(x))
+            <4>1. [FALSE]_S => (x \in S <=> (x \in S)')
+                OBVIOUS
+            <4>. QED
+                BY <4>1, PTL
+        <3>2. ASSUME NEW x, ~(x \in Object)
+              PROVE  []Inv => <>[](x \in S => G(x))
+            <4>1. Inv => ~(x \in S)
+                BY <3>2 DEF Inv, TypeOk
+            <4>. QED
+                BY <4>1, PTL
+        <3>3. EventualTargetFinalization => \A o \in Object : Final(o)
+            BY DEF EventualTargetFinalization
+        <3>. HIDE DEF Final
+        <3>. QED
+            BY <3>1, <3>2, <3>3
+    <2>4. (\A x \in S : G(x)) => Idle
+        BY DEF Idle
+    <2>. HIDE DEF G, S
+    <2>. QED
+        BY <2>1, <2>2, <2>3, <2>4, TL_EventuallyAlwaysForallStationary, PTL
+<1>3. []Inv /\ [][Next]_vars /\ <>[][NoUserAction]_vars => <>[][FALSE]_vars
+    (* tlapm: TL_FiniteSetDescent is cited at the bound name S. *)
+    <2>. DEFINE S == RegisteredObject
     <2>1. [Next]_vars /\ [NoUserAction]_vars
-            => /\ RegisteredObject' \subseteq RegisteredObject
-               /\ [RegisteredObject' /= RegisteredObject]_vars
+            => [S' \subseteq S]_S /\ ([FALSE]_S => [FALSE]_vars)
         BY DEF FinalizeObjects, Next, NoUserAction, RegisteredObject,
             RegisterObjects, TargetObjects, UnknownObject, UntargetObjects, vars
-    <2>2. Inv => IsFiniteSet(RegisteredObject)
+    <2>2. Inv => IsFiniteSet(S)
         BY FS_Subset DEF FiniteKnownObjects, Inv, RegisteredObject,
             UnknownObject
+    <2>. HIDE DEF S
     <2>. QED
-        BY <2>1, <2>2, Stutter!EventualStuttering, PTL
-            DEF IsFiniteSet, Stutter!IsFiniteSet
-<1>. DEFINE Fair == \A o \in Object : FairFinalizeObjects(o)
-<1>. HIDE DEF Fair
-<1>2. []Inv /\ [][Next]_vars /\ Fair /\ <>[][FALSE]_vars
-      => <>[](objectTargets \subseteq FinalizedObject)
-    <2>. SUFFICES ASSUME NEW K
-                  PROVE  []Inv /\ [][Next]_vars /\ Fair /\ <>[](vars = K)
-                         => <>[](objectTargets \subseteq FinalizedObject)
-        BY Constancy!EventualConstancy, Isa
-    <2>. DEFINE Clean ==
-                    \A o \in Object : o \in K[2] => K[1][o] = OBJECT_FINALIZED
-                Stuck(o) == o \in K[2] /\ K[1][o] /= OBJECT_FINALIZED
-    <2>. HIDE DEF Clean, Stuck
-    (* Clean and Stuck(o) are constants: PTL needs their stability. *)
-    <2>1. Clean
-          => ([]Inv /\ [][Next]_vars /\ Fair /\ <>[](vars = K)
-              => <>[](objectTargets \subseteq FinalizedObject))
-        <3>1. Clean' <=> Clean
-            OBVIOUS
-        <3>2. Inv /\ vars = K /\ Clean
-                => objectTargets \subseteq FinalizedObject
-            BY DEF Clean, FinalizedObject, Inv, TypeOk, vars
-        <3>. QED
-            BY <3>1, <3>2, PTL
-    <2>2. ASSUME NEW o \in Object
-          PROVE  Stuck(o)
-                 => ([]Inv /\ [][Next]_vars /\ Fair /\ <>[](vars = K)
-                     => <>[](objectTargets \subseteq FinalizedObject))
-        <3>1. Stuck(o)' <=> Stuck(o)
-            OBVIOUS
-        <3>2. vars = K /\ Stuck(o)
-                => o \in objectTargets /\ ~(o \in FinalizedObject)
-            BY DEF FinalizedObject, Stuck, vars
-        <3>3. []Inv /\ [][Next]_vars /\ Fair
-                => EventualTargetFinalization!At(o)
-            BY LemEventualTargetFinalization DEF Fair
-        <3>. QED
-            BY <3>1, <3>2, <3>3, PTL DEF EventualTargetFinalization
-    <2>3. Clean \/ \E o \in Object : Stuck(o)
-        BY DEF Clean, Stuck
-    <2>. QED
-        BY <2>1, <2>2, <2>3, Zenon
+        BY <2>1, <2>2, TL_FiniteSetDescent, PTL
 <1>. QED
-    BY <1>1, <1>2, PTL DEF EventualQuiescence, Fair, Idle
+    BY <1>1, <1>2, <1>3, PTL DEF EventualQuiescence
 
 --------------------------------------------------------------------------------
 (******************************************************************************)

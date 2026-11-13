@@ -3,8 +3,8 @@
 (* Proofs of all the properties of Task3.                                     *)
 (******************************************************************************)
 
-EXTENDS FiniteSetTheorems, NaturalsInduction, Task3, TLAPS,
-    WellFoundedInduction
+EXTENDS FiniteSetTheorems, NaturalsInduction, Task3, TemporalLogicTheorems,
+    TLAPS, WellFoundedInduction
 
 USE DEF INTENT_CANCEL, INTENT_PAUSE, INTENT_RUN, TASK_ABORTED,
     T2!TASK_ABORTED, TASK_ASSIGNED, T2!TASK_ASSIGNED, TASK_COMPLETED,
@@ -1421,19 +1421,15 @@ AckRank ==
     \union {t \in PausedTask : Intends(t, INTENT_RUN)}
 
 (**
- * The temporal theorem behind the termination of the pausing and resuming:
- * the finitely many tasks of AckRank rank the remaining changes.
- *)
-Stut == INSTANCE EventualStutteringTheorems WITH S <- AckRank, v <- vars
-
-(**
  * Lifted from Task2, whose state eventually stops changing: then, without
  * user action, the intents no longer change, and the tasks can only be paused
  * or resumed, finitely many times.
  * ----
- * Rule: Task2's quiescence lifted, then EventualStuttering over AckRank: the
- * steps that leave the state of Task2 unchanged and are no user action pause
- * or resume tasks, which shrinks AckRank.
+ * Rule: Task2's quiescence lifted, then TL_FiniteSetDescent over AckRank.
+ * The lift: a step that registers tasks in Task2 registers them here, so no
+ * user action here is none in Task2. The descent: a step that leaves the
+ * state of Task2 unchanged and is no user action stutters, pauses or resumes
+ * tasks, which leaves the intents unchanged and strictly shrinks AckRank.
  *)
 LEMMA LemEventualQuiescence ==
     /\ []Inv
@@ -1456,9 +1452,11 @@ LEMMA LemEventualQuiescence ==
              /\ FairAbortTasks(t)
              /\ FairRetryTasks(t)
       /\ <>[][NoUserAction]_vars
-      => /\ <>[]T2!Idle
+      => /\ <>[]Idle
          /\ <>[][FALSE]_T2!vars
-    <2>1. (\A t \in Task :
+    <2>1. []Inv /\ [][Next]_vars => []T2!Inv /\ [][T2!Next]_T2!vars
+        BY LemNextSimulateT2Next, PTL DEF Inv
+    <2>2. (\A t \in Task :
                /\ FairSetTaskRetries(t)
                /\ FairRegisterTasks(t)
                /\ FairProcessTasks(t)
@@ -1475,196 +1473,146 @@ LEMMA LemEventualQuiescence ==
         BY LemPreserveT2SFProcessTasks, LemPreserveT2WFAbortTasks,
             LemPreserveT2WFCompleteTasks, LemPreserveT2WFRegisterTasks,
             LemPreserveT2WFRetryTasks, LemPreserveT2WFSetTaskRetries, Isa
-    <2>2. []Inv /\ [][Next]_vars => []T2!Inv /\ [][T2!Next]_T2!vars
-        BY LemNextSimulateT2Next, PTL DEF Inv
-    <2>3. /\ []T2!Inv
-          /\ [][T2!Next]_T2!vars
-          /\ \A t \in Task :
-                 /\ T2!FairSetTaskRetries(t)
-                 /\ T2!FairRegisterTasks(t)
-                 /\ T2!FairProcessTasks(t)
-                 /\ T2!FairCompleteTasks(t)
-                 /\ T2!FairAbortTasks(t)
-                 /\ T2!FairRetryTasks(t)
-          => T2!EventualQuiescence
-        BY Assumptions, T2!LemEventualQuiescence, LemT2Assumptions
-    <2>4. [Next]_vars /\ [NoUserAction]_vars => [T2!NoUserAction]_T2!vars
-        <3>1. UNCHANGED vars => UNCHANGED T2!vars
-            BY DEF taskStateBar, vars, T2!vars
-        <3>2. [Next]_vars /\ NoUserAction => T2!NoUserAction
-            <4>. SUFFICES ASSUME [Next]_vars, NoUserAction,
-                                 NEW T \in SUBSET Task, T2!RegisterTasks(T),
-                                 ~ (T \subseteq {nextAttemptOf[t] : t \in Task})
-                          PROVE  FALSE
-                BY DEF T2!NoUserAction
-            <4>1. /\ T /= {}
-                  /\ T \subseteq UnknownTask
-                  /\ IsFiniteSet(T)
-                  /\ UNCHANGED nextAttemptOf
-                BY LemT2BarStates, Isa DEF IsFiniteSet, T2!IsFiniteSet,
-                    T2!RegisterTasks
-            <4>2. /\ \A x \in T : taskStateBar'[x] = TASK_REGISTERED
-                  /\ \A x \in Task \ T : taskStateBar'[x] = taskStateBar[x]
-                BY DEF T2!RegisterTasks
-            <4>3. \A x \in T : taskState'[x] = TASK_REGISTERED
-                BY <4>1, <4>2, Zenon DEF taskStateBar
-            <4>4. PICK x \in T : TRUE
-                BY <4>1
-            <4>5. PICK R \in SUBSET Task : RegisterTasks(R) /\ x \in R
-                BY <4>1, <4>3 DEF AbortTasks, AssignedTask, AssignTasks,
-                    CompleteTasks, DiscardedTask, DiscardTasks, FailedTask,
-                    HaltedTask, Next, PausedTask, PauseTasks, ProcessTasks,
-                    RegisteredTask, RegisterTasks, ReleaseTasks, RequestTasks,
-                    ResumeTasks, RetryTasks, SetTaskRetries, StagedTask,
-                    StageTasks, SucceededTask, UnknownTask, vars
-            <4>6. R = T
-                BY <4>1, <4>2, <4>3, <4>5 DEF RegisterTasks, taskStateBar,
-                    UnknownTask
+    <2>3. [Next]_vars /\ [NoUserAction]_vars => [T2!NoUserAction]_T2!vars
+        <3>1. ASSUME [Next]_vars, NEW x \in Task,
+                     taskState[x] = TASK_UNKNOWN,
+                     taskState'[x] = TASK_REGISTERED
+              PROVE  \E R \in SUBSET Task : RegisterTasks(R)
+            (* tlapm: unfolding all the actions in one step is slow. *)
+            <4>1. ASSUME NEW T \in SUBSET Task,
+                         \/ StageTasks(T)
+                         \/ DiscardTasks(T)
+                         \/ AssignTasks(T)
+                         \/ ReleaseTasks(T)
+                         \/ ProcessTasks(T)
+                  PROVE  FALSE
+                BY <3>1, <4>1 DEF AssignTasks, DiscardTasks, ProcessTasks,
+                    ReleaseTasks, StageTasks
+            <4>2. ASSUME NEW T \in SUBSET Task,
+                         \/ CompleteTasks(T)
+                         \/ AbortTasks(T)
+                         \/ RetryTasks(T)
+                         \/ PauseTasks(T)
+                         \/ ResumeTasks(T)
+                  PROVE  FALSE
+                BY <3>1, <4>2 DEF AbortTasks, CompleteTasks, PauseTasks,
+                    ResumeTasks, RetryTasks
             <4>. QED
-                BY <4>5, <4>6 DEF NoUserAction
+                BY <3>1, <4>1, <4>2 DEF Next, RequestTasks, SetTaskRetries,
+                    vars
+        <3>2. ASSUME [Next]_vars, NEW T \in SUBSET Task, T2!RegisterTasks(T)
+              PROVE  RegisterTasks(T)
+            <4>1. /\ T /= {}
+                  /\ \A x \in Task :
+                         x \in T <=> /\ taskState[x] = TASK_UNKNOWN
+                                     /\ taskState'[x] = TASK_REGISTERED
+                BY <3>2 DEF T2!RegisterTasks, taskStateBar, T2!UnknownTask
+            <4>2. PICK R \in SUBSET Task : RegisterTasks(R)
+                BY <3>1, <3>2, <4>1, Zenon
+            <4>3. \A x \in Task :
+                      x \in R <=> /\ taskState[x] = TASK_UNKNOWN
+                                  /\ taskState'[x] = TASK_REGISTERED
+                BY <4>2 DEF RegisterTasks, UnknownTask
+            <4>4. R = T
+                BY <4>1, <4>3, Zenon
+            <4>. QED
+                BY <4>2, <4>4, Zenon
+        <3>3. UNCHANGED vars => UNCHANGED T2!vars
+            BY Zenon DEF taskStateBar, vars, T2!vars
         <3>. QED
-            BY <3>1, <3>2
+            BY <3>2, <3>3 DEF NoUserAction, T2!NoUserAction
+    <2>4. T2!Idle <=> Idle
+        BY LemT2BarStates DEF Idle, T2!Idle
     <2>. QED
-        BY <2>1, <2>2, <2>3, <2>4, PTL DEF T2!EventualQuiescence
+        BY <2>1, <2>2, <2>3, <2>4, Assumptions, T2!LemEventualQuiescence,
+            LemT2Assumptions, PTL DEF T2!EventualQuiescence
 <1>2. /\ []Inv
       /\ [][Next]_vars
       /\ <>[][NoUserAction]_vars
       /\ <>[][FALSE]_T2!vars
       => <>[][FALSE]_vars
-    <2>1. Inv => IsFiniteSet(AckRank)
+    (* tlapm: TL_FiniteSetDescent is cited at the bound name S. *)
+    <2>. DEFINE S == AckRank
+    <2>1. Inv => IsFiniteSet(S)
         <3>1. Inv => IsFiniteSet(Task \ UnknownTask)
             BY Assumptions, T2!LemT1BarStates, LemT2Assumptions, LemT2BarStates
             DEF T2!T1!FiniteKnownTasks, Inv, T2!Inv, T2!T1!Inv, IsFiniteSet,
                 T2!T1!IsFiniteSet
-        <3>2. AckRank \subseteq Task \ UnknownTask
+        <3>2. S \subseteq Task \ UnknownTask
             BY DEF AckRank, PausedTask, StagedTask, UnknownTask
         <3>. QED
             BY <3>1, <3>2, FS_Subset
-    <2>2. /\ [Next]_vars
-          /\ [NoUserAction]_vars
-          /\ [FALSE]_T2!vars
-          => /\ [AckRank' \subseteq AckRank]_AckRank
-             /\ [AckRank' # AckRank]_vars
+    <2>2. [Next]_vars /\ [NoUserAction]_vars /\ [FALSE]_T2!vars
+          => [S' \subseteq S]_S /\ ([FALSE]_S => [FALSE]_vars)
         <3>. SUFFICES ASSUME [Next]_vars, [NoUserAction]_vars, UNCHANGED T2!vars
-                      PROVE  /\ [AckRank' \subseteq AckRank]_AckRank
-                             /\ [AckRank' # AckRank]_vars
+                      PROVE  S' \subseteq S /\ (S' = S => UNCHANGED vars)
             OBVIOUS
-        <3>1. ASSUME UNCHANGED << intent, nextAttemptOf >>,
-                     UnknownTask' = UnknownTask
-              PROVE  \A x \in Task, j \in Intent :
-                         Intends(x, j)' <=> Intends(x, j)
-            <4>1. \A x \in Task : ChainId(x)' = ChainId(x)
-                BY <3>1 DEF ChainId, NextAttemptOfRel, PreviousAttempts,
-                    TCNextAttemptOfRel
-            <4>2. KnownChainId' = KnownChainId
-                BY <3>1 DEF KnownChainId, NextAttemptOfRel, PreviousAttempts,
-                    TCNextAttemptOfRel
-            <4>. QED
-                BY <3>1, <4>1, <4>2 DEF Intends, IntentChainIds
-        <3>2. \A x \in Task :
-                  ~ (Intends(x, INTENT_RUN) /\ Intends(x, INTENT_PAUSE))
-            BY DEF Intends, Intent, IntentChainIds, RecordedIntent
-        <3>3. /\ AckRank \subseteq Task
-              /\ \A x \in Task :
-                     x \in AckRank
-                     <=> \/ /\ taskState[x] = TASK_STAGED
-                            /\ Intends(x, INTENT_PAUSE)
-                         \/ /\ taskState[x] = TASK_PAUSED
-                            /\ Intends(x, INTENT_RUN)
-            BY DEF AckRank, PausedTask, StagedTask
-        <3>4. ASSUME \A x \in Task, j \in Intent :
-                         Intends(x, j)' <=> Intends(x, j)
-              PROVE  /\ AckRank' \subseteq Task
-                     /\ \A x \in Task :
-                            x \in AckRank'
-                            <=> \/ /\ taskState'[x] = TASK_STAGED
-                                   /\ Intends(x, INTENT_PAUSE)
-                                \/ /\ taskState'[x] = TASK_PAUSED
-                                   /\ Intends(x, INTENT_RUN)
-            BY <3>4 DEF AckRank, Intent, PausedTask, StagedTask
-        <3>5. CASE UNCHANGED vars
-            <4>1. \A x \in Task, j \in Intent : Intends(x, j)' <=> Intends(x, j)
-                BY <3>1, <3>5 DEF UnknownTask, vars
-            <4>2. AckRank' = AckRank
-                BY <3>3, <3>4, <3>5, <4>1 DEF vars
-            <4>. QED
-                BY <3>5, <4>2 DEF vars
-        <3>6. ASSUME NEW T \in SUBSET Task, PauseTasks(T)
-              PROVE  AckRank' \subseteq AckRank /\ AckRank' # AckRank
-            <4>1. \A x \in Task, j \in Intent : Intends(x, j)' <=> Intends(x, j)
-                BY <3>1, <3>6 DEF PauseTasks, StagedTask, UnknownTask
-            <4>2. PICK x \in T : TRUE
-                BY <3>6 DEF PauseTasks
-            <4>3. x \in Task /\ x \in AckRank /\ x \notin AckRank'
-                BY <3>2, <3>3, <3>4, <3>6, <4>1, <4>2 DEF PauseTasks, StagedTask
-            <4>4. AckRank' \subseteq AckRank
-                BY <3>2, <3>3, <3>4, <3>6, <4>1 DEF PauseTasks, StagedTask
-            <4>. QED
-                BY <4>3, <4>4
-        <3>7. ASSUME NEW T \in SUBSET Task, ResumeTasks(T)
-              PROVE  AckRank' \subseteq AckRank /\ AckRank' # AckRank
-            <4>1. \A x \in Task, j \in Intent : Intends(x, j)' <=> Intends(x, j)
-                BY <3>1, <3>7 DEF PausedTask, ResumeTasks, UnknownTask
-            <4>2. PICK x \in T : TRUE
-                BY <3>7 DEF ResumeTasks
-            <4>3. x \in Task /\ x \in AckRank /\ x \notin AckRank'
-                BY <3>2, <3>3, <3>4, <3>7, <4>1, <4>2 DEF PausedTask,
-                    ResumeTasks
-            <4>4. AckRank' \subseteq AckRank
-                BY <3>2, <3>3, <3>4, <3>7, <4>1 DEF PausedTask, ResumeTasks
-            <4>. QED
-                BY <4>3, <4>4
-        <3>8. ASSUME NEW T \in SUBSET Task,
+        (* tlapm: unfolding all the actions in one step is slow. *)
+        <3>1. ASSUME NEW T \in SUBSET Task,
                      \/ RegisterTasks(T)
                      \/ StageTasks(T)
                      \/ DiscardTasks(T)
                      \/ AssignTasks(T)
                      \/ ReleaseTasks(T)
+              PROVE  FALSE
+            BY <3>1 DEF AssignedTask, AssignTasks, DiscardTasks, HaltedTask,
+                PausedTask, RegisteredTask, RegisterTasks, ReleaseTasks,
+                StagedTask, StageTasks, taskStateBar, UnknownTask, T2!vars
+        <3>2. ASSUME NEW T \in SUBSET Task,
                      \/ ProcessTasks(T)
                      \/ CompleteTasks(T)
                      \/ AbortTasks(T)
                      \/ RetryTasks(T)
               PROVE  FALSE
-            <4>1. PICK x \in T : TRUE
-                BY <3>8 DEF AbortTasks, AssignTasks, CompleteTasks,
-                    DiscardTasks, ProcessTasks, RegisterTasks, ReleaseTasks,
-                    RetryTasks, StageTasks
-            <4>2. taskStateBar'[x] /= taskStateBar[x]
-                BY <3>8 DEF AbortTasks, AssignedTask, AssignTasks,
-                    CompleteTasks, DiscardedTask, DiscardTasks, FailedTask,
-                    HaltedTask, LinkedTask, PausedTask, ProcessTasks,
-                    RegisteredTask, RegisterTasks, ReleaseTasks, RetryTasks,
-                    StagedTask, StageTasks, SucceededTask, taskStateBar,
-                    UnknownTask
-            <4>. QED
-                BY <4>2 DEF T2!vars
-        <3>9. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task,
+            BY <3>2 DEF AbortTasks, AssignedTask, CompleteTasks,
+                DiscardedTask, FailedTask, LinkedTask, ProcessTasks,
+                RetryTasks, SucceededTask, taskStateBar, T2!vars
+        <3>3. ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task,
                      SetTaskRetries(T, U)
               PROVE  FALSE
-            <4>1. PICK x \in T : TRUE
-                BY <3>9 DEF SetTaskRetries
-            <4>2. nextAttemptOf'[x] /= nextAttemptOf[x]
-                BY <3>9, Assumptions DEF Bijection, Injection, LinkedTask,
-                    SetTaskRetries
+            BY <3>3, Assumptions DEF Bijection, Injection, LinkedTask,
+                SetTaskRetries, T2!vars
+        <3>4. \/ UNCHANGED vars
+              \/ \E T \in SUBSET Task : PauseTasks(T) \/ ResumeTasks(T)
+            BY <3>1, <3>2, <3>3 DEF Next, NoUserAction
+        <3>5. \A x \in Task, i \in Intent : Intends(x, i)' <=> Intends(x, i)
+            <4>1. /\ UNCHANGED << intent, nextAttemptOf >>
+                  /\ UnknownTask' = UnknownTask
+                BY <3>4 DEF PausedTask, PauseTasks, ResumeTasks, StagedTask,
+                    UnknownTask, vars
+            <4>2. \A x \in Task : ChainId(x)' = ChainId(x)
+                BY <4>1, Zenon DEF ChainId, NextAttemptOfRel, PreviousAttempts,
+                    TCNextAttemptOfRel
+            <4>3. KnownChainId' = KnownChainId
+                BY <4>1, Zenon DEF KnownChainId, NextAttemptOfRel,
+                    PreviousAttempts, TCNextAttemptOfRel
             <4>. QED
-                BY <4>2 DEF T2!vars
-        <3>10. ASSUME NEW T \in SUBSET Task, NEW i \in Intent,
-                      RequestTasks(T, i)
-               PROVE  UNCHANGED vars
-            BY <3>10 DEF NoUserAction
+                BY <4>1, <4>2, <4>3 DEF Intends, IntentChainIds
+        <3>6. \A x \in Task :
+                  ~ (Intends(x, INTENT_RUN) /\ Intends(x, INTENT_PAUSE))
+            BY DEF Intends, Intent, IntentChainIds, RecordedIntent
+        <3>7. CASE UNCHANGED vars
+            BY <3>5, <3>7 DEF AckRank, Intent, PausedTask, StagedTask, vars
+        <3>8. ASSUME NEW T \in SUBSET Task, PauseTasks(T) \/ ResumeTasks(T)
+              PROVE  S' \subseteq S /\ S' # S
+            <4>1. ASSUME NEW x \in S'
+                  PROVE  x \in S
+                BY <3>5, <3>6, <3>8, <4>1 DEF AckRank, Intent, PausedTask,
+                    PauseTasks, ResumeTasks, StagedTask
+            <4>2. PICK x \in T : TRUE
+                BY <3>8 DEF PauseTasks, ResumeTasks
+            <4>3. x \in S /\ x \notin S'
+                BY <3>5, <3>6, <3>8, <4>2 DEF AckRank, Intent, PausedTask,
+                    PauseTasks, ResumeTasks, StagedTask
+            <4>. QED
+                BY <4>1, <4>3
         <3>. QED
-            BY <3>5, <3>6, <3>7, <3>8, <3>9, <3>10 DEF Next
-    <2>3. /\ <>[]IsFiniteSet(AckRank)
-          /\ <>[][AckRank' \subseteq AckRank]_AckRank
-          /\ <>[][AckRank' # AckRank]_vars
-          => <>[][FALSE]_vars
-        BY Stut!EventualStuttering DEF IsFiniteSet, Stut!IsFiniteSet
+            BY <3>4, <3>7, <3>8
+    <2>. HIDE DEF S
     <2>. QED
-        BY <2>1, <2>2, <2>3, PTL
-<1>3. T2!Idle <=> Idle
-    BY LemT2BarStates DEF Idle, T2!Idle
+        BY <2>1, <2>2, TL_FiniteSetDescent, PTL
 <1>. QED
-    BY <1>1, <1>2, <1>3, PTL DEF EventualQuiescence
+    BY <1>1, <1>2, PTL DEF EventualQuiescence
 
 (**
  * The acknowledgment of an intent goes through the lifecycle of the task: an
