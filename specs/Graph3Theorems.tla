@@ -790,7 +790,7 @@ LEMMA LemPreserveT3SFProcessTasks ==
 
 (**
  * The weak fairness of the completion of a task in Task3 holds under Graph3,
- * lifted from Graph2: a task eventually stays not succeeded.
+ * lifted from Graph2: a succeeded task is eventually for good completable.
  *)
 LEMMA LemPreserveT3WFCompleteTasks ==
     ASSUME NEW t \in Task
@@ -802,13 +802,12 @@ LEMMA LemPreserveT3WFCompleteTasks ==
                   /\ FairRegisterGraph(x)
                   /\ FairRetryTasks(x)
            /\ FairCompleteTasks(t)
-           /\ FairAbortTasks(t)
            /\ UpstreamStabilization
            => T3!FairCompleteTasks(t)
 
 (**
  * The weak fairness of the abortion of a task in Task3 holds under Graph3,
- * lifted from Graph2: a task eventually stays not discarded.
+ * lifted from Graph2: a discarded task is eventually for good abortable.
  *)
 LEMMA LemPreserveT3WFAbortTasks ==
     ASSUME NEW t \in Task
@@ -819,7 +818,6 @@ LEMMA LemPreserveT3WFAbortTasks ==
                   /\ FairSetTaskRetries(x)
                   /\ FairRegisterGraph(x)
                   /\ FairRetryTasks(x)
-           /\ FairCompleteTasks(t)
            /\ FairAbortTasks(t)
            /\ UpstreamStabilization
            => T3!FairAbortTasks(t)

@@ -2663,7 +2663,7 @@ LEMMA LemPreserveT3SFProcessTasks ==
 
 (**
  * The weak fairness of the completion of a task in Task3 holds under Graph3,
- * lifted from Graph2: a task eventually stays not succeeded.
+ * lifted from Graph2: a succeeded task is eventually for good completable.
  * ----
  * Rule: lift of the preservation of this fairness of Task2 by Graph2, whose
  * steps of the action are steps of Task3 (LemCompleteTasksFromT2Step).
@@ -2678,7 +2678,6 @@ LEMMA LemPreserveT3WFCompleteTasks ==
                   /\ FairRegisterGraph(x)
                   /\ FairRetryTasks(x)
            /\ FairCompleteTasks(t)
-           /\ FairAbortTasks(t)
            /\ UpstreamStabilization
            => T3!FairCompleteTasks(t)
 <1>1. []Inv /\ [][Next]_vars => []G2!Inv /\ [][G2!Next]_G2!vars
@@ -2698,9 +2697,8 @@ LEMMA LemPreserveT3WFCompleteTasks ==
              /\ G2!FairRetryTasks(x)
     BY LemPreserveG2WFRegisterGraph, LemPreserveG2WFRetryTasks,
         LemPreserveG2WFSetTaskRetries
-<1>4. /\ FairCompleteTasks(t) => G2!FairCompleteTasks(t)
-      /\ FairAbortTasks(t) => G2!FairAbortTasks(t)
-    BY LemPreserveG2WFAbortTasks, LemPreserveG2WFCompleteTasks
+<1>4. FairCompleteTasks(t) => G2!FairCompleteTasks(t)
+    BY LemPreserveG2WFCompleteTasks
 <1>5. UpstreamStabilization => G2!UpstreamStabilization
     BY LemPreserveG2UpstreamStabilizationAllObjects
 <1>6. /\ []G2!Inv
@@ -2712,7 +2710,6 @@ LEMMA LemPreserveT3WFCompleteTasks ==
              /\ G2!FairRegisterGraph(x)
              /\ G2!FairRetryTasks(x)
       /\ G2!FairCompleteTasks(t)
-      /\ G2!FairAbortTasks(t)
       /\ G2!UpstreamStabilization
       => G2!T2!FairCompleteTasks(t)
     BY LemG2Assumptions, G2!LemPreserveT2WFCompleteTasks
@@ -2732,7 +2729,7 @@ LEMMA LemPreserveT3WFCompleteTasks ==
 
 (**
  * The weak fairness of the abortion of a task in Task3 holds under Graph3,
- * lifted from Graph2: a task eventually stays not discarded.
+ * lifted from Graph2: a discarded task is eventually for good abortable.
  * ----
  * Rule: lift of the preservation of this fairness of Task2 by Graph2, whose
  * steps of the action are steps of Task3 (LemAbortTasksFromT2Step).
@@ -2746,7 +2743,6 @@ LEMMA LemPreserveT3WFAbortTasks ==
                   /\ FairSetTaskRetries(x)
                   /\ FairRegisterGraph(x)
                   /\ FairRetryTasks(x)
-           /\ FairCompleteTasks(t)
            /\ FairAbortTasks(t)
            /\ UpstreamStabilization
            => T3!FairAbortTasks(t)
@@ -2767,9 +2763,8 @@ LEMMA LemPreserveT3WFAbortTasks ==
              /\ G2!FairRetryTasks(x)
     BY LemPreserveG2WFRegisterGraph, LemPreserveG2WFRetryTasks,
         LemPreserveG2WFSetTaskRetries
-<1>4. /\ FairCompleteTasks(t) => G2!FairCompleteTasks(t)
-      /\ FairAbortTasks(t) => G2!FairAbortTasks(t)
-    BY LemPreserveG2WFAbortTasks, LemPreserveG2WFCompleteTasks
+<1>4. FairAbortTasks(t) => G2!FairAbortTasks(t)
+    BY LemPreserveG2WFAbortTasks
 <1>5. UpstreamStabilization => G2!UpstreamStabilization
     BY LemPreserveG2UpstreamStabilizationAllObjects
 <1>6. /\ []G2!Inv
@@ -2780,7 +2775,6 @@ LEMMA LemPreserveT3WFAbortTasks ==
              /\ G2!FairSetTaskRetries(x)
              /\ G2!FairRegisterGraph(x)
              /\ G2!FairRetryTasks(x)
-      /\ G2!FairCompleteTasks(t)
       /\ G2!FairAbortTasks(t)
       /\ G2!UpstreamStabilization
       => G2!T2!FairAbortTasks(t)

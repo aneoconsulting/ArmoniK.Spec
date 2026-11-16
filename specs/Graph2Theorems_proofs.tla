@@ -839,7 +839,7 @@ BY LemNextSimulateT2Next, LemT2Assumptions, T2!LemTaskStateStable
  * discarded task stays discarded or is aborted, and a completed or aborted
  * task, neither succeeded nor discarded, keeps its state. Stated with the atoms
  * of the PTL steps of LemCompleteAbortTasksEventuallyEnabled and
- * LemSucceededDiscardedEventuallyLeft, which cite it.
+ * LemPreserveG1WFFinalizeObjects, which cite it.
  *)
 LEMMA LemT2PermanentOutcome ==
     ASSUME NEW t \in Task, TypeOk, [Next]_vars
@@ -2935,39 +2935,11 @@ LEMMA LemPreserveG1WFFinalizeTasks ==
         DEF FairAbortTasks, FairCompleteTasks, G1!FairFinalizeTasks, Inv
 
 (**
- * A task eventually stays neither succeeded nor discarded: if it stays
- * succeeded or discarded, it is eventually for good completable or abortable,
- * and is then completed or aborted. It breaks a cycle: Task2's
- * EventualFinalization would give it, but needs the fairness of the completion
- * and abortion of Task2, which Graph2 derives from it.
- *)
-LEMMA LemSucceededDiscardedEventuallyLeft ==
-    ASSUME NEW t \in Task
-    PROVE  /\ []Inv
-           /\ [][Next]_vars
-           /\ \A o \in Object : FairCompleteObjects(o) /\ FairAbortObjects(o)
-           /\ \A x \in Task :
-                  /\ FairSetTaskRetries(x)
-                  /\ FairRegisterGraph(x)
-                  /\ FairRetryTasks(x)
-           /\ FairCompleteTasks(t)
-           /\ FairAbortTasks(t)
-           /\ UpstreamStabilization
-           => <>[](~ (t \in SucceededTask) /\ ~ (t \in DiscardedTask))
-<1>1. <<CompleteTasks({t})>>_vars => ~ (t \in SucceededTask)'
-    BY DEF CompleteTasks, SucceededTask, vars
-<1>2. <<AbortTasks({t})>>_vars => ~ (t \in DiscardedTask)'
-    BY DEF AbortTasks, DiscardedTask, vars
-<1>. QED
-    BY <1>1, <1>2, LemCompleteAbortTasksEventuallyEnabled,
-        LemT2PermanentOutcome, PTL
-        DEF FairAbortTasks, FairCompleteTasks, Inv
-
-(**
  * The weak fairness of the completion of a task in Task2 holds under
- * Graph2: a task eventually stays not succeeded.
+ * Graph2, where it is the same action: a succeeded task is eventually for
+ * good completable.
  * ----
- * Rule: the enabledness of the completion of 't' in Task2 does not persist.
+ * Rule: WF2, under the condition that 't' is completable if succeeded.
  *)
 LEMMA LemPreserveT2WFCompleteTasks ==
     ASSUME NEW t \in Task
@@ -2979,19 +2951,22 @@ LEMMA LemPreserveT2WFCompleteTasks ==
                   /\ FairRegisterGraph(x)
                   /\ FairRetryTasks(x)
            /\ FairCompleteTasks(t)
-           /\ FairAbortTasks(t)
            /\ UpstreamStabilization
            => T2!FairCompleteTasks(t)
 <1>1. T2!EnabledCompleteTasks(t) => t \in SucceededTask
     BY DEF T2!EnabledCompleteTasks, SucceededTask, T2!SucceededTask
+<1>2. <<CompleteTasks({t})>>_vars => <<T2!CompleteTasks({t})>>_T2!vars
+    BY LemCompleteTasksSimulateT2CompleteTasks DEF CompleteTasks, vars, T2!vars
 <1>. QED
-    BY <1>1, LemSucceededDiscardedEventuallyLeft, PTL DEF T2!FairCompleteTasks
+    BY <1>1, <1>2, LemCompleteAbortTasksEventuallyEnabled, PTL
+        DEF FairCompleteTasks, T2!FairCompleteTasks
 
 (**
- * The weak fairness of the abortion of a task in Task2 holds under Graph2: a
- * task eventually stays not discarded.
+ * The weak fairness of the abortion of a task in Task2 holds under Graph2,
+ * where it is the same action: a discarded task is eventually for good
+ * abortable.
  * ----
- * Rule: the enabledness of the abortion of 't' in Task2 does not persist.
+ * Rule: WF2, under the condition that 't' is abortable if discarded.
  *)
 LEMMA LemPreserveT2WFAbortTasks ==
     ASSUME NEW t \in Task
@@ -3002,14 +2977,16 @@ LEMMA LemPreserveT2WFAbortTasks ==
                   /\ FairSetTaskRetries(x)
                   /\ FairRegisterGraph(x)
                   /\ FairRetryTasks(x)
-           /\ FairCompleteTasks(t)
            /\ FairAbortTasks(t)
            /\ UpstreamStabilization
            => T2!FairAbortTasks(t)
 <1>1. T2!EnabledAbortTasks(t) => t \in DiscardedTask
     BY DEF DiscardedTask, T2!DiscardedTask, T2!EnabledAbortTasks
+<1>2. <<AbortTasks({t})>>_vars => <<T2!AbortTasks({t})>>_T2!vars
+    BY LemAbortTasksSimulateT2AbortTasks DEF AbortTasks, vars, T2!vars
 <1>. QED
-    BY <1>1, LemSucceededDiscardedEventuallyLeft, PTL DEF T2!FairAbortTasks
+    BY <1>1, <1>2, LemCompleteAbortTasksEventuallyEnabled, PTL
+        DEF FairAbortTasks, T2!FairAbortTasks
 
 (**
  * The weak fairness of the finalization of an object in Graph1 holds under
@@ -3100,11 +3077,30 @@ LEMMA LemPreserveG1WFFinalizeObjects ==
                       PROVE  H => Settled(t)
             OBVIOUS
         <3>1. CASE t \in Task
-            <4>1. H => <>[](~ (t \in SucceededTask)
-                            /\ ~ (t \in DiscardedTask))
-                BY <3>1, LemSucceededDiscardedEventuallyLeft
+            (* Not lifted from Task2: the lift is longer than this proof. *)
+            <4>1. H => /\ <>[](/\ t \in SucceededTask
+                                  => EnabledCompleteTasks(t)
+                               /\ t \in DiscardedTask
+                                  => EnabledAbortTasks(t))
+                       /\ FairCompleteTasks(t)
+                       /\ FairAbortTasks(t)
+                BY <3>1, LemCompleteAbortTasksEventuallyEnabled
+            <4>2. /\ <<CompleteTasks({t})>>_vars => ~ (t \in SucceededTask)'
+                  /\ <<AbortTasks({t})>>_vars => ~ (t \in DiscardedTask)'
+                BY DEF AbortTasks, CompleteTasks, DiscardedTask, SucceededTask,
+                    vars
+            <4>3. Inv /\ [Next]_vars
+                  => /\ t \in SucceededTask
+                        => (t \in SucceededTask)' \/ (t \in CompletedTask)'
+                     /\ t \in DiscardedTask
+                        => (t \in DiscardedTask)' \/ (t \in AbortedTask)'
+                     /\ t \in CompletedTask => (t \in CompletedTask)'
+                     /\ t \in AbortedTask => (t \in AbortedTask)'
+                     /\ t \in CompletedTask \/ t \in AbortedTask => G(t)
+                BY <3>1, LemT2PermanentOutcome DEF Inv
             <4>. QED
-                BY <4>1, PTL DEF Settled
+                BY <4>1, <4>2, <4>3, PTL
+                    DEF FairAbortTasks, FairCompleteTasks, Settled
         <3>2. CASE t \notin Task
             <4>1. G(t)
                 BY <3>2 DEF DiscardedTask, SucceededTask

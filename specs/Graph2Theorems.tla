@@ -405,7 +405,7 @@ LEMMA LemT2TaskStateStable ==
  * discarded task stays discarded or is aborted, and a completed or aborted
  * task, neither succeeded nor discarded, keeps its state. Stated with the atoms
  * of the PTL steps of LemCompleteAbortTasksEventuallyEnabled and
- * LemSucceededDiscardedEventuallyLeft, which cite it.
+ * LemPreserveG1WFFinalizeObjects, which cite it.
  *)
 LEMMA LemT2PermanentOutcome ==
     ASSUME NEW t \in Task, TypeOk, [Next]_vars
@@ -858,29 +858,9 @@ LEMMA LemPreserveG1WFFinalizeTasks ==
            => G1!FairFinalizeTasks(t)
 
 (**
- * A task eventually stays neither succeeded nor discarded: if it stays
- * succeeded or discarded, it is eventually for good completable or abortable,
- * and is then completed or aborted. It breaks a cycle: Task2's
- * EventualFinalization would give it, but needs the fairness of the completion
- * and abortion of Task2, which Graph2 derives from it.
- *)
-LEMMA LemSucceededDiscardedEventuallyLeft ==
-    ASSUME NEW t \in Task
-    PROVE  /\ []Inv
-           /\ [][Next]_vars
-           /\ \A o \in Object : FairCompleteObjects(o) /\ FairAbortObjects(o)
-           /\ \A x \in Task :
-                  /\ FairSetTaskRetries(x)
-                  /\ FairRegisterGraph(x)
-                  /\ FairRetryTasks(x)
-           /\ FairCompleteTasks(t)
-           /\ FairAbortTasks(t)
-           /\ UpstreamStabilization
-           => <>[](~ (t \in SucceededTask) /\ ~ (t \in DiscardedTask))
-
-(**
  * The weak fairness of the completion of a task in Task2 holds under
- * Graph2: a task eventually stays not succeeded.
+ * Graph2, where it is the same action: a succeeded task is eventually for
+ * good completable.
  *)
 LEMMA LemPreserveT2WFCompleteTasks ==
     ASSUME NEW t \in Task
@@ -892,13 +872,13 @@ LEMMA LemPreserveT2WFCompleteTasks ==
                   /\ FairRegisterGraph(x)
                   /\ FairRetryTasks(x)
            /\ FairCompleteTasks(t)
-           /\ FairAbortTasks(t)
            /\ UpstreamStabilization
            => T2!FairCompleteTasks(t)
 
 (**
- * The weak fairness of the abortion of a task in Task2 holds under Graph2: a
- * task eventually stays not discarded.
+ * The weak fairness of the abortion of a task in Task2 holds under Graph2,
+ * where it is the same action: a discarded task is eventually for good
+ * abortable.
  *)
 LEMMA LemPreserveT2WFAbortTasks ==
     ASSUME NEW t \in Task
@@ -909,7 +889,6 @@ LEMMA LemPreserveT2WFAbortTasks ==
                   /\ FairSetTaskRetries(x)
                   /\ FairRegisterGraph(x)
                   /\ FairRetryTasks(x)
-           /\ FairCompleteTasks(t)
            /\ FairAbortTasks(t)
            /\ UpstreamStabilization
            => T2!FairAbortTasks(t)
