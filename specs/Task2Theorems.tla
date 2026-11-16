@@ -346,7 +346,9 @@ LEMMA LemPreserveT1SFProcessTasks ==
     PROVE  FairProcessTasks(t) => T1!FairProcessTasks(t)
 
 (**
- * A failed task without a next attempt is eventually given one.
+ * A failed task without a next attempt is eventually given one. Not a
+ * property: shared by LemFailedTaskEventualRetry and
+ * LemEventualFinalizationFailed.
  *)
 LEMMA LemFailedTaskEventuallyLinked ==
     ASSUME NEW t \in Task
@@ -362,6 +364,21 @@ LEMMA LemFailedTaskEventualRetry ==
            /\ FairRegisterTasks(t)
            /\ FairStageTasks(t)
            => FailedTaskEventualRetry!At(t)
+
+(**
+ * A failed task is eventually retried. Not a property: the conjunct of
+ * EventualFinalization that needs the fairness of neither the completion nor
+ * the abortion, which a refining layer lifts before it preserves these two;
+ * LemEventualFinalization cites it.
+ *)
+LEMMA LemEventualFinalizationFailed ==
+    ASSUME NEW t \in Task
+    PROVE  /\ []Inv
+           /\ [][Next]_vars
+           /\ FairSetTaskRetries(t)
+           /\ FairRegisterTasks(t)
+           /\ FairRetryTasks(t)
+           => t \in FailedTask ~> t \in RetriedTask
 
 LEMMA LemEventualFinalization ==
     ASSUME NEW t \in Task

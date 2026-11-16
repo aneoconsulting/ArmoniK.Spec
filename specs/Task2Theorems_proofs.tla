@@ -961,7 +961,9 @@ LEMMA LemPreserveT1SFProcessTasks ==
     BY <1>1, <1>2, PTL DEF FairProcessTasks, T1!FairProcessTasks
 
 (**
- * A failed task without a next attempt is eventually given one.
+ * A failed task without a next attempt is eventually given one. Not a
+ * property: shared by LemFailedTaskEventualRetry and
+ * LemEventualFinalizationFailed.
  * ----
  * Rule: WF1 on SetTaskRetries({t}, {u}).
  *)
@@ -1034,10 +1036,54 @@ LEMMA LemFailedTaskEventualRetry ==
         EnabledStageTasks, FairRegisterTasks, FairStageTasks
 
 (**
+ * A failed task is eventually retried. Not a property: the conjunct of
+ * EventualFinalization that needs the fairness of neither the completion nor
+ * the abortion, which a refining layer lifts before it preserves these two;
+ * LemEventualFinalization cites it.
  * ----
- * Succeeded and discarded tasks: WF1 on CompleteTasks and AbortTasks. Failed
- * tasks: first given a next attempt (LemFailedTaskEventuallyLinked), then
- * WF1 on RetryTasks.
+ * Rule: the task is first given a next attempt
+ * (LemFailedTaskEventuallyLinked), then WF1 on RegisterTasks while the next
+ * attempt is unknown, then WF1 on RetryTasks.
+ *)
+LEMMA LemEventualFinalizationFailed ==
+    ASSUME NEW t \in Task
+    PROVE  /\ []Inv
+           /\ [][Next]_vars
+           /\ FairSetTaskRetries(t)
+           /\ FairRegisterTasks(t)
+           /\ FairRetryTasks(t)
+           => t \in FailedTask ~> t \in RetriedTask
+<1>. DEFINE Linked == t \in FailedTask \intersect LinkedTask
+            Pending == nextAttemptOf[t] \in UnknownTask
+            Known == nextAttemptOf[t] \notin UnknownTask
+<1>1. []Inv /\ [][Next]_vars /\ FairSetTaskRetries(t)
+        => t \in FailedTask \ LinkedTask
+           ~> t \in FailedTask /\ nextAttemptOf[t] \in UnknownTask
+    BY LemFailedTaskEventuallyLinked
+<1>2. /\ Linked /\ Pending /\ [Next]_vars => Linked'
+      /\ Linked /\ Known /\ [Next]_vars
+         => (Linked /\ Known)' \/ (t \in RetriedTask)'
+    BY Assumptions, LemNextAttemptFrozen DEF AbortTasks, AssignedTask,
+        AssignTasks, CompleteTasks, DiscardedTask, DiscardTasks, FailedTask,
+        LinkedTask, Next, ProcessTasks, RegisteredTask, RegisterTasks,
+        ReleaseTasks, RetriedTask, RetryTasks, SetTaskRetries, StagedTask,
+        StageTasks, SucceededTask, UnknownTask, vars
+<1>3. /\ <<RegisterTasks({nextAttemptOf[t]})>>_vars => Known'
+      /\ <<RetryTasks({t})>>_vars => (t \in RetriedTask)'
+    BY DEF RegisterTasks, RetriedTask, RetryTasks, UnknownTask, vars
+<1>4. /\ t \in FailedTask => t \in (FailedTask \ LinkedTask) \/ Linked
+      /\ t \in FailedTask /\ nextAttemptOf[t] \in UnknownTask => Linked
+      /\ Linked => Pending \/ Known
+      /\ Linked' => Pending' \/ Known'
+    BY Assumptions DEF FailedTask, LinkedTask, UnknownTask
+<1>. QED
+    BY <1>1, <1>2, <1>3, <1>4, PTL DEF EnabledRegisterTasks,
+        EnabledRetryTasks, FairRegisterTasks, FairRetryTasks
+
+(**
+ * ----
+ * Rule: WF1 on CompleteTasks for a succeeded task and on AbortTasks for a
+ * discarded one; a failed task by LemEventualFinalizationFailed.
  *)
 LEMMA LemEventualFinalization ==
     ASSUME NEW t \in Task
@@ -1049,44 +1095,25 @@ LEMMA LemEventualFinalization ==
            /\ FairAbortTasks(t)
            /\ FairRetryTasks(t)
            => EventualFinalization!At(t)
-<1>. DEFINE Linked == t \in FailedTask \intersect LinkedTask
-            Pending == nextAttemptOf[t] \in UnknownTask
-            Known == nextAttemptOf[t] \notin UnknownTask
-<1>1. []Inv /\ [][Next]_vars /\ FairSetTaskRetries(t)
-        => t \in FailedTask \ LinkedTask
-           ~> t \in FailedTask /\ nextAttemptOf[t] \in UnknownTask
-    BY LemFailedTaskEventuallyLinked
-<1>2. /\ t \in SucceededTask /\ [Next]_vars
+<1>1. /\ t \in SucceededTask /\ [Next]_vars
          => (t \in SucceededTask)' \/ (t \in CompletedTask)'
       /\ t \in DiscardedTask /\ [Next]_vars
          => (t \in DiscardedTask)' \/ (t \in AbortedTask)'
     BY LemTaskStateStable DEF AbortedTask, CompletedTask, DiscardedTask,
         SucceededTask
-(* A linked task waits for its next attempt to be known, then for its
-   retry. *)
-<1>3. /\ Linked /\ Pending /\ [Next]_vars => Linked'
-      /\ Linked /\ Known /\ [Next]_vars
-         => (Linked /\ Known)' \/ (t \in RetriedTask)'
-    BY Assumptions, LemNextAttemptFrozen DEF AbortTasks, AssignedTask,
-        AssignTasks, CompleteTasks, DiscardedTask, DiscardTasks, FailedTask,
-        LinkedTask, Next, ProcessTasks, RegisteredTask, RegisterTasks,
-        ReleaseTasks, RetriedTask, RetryTasks, SetTaskRetries, StagedTask,
-        StageTasks, SucceededTask, UnknownTask, vars
-<1>4. /\ <<CompleteTasks({t})>>_vars => (t \in CompletedTask)'
+<1>2. /\ <<CompleteTasks({t})>>_vars => (t \in CompletedTask)'
       /\ <<AbortTasks({t})>>_vars => (t \in AbortedTask)'
-      /\ <<RetryTasks({t})>>_vars => (t \in RetriedTask)'
-      /\ <<RegisterTasks({nextAttemptOf[t]})>>_vars => Known'
-    BY DEF AbortedTask, AbortTasks, CompletedTask, CompleteTasks,
-        RegisterTasks, RetriedTask, RetryTasks, UnknownTask, vars
-<1>5. /\ t \in FailedTask => t \in (FailedTask \ LinkedTask) \/ Linked
-      /\ t \in FailedTask /\ nextAttemptOf[t] \in UnknownTask => Linked
-      /\ Linked => Pending \/ Known
-      /\ Linked' => Pending' \/ Known'
-    BY Assumptions DEF FailedTask, LinkedTask, UnknownTask
+    BY DEF AbortedTask, AbortTasks, CompletedTask, CompleteTasks, vars
+<1>3. /\ []Inv
+      /\ [][Next]_vars
+      /\ FairSetTaskRetries(t)
+      /\ FairRegisterTasks(t)
+      /\ FairRetryTasks(t)
+      => t \in FailedTask ~> t \in RetriedTask
+    BY LemEventualFinalizationFailed
 <1>. QED
-    BY <1>1, <1>2, <1>3, <1>4, <1>5, PTL DEF EnabledAbortTasks,
-        EnabledCompleteTasks, EnabledRegisterTasks, EnabledRetryTasks,
-        FairAbortTasks, FairCompleteTasks, FairRegisterTasks, FairRetryTasks
+    BY <1>1, <1>2, <1>3, PTL DEF EnabledAbortTasks, EnabledCompleteTasks,
+        FairAbortTasks, FairCompleteTasks
 
 (**
  * The weak fairness of the finalization of a task in Task1 holds under
