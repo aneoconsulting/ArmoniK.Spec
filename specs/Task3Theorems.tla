@@ -201,14 +201,6 @@ LEMMA LemAbortTasksFromT2Step ==
            => <<AbortTasks({t})>>_vars
 
 (**
- * A step that Task2 sees as the retry of 't' retries 't'.
- *)
-LEMMA LemRetryTasksFromT2Step ==
-    ASSUME NEW t \in Task
-    PROVE  [Next]_vars /\ <<T2!RetryTasks({t})>>_(T2!vars)
-           => <<RetryTasks({t})>>_vars
-
-(**
  * A step that Task2 sees as the registration of 't' registers 't'. The task
  * 't' is not bound to Task, so that the lemma applies to a next attempt.
  *)

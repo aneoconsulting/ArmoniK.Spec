@@ -618,43 +618,6 @@ LEMMA LemAbortTasksFromT2Step ==
     BY <1>1, <1>2, <1>3 DEF vars
 
 (**
- * A step that Task2 sees as the retry of 't' retries 't'.
- *)
-LEMMA LemRetryTasksFromT2Step ==
-    ASSUME NEW t \in Task
-    PROVE  [Next]_vars /\ <<T2!RetryTasks({t})>>_(T2!vars)
-           => <<RetryTasks({t})>>_vars
-<1>. SUFFICES ASSUME [Next]_vars, T2!RetryTasks({t})
-              PROVE  <<RetryTasks({t})>>_vars
-    BY DEF T2!vars
-<1>1. /\ taskState[t] = TASK_FAILED
-      /\ taskState'[t] = TASK_RETRIED
-      /\ \A s \in Task \ {t} : taskStateBar'[s] = taskStateBar[s]
-    <2>1. /\ taskStateBar' =
-                [s \in Task |->
-                    IF s \in {t} THEN TASK_RETRIED ELSE taskStateBar[s]]
-          /\ taskStateBar[t] = TASK_FAILED
-        BY DEF T2!FailedTask, T2!RetryTasks
-    <2>. QED
-        BY <2>1 DEF taskStateBar
-<1>2. PICK T \in SUBSET Task : RetryTasks(T) /\ t \in T
-    BY <1>1 DEF AbortTasks, AssignedTask, AssignTasks, CompleteTasks,
-        DiscardedTask, DiscardTasks, FailedTask, HaltedTask, LinkedTask, Next,
-        PausedTask, PauseTasks, ProcessTasks, RegisteredTask, RegisterTasks,
-        ReleaseTasks, RequestTasks, ResumeTasks, RetryTasks, SetTaskRetries,
-        StagedTask, StageTasks, SucceededTask, UnknownTask, vars
-<1>3. T = {t}
-    <2>. SUFFICES ASSUME NEW s \in T, s /= t
-                  PROVE  FALSE
-        BY <1>2
-    <2>1. taskState[s] = TASK_FAILED /\ taskState'[s] = TASK_RETRIED
-        BY <1>2 DEF FailedTask, LinkedTask, RetryTasks
-    <2>. QED
-        BY <1>1, <2>1 DEF taskStateBar
-<1>. QED
-    BY <1>1, <1>2, <1>3 DEF vars
-
-(**
  * A step that Task2 sees as the registration of 't' registers 't'. The task
  * 't' is not bound to Task, so that the lemma applies to a next attempt.
  *)
