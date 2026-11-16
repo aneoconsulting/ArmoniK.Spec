@@ -11,7 +11,7 @@
 #                                          lib/tlapm/stdlib/{TLAPS.tla,...}
 #   .tlatools/tlapm-opt/                 prebuilt tlapm fork with the
 #                                          instantiation/preparation optimizations
-#                                          (same layout, ~1.6 GB unpacked)
+#                                          (same layout, ~150 MB unpacked)
 #   .tlatools/VERSIONS                   resolved versions of the above
 #
 # The upstream tools are installed at their latest builds, never at a pinned
@@ -32,12 +32,12 @@
 # The optimized tlapm is a separate build of the same prover, kept alongside the
 # upstream one rather than replacing it: the proof modules too large for one
 # upstream run are checked whole by it, and by line range with the upstream
-# prover (scripts/chunk_proofs.py). It is a 826 MB download, hence the flags to
-# install it -- or everything else -- alone.
+# prover (scripts/chunk_proofs.py). It is a 52 MB download; the flags below install
+# it -- or everything else -- alone.
 #
 # Flags:
 #   --check            verify presence + runnability without re-downloading
-#   --no-tlapm-opt     leave out the optimized tlapm (skips the 826 MB download)
+#   --no-tlapm-opt     leave out the optimized tlapm (skips its 52 MB download)
 #   --only-tlapm-opt   install the optimized tlapm and nothing else
 #   --help
 
@@ -47,7 +47,7 @@ set -euo pipefail
 TLA2TOOLS_RELEASE_TAG="rolling"        # rebuilt from master on every commit
 TLAPM_RELEASE_TAG="1.6.0-pre"          # rebuilt from main on every commit
 TLAPM_OPT_REPO="qdelamea-aneo/tlapm"   # fork carrying the performance patches
-TLAPM_OPT_RELEASE_TAG="v1.6.0-instopt.2"
+TLAPM_OPT_RELEASE_TAG="v1.6.0-instopt.3"
 # ------------------------------------------------------------------------------
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -193,7 +193,7 @@ fi  # WANT_BASE
 # The same layout as the upstream tarball (top-level "tlapm/"), unpacked next to
 # it under tlapm-opt/ so that both provers stay available side by side.
 if (( WANT_TLAPM_OPT )); then
-    log "downloading optimized tlapm ${TLAPM_OPT_RELEASE_TAG} from ${TLAPM_OPT_REPO} (826 MB)"
+    log "downloading optimized tlapm ${TLAPM_OPT_RELEASE_TAG} from ${TLAPM_OPT_REPO} (52 MB)"
     TLAPM_OPT_VERSION="${TLAPM_OPT_RELEASE_TAG#v}"
     TLAPM_OPT_TARBALL="${TOOLS_DIR}/.tlapm-opt-${TLAPM_OPT_RELEASE_TAG}.tar.gz"
     curl -fL --retry 3 -o "${TLAPM_OPT_TARBALL}" \
