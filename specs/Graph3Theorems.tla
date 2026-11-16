@@ -616,7 +616,7 @@ LEMMA LemPreserveG2WFSetTaskRetries ==
  *)
 LEMMA LemPreserveG2WFRegisterGraph ==
     ASSUME NEW t \in Task
-    PROVE  []Inv /\ FairRegisterGraph(t) => G2!FairRegisterGraph(t)
+    PROVE  []Inv /\ FairRegisterGraph(t) => G2!FairRegisterRetryGraph(t)
 
 (**
  * The weak fairness of the staging of a task in Graph2 holds under Graph3,
@@ -741,7 +741,7 @@ LEMMA LemG2LivenessHypotheses ==
                      G2!FairCompleteObjects(x) /\ G2!FairAbortObjects(x)
               /\ \A t \in Task :
                      /\ G2!FairSetTaskRetries(t)
-                     /\ G2!FairRegisterGraph(t)
+                     /\ G2!FairRegisterRetryGraph(t)
                      /\ G2!FairStageTasks(t)
                      /\ G2!FairProcessTasks(t)
                      /\ G2!FairCompleteTasks(t)

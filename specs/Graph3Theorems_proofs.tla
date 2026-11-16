@@ -1769,13 +1769,13 @@ LEMMA LemPreserveG2WFSetTaskRetries ==
  *)
 LEMMA LemPreserveG2WFRegisterGraph ==
     ASSUME NEW t \in Task
-    PROVE  []Inv /\ FairRegisterGraph(t) => G2!FairRegisterGraph(t)
+    PROVE  []Inv /\ FairRegisterGraph(t) => G2!FairRegisterRetryGraph(t)
 <1>. DEFINE G == RetrySubGraph(deps, t, nextAttemptOf[t])
             TU == [s \in Task |->
                       IF s \in G.node THEN TASK_REGISTERED ELSE taskState[s]]
 <1>1. G2!RetrySubGraph(deps, t, nextAttemptOf[t]) = G
     BY LemG2Bridges
-<1>2. G2!EnabledRegisterGraph(t) => EnabledRegisterGraph(t)
+<1>2. G2!EnabledRegisterRetryGraph(t) => EnabledRegisterGraph(t)
     <2>1. [s \in Task |->
               IF s \in G.node THEN TASK_REGISTERED ELSE taskStateBar[s]]
               /= taskStateBar
@@ -1790,7 +1790,7 @@ LEMMA LemPreserveG2WFRegisterGraph ==
             BY Zenon
         <3>. QED
             BY <3>1, Zenon DEF taskStateBar
-    <2>2. G2!EnabledRegisterGraph(t)
+    <2>2. G2!EnabledRegisterRetryGraph(t)
           => /\ IsFiniteSet(G.node)
              /\ G.node \cap Task \subseteq UnknownTask
              /\ \A s \in G.node \cap Task :
@@ -1812,7 +1812,8 @@ LEMMA LemPreserveG2WFRegisterGraph ==
                        IF s \in G.node THEN TASK_REGISTERED
                        ELSE taskStateBar[s]]
                        /= taskStateBar
-        BY <1>1, LemG2BarStates, LemG2Bridges, Zenon DEF G2!EnabledRegisterGraph
+        BY <1>1, LemG2BarStates, LemG2Bridges, Zenon
+            DEF G2!EnabledRegisterRetryGraph
     <2>. QED
         BY <2>1, <2>2, Zenon DEF EnabledRegisterGraph
 <1>3. TypeOk /\ <<RegisterGraph(G)>>_vars
@@ -1847,7 +1848,7 @@ LEMMA LemPreserveG2WFRegisterGraph ==
     <2>. QED
         BY <2>1, <2>2, <2>3 DEF G2!vars
 <1>. QED
-    BY <1>2, <1>3, PTL DEF FairRegisterGraph, G2!FairRegisterGraph, Inv
+    BY <1>2, <1>3, PTL DEF FairRegisterGraph, G2!FairRegisterRetryGraph, Inv
 
 (**
  * The weak fairness of the staging of a task in Graph2 holds under Graph3,
@@ -2472,7 +2473,7 @@ LEMMA LemG2LivenessHypotheses ==
                      G2!FairCompleteObjects(x) /\ G2!FairAbortObjects(x)
               /\ \A t \in Task :
                      /\ G2!FairSetTaskRetries(t)
-                     /\ G2!FairRegisterGraph(t)
+                     /\ G2!FairRegisterRetryGraph(t)
                      /\ G2!FairStageTasks(t)
                      /\ G2!FairProcessTasks(t)
                      /\ G2!FairCompleteTasks(t)
@@ -2505,7 +2506,7 @@ LEMMA LemG2LivenessHypotheses ==
              /\ FairRequestCancelForTarget(t, o)
              /\ UserStopsPausingUpstream!At(t, o)
              => /\ G2!FairSetTaskRetries(t)
-                /\ G2!FairRegisterGraph(t)
+                /\ G2!FairRegisterRetryGraph(t)
                 /\ G2!FairStageTasks(t)
                 /\ G2!FairProcessTasks(t)
                 /\ G2!FairCompleteTasks(t)
@@ -2575,9 +2576,9 @@ LEMMA LemPreserveT3WFRegisterTasks ==
            => T3!FairRegisterTasks(t)
 <1>1. []Inv => []G2!Inv
     BY PTL DEF Inv
-<1>2. []Inv /\ FairRegisterGraph(t) => G2!FairRegisterGraph(t)
+<1>2. []Inv /\ FairRegisterGraph(t) => G2!FairRegisterRetryGraph(t)
     BY LemPreserveG2WFRegisterGraph
-<1>3. []G2!Inv /\ G2!FairRegisterGraph(t) => G2!T2!FairRegisterTasks(t)
+<1>3. []G2!Inv /\ G2!FairRegisterRetryGraph(t) => G2!T2!FairRegisterTasks(t)
     BY LemG2Assumptions, G2!LemPreserveT2WFRegisterTasks
 <1>4. []Inv /\ [][Next]_vars /\ G2!T2!FairRegisterTasks(t)
       => T3!FairRegisterTasks(t)
@@ -2693,7 +2694,7 @@ LEMMA LemPreserveT3WFCompleteTasks ==
              /\ FairRetryTasks(x)
       => \A x \in Task :
              /\ G2!FairSetTaskRetries(x)
-             /\ G2!FairRegisterGraph(x)
+             /\ G2!FairRegisterRetryGraph(x)
              /\ G2!FairRetryTasks(x)
     BY LemPreserveG2WFRegisterGraph, LemPreserveG2WFRetryTasks,
         LemPreserveG2WFSetTaskRetries
@@ -2707,7 +2708,7 @@ LEMMA LemPreserveT3WFCompleteTasks ==
              G2!FairCompleteObjects(o) /\ G2!FairAbortObjects(o)
       /\ \A x \in Task :
              /\ G2!FairSetTaskRetries(x)
-             /\ G2!FairRegisterGraph(x)
+             /\ G2!FairRegisterRetryGraph(x)
              /\ G2!FairRetryTasks(x)
       /\ G2!FairCompleteTasks(t)
       /\ G2!UpstreamStabilization
@@ -2759,7 +2760,7 @@ LEMMA LemPreserveT3WFAbortTasks ==
              /\ FairRetryTasks(x)
       => \A x \in Task :
              /\ G2!FairSetTaskRetries(x)
-             /\ G2!FairRegisterGraph(x)
+             /\ G2!FairRegisterRetryGraph(x)
              /\ G2!FairRetryTasks(x)
     BY LemPreserveG2WFRegisterGraph, LemPreserveG2WFRetryTasks,
         LemPreserveG2WFSetTaskRetries
@@ -2773,7 +2774,7 @@ LEMMA LemPreserveT3WFAbortTasks ==
              G2!FairCompleteObjects(o) /\ G2!FairAbortObjects(o)
       /\ \A x \in Task :
              /\ G2!FairSetTaskRetries(x)
-             /\ G2!FairRegisterGraph(x)
+             /\ G2!FairRegisterRetryGraph(x)
              /\ G2!FairRetryTasks(x)
       /\ G2!FairAbortTasks(t)
       /\ G2!UpstreamStabilization
@@ -2925,7 +2926,7 @@ LEMMA LemO2EventualTargetFinalization ==
              G2!FairCompleteObjects(x) /\ G2!FairAbortObjects(x)
       /\ \A t \in Task :
              /\ G2!FairSetTaskRetries(t)
-             /\ G2!FairRegisterGraph(t)
+             /\ G2!FairRegisterRetryGraph(t)
              /\ G2!FairStageTasks(t)
              /\ G2!FairProcessTasks(t)
              /\ G2!FairCompleteTasks(t)
@@ -3367,7 +3368,7 @@ THEOREM ThmRefineGraph2 == Spec => RefineGraph2
         BY <1>1, LemPreserveG2WFAbortObjects, LemPreserveG2WFCompleteObjects
     <2>2. ASSUME NEW t \in Task
           PROVE  Spec => /\ G2!FairSetTaskRetries(t)
-                         /\ G2!FairRegisterGraph(t)
+                         /\ G2!FairRegisterRetryGraph(t)
                          /\ G2!FairStageTasks(t)
                          /\ G2!FairProcessTasks(t)
                          /\ G2!FairCompleteTasks(t)

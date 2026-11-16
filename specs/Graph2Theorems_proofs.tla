@@ -1749,7 +1749,7 @@ FairSetTaskRetries(t) ==
     <>[]EnabledSetTaskRetries(t)
         => []<><<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
 
-EnabledRegisterGraph(t) ==
+EnabledRegisterRetryGraph(t) ==
     LET
         G == RetrySubGraph(deps, t, nextAttemptOf[t])
     IN
@@ -1774,8 +1774,8 @@ EnabledRegisterGraph(t) ==
                   IF s \in G.node THEN TASK_REGISTERED ELSE taskState[s]]
                 /= taskState
 
-FairRegisterGraph(t) ==
-    <>[]EnabledRegisterGraph(t)
+FairRegisterRetryGraph(t) ==
+    <>[]EnabledRegisterRetryGraph(t)
         => []<><<RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t]))>>_vars
 
 EnabledStageTasks(t) ==
@@ -1843,7 +1843,7 @@ LEMMA LemFairnessEnabledFree ==
     <=> /\ \A o \in Object : FairCompleteObjects(o) /\ FairAbortObjects(o)
         /\ \A t \in Task :
                /\ FairSetTaskRetries(t)
-               /\ FairRegisterGraph(t)
+               /\ FairRegisterRetryGraph(t)
                /\ FairStageTasks(t)
                /\ FairProcessTasks(t)
                /\ FairCompleteTasks(t)
@@ -1885,7 +1885,7 @@ LEMMA LemFairnessEnabledFree ==
          /\ WF_vars(RetryTasks({t})))
       <=> \A t \in Task :
              /\ FairSetTaskRetries(t)
-             /\ FairRegisterGraph(t)
+             /\ FairRegisterRetryGraph(t)
              /\ FairStageTasks(t)
              /\ FairProcessTasks(t)
              /\ FairCompleteTasks(t)
@@ -1897,7 +1897,7 @@ LEMMA LemFairnessEnabledFree ==
                       <=> FairSetTaskRetries(t)
                    /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t,
                                                           nextAttemptOf[t])))
-                      <=> FairRegisterGraph(t)
+                      <=> FairRegisterRetryGraph(t)
                    /\ WF_vars(StageTasks({t})) <=> FairStageTasks(t)
                    /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
                       <=> FairProcessTasks(t)
@@ -1965,17 +1965,17 @@ LEMMA LemFairnessEnabledFree ==
         <3>. QED
             BY <3>1, <3>2, PTL DEF FairSetTaskRetries
     <2>3. WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
-            <=> FairRegisterGraph(t)
+            <=> FairRegisterRetryGraph(t)
         <3>1. (ENABLED <<RegisterGraph(
                    RetrySubGraph(deps, t, nextAttemptOf[t]))>>_vars)
-                => EnabledRegisterGraph(t)
-            BY ExpandENABLED, Zenon DEF EnabledRegisterGraph, RegisterGraph,
-                vars
-        <3>2. EnabledRegisterGraph(t)
+                => EnabledRegisterRetryGraph(t)
+            BY ExpandENABLED, Zenon DEF EnabledRegisterRetryGraph,
+                RegisterGraph, vars
+        <3>2. EnabledRegisterRetryGraph(t)
                 => ENABLED <<RegisterGraph(
                        RetrySubGraph(deps, t, nextAttemptOf[t]))>>_vars
             <4>. DEFINE G == RetrySubGraph(deps, t, nextAttemptOf[t])
-            <4>. SUFFICES ASSUME EnabledRegisterGraph(t)
+            <4>. SUFFICES ASSUME EnabledRegisterRetryGraph(t)
                           PROVE  \E depsp, nextAttemptOfp, objectStatep,
                                     objectTargetsp, taskStatep :
                                     /\ G /= EmptyGraph
@@ -2029,9 +2029,9 @@ LEMMA LemFairnessEnabledFree ==
                              IF x \in G.node THEN TASK_REGISTERED
                              ELSE taskState[x]]
             <4>. QED
-                BY <4>1, Zenon DEF EnabledRegisterGraph
+                BY <4>1, Zenon DEF EnabledRegisterRetryGraph
         <3>. QED
-            BY <3>1, <3>2, PTL DEF FairRegisterGraph
+            BY <3>1, <3>2, PTL DEF FairRegisterRetryGraph
     <2>4. WF_vars(StageTasks({t})) <=> FairStageTasks(t)
         <3>1. (ENABLED <<StageTasks({t})>>_vars) <=> EnabledStageTasks(t)
             <4>1. UNION {Predecessor(deps, x) : x \in {t}}
@@ -2352,16 +2352,17 @@ LEMMA LemPreserveT2WFSetTaskRetries ==
  *)
 LEMMA LemPreserveT2WFRegisterTasks ==
     ASSUME NEW t \in Task
-    PROVE  []Inv /\ FairRegisterGraph(t) => T2!FairRegisterTasks(t)
-<1>1. []Inv /\ FairRegisterGraph(t)
+    PROVE  []Inv /\ FairRegisterRetryGraph(t) => T2!FairRegisterTasks(t)
+<1>1. []Inv /\ FairRegisterRetryGraph(t)
       => (nextAttemptOf[t] \in UnknownTask
           ~> ~ (nextAttemptOf[t] \in UnknownTask))
-    <2>1. Inv /\ nextAttemptOf[t] \in UnknownTask => EnabledRegisterGraph(t)
+    <2>1. Inv /\ nextAttemptOf[t] \in UnknownTask
+          => EnabledRegisterRetryGraph(t)
         <3>. SUFFICES ASSUME TypeOk, IsDDGraph(deps, Task, Object),
                              IsFiniteSet(deps.node), GraphStateIntegrity,
                              T2!TaskAttemptsIntegrity,
                              nextAttemptOf[t] \in UnknownTask
-                      PROVE  EnabledRegisterGraph(t)
+                      PROVE  EnabledRegisterRetryGraph(t)
             BY LemG1GraphInvariants DEF Inv, G1!Inv, T2!Inv
         <3>. DEFINE G == RetrySubGraph(deps, t, nextAttemptOf[t])
         <3>1. /\ nextAttemptOf[t] \in Task \ deps.node
@@ -2424,13 +2425,13 @@ LEMMA LemPreserveT2WFRegisterTasks ==
             BY <3>1, <3>3
         <3>. QED
             BY <3>4, <3>5, <3>6, <3>7, <3>8, <3>9, Zenon
-                DEF EnabledRegisterGraph
+                DEF EnabledRegisterRetryGraph
     <2>2. /\ nextAttemptOf[t] \in UnknownTask
           /\ <<RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t]))>>_vars
           => ~ (nextAttemptOf[t] \in UnknownTask)'
         BY DEF RegisterGraph, RetrySubGraph, UnknownTask
     <2>. QED
-        BY <2>1, <2>2, PTL DEF FairRegisterGraph
+        BY <2>1, <2>2, PTL DEF FairRegisterRetryGraph
 <1>2. T2!EnabledRegisterTasks(t) => nextAttemptOf[t] \in UnknownTask
     BY DEF T2!EnabledRegisterTasks, UnknownTask, T2!UnknownTask
 <1>. QED
@@ -2560,7 +2561,7 @@ LEMMA LemT2EventualFinalizationFailed ==
     PROVE  /\ []Inv
            /\ [][Next]_vars
            /\ FairSetTaskRetries(t)
-           /\ FairRegisterGraph(t)
+           /\ FairRegisterRetryGraph(t)
            /\ FairRetryTasks(t)
            => t \in FailedTask ~> t \in RetriedTask
 <1>1. Inv => TypeOk /\ T2!Inv
@@ -2587,7 +2588,7 @@ LEMMA LemNoFailedProducersUnderQuiescence ==
            /\ [][Next]_vars
            /\ \A x \in Task :
                   /\ FairSetTaskRetries(x)
-                  /\ FairRegisterGraph(x)
+                  /\ FairRegisterRetryGraph(x)
                   /\ FairRetryTasks(x)
            /\ [](o \in RegisteredObject)
            /\ [][(OA(o).node)' \subseteq OA(o).node]_vars
@@ -2600,7 +2601,7 @@ LEMMA LemNoFailedProducersUnderQuiescence ==
             FairT ==
                 \A x \in Task :
                     /\ FairSetTaskRetries(x)
-                    /\ FairRegisterGraph(x)
+                    /\ FairRegisterRetryGraph(x)
                     /\ FairRetryTasks(x)
 (* tlapm: TL_EventuallyAlwaysForallStationary is cited at the names S and G. *)
 <1>. DEFINE S        == Predecessor(deps, o)
@@ -2625,13 +2626,13 @@ LEMMA LemNoFailedProducersUnderQuiescence ==
           PROVE  H /\ FairT => Stays(t)
         <3>1. FairT
               => /\ FairSetTaskRetries(t)
-                 /\ FairRegisterGraph(t)
+                 /\ FairRegisterRetryGraph(t)
                  /\ FairRetryTasks(t)
             BY DEF FairT
         <3>2. /\ []Inv
               /\ [][Next]_vars
               /\ FairSetTaskRetries(t)
-              /\ FairRegisterGraph(t)
+              /\ FairRegisterRetryGraph(t)
               /\ FairRetryTasks(t)
               => (t \in FailedTask ~> t \in RetriedTask)
             BY LemT2EventualFinalizationFailed
@@ -2678,7 +2679,7 @@ LEMMA LemCompleteAbortTasksEventuallyEnabled ==
            /\ \A o \in Object : FairCompleteObjects(o) /\ FairAbortObjects(o)
            /\ \A x \in Task :
                   /\ FairSetTaskRetries(x)
-                  /\ FairRegisterGraph(x)
+                  /\ FairRegisterRetryGraph(x)
                   /\ FairRetryTasks(x)
            /\ UpstreamStabilization
            => <>[](/\ t \in SucceededTask => EnabledCompleteTasks(t)
@@ -2697,7 +2698,7 @@ LEMMA LemCompleteAbortTasksEventuallyEnabled ==
             FairT   ==
                 \A x \in Task :
                     /\ FairSetTaskRetries(x)
-                    /\ FairRegisterGraph(x)
+                    /\ FairRegisterRetryGraph(x)
                     /\ FairRetryTasks(x)
             H       ==
                 /\ []Inv
@@ -2792,12 +2793,12 @@ LEMMA LemCompleteAbortTasksEventuallyEnabled ==
             <4>6. FairT => []FairT
                 <5>1. ASSUME NEW x \in Task
                       PROVE  /\ FairSetTaskRetries(x)
-                             /\ FairRegisterGraph(x)
+                             /\ FairRegisterRetryGraph(x)
                              /\ FairRetryTasks(x)
                              => [](/\ FairSetTaskRetries(x)
-                                   /\ FairRegisterGraph(x)
+                                   /\ FairRegisterRetryGraph(x)
                                    /\ FairRetryTasks(x))
-                    BY PTL DEF FairRegisterGraph, FairRetryTasks,
+                    BY PTL DEF FairRegisterRetryGraph, FairRetryTasks,
                         FairSetTaskRetries
                 <5>. QED
                     BY <5>1
@@ -2874,7 +2875,7 @@ LEMMA LemPreserveG1WFFinalizeTasks ==
            /\ \A o \in Object : FairCompleteObjects(o) /\ FairAbortObjects(o)
            /\ \A x \in Task :
                   /\ FairSetTaskRetries(x)
-                  /\ FairRegisterGraph(x)
+                  /\ FairRegisterRetryGraph(x)
                   /\ FairRetryTasks(x)
            /\ FairCompleteTasks(t)
            /\ FairAbortTasks(t)
@@ -2905,7 +2906,7 @@ LEMMA LemPreserveG1WFFinalizeTasks ==
       /\ \A o \in Object : FairCompleteObjects(o) /\ FairAbortObjects(o)
       /\ \A x \in Task :
              /\ FairSetTaskRetries(x)
-             /\ FairRegisterGraph(x)
+             /\ FairRegisterRetryGraph(x)
              /\ FairRetryTasks(x)
       /\ UpstreamStabilization
       => <>[]Ready
@@ -2914,7 +2915,7 @@ LEMMA LemPreserveG1WFFinalizeTasks ==
       /\ [][Next]_vars
       /\ \A x \in Task :
              /\ FairSetTaskRetries(x)
-             /\ FairRegisterGraph(x)
+             /\ FairRegisterRetryGraph(x)
              /\ FairRetryTasks(x)
       => (t \in FailedTask ~> t \in RetriedTask)
     BY LemT2EventualFinalizationFailed
@@ -2947,7 +2948,7 @@ LEMMA LemPreserveT2WFCompleteTasks ==
            /\ \A o \in Object : FairCompleteObjects(o) /\ FairAbortObjects(o)
            /\ \A x \in Task :
                   /\ FairSetTaskRetries(x)
-                  /\ FairRegisterGraph(x)
+                  /\ FairRegisterRetryGraph(x)
                   /\ FairRetryTasks(x)
            /\ FairCompleteTasks(t)
            /\ UpstreamStabilization
@@ -2974,7 +2975,7 @@ LEMMA LemPreserveT2WFAbortTasks ==
            /\ \A o \in Object : FairCompleteObjects(o) /\ FairAbortObjects(o)
            /\ \A x \in Task :
                   /\ FairSetTaskRetries(x)
-                  /\ FairRegisterGraph(x)
+                  /\ FairRegisterRetryGraph(x)
                   /\ FairRetryTasks(x)
            /\ FairAbortTasks(t)
            /\ UpstreamStabilization
@@ -3005,7 +3006,7 @@ LEMMA LemPreserveG1WFFinalizeObjects ==
            /\ \A x \in Object : FairCompleteObjects(x) /\ FairAbortObjects(x)
            /\ \A t \in Task :
                   /\ FairSetTaskRetries(t)
-                  /\ FairRegisterGraph(t)
+                  /\ FairRegisterRetryGraph(t)
                   /\ FairCompleteTasks(t)
                   /\ FairAbortTasks(t)
                   /\ FairRetryTasks(t)
@@ -3013,7 +3014,7 @@ LEMMA LemPreserveG1WFFinalizeObjects ==
            => G1!FairFinalizeObjects(o)
 <1>. DEFINE FairTask(t) ==
                 /\ FairSetTaskRetries(t)
-                /\ FairRegisterGraph(t)
+                /\ FairRegisterRetryGraph(t)
                 /\ FairCompleteTasks(t)
                 /\ FairAbortTasks(t)
                 /\ FairRetryTasks(t)
@@ -3044,8 +3045,8 @@ LEMMA LemPreserveG1WFFinalizeObjects ==
     <2>1. (\A t \in Task : FairTask(t)) => [](\A t \in Task : FairTask(t))
         <3>1. ASSUME NEW t \in Task
               PROVE  FairTask(t) => []FairTask(t)
-            BY PTL DEF FairAbortTasks, FairCompleteTasks, FairRegisterGraph,
-                FairRetryTasks, FairSetTaskRetries
+            BY PTL DEF FairAbortTasks, FairCompleteTasks,
+                FairRegisterRetryGraph, FairRetryTasks, FairSetTaskRetries
         <3>. QED
             BY <3>1
     <2>. QED
@@ -3149,7 +3150,7 @@ LEMMA LemPreserveO2WFCompleteObjects ==
            /\ \A x \in Object : FairCompleteObjects(x) /\ FairAbortObjects(x)
            /\ \A t \in Task :
                   /\ FairSetTaskRetries(t)
-                  /\ FairRegisterGraph(t)
+                  /\ FairRegisterRetryGraph(t)
                   /\ FairStageTasks(t)
                   /\ FairProcessTasks(t)
                   /\ FairCompleteTasks(t)
@@ -3164,7 +3165,7 @@ LEMMA LemPreserveO2WFCompleteObjects ==
       /\ \A x \in Object : FairCompleteObjects(x) /\ FairAbortObjects(x)
       /\ \A t \in Task :
              /\ FairSetTaskRetries(t)
-             /\ FairRegisterGraph(t)
+             /\ FairRegisterRetryGraph(t)
              /\ FairStageTasks(t)
              /\ FairProcessTasks(t)
              /\ FairCompleteTasks(t)
@@ -3209,7 +3210,7 @@ LEMMA LemO2EventualTargetFinalization ==
            /\ \A x \in Object : FairCompleteObjects(x) /\ FairAbortObjects(x)
            /\ \A t \in Task :
                   /\ FairSetTaskRetries(t)
-                  /\ FairRegisterGraph(t)
+                  /\ FairRegisterRetryGraph(t)
                   /\ FairStageTasks(t)
                   /\ FairProcessTasks(t)
                   /\ FairCompleteTasks(t)
@@ -3248,7 +3249,7 @@ LEMMA LemDerivableObjectsEventualCompletion ==
            /\ \A x \in Object : FairCompleteObjects(x) /\ FairAbortObjects(x)
            /\ \A t \in Task :
                   /\ FairSetTaskRetries(t)
-                  /\ FairRegisterGraph(t)
+                  /\ FairRegisterRetryGraph(t)
                   /\ FairStageTasks(t)
                   /\ FairProcessTasks(t)
                   /\ FairCompleteTasks(t)
@@ -3276,7 +3277,7 @@ LEMMA LemUnderivableObjectsEventualAbortion ==
            /\ \A x \in Object : FairCompleteObjects(x) /\ FairAbortObjects(x)
            /\ \A t \in Task :
                   /\ FairSetTaskRetries(t)
-                  /\ FairRegisterGraph(t)
+                  /\ FairRegisterRetryGraph(t)
                   /\ FairStageTasks(t)
                   /\ FairProcessTasks(t)
                   /\ FairCompleteTasks(t)
@@ -3303,7 +3304,7 @@ LEMMA LemEventualQuiescence ==
     /\ \A o \in Object : FairCompleteObjects(o) /\ FairAbortObjects(o)
     /\ \A t \in Task :
            /\ FairSetTaskRetries(t)
-           /\ FairRegisterGraph(t)
+           /\ FairRegisterRetryGraph(t)
            /\ FairStageTasks(t)
            /\ FairProcessTasks(t)
            /\ FairCompleteTasks(t)
@@ -3318,7 +3319,7 @@ LEMMA LemEventualQuiescence ==
                        FairCompleteObjects(o) /\ FairAbortObjects(o)
                 /\ \A t \in Task :
                        /\ FairSetTaskRetries(t)
-                       /\ FairRegisterGraph(t)
+                       /\ FairRegisterRetryGraph(t)
                        /\ FairStageTasks(t)
                        /\ FairProcessTasks(t)
                        /\ FairCompleteTasks(t)
@@ -3501,7 +3502,7 @@ THEOREM ThmRefineGraph1 == Spec => RefineGraph1
          /\ \A o \in Object : FairCompleteObjects(o) /\ FairAbortObjects(o)
          /\ \A t \in Task :
                 /\ FairSetTaskRetries(t)
-                /\ FairRegisterGraph(t)
+                /\ FairRegisterRetryGraph(t)
                 /\ FairStageTasks(t)
                 /\ FairProcessTasks(t)
                 /\ FairCompleteTasks(t)
@@ -3546,7 +3547,7 @@ THEOREM ThmRefineObject2 == Spec => RefineObject2
              /\ \A x \in Object : FairCompleteObjects(x) /\ FairAbortObjects(x)
              /\ \A t \in Task :
                     /\ FairSetTaskRetries(t)
-                    /\ FairRegisterGraph(t)
+                    /\ FairRegisterRetryGraph(t)
                     /\ FairStageTasks(t)
                     /\ FairProcessTasks(t)
                     /\ FairCompleteTasks(t)
@@ -3579,7 +3580,7 @@ THEOREM ThmRefineTask2 == Spec => RefineTask2
              /\ \A o \in Object : FairCompleteObjects(o) /\ FairAbortObjects(o)
              /\ \A x \in Task :
                     /\ FairSetTaskRetries(x)
-                    /\ FairRegisterGraph(x)
+                    /\ FairRegisterRetryGraph(x)
                     /\ FairStageTasks(x)
                     /\ FairProcessTasks(x)
                     /\ FairCompleteTasks(x)
@@ -3607,7 +3608,7 @@ THEOREM ThmDerivableObjectsEventualCompletion ==
          /\ \A x \in Object : FairCompleteObjects(x) /\ FairAbortObjects(x)
          /\ \A t \in Task :
                 /\ FairSetTaskRetries(t)
-                /\ FairRegisterGraph(t)
+                /\ FairRegisterRetryGraph(t)
                 /\ FairStageTasks(t)
                 /\ FairProcessTasks(t)
                 /\ FairCompleteTasks(t)
@@ -3631,7 +3632,7 @@ THEOREM ThmUnderivableObjectsEventualAbortion ==
          /\ \A x \in Object : FairCompleteObjects(x) /\ FairAbortObjects(x)
          /\ \A t \in Task :
                 /\ FairSetTaskRetries(t)
-                /\ FairRegisterGraph(t)
+                /\ FairRegisterRetryGraph(t)
                 /\ FairStageTasks(t)
                 /\ FairProcessTasks(t)
                 /\ FairCompleteTasks(t)
