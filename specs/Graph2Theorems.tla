@@ -108,6 +108,14 @@ LEMMA LemDepsChangeRegistersGraph ==
     PROVE  \E G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G)
 
 (**
+ * The dependency graph only grows. Not lifted from Graph1: the lift would
+ * assume GraphStateIntegrity, which the step simulation of Graph1 needs.
+ *)
+LEMMA LemDepsMonotone ==
+    [Next]_vars
+    => deps.node \subseteq deps'.node /\ deps.edge \subseteq deps'.edge
+
+(**
  * The producers of an object are tasks.
  *)
 LEMMA LemProducersAreTasks ==
@@ -228,13 +236,16 @@ LEMMA LemAbortTasksSimulateG1FinalizeTasks ==
     PROVE  TypeOk /\ AbortTasks(T) => G1!FinalizeTasks(T)
 
 (**
- * Retrying a task finalizes it.
+ * Retrying a task finalizes it. The guard of the finalization of Graph1
+ * follows from GraphStateIntegrity.
  *)
 LEMMA LemRetryTasksSimulateG1FinalizeTasks ==
     ASSUME NEW T \in SUBSET Task
-    PROVE  TypeOk /\ RetryTasks(T) => G1!FinalizeTasks(T)
+    PROVE  TypeOk /\ GraphStateIntegrity /\ RetryTasks(T)
+           => G1!FinalizeTasks(T)
 
-LEMMA LemNextSimulateG1Next == TypeOk /\ [Next]_vars => [G1!Next]_G1!vars
+LEMMA LemNextSimulateG1Next ==
+    TypeOk /\ GraphStateIntegrity /\ [Next]_vars => [G1!Next]_G1!vars
 
 LEMMA LemInitSimulateO2Init == Init => O2!Init
 
@@ -416,13 +427,6 @@ LEMMA LemO2PermanentFinalization ==
            /\ o \in AbortedObject => (o \in AbortedObject)'
 
 (**
- * Lifted from Graph1: the dependency graph only grows.
- *)
-LEMMA LemG1DepsMonotone ==
-    TypeOk /\ [Next]_vars
-    => deps.node \subseteq deps'.node /\ deps.edge \subseteq deps'.edge
-
-(**
  * Lifted from Task2: a recorded next attempt is never overwritten.
  *)
 LEMMA LemT2NextAttemptFrozen ==
@@ -435,12 +439,10 @@ LEMMA LemT2NextAttemptFrozen ==
  * task.
  *)
 LEMMA LemG1ImmutableTaskDependencies ==
-    ASSUME NEW t \in Task, TypeOk, G1!Inv, [Next]_vars
+    ASSUME NEW t \in Task, TypeOk, G1!Inv, GraphStateIntegrity, [Next]_vars
     PROVE  [t \notin UnknownTask
             => /\ Predecessor(deps, t) = Predecessor(deps', t)
                /\ Successor(deps, t) = Successor(deps', t)]_deps
-
-LEMMA LemG1Inv == Init /\ [][Next]_vars => []G1!Inv
 
 LEMMA LemO2Inv == Init /\ [][Next]_vars => []O2!Inv
 
@@ -452,9 +454,17 @@ LEMMA LemT2Inv == Init /\ [][Next]_vars => []T2!Inv
 (******************************************************************************)
 
 (**
- * Graph1's invariant with the finer states.
+ * Graph1's invariant with the finer states. Not lifted from Graph1: its step
+ * simulation needs this invariant, and proving the conjuncts they share costs
+ * less than lifting Graph1's inductive step.
  *)
 LEMMA LemGraphStateIntegrity == Init /\ [][Next]_vars => []GraphStateIntegrity
+
+(**
+ * Here rather than with the lifted safety: the step simulation of Graph1
+ * needs GraphStateIntegrity.
+ *)
+LEMMA LemG1Inv == Init /\ [][Next]_vars => []G1!Inv
 
 LEMMA LemRetryDataDependenciesValidity ==
     Init /\ [][Next]_vars => []RetryDataDependenciesValidity
@@ -631,10 +641,6 @@ FairAbortTasks(t) ==
 EnabledRetryTasks(t) ==
     /\ t \in FailedTask
     /\ nextAttemptOf[t] \notin UnknownTask \union {NULL}
-    /\ \A o \in Successor(deps, t) :
-        o \in RegisteredObject
-            => \E u \in (Predecessor(deps, o) \ {t}) :
-                u \notin UNION {CompletedTask, AbortedTask, RetriedTask}
 
 FairRetryTasks(t) ==
     <>[]EnabledRetryTasks(t) => []<><<RetryTasks({t})>>_vars
@@ -733,12 +739,22 @@ LEMMA LemPreserveG1UpstreamStabilization ==
            => G1!UpstreamStabilization!At(o)
 
 (**
- * The weak fairness of the retry of a failed task in Task2 holds under
- * Graph2, where it is the same action.
+ * The weak fairness of the linking of a failed task to a next attempt in
+ * Task2 holds under Graph2, where it is the same action.
  *)
 LEMMA LemPreserveT2WFSetTaskRetries ==
     ASSUME NEW t \in Task
     PROVE  FairSetTaskRetries(t) => T2!FairSetTaskRetries(t)
+
+(**
+ * The weak fairness of the registration of the next attempt of a task in
+ * Task2 holds under Graph2: an unknown next attempt is eventually registered.
+ * While it is unknown, the retried task is failed, so none of its outputs is
+ * aborted, and its retry subgraph stays registrable.
+ *)
+LEMMA LemPreserveT2WFRegisterTasks ==
+    ASSUME NEW t \in Task
+    PROVE  []Inv /\ FairRegisterGraph(t) => T2!FairRegisterTasks(t)
 
 (**
  * The weak fairness of the staging of the next attempt of a task in Task2
@@ -762,43 +778,30 @@ LEMMA LemPreserveT2SFProcessTasks ==
     PROVE  FairProcessTasks(t) => T2!FairProcessTasks(t)
 
 (**
- * Lifted from Task2: a failed task without a next attempt is eventually given
- * one.
+ * The weak fairness of the retry of a task in Task2 holds under Graph2, where
+ * it is the same action.
  *)
-LEMMA LemT2FailedTaskEventuallyLinked ==
+LEMMA LemPreserveT2WFRetryTasks ==
     ASSUME NEW t \in Task
-    PROVE  []Inv /\ [][Next]_vars /\ FairSetTaskRetries(t)
-           => t \in FailedTask \ LinkedTask
-              ~> t \in FailedTask /\ nextAttemptOf[t] \in UnknownTask
+    PROVE  FairRetryTasks(t) => T2!FairRetryTasks(t)
 
 (**
- * An unknown next attempt is eventually registered: while it is unknown, the
- * retried task is failed, so none of its outputs is aborted, and its retry
- * subgraph stays registrable. Not lifted from Task2, where it is the fairness
- * of the registration of the next attempt, which Graph2 derives from it.
+ * Lifted from Task2: a failed task is eventually retried.
  *)
-LEMMA LemNextAttemptEventuallyRegistered ==
+LEMMA LemT2EventualFinalizationFailed ==
     ASSUME NEW t \in Task
-    PROVE  []Inv /\ [][Next]_vars /\ FairRegisterGraph(t)
-           => nextAttemptOf[t] \in UnknownTask
-              ~> nextAttemptOf[t] \notin UnknownTask
-
-(**
- * The weak fairness of the registration of the next attempt of a task in
- * Task2 holds under Graph2: the registration of the retry subgraph registers
- * an unknown next attempt, which then never becomes unknown again.
- *)
-LEMMA LemPreserveT2WFRegisterTasks ==
-    ASSUME NEW t \in Task
-    PROVE  []Inv /\ [][Next]_vars /\ FairRegisterGraph(t)
-           => T2!FairRegisterTasks(t)
+    PROVE  /\ []Inv
+           /\ [][Next]_vars
+           /\ FairSetTaskRetries(t)
+           /\ FairRegisterGraph(t)
+           /\ FairRetryTasks(t)
+           => t \in FailedTask ~> t \in RetriedTask
 
 (**
  * While an object stays registered and its open ancestry never grows, none of
  * its producers eventually stays failed: the producers are a fixed finite set,
- * each of which is eventually retried. It breaks a cycle: Task2's
- * EventualFinalization would give it, but needs the fairness of the retries of
- * Task2, which Graph2 derives from it.
+ * each of which is eventually retried. Not a property: shared by
+ * LemCompleteAbortTasksEventuallyEnabled and LemPreserveG1WFFinalizeObjects.
  *)
 LEMMA LemNoFailedProducersUnderQuiescence ==
     ASSUME NEW o \in Object
@@ -836,8 +839,9 @@ LEMMA LemCompleteAbortTasksEventuallyEnabled ==
 
 (**
  * The weak fairness of the finalization of a task in Graph1 holds under
- * Graph2: a finalizable task of Graph1 is succeeded, discarded or failed,
- * and eventually for good completable, abortable or retriable.
+ * Graph2: a finalizable task of Graph1 is succeeded, discarded or failed. A
+ * failed task is eventually retried, and a succeeded or discarded one is
+ * eventually for good completable or abortable.
  *)
 LEMMA LemPreserveG1WFFinalizeTasks ==
     ASSUME NEW t \in Task
@@ -928,25 +932,6 @@ LEMMA LemPreserveG1WFFinalizeObjects ==
                   /\ FairRetryTasks(t)
            /\ UpstreamStabilization
            => G1!FairFinalizeObjects(o)
-
-(**
- * The weak fairness of the retry of a task in Task2 holds under Graph2,
- * lifted from Graph1: a processed task of Graph1 is eventually finalized, so
- * it cannot stay failed forever.
- *)
-LEMMA LemPreserveT2WFRetryTasks ==
-    ASSUME NEW t \in Task
-    PROVE  /\ []Inv
-           /\ [][Next]_vars
-           /\ \A o \in Object : FairCompleteObjects(o) /\ FairAbortObjects(o)
-           /\ \A x \in Task :
-                  /\ FairSetTaskRetries(x)
-                  /\ FairRegisterGraph(x)
-                  /\ FairCompleteTasks(x)
-                  /\ FairAbortTasks(x)
-                  /\ FairRetryTasks(x)
-           /\ UpstreamStabilization
-           => T2!FairRetryTasks(t)
 
 (**
  * The weak fairness of the completion of a target in Object2 holds under
