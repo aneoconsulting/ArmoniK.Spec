@@ -805,17 +805,16 @@ LEMMA LemT2EventualFinalizationFailed ==
  *)
 LEMMA LemNoFailedProducersUnderQuiescence ==
     ASSUME NEW o \in Object
-    PROVE  LET S == OA(o).node
-           IN  /\ []Inv
-               /\ [][Next]_vars
-               /\ \A x \in Task :
-                      /\ FairSetTaskRetries(x)
-                      /\ FairRegisterGraph(x)
-                      /\ FairRetryTasks(x)
-               /\ [](o \in RegisteredObject)
-               /\ [][S' \subseteq S]_vars
-               => <>[](\A x \in Task :
-                           ~ (x \in Predecessor(deps, o) /\ x \in FailedTask))
+    PROVE  /\ []Inv
+           /\ [][Next]_vars
+           /\ \A x \in Task :
+                  /\ FairSetTaskRetries(x)
+                  /\ FairRegisterGraph(x)
+                  /\ FairRetryTasks(x)
+           /\ [](o \in RegisteredObject)
+           /\ [][(OA(o).node)' \subseteq OA(o).node]_vars
+           => <>[](\A x \in Task :
+                       ~ (x \in Predecessor(deps, o) /\ x \in FailedTask))
 
 (**
  * A task that is succeeded or discarded is eventually for good completable
