@@ -501,10 +501,6 @@ FairAbortTasks(t) ==
 EnabledRetryTasks(t) ==
     /\ t \in FailedTask
     /\ nextAttemptOf[t] \notin UnknownTask \union {NULL}
-    /\ \A o \in Successor(deps, t) :
-        o \in RegisteredObject
-            => \E u \in (Predecessor(deps, o) \ {t}) :
-                u \notin UNION {CompletedTask, AbortedTask, RetriedTask}
 
 FairRetryTasks(t) ==
     <>[]EnabledRetryTasks(t) => []<><<RetryTasks({t})>>_vars
@@ -607,8 +603,8 @@ LEMMA LemPreserveG2WFAbortObjects ==
     PROVE  FairAbortObjects(o) => G2!FairAbortObjects(o)
 
 (**
- * The weak fairness of the retry of a failed task in Graph2 holds under
- * Graph3, where it is the same action.
+ * The weak fairness of the linking of a failed task to a next attempt in
+ * Graph2 holds under Graph3, where it is the same action.
  *)
 LEMMA LemPreserveG2WFSetTaskRetries ==
     ASSUME NEW t \in Task
@@ -756,8 +752,8 @@ LEMMA LemG2LivenessHypotheses ==
               /\ G2!UpstreamStabilization
 
 (**
- * The weak fairness of the retry of a failed task in Task3 holds under
- * Graph3, where it is the same action.
+ * The weak fairness of the linking of a failed task to a next attempt in
+ * Task3 holds under Graph3, where it is the same action.
  *)
 LEMMA LemPreserveT3WFSetTaskRetries ==
     ASSUME NEW t \in Task
@@ -830,21 +826,11 @@ LEMMA LemPreserveT3WFAbortTasks ==
 
 (**
  * The weak fairness of the retry of a task in Task3 holds under Graph3,
- * lifted from Graph2: a failed task cannot stay failed forever.
+ * where it is the same action.
  *)
 LEMMA LemPreserveT3WFRetryTasks ==
     ASSUME NEW t \in Task
-    PROVE  /\ []Inv
-           /\ [][Next]_vars
-           /\ \A o \in Object : FairCompleteObjects(o) /\ FairAbortObjects(o)
-           /\ \A x \in Task :
-                  /\ FairSetTaskRetries(x)
-                  /\ FairRegisterGraph(x)
-                  /\ FairCompleteTasks(x)
-                  /\ FairAbortTasks(x)
-                  /\ FairRetryTasks(x)
-           /\ UpstreamStabilization
-           => T3!FairRetryTasks(t)
+    PROVE  FairRetryTasks(t) => T3!FairRetryTasks(t)
 
 (**
  * The weak fairness of the pausing of a task in Task3 holds under Graph3,

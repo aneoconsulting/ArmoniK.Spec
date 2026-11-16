@@ -571,14 +571,8 @@ LEMMA LemRetryTasksSimulateG2RetryTasks ==
 <1>1. taskStateBar' =
           [t \in Task |-> IF t \in T THEN TASK_RETRIED ELSE taskStateBar[t]]
     BY LemBarUpdate, Isa DEF RetryTasks
-<1>2. \A o \in UNION {G2!Successor(deps, t) : t \in T} :
-          o \in G2!RegisteredObject
-          => \E w \in (G2!Predecessor(deps, o) \ T) :
-                 w \notin UNION {G2!CompletedTask, G2!AbortedTask,
-                                 G2!RetriedTask}
-    BY LemG2BarStates, LemG2Bridges DEF RetryTasks
 <1>. QED
-    BY <1>1, <1>2, LemG2BarStates, Zenon DEF RetryTasks, G2!RetryTasks
+    BY <1>1, LemG2BarStates, Zenon DEF RetryTasks, G2!RetryTasks
 
 
 (**
@@ -1212,10 +1206,6 @@ FairAbortTasks(t) ==
 EnabledRetryTasks(t) ==
     /\ t \in FailedTask
     /\ nextAttemptOf[t] \notin UnknownTask \union {NULL}
-    /\ \A o \in Successor(deps, t) :
-        o \in RegisteredObject
-            => \E u \in (Predecessor(deps, o) \ {t}) :
-                u \notin UNION {CompletedTask, AbortedTask, RetriedTask}
 
 FairRetryTasks(t) ==
     <>[]EnabledRetryTasks(t) => []<><<RetryTasks({t})>>_vars
@@ -1740,8 +1730,8 @@ LEMMA LemPreserveG2WFAbortObjects ==
     BY <1>1, <1>2, PTL DEF FairAbortObjects, G2!FairAbortObjects
 
 (**
- * The weak fairness of the retry of a failed task in Graph2 holds under
- * Graph3, where it is the same action.
+ * The weak fairness of the linking of a failed task to a next attempt in
+ * Graph2 holds under Graph3, where it is the same action.
  *)
 LEMMA LemPreserveG2WFSetTaskRetries ==
     ASSUME NEW t \in Task
@@ -1972,7 +1962,7 @@ LEMMA LemPreserveG2WFRetryTasks ==
     ASSUME NEW t \in Task
     PROVE  FairRetryTasks(t) => G2!FairRetryTasks(t)
 <1>1. G2!EnabledRetryTasks(t) => EnabledRetryTasks(t)
-    BY LemG2BarStates, LemG2Bridges DEF EnabledRetryTasks, G2!EnabledRetryTasks
+    BY LemG2BarStates DEF EnabledRetryTasks, G2!EnabledRetryTasks
 <1>2. <<RetryTasks({t})>>_vars => <<G2!RetryTasks({t})>>_G2!vars
     <2>. SUFFICES ASSUME RetryTasks({t})
                   PROVE  G2!RetryTasks({t}) /\ G2!vars' /= G2!vars
@@ -2538,8 +2528,8 @@ LEMMA LemG2LivenessHypotheses ==
     BY <1>1, <1>2, <1>3, LemPreserveG2UpstreamStabilizationAllObjects
 
 (**
- * The weak fairness of the retry of a failed task in Task3 holds under
- * Graph3, where it is the same action.
+ * The weak fairness of the linking of a failed task to a next attempt in
+ * Task3 holds under Graph3, where it is the same action.
  *)
 LEMMA LemPreserveT3WFSetTaskRetries ==
     ASSUME NEW t \in Task
@@ -2583,12 +2573,11 @@ LEMMA LemPreserveT3WFRegisterTasks ==
     ASSUME NEW t \in Task
     PROVE  []Inv /\ [][Next]_vars /\ FairRegisterGraph(t)
            => T3!FairRegisterTasks(t)
-<1>1. []Inv /\ [][Next]_vars => []G2!Inv /\ [][G2!Next]_G2!vars
-    BY LemNextSimulateG2Next, PTL DEF Inv
+<1>1. []Inv => []G2!Inv
+    BY PTL DEF Inv
 <1>2. []Inv /\ FairRegisterGraph(t) => G2!FairRegisterGraph(t)
     BY LemPreserveG2WFRegisterGraph
-<1>3. []G2!Inv /\ [][G2!Next]_G2!vars /\ G2!FairRegisterGraph(t)
-      => G2!T2!FairRegisterTasks(t)
+<1>3. []G2!Inv /\ G2!FairRegisterGraph(t) => G2!T2!FairRegisterTasks(t)
     BY LemG2Assumptions, G2!LemPreserveT2WFRegisterTasks
 <1>4. []Inv /\ [][Next]_vars /\ G2!T2!FairRegisterTasks(t)
       => T3!FairRegisterTasks(t)
@@ -2812,74 +2801,27 @@ LEMMA LemPreserveT3WFAbortTasks ==
 
 (**
  * The weak fairness of the retry of a task in Task3 holds under Graph3,
- * lifted from Graph2: a failed task cannot stay failed forever.
+ * where it is the same action.
  * ----
- * Rule: lift of the preservation of this fairness of Task2 by Graph2, whose
- * steps of the action are steps of Task3 (LemRetryTasksFromT2Step).
+ * Rule: WF2, with no condition: the enabledness transfers directly.
  *)
 LEMMA LemPreserveT3WFRetryTasks ==
     ASSUME NEW t \in Task
-    PROVE  /\ []Inv
-           /\ [][Next]_vars
-           /\ \A o \in Object : FairCompleteObjects(o) /\ FairAbortObjects(o)
-           /\ \A x \in Task :
-                  /\ FairSetTaskRetries(x)
-                  /\ FairRegisterGraph(x)
-                  /\ FairCompleteTasks(x)
-                  /\ FairAbortTasks(x)
-                  /\ FairRetryTasks(x)
-           /\ UpstreamStabilization
-           => T3!FairRetryTasks(t)
-<1>1. []Inv /\ [][Next]_vars => []G2!Inv /\ [][G2!Next]_G2!vars
-    BY LemNextSimulateG2Next, PTL DEF Inv
-<1>2. (\A o \in Object : FairCompleteObjects(o) /\ FairAbortObjects(o))
-      => \A o \in Object :
-             G2!FairCompleteObjects(o) /\ G2!FairAbortObjects(o)
-    BY LemPreserveG2WFAbortObjects, LemPreserveG2WFCompleteObjects
-<1>3. /\ []Inv
-      /\ \A x \in Task :
-             /\ FairSetTaskRetries(x)
-             /\ FairRegisterGraph(x)
-             /\ FairCompleteTasks(x)
-             /\ FairAbortTasks(x)
-             /\ FairRetryTasks(x)
-      => \A x \in Task :
-             /\ G2!FairSetTaskRetries(x)
-             /\ G2!FairRegisterGraph(x)
-             /\ G2!FairCompleteTasks(x)
-             /\ G2!FairAbortTasks(x)
-             /\ G2!FairRetryTasks(x)
-    BY LemPreserveG2WFAbortTasks, LemPreserveG2WFCompleteTasks,
-        LemPreserveG2WFRegisterGraph, LemPreserveG2WFRetryTasks,
-        LemPreserveG2WFSetTaskRetries
-<1>4. UpstreamStabilization => G2!UpstreamStabilization
-    BY LemPreserveG2UpstreamStabilizationAllObjects
-<1>5. /\ []G2!Inv
-      /\ [][G2!Next]_G2!vars
-      /\ \A o \in Object :
-             G2!FairCompleteObjects(o) /\ G2!FairAbortObjects(o)
-      /\ \A x \in Task :
-             /\ G2!FairSetTaskRetries(x)
-             /\ G2!FairRegisterGraph(x)
-             /\ G2!FairCompleteTasks(x)
-             /\ G2!FairAbortTasks(x)
-             /\ G2!FairRetryTasks(x)
-      /\ G2!UpstreamStabilization
-      => G2!T2!FairRetryTasks(t)
-    BY LemG2Assumptions, G2!LemPreserveT2WFRetryTasks
-<1>6. []Inv /\ [][Next]_vars /\ G2!T2!FairRetryTasks(t)
-      => T3!FairRetryTasks(t)
-    <2>1. T3!EnabledRetryTasks(t) => G2!T2!EnabledRetryTasks(t)
-        BY LemT2Bridges, LemT3Bridges DEF G2!T2!EnabledRetryTasks,
-            T3!EnabledRetryTasks
-    <2>2. Inv /\ [Next]_vars /\ <<G2!T2!RetryTasks({t})>>_G2!T2!vars
-          => <<T3!RetryTasks({t})>>_T3!vars
-        BY LemNextSimulateT3Next, T3!LemRetryTasksFromT2Step, LemT2Bridges,
-            LemT3Assumptions DEF Inv
+    PROVE  FairRetryTasks(t) => T3!FairRetryTasks(t)
+<1>1. T3!EnabledRetryTasks(t) => EnabledRetryTasks(t)
+    BY LemT3Bridges DEF EnabledRetryTasks, T3!EnabledRetryTasks, LinkedTask
+<1>2. <<RetryTasks({t})>>_vars => <<T3!RetryTasks({t})>>_T3!vars
+    <2>. SUFFICES ASSUME RetryTasks({t})
+                  PROVE  T3!RetryTasks({t}) /\ T3!vars' /= T3!vars
+        BY DEF vars
+    <2>1. T3!RetryTasks({t})
+        BY LemRetryTasksSimulateT3RetryTasks
+    <2>2. taskState' /= taskState
+        BY DEF FailedTask, RetryTasks
     <2>. QED
-        BY <2>1, <2>2, PTL DEF G2!T2!FairRetryTasks, T3!FairRetryTasks
+        BY <2>1, <2>2 DEF T3!vars
 <1>. QED
-    BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6
+    BY <1>1, <1>2, PTL DEF FairRetryTasks, T3!FairRetryTasks
 
 (**
  * The weak fairness of the pausing of a task in Task3 holds under Graph3,
