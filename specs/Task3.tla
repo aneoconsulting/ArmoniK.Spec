@@ -93,7 +93,8 @@ Init ==
 
 (**
  * ACTION
- * A finite set 'T' of unknown tasks is registered.
+ * A finite set 'T' of unknown tasks is registered: known to the system, but
+ * not yet ready for processing.
  *)
 RegisterTasks(T) ==
     /\ T /= {}
@@ -105,7 +106,7 @@ RegisterTasks(T) ==
 
 (**
  * ACTION
- * A set 'T' of registered tasks is staged, ready for processing.
+ * A set 'T' of registered tasks is staged: made ready for processing.
  *)
 StageTasks(T) ==
     /\ T /= {}
@@ -128,9 +129,8 @@ DiscardTasks(T) ==
 
 (**
  * ACTION
- * Each task of a set 'T' of failed tasks without a next attempt is given a
- * distinct unknown task of 'U' as next attempt, through the bijection 'f'. A
- * task of 'U' is the next attempt of no other task.
+ * Each failed task of 'T' without a next attempt is given one: a distinct
+ * unknown task of 'U' that is the next attempt of no task.
  *)
 SetTaskRetries(T, U) ==
     /\ T /= {}
@@ -157,7 +157,7 @@ AssignTasks(T) ==
 
 (**
  * ACTION
- * A set 'T' of assigned tasks is released and staged again.
+ * A set 'T' of assigned tasks is released back to the staged ones.
  *)
 ReleaseTasks(T) ==
     /\ T /= {}
@@ -182,7 +182,7 @@ ProcessTasks(T) ==
             [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
        \/ /\ \A t \in T : Cardinality(PreviousAttempts(t)) < MaxRetries
           /\ taskState' =
-                [t \in Task |-> IF t \in T THEN TASK_FAILED ELSE taskState[t]]
+              [t \in Task |-> IF t \in T THEN TASK_FAILED ELSE taskState[t]]
        \/ taskState' =
             [t \in Task |-> IF t \in T THEN TASK_HALTED ELSE taskState[t]]
     /\ UNCHANGED << intent, nextAttemptOf >>
@@ -200,7 +200,7 @@ CompleteTasks(T) ==
 
 (**
  * ACTION
- * A set 'T' of discarded tasks is aborted.
+ * A set 'T' of discarded tasks is aborted: they will never be retried.
  *)
 AbortTasks(T) ==
     /\ T /= {}
@@ -420,8 +420,8 @@ RefineTask2 ==
  * Every task eventually stays unknown, registered, staged or paused, halted,
  * completed, retried or aborted forever. A task may move between staged and
  * paused forever, as the user changes the intent of its attempt chain.
- * Restated from Task1, whose staged tasks also include the paused and halted
- * ones, and whose finalized tasks are the completed, retried and aborted ones.
+ * Restated from Task2, whose staged tasks also include the paused and halted
+ * ones.
  *)
 EventualStability ==
     \A t \in Task :
