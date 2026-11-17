@@ -16,10 +16,10 @@ USE DEF OBJECT_ABORTED, OBJECT_COMPLETED, OBJECT_FINALIZED, O1!OBJECT_FINALIZED,
 (**
  * The assumptions of Object2 imply those of Object1.
  *)
-LEMMA LemO1Assumptions == Assumptions => O1!Assumptions
-BY DEF Bijection, O1!Bijection, ExistsBijection, O1!ExistsBijection,
-    Injection, O1!Injection, IsDenumerableSet, O1!IsDenumerableSet,
-    IsInjective, O1!IsInjective, Surjection, O1!Surjection
+LEMMA LemO1Assumptions == O1!Assumptions
+BY Assumptions DEF O1!Assumptions, Bijection, O1!Bijection, ExistsBijection,
+    O1!ExistsBijection, Injection, O1!Injection, IsDenumerableSet,
+    O1!IsDenumerableSet, IsInjective, O1!IsInjective, Surjection, O1!Surjection
 
 (**
  * The sets of objects of Object1 under the refinement mapping.
@@ -109,7 +109,7 @@ LEMMA LemO1Inv == Init /\ [][Next]_vars => []O1!Inv
 <1>1. Init /\ [][Next]_vars => O1!Init /\ [][O1!Next]_O1!vars
     BY LemInitSimulateO1Init, LemNextSimulateO1Next, PTL
 <1>. QED
-    BY <1>1, Assumptions, O1!LemInv, LemO1Assumptions
+    BY <1>1, O1!LemInv, LemO1Assumptions
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -209,7 +209,7 @@ LEMMA LemEventualTargetFinalization ==
            => EventualTargetFinalization!At(o)
 <1>1. []O1!Inv /\ [][O1!Next]_O1!vars /\ O1!FairFinalizeObjects(o)
         => O1!EventualTargetFinalization!At(o)
-    BY Assumptions, O1!LemEventualTargetFinalization, LemO1Assumptions
+    BY O1!LemEventualTargetFinalization, LemO1Assumptions
 <1>2. FairCompleteObjects(o) => O1!FairFinalizeObjects(o)
     BY LemPreserveO1WFFinalizeObjects
 <1>3. /\ o \in CompletedObject /\ [Next]_vars => (o \in CompletedObject)'
@@ -234,7 +234,7 @@ LEMMA LemEventualQuiescence ==
       => (<>[][O1!NoUserAction]_O1!vars
           => /\ <>[](objectTargets \subseteq O1!FinalizedObject)
              /\ <>[][FALSE]_O1!vars)
-    BY Assumptions, O1!LemEventualQuiescence, LemO1Assumptions, Isa
+    BY O1!LemEventualQuiescence, LemO1Assumptions, Isa
         DEF O1!EventualQuiescence, O1!Idle
 <1>2. (\A o \in Object : FairCompleteObjects(o))
         => \A o \in Object : O1!FairFinalizeObjects(o)
@@ -281,7 +281,7 @@ THEOREM ThmRefineObject1 == Spec => RefineObject1
 <1>1. Fairness => O1!Fairness
     <2>. SUFFICES ASSUME NEW o \in Object
                   PROVE  Fairness => O1!FairFinalizeObjects(o)
-        BY Assumptions, O1!LemFairnessEnabledFree, LemO1Assumptions, Isa
+        BY O1!LemFairnessEnabledFree, LemO1Assumptions, Isa
     <2>1. Fairness => FairCompleteObjects(o)
         BY LemFairnessEnabledFree, Isa
     <2>. QED

@@ -13,7 +13,7 @@ EXTENDS Object2
 (**
  * The assumptions of Object2 imply those of Object1.
  *)
-LEMMA LemO1Assumptions == Assumptions => O1!Assumptions
+LEMMA LemO1Assumptions == O1!Assumptions
 
 (**
  * The sets of objects of Object1 under the refinement mapping.
