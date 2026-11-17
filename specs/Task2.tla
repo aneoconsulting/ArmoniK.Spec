@@ -434,6 +434,23 @@ RefineTask1 ==
 
 (**
  * LIVENESS
+ * Every task eventually stays unknown, registered, staged, completed, retried
+ * or aborted forever: no task stays assigned, succeeded, failed or discarded.
+ * Restated from Task1, whose finalized tasks are the completed, retried and
+ * aborted ones.
+ *)
+EventualStability ==
+    \A t \in Task :
+        At(t) ::
+            \/ <>[](t \in UnknownTask)
+            \/ <>[](t \in RegisteredTask)
+            \/ <>[](t \in StagedTask)
+            \/ <>[](t \in CompletedTask)
+            \/ <>[](t \in RetriedTask)
+            \/ <>[](t \in AbortedTask)
+
+(**
+ * LIVENESS
  * If the user eventually stops driving the system, the system eventually
  * stays idle and its state stops changing. Restated from Task1, whose
  * NoUserAction also forbids registering the next attempts of failed tasks.
