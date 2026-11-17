@@ -20,19 +20,18 @@ USE Assumptions DEF OBJECT_FINALIZED, O1!OBJECT_FINALIZED, OBJECT_REGISTERED,
 (**
  * The assumptions of Graph1 imply those of Task1.
  *)
-LEMMA LemT1Assumptions == Assumptions => T1!Assumptions
-BY DEF Bijection, T1!Bijection, ExistsBijection, T1!ExistsBijection,
-    Injection, T1!Injection, IsDenumerableSet, T1!IsDenumerableSet,
-    IsInjective, T1!IsInjective, Surjection, T1!Surjection
+LEMMA LemT1Assumptions == T1!Assumptions
+BY Assumptions DEF T1!Assumptions, Bijection, T1!Bijection, ExistsBijection,
+    T1!ExistsBijection, Injection, T1!Injection, IsDenumerableSet,
+    T1!IsDenumerableSet, IsInjective, T1!IsInjective, Surjection, T1!Surjection
 
 (**
  * The assumptions of Graph1 imply those of Object1.
  *)
-LEMMA LemO1Assumptions == Assumptions => O1!Assumptions
-BY DEF O1!Assumptions, Bijection, O1!Bijection, ExistsBijection,
+LEMMA LemO1Assumptions == O1!Assumptions
+BY Assumptions DEF O1!Assumptions, Bijection, O1!Bijection, ExistsBijection,
     O1!ExistsBijection, Injection, O1!Injection, IsDenumerableSet,
-    O1!IsDenumerableSet, IsInjective, O1!IsInjective, Surjection,
-    O1!Surjection
+    O1!IsDenumerableSet, IsInjective, O1!IsInjective, Surjection, O1!Surjection
 
 (**
  * Under the instance, the operators of Task1 denote those of Graph1.

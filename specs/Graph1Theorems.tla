@@ -13,12 +13,12 @@ EXTENDS Graph1
 (**
  * The assumptions of Graph1 imply those of Task1.
  *)
-LEMMA LemT1Assumptions == Assumptions => T1!Assumptions
+LEMMA LemT1Assumptions == T1!Assumptions
 
 (**
  * The assumptions of Graph1 imply those of Object1.
  *)
-LEMMA LemO1Assumptions == Assumptions => O1!Assumptions
+LEMMA LemO1Assumptions == O1!Assumptions
 
 (**
  * Under the instance, the operators of Task1 denote those of Graph1.
