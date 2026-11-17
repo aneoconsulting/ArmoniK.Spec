@@ -173,8 +173,8 @@ RegisterGraph(G) ==
     IN
         /\ G /= EmptyGraph
         /\ IsFiniteSet(G.node)
-        /\ G.node \cap Task \subseteq UnknownTask
-        /\ \A t \in G.node \cap Task :
+        /\ G.node \intersect Task \subseteq UnknownTask
+        /\ \A t \in G.node \intersect Task :
             /\ Successor(G, t) \intersect AbortedObject = {}
             /\ Successor(G, t) \intersect Source(deps)
                     \intersect CompletedObject = {}
