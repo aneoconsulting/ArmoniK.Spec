@@ -21,11 +21,6 @@ LEMMA LemG2Bridges ==
     /\ \A G : Sink(G) = G2!Sink(G)
     /\ \A G, H : GraphUnion(G, H) = G2!GraphUnion(G, H)
     /\ EmptyGraph = G2!EmptyGraph
-    /\ \A G : IsDirectedGraph(G) <=> G2!IsDirectedGraph(G)
-    /\ \A G, U, V :
-           IsBipartiteWithPartitions(G, U, V)
-           <=> G2!IsBipartiteWithPartitions(G, U, V)
-    /\ \A G : IsDag(G) <=> G2!IsDag(G)
     /\ \A G, T, O : IsDDGraph(G, T, O) <=> G2!IsDDGraph(G, T, O)
     /\ \A S : IsFiniteSet(S) <=> G2!IsFiniteSet(S)
     /\ \A S : DirectedGraphOf(S) = G2!DirectedGraphOf(S)
@@ -38,14 +33,12 @@ LEMMA LemG2Bridges ==
 (**
  * Task2, reached through Graph2 and through Task3, is the same instance under
  * the same refinement mapping: its sets of tasks are those of Graph3 under
- * the mapping, and the steps of its actions coincide.
+ * the mapping, and the steps of its registration and staging coincide.
  *)
 LEMMA LemT2Bridges ==
     /\ G2!T2!UnknownTask = UnknownTask
     /\ G2!T2!RegisteredTask = RegisteredTask
-    /\ G2!T2!SucceededTask = SucceededTask
     /\ G2!T2!FailedTask = FailedTask
-    /\ G2!T2!DiscardedTask = DiscardedTask
     /\ G2!T2!LinkedTask = LinkedTask
     /\ G2!T2!RetriedTask = RetriedTask
     /\ G2!T2!TCNextAttemptOfRel = TCNextAttemptOfRel
@@ -57,19 +50,9 @@ LEMMA LemT2Bridges ==
     /\ \A T :
            <<G2!T2!StageTasks(T)>>_G2!T2!vars
            <=> <<T3!T2!StageTasks(T)>>_T3!T2!vars
-    /\ \A T :
-           <<G2!T2!CompleteTasks(T)>>_G2!T2!vars
-           <=> <<T3!T2!CompleteTasks(T)>>_T3!T2!vars
-    /\ \A T :
-           <<G2!T2!AbortTasks(T)>>_G2!T2!vars
-           <=> <<T3!T2!AbortTasks(T)>>_T3!T2!vars
-    /\ \A T :
-           <<G2!T2!RetryTasks(T)>>_G2!T2!vars
-           <=> <<T3!T2!RetryTasks(T)>>_T3!T2!vars
 
 (**
- * Under the instance, the operators of Task3 denote those of Graph3, and its
- * sets of tasks are those of Graph3.
+ * Under the instance, the operators of Task3 denote those of Graph3.
  *)
 LEMMA LemT3Bridges ==
     /\ \A S, T : Bijection(S, T) = T3!Bijection(S, T)
@@ -78,25 +61,8 @@ LEMMA LemT3Bridges ==
     /\ \A t \in Task : PreviousAttempts(t) = T3!PreviousAttempts(t)
     /\ TCNextAttemptOfRel = T3!TCNextAttemptOfRel
     /\ \A t \in Task : ChainId(t) = T3!ChainId(t)
-    /\ KnownChainId = T3!KnownChainId
-    /\ Intent = T3!Intent
-    /\ RecordedIntent = T3!RecordedIntent
     /\ \A t \in Task, i \in Intent : Intends(t, i) <=> T3!Intends(t, i)
     /\ \A T \in SUBSET Task, i \in Intent : Requested(T, i) = T3!Requested(T, i)
-    /\ \A i \in Intent : IntentEffect(i) = T3!IntentEffect(i)
-    /\ T3!UnknownTask = UnknownTask
-    /\ T3!RegisteredTask = RegisteredTask
-    /\ T3!StagedTask = StagedTask
-    /\ T3!AssignedTask = AssignedTask
-    /\ T3!SucceededTask = SucceededTask
-    /\ T3!FailedTask = FailedTask
-    /\ T3!DiscardedTask = DiscardedTask
-    /\ T3!CompletedTask = CompletedTask
-    /\ T3!RetriedTask = RetriedTask
-    /\ T3!AbortedTask = AbortedTask
-    /\ T3!HaltedTask = HaltedTask
-    /\ T3!PausedTask = PausedTask
-    /\ T3!LinkedTask = LinkedTask
 
 (**
  * The assumptions of Graph3 imply those of Graph2.
@@ -132,22 +98,6 @@ LEMMA LemG2BarStates ==
     /\ G2!RegisteredObject = RegisteredObject
     /\ G2!CompletedObject = CompletedObject
     /\ G2!AbortedObject = AbortedObject
-
-(**
- * The refinement mapping is unchanged when the task states are.
- *)
-LEMMA LemBarStutter == taskState' = taskState => taskStateBar' = taskStateBar
-
-(**
- * The refinement mapping of an update of the task states is the update of
- * the mapping, which writes the mapped value.
- *)
-LEMMA LemBarUpdate ==
-    ASSUME NEW A, NEW v, NEW bv,
-           bv = (IF v \in {TASK_HALTED, TASK_PAUSED} THEN TASK_STAGED ELSE v),
-           taskState' = [s \in Task |-> IF s \in A THEN v ELSE taskState[s]]
-    PROVE  taskStateBar' =
-               [s \in Task |-> IF s \in A THEN bv ELSE taskStateBar[s]]
 
 (**
  * A node is open in Graph3 exactly when it is open in Graph2, so the open
@@ -342,7 +292,7 @@ LEMMA LemG2Inv == Init /\ [][Next]_vars => []G2!Inv
 (**
  * Here rather than with the type correctness: its proof needs LemG2Inv, since
  * a request records the first attempt of an attempt chain, which exists as
- * the chain has no cycle.
+ * the chain is finite and has no cycle.
  *)
 LEMMA LemTypeOk == Init /\ [][Next]_vars => []TypeOk
 
@@ -377,7 +327,6 @@ Inv ==
     /\ TypeOk
     /\ G2!Inv
     /\ T3!Inv
-    /\ GraphStateIntegrity
     /\ CompletedObjectHasDerivation
 
 LEMMA LemInv == Init /\ [][Next]_vars => []Inv
@@ -389,7 +338,8 @@ LEMMA LemInv == Init /\ [][Next]_vars => []Inv
 
 (**
  * An underivable object stays underivable at a step that leaves its viable
- * ancestry unchanged if it registers a graph.
+ * ancestry unchanged if it registers a graph. Not lifted from Graph2: its
+ * derivations may go through halted tasks, which those of Graph3 may not.
  *)
 LEMMA LemUnderivableQuiescence ==
     ASSUME NEW o \in Object, Inv, [Next]_vars,
@@ -439,8 +389,8 @@ EnabledRegisterGraph(t) ==
         G == RetrySubGraph(deps, t, nextAttemptOf[t])
     IN
         /\ IsFiniteSet(G.node)
-        /\ G.node \cap Task \subseteq UnknownTask
-        /\ \A s \in G.node \cap Task :
+        /\ G.node \intersect Task \subseteq UnknownTask
+        /\ \A s \in G.node \intersect Task :
             /\ Successor(G, s) \intersect AbortedObject = {}
             /\ Successor(G, s) \intersect Source(deps)
                     \intersect CompletedObject = {}
@@ -693,25 +643,22 @@ LEMMA LemPreserveG2WFAssignForTarget ==
            => G2!FairAssignForTarget(t, o)
 
 (**
- * The liveness assumption of Graph2 for an object holds under Graph3, where
- * the open ancestries coincide.
+ * The liveness assumption of Graph2 holds under Graph3, where the open
+ * ancestries coincide. Not a property: shared by LemG2LivenessHypotheses,
+ * LemPreserveT3WFCompleteTasks, LemPreserveT3WFAbortTasks and
+ * ThmRefineGraph2. A lemma of its own: tlapm matches the temporal formulas
+ * under its quantifier by bound name, which a proof about an object 'o'
+ * would shadow.
  *)
 LEMMA LemPreserveG2UpstreamStabilization ==
-    ASSUME NEW o \in Object
-    PROVE  UpstreamStabilization!At(o) => G2!UpstreamStabilization!At(o)
-
-(**
- * The liveness assumption of Graph2 holds under Graph3, for every object. A
- * lemma of its own: tlapm matches the temporal formulas under its quantifier
- * by bound name, which a proof about an object 'o' would shadow.
- *)
-LEMMA LemPreserveG2UpstreamStabilizationAllObjects ==
     UpstreamStabilization => G2!UpstreamStabilization
 
 (**
  * The hypotheses of the liveness lemmas of Graph2 for a target 'o' hold
- * under Graph3. Here rather than with the helper lemmas: it assembles the
- * preservations of the fairness of Graph2 above.
+ * under Graph3. Not a property: shared by
+ * LemUnderivableObjectsEventualAbortion and LemEventualQuiescence. Here
+ * rather than with the helper lemmas: it assembles the preservations of the
+ * fairness of Graph2 above.
  *)
 LEMMA LemG2LivenessHypotheses ==
     ASSUME NEW o \in Object
@@ -771,7 +718,8 @@ LEMMA LemPreserveT3WFRegisterTasks ==
 
 (**
  * The weak fairness of the staging of the next attempt of a task in Task3
- * holds under Graph3, lifted from Graph2.
+ * holds under Graph3, lifted from Graph2: the next attempt is staged by the
+ * weak fairness of its own staging.
  *)
 LEMMA LemPreserveT3WFStageTasks ==
     ASSUME NEW t \in Task
@@ -860,38 +808,10 @@ LEMMA LemPreserveT3WFDiscardOnCancel ==
 (******************************************************************************)
 
 (**
- * Lifted from Object2 through Graph2: a target eventually stays completed or
- * stays aborted.
- *)
-LEMMA LemO2EventualTargetFinalization ==
-    ASSUME NEW o \in Object
-    PROVE  /\ []Inv
-           /\ [][Next]_vars
-           /\ \A x \in Object : FairCompleteObjects(x) /\ FairAbortObjects(x)
-           /\ \A t \in Task :
-                  /\ FairSetTaskRetries(t)
-                  /\ FairRegisterGraph(t)
-                  /\ FairStageTasks(t)
-                  /\ FairProcessTasks(t)
-                  /\ FairCompleteTasks(t)
-                  /\ FairAbortTasks(t)
-                  /\ FairRetryTasks(t)
-                  /\ FairPauseTasks(t)
-                  /\ FairResumeTasks(t)
-                  /\ FairDiscardOnCancel(t)
-                  /\ FairDiscardOnAbortedInput(t, o)
-                  /\ FairAssignForTarget(t, o)
-                  /\ FairRequestResumeForTarget(t, o)
-                  /\ FairRequestCancelForTarget(t, o)
-                  /\ UserStopsPausingUpstream!At(t, o)
-           /\ UpstreamStabilization
-           => (<>[](o \in objectTargets)
-               => <>[](o \in CompletedObject) \/ <>[](o \in AbortedObject))
-
-(**
- * A target that eventually stays underivable is eventually aborted: it is
+ * A target that eventually stays underivable eventually stays aborted: it is
  * eventually completed or aborted for good, and a completed object has a
- * derivation.
+ * derivation. Not lifted from Graph2: its derivations may go through halted
+ * tasks, which those of Graph3 may not.
  *)
 LEMMA LemUnderivableObjectsEventualAbortion ==
     ASSUME NEW o \in Object
@@ -918,9 +838,9 @@ LEMMA LemUnderivableObjectsEventualAbortion ==
            => UnderivableObjectsEventualAbortion!At(o)
 
 (**
- * Lifted from Task3 and Object2: under user quiescence, a step of Graph3 is
- * quiescent in both, and it registers no graph once the task states no
- * longer change.
+ * Lifted from Graph2 and Task3: under user quiescence, a step of Graph3 is
+ * quiescent in both, whose variables cover those of Graph3; Task3 settles
+ * the intents and the paused and halted tasks, which Graph2 sees as staged.
  *)
 LEMMA LemEventualQuiescence ==
     /\ []Inv
@@ -954,7 +874,6 @@ LEMMA LemEventualQuiescence ==
 THEOREM ThmTypeOk == Spec => []TypeOk
 
 THEOREM ThmGraphStateIntegrity == Spec => []GraphStateIntegrity
-
 
 THEOREM ThmCompletedObjectHasDerivation ==
     Spec => []CompletedObjectHasDerivation
