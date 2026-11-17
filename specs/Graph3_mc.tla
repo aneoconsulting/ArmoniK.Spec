@@ -42,7 +42,9 @@ MCNext ==
  * The specification with MCNext for Next. UpstreamStabilization holds in
  * every behavior of the model: with finitely many identifiers, the dependency
  * graph grows finitely many times, and only its growth enlarges an open
- * ancestry, since a finalized node never reopens.
+ * ancestry, since a finalized node never reopens. UserStopsPausingUpstream is
+ * an assumption on the user that the finite model does not imply: the
+ * properties are checked under it.
  *)
 MCSpec ==
     /\ Init
