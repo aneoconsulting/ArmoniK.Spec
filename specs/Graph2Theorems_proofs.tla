@@ -70,28 +70,25 @@ BY Zenon DEF Bijection, T2!Bijection, Cardinality, T2!Cardinality, Injection,
  * The assumptions of Graph2 imply those of Graph1.
  *)
 LEMMA LemG1Assumptions == G1!Assumptions
-BY Assumptions DEF Assumptions, G1!Assumptions, Bijection, G1!Bijection,
-    ExistsBijection, G1!ExistsBijection, Injection, G1!Injection,
-    IsDenumerableSet, G1!IsDenumerableSet, IsInjective, G1!IsInjective,
-    Surjection, G1!Surjection
+BY Assumptions DEF G1!Assumptions, Bijection, G1!Bijection, ExistsBijection,
+    G1!ExistsBijection, Injection, G1!Injection, IsDenumerableSet,
+    G1!IsDenumerableSet, IsInjective, G1!IsInjective, Surjection, G1!Surjection
 
 (**
  * The assumptions of Graph2 imply those of Object2.
  *)
 LEMMA LemO2Assumptions == O2!Assumptions
-BY Assumptions DEF Assumptions, O2!Assumptions, Bijection, O2!Bijection,
-    ExistsBijection, O2!ExistsBijection, Injection, O2!Injection,
-    IsDenumerableSet, O2!IsDenumerableSet, IsInjective, O2!IsInjective,
-    Surjection, O2!Surjection
+BY Assumptions DEF O2!Assumptions, Bijection, O2!Bijection, ExistsBijection,
+    O2!ExistsBijection, Injection, O2!Injection, IsDenumerableSet,
+    O2!IsDenumerableSet, IsInjective, O2!IsInjective, Surjection, O2!Surjection
 
 (**
  * The assumptions of Graph2 imply those of Task2.
  *)
 LEMMA LemT2Assumptions == T2!Assumptions
-BY Assumptions DEF Assumptions, T2!Assumptions, Bijection, T2!Bijection,
-    ExistsBijection, T2!ExistsBijection, Injection, T2!Injection,
-    IsDenumerableSet, T2!IsDenumerableSet, IsInjective, T2!IsInjective,
-    Surjection, T2!Surjection
+BY Assumptions DEF T2!Assumptions, Bijection, T2!Bijection, ExistsBijection,
+    T2!ExistsBijection, Injection, T2!Injection, IsDenumerableSet,
+    T2!IsDenumerableSet, IsInjective, T2!IsInjective, Surjection, T2!Surjection
 
 (**
  * The sets of tasks and objects of Graph1 under the refinement mappings.
@@ -1475,7 +1472,7 @@ LEMMA LemCompletedObjectHasDerivation ==
         <3>2. \A m \in A.node : IsProducedNode(m)
             BY <3>1, DDG_AncestorSubGraphProperties, Isa
         <3>3. A \in G2Derivation(o)
-            <4>1. \A t \in deps.node \cap Task :
+            <4>1. \A t \in deps.node \intersect Task :
                       IsProducedNode(t) => \A x \in Predecessor(deps, t) :
                           IsProducedNode(x)
                 BY Assumptions DEF CompletedObject, GraphStateIntegrity,
@@ -1516,7 +1513,7 @@ LEMMA LemCompletedObjectHasDerivation ==
                     BY <3>2, <4>1, <4>2, <5>1 DEF CompletedObject,
                         CompletedTask, DirectedSubgraph, GraphStateIntegrity,
                         IsProducedNode, Source, SucceededTask
-            <4>7. \A t \in A.node \cap Task :
+            <4>7. \A t \in A.node \intersect Task :
                       Predecessor(deps, t) \subseteq A.node
                 <5>1. \A m \in A.node : \A x \in Predecessor(deps, m) \ A.node :
                           ~IsProducedNode(x)
@@ -1684,7 +1681,7 @@ LEMMA LemProducersFrozenUnderQuiescence ==
                      w \notin Predecessor(deps, o)
               PROVE  FALSE
     BY LemDepsChangeRegistersGraph, LemDepsMonotone DEF Predecessor
-<1>1. w \in G.node \cap Task
+<1>1. w \in G.node \intersect Task
     BY DEF DirectedGraphOf, GraphUnion, IsBipartiteWithPartitions,
         IsDDGraph, IsDirectedGraph, Predecessor, RegisterGraph, TypeOk
 <1>2. w \notin OA(o).node
@@ -1754,8 +1751,8 @@ EnabledRegisterRetryGraph(t) ==
         G == RetrySubGraph(deps, t, nextAttemptOf[t])
     IN
         /\ IsFiniteSet(G.node)
-        /\ G.node \cap Task \subseteq UnknownTask
-        /\ \A s \in G.node \cap Task :
+        /\ G.node \intersect Task \subseteq UnknownTask
+        /\ \A s \in G.node \intersect Task :
             /\ Successor(G, s) \intersect AbortedObject = {}
             /\ Successor(G, s) \intersect Source(deps)
                     \intersect CompletedObject = {}
@@ -1980,8 +1977,9 @@ LEMMA LemFairnessEnabledFree ==
                                     objectTargetsp, taskStatep :
                                     /\ G /= EmptyGraph
                                     /\ IsFiniteSet(G.node)
-                                    /\ G.node \cap Task \subseteq UnknownTask
-                                    /\ \A x \in G.node \cap Task :
+                                    /\ G.node \intersect Task
+                                            \subseteq UnknownTask
+                                    /\ \A x \in G.node \intersect Task :
                                         /\ Successor(G, x) \intersect
                                                AbortedObject
                                             = {}
@@ -2371,7 +2369,7 @@ LEMMA LemPreserveT2WFRegisterTasks ==
         <3>2. t \in FailedTask /\ t \in deps.node
             BY Zenon DEF FailedTask, T2!FailedTask, GraphStateIntegrity,
                 T2!TaskAttemptsIntegrity, UnknownTask, T2!UnknownTask
-        <3>3. /\ G.node \cap Task = {nextAttemptOf[t]}
+        <3>3. /\ G.node \intersect Task = {nextAttemptOf[t]}
               /\ Predecessor(G, nextAttemptOf[t]) = Predecessor(deps, t)
               /\ Successor(G, nextAttemptOf[t]) = Successor(deps, t)
             BY <3>1, Assumptions DEF IsBipartiteWithPartitions, IsDDGraph,
@@ -2379,9 +2377,9 @@ LEMMA LemPreserveT2WFRegisterTasks ==
         <3>4. IsFiniteSet(G.node)
             BY FS_Singleton, FS_Subset, FS_Union DEF Predecessor, RetrySubGraph,
                 Successor
-        <3>5. G.node \cap Task \subseteq UnknownTask
+        <3>5. G.node \intersect Task \subseteq UnknownTask
             BY <3>1, <3>3 DEF UnknownTask
-        <3>6. \A s \in G.node \cap Task :
+        <3>6. \A s \in G.node \intersect Task :
                 /\ Successor(G, s) \intersect AbortedObject = {}
                 /\ Successor(G, s) \intersect Source(deps)
                         \intersect CompletedObject = {}

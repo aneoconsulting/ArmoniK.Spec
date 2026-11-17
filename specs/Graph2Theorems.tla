@@ -579,8 +579,8 @@ EnabledRegisterRetryGraph(t) ==
         G == RetrySubGraph(deps, t, nextAttemptOf[t])
     IN
         /\ IsFiniteSet(G.node)
-        /\ G.node \cap Task \subseteq UnknownTask
-        /\ \A s \in G.node \cap Task :
+        /\ G.node \intersect Task \subseteq UnknownTask
+        /\ \A s \in G.node \intersect Task :
             /\ Successor(G, s) \intersect AbortedObject = {}
             /\ Successor(G, s) \intersect Source(deps)
                     \intersect CompletedObject = {}
