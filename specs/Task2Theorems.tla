@@ -13,7 +13,7 @@ EXTENDS Task2
 (**
  * The assumptions of Task2 imply those of Task1.
  *)
-LEMMA LemT1Assumptions == Assumptions => T1!Assumptions
+LEMMA LemT1Assumptions == T1!Assumptions
 
 (**
  * The sets of tasks of Task1 under the refinement mapping.
@@ -83,7 +83,7 @@ LEMMA LemRetryLinks ==
     PROVE  /\ UNCHANGED taskState
            /\ T \subseteq FailedTask \ LinkedTask
            /\ U \subseteq UnknownTask
-           /\ T \cap U = {}
+           /\ T \intersect U = {}
            /\ \A u \in U : /\ nextAttemptOf[u] = NULL
                            /\ \A v \in Task : nextAttemptOf[v] /= u
            /\ \A s \in Task \ T : nextAttemptOf'[s] = nextAttemptOf[s]
@@ -412,6 +412,22 @@ LEMMA LemAttemptsEventualStability ==
     PROVE  []Inv /\ [][Next]_vars => AttemptsEventualStability!At(t)
 
 (**
+ * Lifted from Task1, then split: the completed, retried and aborted tasks
+ * keep their state.
+ *)
+LEMMA LemEventualStability ==
+    ASSUME NEW t \in Task
+    PROVE  /\ []Inv
+           /\ [][Next]_vars
+           /\ FairSetTaskRetries(t)
+           /\ FairRegisterTasks(t)
+           /\ FairProcessTasks(t)
+           /\ FairCompleteTasks(t)
+           /\ FairAbortTasks(t)
+           /\ FairRetryTasks(t)
+           => EventualStability!At(t)
+
+(**
  * Lifted from Task1, once the next attempts stop being registered: under
  * user quiescence, the chains of retries eventually have all their attempts
  * known.
@@ -456,6 +472,8 @@ THEOREM ThmEventualFinalization == Spec => EventualFinalization
 THEOREM ThmAttemptsEventualStability == Spec => AttemptsEventualStability
 
 THEOREM ThmRefineTask1 == Spec => RefineTask1
+
+THEOREM ThmEventualStability == Spec => EventualStability
 
 THEOREM ThmEventualQuiescence == Spec => EventualQuiescence
 

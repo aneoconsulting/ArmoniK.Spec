@@ -20,10 +20,11 @@ USE DEF TASK_ABORTED, TASK_ASSIGNED, T1!TASK_ASSIGNED, TASK_COMPLETED,
 (**
  * The assumptions of Task2 imply those of Task1.
  *)
-LEMMA LemT1Assumptions == Assumptions => T1!Assumptions
-BY DEF Bijection, T1!Bijection, ExistsBijection, T1!ExistsBijection,
-    Injection, T1!Injection, IsDenumerableSet, T1!IsDenumerableSet,
-    IsInjective, T1!IsInjective, Surjection, T1!Surjection
+LEMMA LemT1Assumptions == T1!Assumptions
+BY Assumptions DEF T1!Assumptions, Bijection, T1!Bijection,
+    ExistsBijection, T1!ExistsBijection, Injection, T1!Injection,
+    IsDenumerableSet, T1!IsDenumerableSet, IsInjective, T1!IsInjective,
+    Surjection, T1!Surjection
 
 (**
  * The sets of tasks of Task1 under the refinement mapping.
@@ -116,7 +117,7 @@ LEMMA LemRetryLinks ==
     PROVE  /\ UNCHANGED taskState
            /\ T \subseteq FailedTask \ LinkedTask
            /\ U \subseteq UnknownTask
-           /\ T \cap U = {}
+           /\ T \intersect U = {}
            /\ \A u \in U : /\ nextAttemptOf[u] = NULL
                            /\ \A v \in Task : nextAttemptOf[v] /= u
            /\ \A s \in Task \ T : nextAttemptOf'[s] = nextAttemptOf[s]
@@ -139,7 +140,7 @@ LEMMA LemRetryLinks ==
       /\ U \subseteq UnknownTask
       /\ \A u \in U : \A v \in Task : nextAttemptOf[v] /= u
     BY DEF SetTaskRetries
-<1>5. /\ T \cap U = {}
+<1>5. /\ T \intersect U = {}
       /\ \A u \in U : nextAttemptOf[u] = NULL
     BY <1>4 DEF FailedTask, LinkedTask, RetriedTask, TaskAttemptsIntegrity,
         UnknownTask
@@ -160,7 +161,7 @@ LEMMA LemNextAttemptsFirstStep ==
                     /\ \/ ss[2] = nextAttemptOf[ss[1]]
                        \/ <<nextAttemptOf[ss[1]], ss[2]>>
                             \in TCNextAttemptOfRel}
-<1>1. NextAttemptOfRel \cap (Task \X Task) \subseteq V
+<1>1. NextAttemptOfRel \intersect (Task \X Task) \subseteq V
     BY DEF NextAttemptOfRel
 <1>2. IsTransitivelyClosedOn(V, Task)
     <2>. SUFFICES ASSUME NEW i \in Task, NEW j \in Task, NEW k \in Task,
@@ -197,7 +198,7 @@ LEMMA LemRetryClosure ==
                     \/ \E s \in T :
                            /\ ss[2] = nextAttemptOf'[s]
                            /\ ss[1] \in PreviousAttempts(s) \union {s}}
-<1>1. NextAttemptOfRel' \cap (Task \X Task) \subseteq W
+<1>1. NextAttemptOfRel' \intersect (Task \X Task) \subseteq W
     BY LemRetryLinks, TransitiveClosureThm DEF NextAttemptOfRel,
         TCNextAttemptOfRel
 <1>2. IsTransitivelyClosedOn(W, Task)
@@ -347,7 +348,7 @@ LEMMA LemT1Inv == Init /\ [][Next]_vars => []T1!Inv
 <1>1. Init /\ [][Next]_vars => T1!Init /\ [][T1!Next]_T1!vars
     BY LemInitSimulateT1Init, LemNextSimulateT1Next, PTL
 <1>. QED
-    BY <1>1, Assumptions, T1!LemInv, LemT1Assumptions
+    BY <1>1, T1!LemInv, LemT1Assumptions
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -614,7 +615,7 @@ LEMMA LemAttemptsWithinMaxRetries ==
                 <5>. DEFINE V == {ss \in Task \X Task :
                                     ss[1] \in Chain(s) => ss[2] \in Chain(s)}
                 <5>1. TCNextAttemptOfRel \subseteq V
-                    <6>1. NextAttemptOfRel \cap (Task \X Task) \subseteq V
+                    <6>1. NextAttemptOfRel \intersect (Task \X Task) \subseteq V
                         <7>. SUFFICES ASSUME NEW a \in Chain(s), NEW b \in Task,
                                              nextAttemptOf[a] = b
                                       PROVE  b \in Chain(s)
@@ -713,7 +714,8 @@ LEMMA LemAttemptsMonotone ==
     ASSUME NEW t \in Task, [Next]_vars
     PROVE  [TaskAttempts(t) \subseteq TaskAttempts(t)']_(TaskAttempts(t))
 <1>1. TCNextAttemptOfRel \subseteq TCNextAttemptOfRel'
-    <2>1. NextAttemptOfRel \cap (Task \X Task) \subseteq TCNextAttemptOfRel'
+    <2>1. NextAttemptOfRel \intersect (Task \X Task)
+            \subseteq TCNextAttemptOfRel'
         BY Assumptions, LemNextAttemptFrozen, TransitiveClosureThm
         DEF NextAttemptOfRel, TCNextAttemptOfRel
     <2>. QED
@@ -1197,6 +1199,58 @@ LEMMA LemAttemptsEventualStability ==
     BY <1>4 DEF AttemptsEventualStability, StaysAt, v
 
 (**
+ * Lifted from Task1, then split: the completed, retried and aborted tasks
+ * keep their state.
+ *)
+LEMMA LemEventualStability ==
+    ASSUME NEW t \in Task
+    PROVE  /\ []Inv
+           /\ [][Next]_vars
+           /\ FairSetTaskRetries(t)
+           /\ FairRegisterTasks(t)
+           /\ FairProcessTasks(t)
+           /\ FairCompleteTasks(t)
+           /\ FairAbortTasks(t)
+           /\ FairRetryTasks(t)
+           => EventualStability!At(t)
+<1>1. []Inv /\ [][Next]_vars => []T1!Inv /\ [][T1!Next]_T1!vars
+    BY LemNextSimulateT1Next, PTL DEF Inv
+<1>2. FairProcessTasks(t) => T1!FairProcessTasks(t)
+    BY LemPreserveT1SFProcessTasks
+<1>3. /\ []Inv
+      /\ [][Next]_vars
+      /\ FairSetTaskRetries(t)
+      /\ FairRegisterTasks(t)
+      /\ FairCompleteTasks(t)
+      /\ FairAbortTasks(t)
+      /\ FairRetryTasks(t)
+      => T1!FairFinalizeTasks(t)
+    BY LemPreserveT1WFFinalizeTasks
+<1>4. /\ []T1!Inv
+      /\ [][T1!Next]_T1!vars
+      /\ T1!FairProcessTasks(t)
+      /\ T1!FairFinalizeTasks(t)
+      => T1!EventualStability!At(t)
+    BY T1!LemEventualStability, LemT1Assumptions
+<1>5. Inv
+      => /\ t \in T1!UnknownTask <=> t \in UnknownTask
+         /\ t \in T1!RegisteredTask <=> t \in RegisteredTask
+         /\ t \in T1!StagedTask <=> t \in StagedTask
+         /\ t \in T1!FinalizedTask
+            <=> \/ t \in CompletedTask
+                \/ t \in RetriedTask
+                \/ t \in AbortedTask
+    BY LemT1BarStates DEF Inv
+<1>6. [Next]_vars
+      => /\ t \in CompletedTask => (t \in CompletedTask)'
+         /\ t \in RetriedTask => (t \in RetriedTask)'
+         /\ t \in AbortedTask => (t \in AbortedTask)'
+    BY LemPermanentFinalization
+<1>. QED
+    BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, PTL
+    DEF EventualStability, T1!EventualStability
+
+(**
  * Lifted from Task1, once the next attempts stop being registered: under
  * user quiescence, the chains of retries eventually have all their attempts
  * known.
@@ -1506,7 +1560,7 @@ LEMMA LemEventualQuiescence ==
       => (<>[][T1!NoUserAction]_T1!vars
           => /\ <>[]T1!Idle
              /\ <>[][FALSE]_T1!vars)
-    BY Assumptions, T1!LemEventualQuiescence, LemT1Assumptions, Isa
+    BY T1!LemEventualQuiescence, LemT1Assumptions, Isa
         DEF T1!EventualQuiescence
 <1>6. Inv => (T1!Idle <=> Idle)
     BY LemT1BarStates DEF Idle, T1!Idle, Inv
@@ -1668,10 +1722,25 @@ THEOREM ThmRefineTask1 == Spec => RefineTask1
     BY LemPreserveT1SFProcessTasks, LemPreserveT1WFFinalizeTasks, Isa
 <1>3. T1!Fairness
         <=> \A t \in Task : T1!FairProcessTasks(t) /\ T1!FairFinalizeTasks(t)
-    BY Assumptions, T1!LemFairnessEnabledFree, LemT1Assumptions
+    BY T1!LemFairnessEnabledFree, LemT1Assumptions
 <1>. QED
     BY <1>1, <1>2, <1>3, LemInitSimulateT1Init, LemInv, LemNextSimulateT1Next,
         PTL DEF RefineTask1, Spec, T1!Spec
+
+THEOREM ThmEventualStability == Spec => EventualStability
+<1>. SUFFICES ASSUME NEW t \in Task
+              PROVE  Spec => EventualStability!At(t)
+    BY DEF EventualStability
+<1>1. Fairness
+        => /\ FairSetTaskRetries(t)
+           /\ FairRegisterTasks(t)
+           /\ FairProcessTasks(t)
+           /\ FairCompleteTasks(t)
+           /\ FairAbortTasks(t)
+           /\ FairRetryTasks(t)
+    BY LemFairnessEnabledFree, Isa
+<1>. QED
+    BY <1>1, LemEventualStability, LemInv, PTL DEF Spec
 
 THEOREM ThmEventualQuiescence == Spec => EventualQuiescence
 <1>1. Fairness
