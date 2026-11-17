@@ -12,10 +12,10 @@ EXTENDS Task3
 
 (**
  * Stuttering step enabled once the system is idle. With finitely many tasks,
- * every behavior reaches a state where Next is disabled, which TLC reports as a
- * deadlock. This step makes the expected terminal states legal and leaves the
- * others reported. It adds no behavior, since [Next \/ Terminating]_vars equals
- * [Next]_vars.
+ * every behavior reaches a state where Next is disabled, which TLC reports as
+ * a deadlock. This step makes the expected terminal states legal and leaves
+ * the others reported. It adds no behavior, since [Next \/ Terminating]_vars
+ * equals [Next]_vars.
  *)
 Terminating ==
     /\ Idle
@@ -42,12 +42,17 @@ MCSpec ==
 (******************************************************************************)
 
 (**
+ * More tasks than retries, so that the model bounds the retries through the
+ * system, not through the finite supply of tasks.
+ *)
+ASSUME Cardinality(Task) > MaxRetries
+
+(**
  * With finitely many tasks, a failed task may find no fresh task to retry it,
  * whereas the specification always has one (T2!ExistsFreeUnknownTask). The
  * constraint discards the steps that would leave fewer unknown tasks than
  * failed tasks without a next attempt, whose retries would then be blocked by
- * the finite supply of tasks alone, a stutter that the specification does not
- * have.
+ * the finite supply of tasks alone.
  *)
 ActionConstraint ==
     Cardinality(UnknownTask') >= Cardinality((FailedTask \ LinkedTask)')
