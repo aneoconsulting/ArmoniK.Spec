@@ -11,9 +11,18 @@ EXTENDS Task3
 (******************************************************************************)
 
 (**
+ * Under the instance, the operators of Task2 denote those of Task3.
+ *)
+LEMMA LemT2Bridges ==
+    /\ T2!TCNextAttemptOfRel = TCNextAttemptOfRel
+    /\ \A t \in Task : T2!PreviousAttempts(t) = PreviousAttempts(t)
+    /\ \A t \in Task : T2!TaskAttempts(t) = TaskAttempts(t)
+    /\ \A S : T2!Cardinality(S) = Cardinality(S)
+
+(**
  * The assumptions of Task3 imply those of Task2.
  *)
-LEMMA LemT2Assumptions == Assumptions => T2!Assumptions
+LEMMA LemT2Assumptions == T2!Assumptions
 
 (**
  * The sets of tasks of Task2 under the refinement mapping.
@@ -31,14 +40,6 @@ LEMMA LemT2BarStates ==
     /\ T2!AbortedTask = AbortedTask
     /\ T2!LinkedTask = LinkedTask
 
-(**
- * The attempts of a task in Task2 are its attempts in Task3.
- *)
-LEMMA LemT2Bridges ==
-    /\ T2!TCNextAttemptOfRel = TCNextAttemptOfRel
-    /\ \A t \in Task : T2!PreviousAttempts(t) = PreviousAttempts(t)
-    /\ \A t \in Task : T2!TaskAttempts(t) = TaskAttempts(t)
-
 --------------------------------------------------------------------------------
 (******************************************************************************)
 (*                               HELPER LEMMAS                                *)
@@ -48,7 +49,9 @@ LEMMA LemT2Bridges ==
  * The lifecycle of a task only moves forward: a succeeded task can only be
  * completed, a discarded task aborted, a failed task retried, a halted task
  * discarded, and the final states never change. Stated for one step, so that
- * refining layers lift it through their step simulation.
+ * refining layers lift it through their step simulation. Not lifted from
+ * Task2: its step lemma says nothing of the halted tasks, which Task2 sees as
+ * staged.
  *)
 LEMMA LemTaskStateStable ==
     ASSUME NEW t \in Task, [Next]_vars
@@ -64,29 +67,16 @@ LEMMA LemTaskStateStable ==
               => taskState'[t] = taskState[t]
 
 (**
- * The attempt chains of Task2 are those of Task3: only failed and retried
- * tasks have a next attempt, no task is one of its own attempts, and every
- * task has finitely many previous attempts.
- *)
-LEMMA LemT2AttemptChains ==
-    ASSUME T2!Inv
-    PROVE  /\ nextAttemptOf \in [Task -> Task \union {NULL}]
-           /\ LinkedTask \subseteq FailedTask \union RetriedTask
-           /\ \A t \in Task : <<t, t>> \notin TCNextAttemptOfRel
-           /\ \A t \in Task : IsFiniteSet(PreviousAttempts(t))
-
-(**
  * The identifier of the attempt chain of a task is the task itself or one of
  * its previous attempts, and has no previous attempt, when the attempt chains
- * have no cycle and finitely many attempts. The previous attempts of a task
- * are known, and so is the identifier of the chain of a known task.
+ * have no cycle and the task has finitely many previous attempts. The previous
+ * attempts of a task are known, and so is the identifier of the chain of a
+ * known task.
  *)
 LEMMA LemChainId ==
-    ASSUME nextAttemptOf \in [Task -> Task \union {NULL}],
-           LinkedTask \subseteq FailedTask \union RetriedTask,
+    ASSUME LinkedTask \subseteq FailedTask \union RetriedTask,
            \A x \in Task : <<x, x>> \notin TCNextAttemptOfRel,
-           \A x \in Task : IsFiniteSet(PreviousAttempts(x)),
-           NEW t \in Task
+           NEW t \in Task, IsFiniteSet(PreviousAttempts(t))
     PROVE  /\ ChainId(t) \in {t} \union PreviousAttempts(t)
            /\ PreviousAttempts(ChainId(t)) = {}
            /\ PreviousAttempts(t) \intersect UnknownTask = {}
@@ -98,11 +88,10 @@ LEMMA LemChainId ==
  * one, which leaves the previous attempts of the known tasks unchanged.
  *)
 LEMMA LemChainIdStable ==
-    ASSUME nextAttemptOf \in [Task -> Task \union {NULL}],
-           LinkedTask \subseteq FailedTask \union RetriedTask,
+    ASSUME LinkedTask \subseteq FailedTask \union RetriedTask,
            \A x \in Task : <<x, x>> \notin TCNextAttemptOfRel,
-           \A x \in Task : IsFiniteSet(PreviousAttempts(x)),
-           [Next]_vars, NEW t \in Task, ChainId(t) \in KnownChainId
+           [Next]_vars, NEW t \in Task, IsFiniteSet(PreviousAttempts(t)),
+           ChainId(t) \in KnownChainId
     PROVE  ChainId(t)' = ChainId(t) /\ ChainId(t) \in KnownChainId'
 
 --------------------------------------------------------------------------------
@@ -183,26 +172,9 @@ LEMMA LemResumeTasksSimulateT2Stuttering ==
 LEMMA LemNextSimulateT2Next == [Next]_vars => [T2!Next]_T2!vars
 
 (**
- * A step that Task2 sees as the completion of 't' completes 't': only
- * CompleteTasks completes a task, and the other tasks keep their state in
- * Task2.
- *)
-LEMMA LemCompleteTasksFromT2Step ==
-    ASSUME NEW t \in Task
-    PROVE  [Next]_vars /\ <<T2!CompleteTasks({t})>>_(T2!vars)
-           => <<CompleteTasks({t})>>_vars
-
-(**
- * A step that Task2 sees as the abortion of 't' aborts 't'.
- *)
-LEMMA LemAbortTasksFromT2Step ==
-    ASSUME NEW t \in Task
-    PROVE  [Next]_vars /\ <<T2!AbortTasks({t})>>_(T2!vars)
-           => <<AbortTasks({t})>>_vars
-
-(**
  * A step that Task2 sees as the registration of 't' registers 't'. The task
- * 't' is not bound to Task, so that the lemma applies to a next attempt.
+ * 't' is not bound to Task, so that the lemma applies to a next attempt. Not
+ * a property: cited by Graph3's LemPreserveT3WFRegisterTasks.
  *)
 LEMMA LemRegisterTasksFromT2Step ==
     ASSUME NEW t
@@ -211,7 +183,8 @@ LEMMA LemRegisterTasksFromT2Step ==
 
 (**
  * A step that Task2 sees as the staging of 't' stages 't'. The task 't' is
- * not bound to Task, so that the lemma applies to a next attempt.
+ * not bound to Task, so that the lemma applies to a next attempt. Not a
+ * property: cited by Graph3's LemPreserveT3WFStageTasks.
  *)
 LEMMA LemStageTasksFromT2Step ==
     ASSUME NEW t
@@ -225,6 +198,17 @@ LEMMA LemStageTasksFromT2Step ==
 
 LEMMA LemT2Inv == Init /\ [][Next]_vars => []T2!Inv
 
+(**
+ * Lifted from Task2: only failed and retried tasks have a next attempt, no
+ * task is one of its own attempts, and every task has finitely many previous
+ * attempts.
+ *)
+LEMMA LemT2AttemptChains ==
+    ASSUME T2!Inv
+    PROVE  /\ LinkedTask \subseteq FailedTask \union RetriedTask
+           /\ \A t \in Task : <<t, t>> \notin TCNextAttemptOfRel
+           /\ \A t \in Task : IsFiniteSet(PreviousAttempts(t))
+
 --------------------------------------------------------------------------------
 (******************************************************************************)
 (*                                 INVARIANTS                                 *)
@@ -233,7 +217,7 @@ LEMMA LemT2Inv == Init /\ [][Next]_vars => []T2!Inv
 (**
  * Here rather than with the type correctness: its proof needs LemT2Inv, since
  * a request records the first attempt of an attempt chain, which exists as
- * the chain has no cycle.
+ * the chain is finite and has no cycle.
  *)
 LEMMA LemTypeOk == Init /\ [][Next]_vars => []TypeOk
 
@@ -378,30 +362,58 @@ LEMMA LemFairnessEnabledFree ==
 (*                           FAIRNESS PRESERVATION                            *)
 (******************************************************************************)
 
+(**
+ * The weak fairness of the linking of a failed task to a next attempt in Task2
+ * holds under Task3, where it is the same action.
+ *)
 LEMMA LemPreserveT2WFSetTaskRetries ==
     ASSUME NEW t \in Task
     PROVE  FairSetTaskRetries(t) => T2!FairSetTaskRetries(t)
 
+(**
+ * The weak fairness of the registration of the next attempt of a task in Task2
+ * holds under Task3, where it is the same action.
+ *)
 LEMMA LemPreserveT2WFRegisterTasks ==
     ASSUME NEW t \in Task
     PROVE  FairRegisterTasks(t) => T2!FairRegisterTasks(t)
 
+(**
+ * The weak fairness of the staging of the next attempt of a task in Task2 holds
+ * under Task3, where it is the same action.
+ *)
 LEMMA LemPreserveT2WFStageTasks ==
     ASSUME NEW t \in Task
     PROVE  FairStageTasks(t) => T2!FairStageTasks(t)
 
+(**
+ * The strong fairness of the successful processing of a task in Task2 holds
+ * under Task3, where it is the same action.
+ *)
 LEMMA LemPreserveT2SFProcessTasks ==
     ASSUME NEW t \in Task
     PROVE  FairProcessTasks(t) => T2!FairProcessTasks(t)
 
+(**
+ * The weak fairness of the completion of a task in Task2 holds under Task3,
+ * where it is the same action.
+ *)
 LEMMA LemPreserveT2WFCompleteTasks ==
     ASSUME NEW t \in Task
     PROVE  FairCompleteTasks(t) => T2!FairCompleteTasks(t)
 
+(**
+ * The weak fairness of the abortion of a task in Task2 holds under Task3, where
+ * it is the same action.
+ *)
 LEMMA LemPreserveT2WFAbortTasks ==
     ASSUME NEW t \in Task
     PROVE  FairAbortTasks(t) => T2!FairAbortTasks(t)
 
+(**
+ * The weak fairness of the retry of a task in Task2 holds under Task3, where it
+ * is the same action.
+ *)
 LEMMA LemPreserveT2WFRetryTasks ==
     ASSUME NEW t \in Task
     PROVE  FairRetryTasks(t) => T2!FairRetryTasks(t)
@@ -412,9 +424,8 @@ LEMMA LemPreserveT2WFRetryTasks ==
 (******************************************************************************)
 
 (**
- * Lifted from Task1, whose finalization fairness Task2 derives from its own
- * liveness, then split: a halted task stays halted until it is discarded, and
- * the final states never change.
+ * Lifted from Task2, then split: a halted task never becomes staged or paused
+ * again.
  *)
 LEMMA LemEventualStability ==
     ASSUME NEW t \in Task
@@ -429,8 +440,8 @@ LEMMA LemEventualStability ==
            => EventualStability!At(t)
 
 (**
- * The first conjunct is lifted from Task2. The second is WF1 on StageTasks,
- * as long as the next attempt is not discarded.
+ * The first conjunct is lifted from Task2. The second is not lifted from
+ * Task2: Task2's staged tasks include the paused and halted ones.
  *)
 LEMMA LemFailedTaskEventualRetry ==
     ASSUME NEW t \in Task
@@ -470,7 +481,7 @@ LEMMA LemIntentEventualAcknowledgment ==
     ASSUME NEW t \in Task, NEW i \in Intent
     PROVE  /\ []Inv
            /\ [][Next]_vars
-           /\ \A s \in Task : FairRegisterTasks(s)
+           /\ \A x \in Task : FairRegisterTasks(x)
            /\ FairSetTaskRetries(t)
            /\ FairProcessTasks(t)
            /\ FairCompleteTasks(t)
