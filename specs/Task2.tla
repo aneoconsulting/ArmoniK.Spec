@@ -293,6 +293,24 @@ TaskAttemptsIntegrity ==
 
 (**
  * INVARIANT
+ * Every task has finitely many attempts.
+ *)
+FiniteTaskAttempts ==
+    \A t \in Task : IsFiniteSet(TaskAttempts(t))
+
+(**
+ * INVARIANT
+ * Some unknown task is the next attempt of no task, so that a failed task can
+ * always be given a fresh next attempt. It only holds for infinitely many
+ * tasks, and is left out of the model.
+ *)
+ExistsFreeUnknownTask ==
+    \E t \in Task :
+        /\ t \in UnknownTask
+        /\ ~ \E u \in Task : nextAttemptOf[u] = t
+
+(**
+ * INVARIANT
  * A task has at most MaxRetries other attempts, and a task that failed
  * without a next attempt yet has fewer than MaxRetries previous attempts, so
  * that its next attempt keeps within the bound.
