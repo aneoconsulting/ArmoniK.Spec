@@ -392,6 +392,24 @@ RefineTask2 ==
 
 (**
  * LIVENESS
+ * A task that failed without a next attempt is eventually given one, which
+ * is registered; a registered next attempt that is never discarded is
+ * eventually staged. TLC cannot check this form, which the model leaves out.
+ * Restated from Task2, whose staged tasks also include the paused and halted
+ * ones.
+ *)
+FailedTaskEventualRetry ==
+    \A t \in Task :
+        At(t) ::
+            /\ t \in FailedTask \ LinkedTask
+               ~> nextAttemptOf[t] \in RegisteredTask
+            /\ [][~ \E T \in SUBSET Task :
+                      nextAttemptOf[t] \in T /\ DiscardTasks(T)]_vars
+               => (nextAttemptOf[t] \in RegisteredTask
+                   ~> nextAttemptOf[t] \in StagedTask)
+
+(**
+ * LIVENESS
  * The intent of the attempt chain of a task is eventually in effect on the
  * task, unless it is replaced first.
  *)
