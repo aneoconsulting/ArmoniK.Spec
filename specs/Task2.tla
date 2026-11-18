@@ -193,11 +193,12 @@ AbortTasks(T) ==
 
 (**
  * ACTION
- * A set 'T' of failed tasks that have a next attempt is retried.
+ * A set 'T' of failed tasks whose next attempts are known is retried.
  *)
 RetryTasks(T) ==
     /\ T /= {}
     /\ T \subseteq FailedTask \intersect LinkedTask
+    /\ \A t \in T : nextAttemptOf[t] \notin UnknownTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_RETRIED ELSE taskState[t]]
     /\ UNCHANGED nextAttemptOf
