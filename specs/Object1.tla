@@ -77,7 +77,7 @@ RegisterObjects(O) ==
  *)
 TargetObjects(O) ==
     /\ O /= {}
-    /\ O \subseteq (RegisteredObject \union FinalizedObject)
+    /\ O \subseteq RegisteredObject \union FinalizedObject
     /\ objectTargets' = objectTargets \union O
     /\ UNCHANGED objectState
 
