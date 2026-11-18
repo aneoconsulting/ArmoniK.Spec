@@ -186,7 +186,7 @@ IsWeaklyConnected(G) ==
  * Strictly weaker than strong connectivity, which requires both directions, and
  * strictly stronger than weak connectivity.
  *)
-IsUnilateralyConnected(G) ==
+IsUnilaterallyConnected(G) ==
     \A m, n \in G.node :
         \/ AreConnectedIn(G, m, n)
         \/ AreConnectedIn(G, n, m)
