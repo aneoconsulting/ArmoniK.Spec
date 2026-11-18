@@ -369,19 +369,14 @@ AbortTasks(T) ==
 
 (**
  * ACTION
- * A set 'T' of failed tasks whose next attempts are known is retried. Each
- * registered output object keeps a producer outside 'T' that is not
- * finalized: the last producer of an object waits for the object to be
- * finalized.
+ * A set 'T' of failed tasks whose next attempts are known is retried.
+ * The retry waits for no object: each registered output keeps a producer
+ * that can still finalize it (GraphStateIntegrity).
  *)
 RetryTasks(T) ==
     /\ T /= {}
     /\ T \subseteq FailedTask \intersect LinkedTask
     /\ \A t \in T : nextAttemptOf[t] \notin UnknownTask
-    /\ \A o \in UNION {Successor(deps, t) : t \in T} :
-        o \in RegisteredObject
-            => \E u \in (Predecessor(deps, o) \ T) :
-                u \notin UNION {CompletedTask, RetriedTask, AbortedTask}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_RETRIED ELSE taskState[t]]
     /\ UNCHANGED << deps, intent, nextAttemptOf, objectState, objectTargets >>
