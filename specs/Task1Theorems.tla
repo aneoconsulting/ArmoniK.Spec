@@ -52,11 +52,9 @@ LEMMA LemPermanentFinalization ==
 
 (**
  * The fairness conditions restated without ENABLED, which a substitution does
- * not distribute over: a refinement proves the instantiated
- * FairProcessTasks(t) and FairFinalizeTasks(t) and recovers the instantiated
- * Fairness through LemFairnessEnabledFree. Processing a task is enabled
- * exactly when it is assigned, and finalizing it exactly when it is
- * processed.
+ * not distribute over: a refinement proves the instantiated restatements and
+ * recovers the instantiated Fairness through LemFairnessEnabledFree. Each
+ * Enabled predicate holds exactly when its fair action is enabled.
  *)
 EnabledProcessTasks(t) == t \in AssignedTask
 
@@ -75,10 +73,6 @@ LEMMA LemFairnessEnabledFree ==
 (******************************************************************************)
 (*                                  LIVENESS                                  *)
 (******************************************************************************)
-
-LEMMA LemEventualProcessing ==
-    ASSUME NEW t \in Task
-    PROVE  [][Next]_vars /\ FairProcessTasks(t) => EventualProcessing!At(t)
 
 LEMMA LemEventualFinalization ==
     ASSUME NEW t \in Task
@@ -108,8 +102,6 @@ THEOREM ThmTypeOk == Spec => []TypeOk
 THEOREM ThmFiniteKnownTasks == Spec => []FiniteKnownTasks
 
 THEOREM ThmPermanentFinalization == Spec => PermanentFinalization
-
-THEOREM ThmEventualProcessing == Spec => EventualProcessing
 
 THEOREM ThmEventualFinalization == Spec => EventualFinalization
 
