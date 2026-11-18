@@ -238,7 +238,7 @@ EventualStability ==
  * stays idle and its state stops changing. The conclusion is equivalent to
  * <>([]Idle /\ [][FALSE]_vars), written as a conjunction that TLC can check.
  *)
-EventualTermination ==
+EventualQuiescence ==
     <>[][NoUserAction]_vars
     => /\ <>[]Idle
        /\ <>[][FALSE]_vars
