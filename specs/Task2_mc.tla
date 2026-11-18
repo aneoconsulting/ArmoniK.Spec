@@ -29,7 +29,7 @@ MCNext ==
     \/ Terminating
 
 (**
- * The specification with MCNext.
+ * The specification with MCNext for Next.
  *)
 MCSpec ==
     /\ Init
