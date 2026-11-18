@@ -185,11 +185,12 @@ PermanentFinalization ==
 
 (**
  * LIVENESS
- * An object targeted forever from some point on is eventually finalized.
+ * An object targeted forever from some point on is eventually finalized for
+ * good.
  *)
 EventualTargetFinalization ==
     \A o \in Object :
-        At(o) :: <>[](o \in objectTargets) => <>(o \in FinalizedObject)
+        At(o) :: <>[](o \in objectTargets) => <>[](o \in FinalizedObject)
 
 (**
  * LIVENESS
