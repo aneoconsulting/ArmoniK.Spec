@@ -194,6 +194,8 @@ TypeOk ==
 (**
  * SAFETY
  * A completed object stays completed, and an aborted object stays aborted.
+ * Restated from Object1, whose finalized objects are the completed and the
+ * aborted ones.
  *)
 PermanentFinalization ==
     \A o \in Object :
@@ -210,7 +212,8 @@ RefineObject1 ==
 (**
  * LIVENESS
  * An object targeted forever from some point on is eventually completed for
- * good or aborted for good.
+ * good or aborted for good. Restated from Object1, whose finalized objects
+ * are the completed and the aborted ones.
  *)
 EventualTargetFinalization ==
     \A o \in Object :
@@ -224,6 +227,8 @@ EventualTargetFinalization ==
  * If the user eventually stops driving the system, the system eventually
  * stays idle and its state stops changing. The conclusion is equivalent to
  * <>([]Idle /\ [][FALSE]_vars), written as a conjunction that TLC can check.
+ * Restated from Object1, whose state does not tell completed from aborted
+ * objects.
  *)
 EventualQuiescence ==
     <>[][NoUserAction]_vars
