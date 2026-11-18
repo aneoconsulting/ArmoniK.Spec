@@ -39,9 +39,8 @@ vars == << nextAttemptOf, taskState >>
 (******************************************************************************)
 
 (**
- * The task states, the sets of tasks in each state, the tasks that have a
- * next attempt, and the attempts of a task: the tasks before and after it in
- * the chain of its retries.
+ * The task states, the sets of tasks in each state, and the attempts of a
+ * task.
  *)
 INSTANCE TaskRetries
 
@@ -183,7 +182,7 @@ ProcessTasks(T) ==
             [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
        \/ /\ \A t \in T : Cardinality(PreviousAttempts(t)) < MaxRetries
           /\ taskState' =
-            [t \in Task |-> IF t \in T THEN TASK_FAILED ELSE taskState[t]]
+              [t \in Task |-> IF t \in T THEN TASK_FAILED ELSE taskState[t]]
     /\ UNCHANGED nextAttemptOf
 
 (**
@@ -232,8 +231,8 @@ RetryTasks(T) ==
  *)
 NoUserAction ==
     ~ \E T \in SUBSET Task :
-        /\ ~ (T \subseteq {nextAttemptOf[t] : t \in Task})
         /\ RegisterTasks(T)
+        /\ ~ (T \subseteq {nextAttemptOf[t] : t \in Task})
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -271,7 +270,7 @@ Next ==
  *   eventually completed.
  * - Weak fairness of AbortTasks: a task that stays discarded is eventually
  *   aborted.
- * - Weak fairness of RetryTasks: a failed task that stays with a next attempt
+ * - Weak fairness of RetryTasks: a failed task whose next attempt stays known
  *   is eventually retried.
  * The conditions on RegisterTasks and StageTasks act on the next attempt of
  * 't', but are indexed by 't'.
@@ -363,7 +362,8 @@ AttemptsMonotone ==
 
 (**
  * SAFETY
- * A completed, retried or aborted task keeps its state.
+ * A completed, retried or aborted task keeps its state. Restated from Task1,
+ * whose finalized tasks are the completed, retried and aborted ones.
  *)
 PermanentFinalization ==
     \A t \in Task :
@@ -374,12 +374,14 @@ PermanentFinalization ==
 (**
  * SAFETY
  * The outcome of a processed task is permanent: a succeeded task can only be
- * completed, and a discarded task only aborted.
+ * completed, a failed task only retried, and a discarded task only aborted.
  *)
 PermanentOutcome ==
     \A t \in Task :
         /\ [](t \in SucceededTask
               => [](t \in SucceededTask \union CompletedTask))
+        /\ [](t \in FailedTask
+              => [](t \in FailedTask \union RetriedTask))
         /\ [](t \in DiscardedTask
               => [](t \in DiscardedTask \union AbortedTask))
 
@@ -402,8 +404,8 @@ FailedTaskEventualRetry ==
 (**
  * LIVENESS
  * A succeeded task is eventually completed, a failed task eventually retried,
- * and a discarded task eventually aborted. This strengthens the property of
- * Task1 of the same name, which only says that each one is finalized.
+ * and a discarded task eventually aborted. Restated from Task1, whose
+ * processed tasks have no outcome and are only finalized.
  *)
 EventualFinalization ==
     \A t \in Task :
@@ -452,9 +454,10 @@ EventualStability ==
 (**
  * LIVENESS
  * If the user eventually stops driving the system, the system eventually
- * stays idle and its state stops changing. Restated from Task1, whose
- * NoUserAction also forbids registering the next attempts of failed tasks.
- * The conclusion is written as a conjunction that TLC can check, as in Task1.
+ * stays idle and its state stops changing. The conclusion is equivalent to
+ * <>([]Idle /\ [][FALSE]_vars), written as a conjunction that TLC can check.
+ * Restated from Task1, whose NoUserAction also forbids registering the next
+ * attempts of failed tasks.
  *)
 EventualQuiescence ==
     <>[][NoUserAction]_vars
