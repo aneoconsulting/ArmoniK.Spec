@@ -7,10 +7,9 @@ part of the statement -- and an identical shared comment (the text above a
 `----` separator line inside the comment; proof-specific notes below the
 separator are free).
 
-An interface that declares CONSTANTs and VARIABLEs of its own -- a temporal
-theorem of lib/temporal/, stated over them -- shares them with its proof file,
-which is a copy of the interface with the proof added: the declarations must
-agree too, name for name, or the proof would discharge a different statement.
+An interface that declares CONSTANTs and VARIABLEs of its own shares them with
+its proof file: the declarations must agree too, name for name, or the proof
+would discharge a different statement.
 
 For the same reason, the statements must mean the same on both sides: every
 definition of the interface is restated identically in the proof file, which

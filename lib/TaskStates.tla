@@ -1,66 +1,65 @@
------------------------------- MODULE TaskStates ------------------------------
-(*****************************************************************************)
-(* This module defines the possible states of a task in the scheduling       *)
-(* system. A state represents a phase in the task lifecycle, from submission *)
-(* to final post-processing.                                                 *)
-(*                                                                           *)
-(* The module also provides definitions of task sets in each state, allowing *)
-(* other specifications to reason about groups of tasks sharing the same     *)
-(* lifecycle phase.                                                          *)
-(*****************************************************************************) 
+------------------------------- MODULE TaskStates ------------------------------
+(******************************************************************************)
+(* This module defines the lifecycle states of a task in the scheduling       *)
+(* system, from submission to finalization, the states of each refinement     *)
+(* layer, and the set of tasks in each state, which lets a specification      *)
+(* reason about the tasks that share a lifecycle phase.                       *)
+(******************************************************************************)
 
-CONSTANT
-    Task
+CONSTANTS
+    Task  \* Set of task identifiers
 
-VARIABLE
-    taskState
+VARIABLES
+    taskState  \* taskState[t]: lifecycle state of task t
 
 (**
- * Task states in their lifecycle.
+ * The task states, in the order of their lifecycle.
  *)
-TASK_UNKNOWN    == "TASK_UNKNOWN"    \* Task is virtual, not yet known to the system
-TASK_REGISTERED == "TASK_REGISTERED" \* Task is known to the system and pending readiness for processing
-TASK_STAGED     == "TASK_STAGED"     \* Task is ready for processing
-TASK_ASSIGNED   == "TASK_ASSIGNED"   \* Task is assigned for processing
-TASK_PROCESSED  == "TASK_PROCESSED"  \* Task processing completed
-TASK_SUCCEEDED  == "TASK_SUCCEEDED"  \* Task processing succeeded
-TASK_FAILED     == "TASK_FAILED"     \* Task processing failed, but the task can be retried
-TASK_DISCARDED  == "TASK_DISCARDED"  \* Task cannot be processed successfully and should not be retried
-TASK_FINALIZED  == "TASK_FINALIZED"  \* Task post-processing is completed
-TASK_COMPLETED  == "TASK_COMPLETED"  \* Task processing and post-processed completed successfully
-TASK_RETRIED    == "TASK_RETRIED"    \* The task processing failed and it was cloned to try again
-TASK_ABORTED    == "TASK_ABORTED"    \* Task processing unsuccessful but post-processing completed successfully
-TASK_HALTED     == "TASK_HALTED"     \* Task failed and is held back from propagation until cancelled
-TASK_PAUSED     == "TASK_PAUSED"     \* Task processing is postponed by the user
+TASK_UNKNOWN    == "TASK_UNKNOWN"     \* Virtual, unknown to the system
+TASK_REGISTERED == "TASK_REGISTERED"  \* Known, not yet ready for processing
+TASK_STAGED     == "TASK_STAGED"      \* Ready for processing
+TASK_ASSIGNED   == "TASK_ASSIGNED"    \* Assigned for processing
+TASK_PROCESSED  == "TASK_PROCESSED"   \* Processed, not yet finalized
+TASK_SUCCEEDED  == "TASK_SUCCEEDED"   \* Processing succeeded
+TASK_FAILED     == "TASK_FAILED"      \* Processing failed, to be retried
+TASK_DISCARDED  == "TASK_DISCARDED"   \* Cannot succeed, never to be retried
+TASK_FINALIZED  == "TASK_FINALIZED"   \* Final, never changes again
+TASK_COMPLETED  == "TASK_COMPLETED"   \* Succeeded and finalized
+TASK_RETRIED    == "TASK_RETRIED"     \* Failed and finalized, its retry known
+TASK_ABORTED    == "TASK_ABORTED"     \* Discarded and finalized
+TASK_PAUSED     == "TASK_PAUSED"      \* Staged, paused at the user's request
+TASK_HALTED     == "TASK_HALTED"      \* Failed, held back until cancelled
 
 (**
- * Sets of states accessible for each level of refinement.
+ * The states of each refinement layer.
  *)
-T1State == {TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED,
-             TASK_PROCESSED, TASK_FINALIZED}
-T2State == {TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED,
-             TASK_SUCCEEDED, TASK_FAILED, TASK_DISCARDED, TASK_COMPLETED,
-             TASK_RETRIED, TASK_ABORTED}
-T3State == {TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED,
-             TASK_SUCCEEDED, TASK_FAILED, TASK_DISCARDED, TASK_COMPLETED,
-             TASK_RETRIED, TASK_ABORTED, TASK_HALTED, TASK_PAUSED}
+T1State ==
+    {TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED, TASK_PROCESSED,
+     TASK_FINALIZED}
+T2State ==
+    {TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED, TASK_SUCCEEDED,
+     TASK_FAILED, TASK_DISCARDED, TASK_COMPLETED, TASK_RETRIED, TASK_ABORTED}
+T3State ==
+    {TASK_UNKNOWN, TASK_REGISTERED, TASK_STAGED, TASK_ASSIGNED, TASK_SUCCEEDED,
+     TASK_FAILED, TASK_DISCARDED, TASK_COMPLETED, TASK_RETRIED, TASK_ABORTED,
+     TASK_PAUSED, TASK_HALTED}
 
 (**
- * Sets of tasks by state.
+ * The tasks in each state.
  *)
-UnknownTask    == {t \in Task: taskState[t] = TASK_UNKNOWN}
-RegisteredTask == {t \in Task: taskState[t] = TASK_REGISTERED}
-StagedTask     == {t \in Task: taskState[t] = TASK_STAGED}
-AssignedTask   == {t \in Task: taskState[t] = TASK_ASSIGNED}
-ProcessedTask  == {t \in Task: taskState[t] = TASK_PROCESSED}
-SucceededTask  == {t \in Task: taskState[t] = TASK_SUCCEEDED}
-FailedTask     == {t \in Task: taskState[t] = TASK_FAILED}
-DiscardedTask  == {t \in Task: taskState[t] = TASK_DISCARDED}
-FinalizedTask  == {t \in Task: taskState[t] = TASK_FINALIZED}
-CompletedTask  == {t \in Task: taskState[t] = TASK_COMPLETED}
-RetriedTask    == {t \in Task: taskState[t] = TASK_RETRIED}
-AbortedTask    == {t \in Task: taskState[t] = TASK_ABORTED}
-HaltedTask     == {t \in Task: taskState[t] = TASK_HALTED}
-PausedTask     == {t \in Task: taskState[t] = TASK_PAUSED}
+UnknownTask    == {t \in Task : taskState[t] = TASK_UNKNOWN}
+RegisteredTask == {t \in Task : taskState[t] = TASK_REGISTERED}
+StagedTask     == {t \in Task : taskState[t] = TASK_STAGED}
+AssignedTask   == {t \in Task : taskState[t] = TASK_ASSIGNED}
+ProcessedTask  == {t \in Task : taskState[t] = TASK_PROCESSED}
+SucceededTask  == {t \in Task : taskState[t] = TASK_SUCCEEDED}
+FailedTask     == {t \in Task : taskState[t] = TASK_FAILED}
+DiscardedTask  == {t \in Task : taskState[t] = TASK_DISCARDED}
+FinalizedTask  == {t \in Task : taskState[t] = TASK_FINALIZED}
+CompletedTask  == {t \in Task : taskState[t] = TASK_COMPLETED}
+RetriedTask    == {t \in Task : taskState[t] = TASK_RETRIED}
+AbortedTask    == {t \in Task : taskState[t] = TASK_ABORTED}
+PausedTask     == {t \in Task : taskState[t] = TASK_PAUSED}
+HaltedTask     == {t \in Task : taskState[t] = TASK_HALTED}
 
-===============================================================================
+================================================================================
