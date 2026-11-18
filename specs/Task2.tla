@@ -293,11 +293,15 @@ TaskAttemptsIntegrity ==
 
 (**
  * INVARIANT
- * A task has at most MaxRetries other attempts.
+ * A task has at most MaxRetries other attempts, and a task that failed
+ * without a next attempt yet has fewer than MaxRetries previous attempts, so
+ * that its next attempt keeps within the bound.
  *)
 AttemptsWithinMaxRetries ==
     \A t \in Task :
-        Cardinality(TaskAttempts(t)) <= MaxRetries
+        /\ Cardinality(TaskAttempts(t)) <= MaxRetries
+        /\ t \in FailedTask \ LinkedTask
+           => Cardinality(PreviousAttempts(t)) < MaxRetries
 
 (**
  * SAFETY
