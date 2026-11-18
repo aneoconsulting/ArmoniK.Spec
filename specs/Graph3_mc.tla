@@ -24,8 +24,8 @@ MCDirectedGraphOf(N) == DDGraphOf(N \intersect Task, N \intersect Object)
  * Stuttering step enabled once the system is idle. With finitely many
  * identifiers, every behavior reaches a state where Next is disabled, which TLC
  * reports as a deadlock. This step makes the expected terminal states legal and
- * leaves the others reported. It adds no behavior, since [Next \/
- * Terminating]_vars equals [Next]_vars.
+ * leaves the others reported. It adds no behavior, since
+ * [Next \/ Terminating]_vars equals [Next]_vars.
  *)
 Terminating ==
     /\ Idle
@@ -65,11 +65,11 @@ MCSpec ==
 ASSUME Cardinality(Task) > MaxRetries
 
 (**
- * With finitely many tasks, a failed task cannot be given a next attempt once
- * every task is known, and stays failed forever. This constraint keeps an
- * unknown task available for each failed task without a next attempt, as the
- * infinitely many tasks of the specification do; it hides no behavior that
- * the specification allows with them.
+ * With finitely many tasks, a failed task may find no fresh task to retry it,
+ * whereas the specification always has one (Task2's ExistsFreeUnknownTask).
+ * The constraint discards the steps that would leave fewer unknown tasks than
+ * failed tasks without a next attempt, whose retries would then be blocked by
+ * the finite supply of tasks alone.
  *)
 ActionConstraint ==
     Cardinality(UnknownTask') >= Cardinality((FailedTask \ LinkedTask)')
