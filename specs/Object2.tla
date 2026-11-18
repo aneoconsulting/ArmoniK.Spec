@@ -52,6 +52,17 @@ O1 == INSTANCE Object1Theorems WITH objectState <- objectStateBar
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
+(*                                  HELPERS                                   *)
+(******************************************************************************)
+
+(**
+ * Every target is completed or aborted: no work is pending.
+ *)
+Idle ==
+    objectTargets \subseteq CompletedObject \union AbortedObject
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
 (*                    SYSTEM INITIAL STATE AND TRANSITIONS                    *)
 (******************************************************************************)
 
@@ -118,6 +129,19 @@ AbortObjects(O) ==
     /\ objectState' =
         [o \in Object |-> IF o \in O THEN OBJECT_ABORTED ELSE objectState[o]]
     /\ UNCHANGED objectTargets
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                               ACTION HELPERS                               *)
+(******************************************************************************)
+
+(**
+ * A step in which the user drives no new work: no object is registered,
+ * targeted or untargeted.
+ *)
+NoUserAction ==
+    ~ \E O \in SUBSET Object :
+        RegisterObjects(O) \/ TargetObjects(O) \/ UntargetObjects(O)
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -197,5 +221,18 @@ EventualTargetFinalization ==
             <>[](o \in objectTargets)
             => \/ <>[](o \in CompletedObject)
                \/ <>[](o \in AbortedObject)
+
+(**
+ * LIVENESS
+ * If the user eventually stops driving the system, the system eventually
+ * stays idle and its state stops changing. The conclusion is equivalent to
+ * <>([]Idle /\ [][FALSE]_vars), written as a conjunction that TLC can check.
+ * Restated from Object1, whose state does not tell completed from aborted
+ * objects.
+ *)
+EventualQuiescence ==
+    <>[][NoUserAction]_vars
+    => /\ <>[]Idle
+       /\ <>[][FALSE]_vars
 
 ================================================================================
