@@ -31,6 +31,7 @@ ASSUMPTION Assumptions ==
     /\ IsDenumerableSet(Task)       \* Unbounded supply of fresh tasks
     /\ MaxRetries \in Nat           \* The retries are bounded
     /\ NULL \notin Task             \* NULL is distinct from every task
+    /\ NULL \notin Object           \* NULL is distinct from every object
 
 VARIABLES
     deps,           \* Dependency graph over the known tasks and objects
@@ -139,6 +140,17 @@ G3Derivation(o) == Derivation(deps, o, IsViableNode, Task)
  * reachable through viable nodes, which determines the derivations of 'o'.
  *)
 ViableAncestry(o) == AncestorSubgraph(deps, o, IsViableNode)
+
+(**
+ * Every target is completed or aborted and no task is assigned, succeeded,
+ * failed or discarded: no work is pending or in progress.
+ *)
+Idle ==
+    /\ objectTargets \subseteq CompletedObject \union AbortedObject
+    /\ AssignedTask = {}
+    /\ SucceededTask = {}
+    /\ FailedTask = {}
+    /\ DiscardedTask = {}
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -492,6 +504,21 @@ RegistrationKeepsViableAncestry(o) ==
     (\E G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G))
         => UNCHANGED ViableAncestry(o)
 
+(**
+ * A step in which the user drives no new work: every newly registered node is
+ * the next attempt of a task, no object is targeted or untargeted, and no
+ * intent is requested. Registering the retry subgraph of a failed task and
+ * acknowledging intents are how the system answers failures and requests, not
+ * user actions.
+ *)
+NoUserAction ==
+    /\ ~ \E G \in DirectedGraphOf(Task \union Object) :
+            /\ RegisterGraph(G)
+            /\ ~ (G.node \intersect (UnknownTask \union UnknownObject)
+                    \subseteq {nextAttemptOf[t] : t \in Task})
+    /\ ~ \E O \in SUBSET Object : TargetObjects(O) \/ UntargetObjects(O)
+    /\ ~ \E T \in SUBSET Task, i \in Intent : RequestTasks(T, i)
+
 --------------------------------------------------------------------------------
 (******************************************************************************)
 (*                            SYSTEM SPECIFICATION                            *)
@@ -743,5 +770,18 @@ UnderivableObjectsEventualAbortion ==
         At(o) ::
             <>[](o \in objectTargets) /\ <>[](G3Derivation(o) = {})
             => <>[](o \in AbortedObject)
+
+(**
+ * LIVENESS
+ * If the user eventually stops driving the system, the system eventually
+ * stays idle and its state stops changing. The conclusion is equivalent to
+ * <>([]Idle /\ [][FALSE]_vars), written as a conjunction that TLC can check.
+ * Restated from Graph2 and Task3, whose NoUserAction allow the requests and
+ * the registrations of the other one.
+ *)
+EventualQuiescence ==
+    <>[][NoUserAction]_vars
+    => /\ <>[]Idle
+       /\ <>[][FALSE]_vars
 
 ================================================================================
