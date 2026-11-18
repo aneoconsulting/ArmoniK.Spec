@@ -20,10 +20,10 @@ VARIABLES
     nextAttemptOf  \* nextAttemptOf[t]: task retrying t, NULL if none
 
 (**
- * The failed tasks that have no next attempt.
+ * The tasks that have a next attempt.
  *)
-UnretriedTask ==
-    {t \in FailedTask : nextAttemptOf[t] = NULL}
+LinkedTask ==
+    {t \in Task : nextAttemptOf[t] /= NULL}
 
 (**
  * The relation that links a task to its next attempt, as a set of pairs.
