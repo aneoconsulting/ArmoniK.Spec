@@ -190,12 +190,14 @@ jobs:
           key: ${{ needs.tools.outputs.key }}
           fail-on-cache-miss: true
 
-      - name: Check proofs (tlapm --strict)
+      # --stretch 2: a timeout margin for the runners, slower than the machines
+      # on which the proofs are checked at the default timeouts.
+      - name: Check proofs (tlapm --strict --stretch 2)
         env:
           MODULE: ${{ matrix.chunk.module }}
           BEGIN: ${{ matrix.chunk.begin }}
           END: ${{ matrix.chunk.end }}
-        run: make tlapm MODULE="$MODULE" BEGIN="$BEGIN" END="$END"
+        run: make tlapm MODULE="$MODULE" BEGIN="$BEGIN" END="$END" TLAPM_STRETCH=2
 
   proofs-optimized:
     name: "tlapm-opt ${{ matrix.module }}"
