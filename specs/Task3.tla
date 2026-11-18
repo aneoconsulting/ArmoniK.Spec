@@ -63,6 +63,22 @@ T2 == INSTANCE Task2Theorems WITH taskState <- taskStateBar
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
+(*                                  HELPERS                                   *)
+(******************************************************************************)
+
+(**
+ * No task is assigned or processed: no work is in progress, although tasks
+ * may wait registered, staged, paused or halted. A succeeded, failed or
+ * discarded task is a processed task of Task1.
+ *)
+Idle ==
+    /\ AssignedTask = {}
+    /\ SucceededTask = {}
+    /\ FailedTask = {}
+    /\ DiscardedTask = {}
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
 (*                    SYSTEM INITIAL STATE AND TRANSITIONS                    *)
 (******************************************************************************)
 
@@ -254,6 +270,18 @@ DiscardOnCancel(t) ==
     /\ DiscardTasks({t})
     /\ Intends(t, INTENT_CANCEL)
 
+(**
+ * A step in which the user drives no new work: every registered task is the
+ * next attempt of a task, and no intent is requested. Registering next
+ * attempts and acknowledging intents are how the system answers failures and
+ * requests, not user actions.
+ *)
+NoUserAction ==
+    ~ \E T \in SUBSET Task :
+        \/ /\ RegisterTasks(T)
+           /\ ~ (T \subseteq {nextAttemptOf[t] : t \in Task})
+        \/ \E i \in Intent : RequestTasks(T, i)
+
 --------------------------------------------------------------------------------
 (******************************************************************************)
 (*                            SYSTEM SPECIFICATION                            *)
@@ -426,6 +454,19 @@ EventualStability ==
             \/ <>[](t \in RetriedTask)
             \/ <>[](t \in AbortedTask)
             \/ <>[](t \in HaltedTask)
+
+(**
+ * LIVENESS
+ * If the user eventually stops driving the system, the system eventually
+ * stays idle and its state stops changing. The conclusion is equivalent to
+ * <>([]Idle /\ [][FALSE]_vars), written as a conjunction that TLC can check.
+ * Restated from Task2, whose NoUserAction allows the requests, which Task2
+ * sees as stutters.
+ *)
+EventualQuiescence ==
+    <>[][NoUserAction]_vars
+    => /\ <>[]Idle
+       /\ <>[][FALSE]_vars
 
 (**
  * LIVENESS
