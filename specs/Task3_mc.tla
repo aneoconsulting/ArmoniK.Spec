@@ -29,7 +29,7 @@ MCNext ==
     \/ Terminating
 
 (**
- * The specification with MCNext.
+ * The specification with MCNext for Next.
  *)
 MCSpec ==
     /\ Init
@@ -49,8 +49,8 @@ ASSUME Cardinality(Task) > MaxRetries
 
 (**
  * With finitely many tasks, a failed task may find no fresh task to retry it,
- * whereas the specification always has one (T2!ExistsFreeUnknownTask). The
- * constraint discards the steps that would leave fewer unknown tasks than
+ * whereas the specification always has one (Task2's ExistsFreeUnknownTask).
+ * The constraint discards the steps that would leave fewer unknown tasks than
  * failed tasks without a next attempt, whose retries would then be blocked by
  * the finite supply of tasks alone.
  *)
