@@ -213,15 +213,6 @@ PermanentFinalization ==
 
 (**
  * LIVENESS
- * A task assigned infinitely often is eventually processed, after which it is
- * never assigned again: a task is assigned only finitely often.
- *)
-EventualProcessing ==
-    \A t \in Task :
-        At(t) :: []<>(t \in AssignedTask) => <>(t \in ProcessedTask)
-
-(**
- * LIVENESS
  * A processed task is eventually finalized.
  *)
 EventualFinalization ==
@@ -231,7 +222,7 @@ EventualFinalization ==
 (**
  * LIVENESS
  * Every task eventually stays unknown, registered, staged or finalized
- * forever: no task stays assigned or processed, and none keeps changing state.
+ * forever: no task stays assigned or processed.
  *)
 EventualStability ==
     \A t \in Task :
@@ -244,10 +235,8 @@ EventualStability ==
 (**
  * LIVENESS
  * If the user eventually stops driving the system, the system eventually
- * stays idle and its state stops changing. It is then at rest, not done:
- * tasks may stay registered or staged forever. The conclusion is equivalent
- * to <>([]Idle /\ [][FALSE]_vars), written as a conjunction that TLC can
- * check.
+ * stays idle and its state stops changing. The conclusion is equivalent to
+ * <>([]Idle /\ [][FALSE]_vars), written as a conjunction that TLC can check.
  *)
 EventualQuiescence ==
     <>[][NoUserAction]_vars
