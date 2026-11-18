@@ -735,13 +735,13 @@ RefineTask3 ==
 (**
  * LIVENESS
  * An object targeted forever from some point on that eventually stays
- * underivable, halted tasks counting as failed, is eventually aborted.
+ * underivable, halted tasks counting as failed, eventually stays aborted.
  * Restated from Graph2, whose derivations may also go through halted tasks.
  *)
 UnderivableObjectsEventualAbortion ==
     \A o \in Object :
         At(o) ::
             <>[](o \in objectTargets) /\ <>[](G3Derivation(o) = {})
-            => <>(o \in AbortedObject)
+            => <>[](o \in AbortedObject)
 
 ================================================================================
