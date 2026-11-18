@@ -403,4 +403,21 @@ AttemptsEventualStability ==
 RefineTask1 ==
     T1!Spec
 
+(**
+ * LIVENESS
+ * Every task eventually stays unknown, registered, staged, completed, retried
+ * or aborted forever: no task stays assigned, succeeded, failed or discarded.
+ * Restated from Task1, whose finalized tasks are the completed, retried and
+ * aborted ones.
+ *)
+EventualStability ==
+    \A t \in Task :
+        At(t) ::
+            \/ <>[](t \in UnknownTask)
+            \/ <>[](t \in RegisteredTask)
+            \/ <>[](t \in StagedTask)
+            \/ <>[](t \in CompletedTask)
+            \/ <>[](t \in RetriedTask)
+            \/ <>[](t \in AbortedTask)
+
 ================================================================================
