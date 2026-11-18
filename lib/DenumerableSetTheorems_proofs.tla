@@ -1,100 +1,91 @@
 --------------------- MODULE DenumerableSetTheorems_proofs ---------------------
 (******************************************************************************)
-(* Proofs of the theorems declared in DenumerableSetTheorems. Checked with    *)
-(* tlapm.                                                                     *)
+(* Theorems about denumerable sets: non-emptiness, stability under the        *)
+(* removal of an element or of a finite subset, and non-finiteness.           *)
 (******************************************************************************)
 
-EXTENDS DenumerableSets, FiniteSetTheorems, FiniteSetsExtTheorems, TLAPS
+EXTENDS DenumerableSets, FiniteSets, FiniteSetsExtTheorems, FiniteSetTheorems,
+    TLAPS
 
-(******************************************************************************)
-(* A denumerable set is non-empty: any bijection from Nat onto S maps 0 to    *)
-(* an element of S.                                                           *)
-(******************************************************************************)
+(**
+ * A denumerable set is non-empty: any bijection from Nat onto 'S' maps 0 to
+ * an element of 'S'.
+ *)
 THEOREM DS_NonEmpty ==
     ASSUME NEW S, IsDenumerableSet(S)
-    PROVE S /= {}
-BY DEF IsDenumerableSet, ExistsBijection, Bijection, Surjection
+    PROVE  S /= {}
+BY DEF Bijection, ExistsBijection, IsDenumerableSet, Surjection
 
-(******************************************************************************)
-(* Removing a single element from a denumerable set yields a denumerable set. *)
-(******************************************************************************)
-THEOREM DS_RemoveElement ==
+(**
+ * Removing a single element from a denumerable set yields a denumerable set.
+ *)
+LEMMA DS_RemoveElement ==
     ASSUME NEW S, NEW x, IsDenumerableSet(S)
-    PROVE IsDenumerableSet(S \ {x})
+    PROVE  IsDenumerableSet(S \ {x})
+<1>. SUFFICES ASSUME x \in S
+              PROVE  IsDenumerableSet(S \ {x})
+    OBVIOUS
 <1>. PICK f \in Bijection(Nat, S) : TRUE
     BY DEF ExistsBijection, IsDenumerableSet
-<1>1. CASE ~ x \in S
-    BY <1>1
-<1>2. CASE x \in S
-    <2>. PICK m \in Nat : f[m] = x
-        BY <1>2 DEF Bijection, Surjection
-    <2>. DEFINE g == [n \in Nat |-> IF n < m THEN f[n] ELSE f[n + 1]]
-    <2>1. g \in Injection(Nat, S \ {x})
-        BY DEF Bijection, Injection, IsInjective
-    <2>2. g \in Surjection(Nat, S \ {x})
-        <3>1. \A y \in S \ {x}: \E n \in Nat: g[n] = y
-            <4>. TAKE y \in S \ {x}
-            <4>. PICK l \in Nat : f[l] = y
-                BY DEF Bijection, Surjection
-            <4>1. CASE m = 0
-                <5>1. l - 1 \in Nat
-                    BY <4>1 DEF Bijection, Injection, IsInjective
-                <5>. QED
-                    BY <5>1
-            <4>2. CASE m > 0
-                <5>1. l > m => l - 1 \in Nat
-                    BY <4>2 DEF Bijection, Injection, IsInjective
-                <5>. QED
-                    BY <5>1
-            <4>. QED
-                BY <4>1, <4>2
-        <3>. QED
-            BY <3>1 DEF Bijection, Injection, Surjection, IsInjective
+<1>. PICK m \in Nat : f[m] = x
+    BY DEF Bijection, Surjection
+<1>. DEFINE g == [n \in Nat |-> IF n < m THEN f[n] ELSE f[n + 1]]
+<1>1. g \in Injection(Nat, S \ {x})
+    BY DEF Bijection, Injection, IsInjective
+<1>2. ASSUME NEW y \in S \ {x}
+      PROVE  \E n \in Nat : g[n] = y
+    <2>. PICK l \in Nat : f[l] = y
+        BY DEF Bijection, Surjection
+    <2>. WITNESS (IF l < m THEN l ELSE l - 1) \in Nat
     <2>. QED
-        BY <2>1, <2>2 DEF ExistsBijection, Bijection, IsDenumerableSet
+        OBVIOUS
 <1>. QED
-    BY <1>1, <1>2
+    BY <1>1, <1>2 DEF Bijection, ExistsBijection, Injection, IsDenumerableSet,
+        Surjection
 
-(******************************************************************************)
-(* The difference between a denumerable set and a finite set is denumerable.  *)
-(* Proved by finite induction on T, using DS_RemoveElement at each step.      *)
-(******************************************************************************)
+(**
+ * The difference between a denumerable set and a finite set is denumerable.
+ * ----
+ * Rule: finite-set induction over 'T' (FS_Induction), whose step <1>2 removes
+ * one element (DS_RemoveElement).
+ *)
 THEOREM DS_FiniteDifference ==
     ASSUME NEW S, IsDenumerableSet(S),
            NEW T, IsFiniteSet(T)
-    PROVE IsDenumerableSet(S \ T)
+    PROVE  IsDenumerableSet(S \ T)
+(* tlapm: the induction predicate is hidden for FS_Induction. *)
 <1>. DEFINE P(U) == IsDenumerableSet(S \ U)
+<1>. SUFFICES P(T)
+    OBVIOUS
 <1>1. P({})
     OBVIOUS
-<1>2. ASSUME NEW U \in SUBSET T, IsFiniteSet(U), P(U), NEW x \in T \ U
-      PROVE  P(U \cup {x})
-    <2>1. S \ (U \cup {x}) = (S \ U) \ {x}
+<1>2. ASSUME NEW U \in SUBSET T, P(U), NEW x \in T \ U
+      PROVE  P(U \union {x})
+    <2>. S \ (U \union {x}) = (S \ U) \ {x}
         OBVIOUS
     <2>. QED
-        BY <1>2, <2>1, DS_RemoveElement
+        BY <1>2, DS_RemoveElement
 <1>. HIDE DEF P
-<1>3. P(T)
-    BY <1>1, <1>2, FS_Induction, IsaM("blast")
 <1>. QED
-    BY <1>3 DEF P
+    BY <1>1, <1>2, FS_Induction, IsaM("blast")
 
-(******************************************************************************)
-(* A denumerable set is not finite: an injection from Nat into S would force  *)
-(* Nat to be finite, contradicting the existence of an unbounded maximum.     *)
-(******************************************************************************)
+(**
+ * A denumerable set is not finite.
+ * ----
+ * Rule: by contradiction, a finite 'S' would make Nat finite (FS_Injection),
+ * hence bounded by its maximum.
+ *)
 THEOREM DS_NotFiniteSet ==
     ASSUME NEW S, IsDenumerableSet(S)
-    PROVE ~IsFiniteSet(S)
+    PROVE  ~ IsFiniteSet(S)
 <1>. SUFFICES ASSUME IsFiniteSet(S)
-              PROVE FALSE
+              PROVE  FALSE
     OBVIOUS
 <1>1. IsFiniteSet(Nat)
-    BY FS_Injection DEF IsDenumerableSet, ExistsBijection, Bijection
+    BY FS_Injection DEF Bijection, ExistsBijection, IsDenumerableSet
 <1>2. Max(Nat) \in Nat /\ \A m \in Nat : Max(Nat) >= m
     BY <1>1, MaxIntFinite
-<1>3. (\E n \in Nat: \A m \in Nat: n >= m) => FALSE
-    BY Isa
 <1>. QED
-    BY <1>2, <1>3
+    BY <1>2
 
 ================================================================================
