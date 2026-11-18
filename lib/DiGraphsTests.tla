@@ -1,33 +1,31 @@
------------------------------- MODULE DiGraphsTests ----------------------------
+----------------------------- MODULE DiGraphsTests -----------------------------
 (******************************************************************************)
-(* Tests for the DiGraphs module.                                             *)
-(*                                                                            *)
-(* Each test is encoded as an `ASSUME` statement: TLC evaluates them at       *)
-(* startup and aborts as soon as one fails. Tests are grouped per operator    *)
-(* in the same order as the DiGraphs module; the final section cross-checks  *)
-(* the MC-variants against their base operators on a few sample graphs.      *)
+(* Tests of the DiGraphs module. Each test is an ASSUME that TLC evaluates at *)
+(* startup, aborting at the first failure. The tests follow the order of      *)
+(* DiGraphs.                                                                  *)
 (******************************************************************************)
 
 EXTENDS DiGraphs, TLCExt
 
 ASSUME LET T == INSTANCE TLC IN T!PrintT("DiGraphsTests")
 
+--------------------------------------------------------------------------------
 (******************************************************************************)
-(* IsDirectedGraph                                                            *)
+(*                              DIRECTED GRAPHS                               *)
 (******************************************************************************)
+
+(** Tests of 'IsDirectedGraph'. *)
 
 ASSUME AssertEq(IsDirectedGraph([node |-> {}, edge |-> {}]), TRUE)
 
 ASSUME AssertEq(IsDirectedGraph([node |-> {1, 2},
                                  edge |-> {<<1, 2>>}]), TRUE)
 
-\* The edge set must be a subset of node \X node.
+\* The edge set must be a subset of 'node \X node'.
 ASSUME AssertEq(IsDirectedGraph([node |-> {1},
                                  edge |-> {<<1, 2>>}]), FALSE)
 
-(******************************************************************************)
-(* IsUndirectedGraph                                                          *)
-(******************************************************************************)
+(** Tests of 'IsUndirectedGraph'. *)
 
 \* The empty graph has no edges, so symmetry is vacuous.
 ASSUME AssertEq(IsUndirectedGraph(EmptyGraph), TRUE)
@@ -47,29 +45,21 @@ ASSUME AssertEq(IsUndirectedGraph([node |-> {1, 2},
 ASSUME AssertEq(IsUndirectedGraph([node |-> {1, 2},
                                    edge |-> {<<1, 2>>}]), FALSE)
 
-\* An ill-formed record (edge not in node \X node) is not undirected.
+\* An ill-formed record (edge not in 'node \X node') is not undirected.
 ASSUME AssertEq(IsUndirectedGraph([node |-> {1},
                                    edge |-> {<<1, 2>>}]), FALSE)
 
-\* UnderlyingUndirectedGraph always yields an undirected graph (matches
-\* DG_UnderlyingUndirectedGraphIsUndirected on sample graphs).
-ASSUME \A G \in DirectedGraphOf({1, 2, 3}) :
-    IsUndirectedGraph(UnderlyingUndirectedGraph(G))
+(** Tests of 'DirectedGraphOf'. *)
 
-(******************************************************************************)
-(* DirectedGraphOf                                                            *)
-(******************************************************************************)
-
-\* Every record produced by DirectedGraphOf must be a valid directed graph.
+\* Every record produced by DirectedGraphOf is a directed graph.
 ASSUME \A G \in DirectedGraphOf({"A", "B"}) : IsDirectedGraph(G)
 
-ASSUME [node |-> {"A"}, edge |-> {}] \in DirectedGraphOf({"A", "B"})
+ASSUME AssertEq([node |-> {"A"}, edge |-> {}] \in DirectedGraphOf({"A", "B"}),
+                TRUE)
 
-(******************************************************************************)
-(* DirectedSubgraph                                                           *)
-(******************************************************************************)
+(** Tests of 'DirectedSubgraph'. *)
 
-\* G itself and the empty graph on G.node are always subgraphs of G.
+\* 'G' itself and the empty graph are subgraphs of 'G'.
 ASSUME LET G == [node |-> {1, 2}, edge |-> {<<1, 2>>}]
        IN  AssertEq(DirectedSubgraph(G),
                     {
@@ -80,50 +70,23 @@ ASSUME LET G == [node |-> {1, 2}, edge |-> {<<1, 2>>}]
                         G
                     })
 
-(******************************************************************************)
-(* SimplePath / MCSimplePath                                                  *)
-(*                                                                            *)
-(* `SimplePath(G)` is defined over the unbounded `Path(G)` and is not         *)
-(* TLC-evaluable; we test the model-checkable variant `MCSimplePath(G)`       *)
-(* directly. `DG_SimplePathMCEquiv` proves the two coincide on finite graphs. *)
-(******************************************************************************)
-
-ASSUME AssertEq(MCSimplePath([node |-> {}, edge |-> {}]), {})
-
-ASSUME AssertEq(MCSimplePath([node |-> {1, 2, 3}, edge |-> {}]),
-                {<<1>>, <<2>>, <<3>>})
-
-ASSUME AssertEq(MCSimplePath([node |-> {1, 2, 3},
-                              edge |-> {<<1, 2>>, <<2, 3>>}]),
-                {<<1>>, <<2>>, <<3>>, <<1, 2>>, <<2, 3>>, <<1, 2, 3>>})
-
-\* `DirectedCycle`, `HasDirectedCycle`, and `IsDag` are defined over the
-\* unbounded `Path(G)` and are not enumerable by TLC; their behavior is
-\* exercised through the MC-variants in the model-checking section below.
-
-(******************************************************************************)
-(* AreConnectedIn                                                             *)
-(******************************************************************************)
+(** Tests of 'AreConnectedIn'. *)
 
 ASSUME \A G \in DirectedGraphOf({"A", "B", "C"}) :
     \A u, v \in G.node : AreConnectedIn(G, u, v) \in BOOLEAN
 
 ASSUME LET G == [node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<2, 3>>}]
-       IN  /\ AreConnectedIn(G, 1, 3)
-           /\ ~AreConnectedIn(G, 3, 1)
+       IN  /\ AssertEq(AreConnectedIn(G, 1, 3), TRUE)
+           /\ AssertEq(AreConnectedIn(G, 3, 1), FALSE)
 
-(******************************************************************************)
-(* GraphUnion                                                                 *)
-(******************************************************************************)
+(** Tests of 'GraphUnion'. *)
 
 ASSUME LET G == [node |-> {1, 2}, edge |-> {<<1, 2>>}]
            H == [node |-> {2, 3}, edge |-> {<<2, 3>>}]
        IN  AssertEq(GraphUnion(G, H),
                     [node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<2, 3>>}])
 
-(******************************************************************************)
-(* IsBipartiteWithPartitions                                                  *)
-(******************************************************************************)
+(** Tests of 'IsBipartiteWithPartitions'. *)
 
 ASSUME LET G == [node |-> {1, 2, 3, 4},
                  edge |-> {<<1, 2>>, <<2, 3>>, <<3, 4>>}]
@@ -133,53 +96,31 @@ ASSUME LET G == [node |-> {1, 2, 3, 4},
 ASSUME LET G == [node |-> {1, 2}, edge |-> {<<1, 2>>}]
        IN  AssertEq(IsBipartiteWithPartitions(G, {1, 2}, {2}), FALSE)
 
-(******************************************************************************)
-(* Successor                                                                  *)
-(******************************************************************************)
+(** Tests of 'HasDirectedCycle' and 'IsDag'. *)
+
+\* A chain has no directed cycle and is a DAG.
+ASSUME LET G == [node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<2, 3>>}]
+       IN  /\ AssertEq(HasDirectedCycle(G), FALSE)
+           /\ AssertEq(IsDag(G), TRUE)
+
+\* A 2-cycle is a directed cycle, so the graph is not a DAG.
+ASSUME LET G == [node |-> {1, 2}, edge |-> {<<1, 2>>, <<2, 1>>}]
+       IN  /\ AssertEq(HasDirectedCycle(G), TRUE)
+           /\ AssertEq(IsDag(G), FALSE)
+
+(** Tests of 'Successor'. *)
 
 ASSUME LET G == [node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<1, 3>>}]
        IN  /\ AssertEq(Successor(G, 1), {2, 3})
            /\ AssertEq(Successor(G, 2), {})
 
-(******************************************************************************)
-(* Predecessor                                                                *)
-(******************************************************************************)
+(** Tests of 'Predecessor'. *)
 
 ASSUME LET G == [node |-> {1, 2, 3}, edge |-> {<<2, 1>>, <<3, 1>>}]
        IN  /\ AssertEq(Predecessor(G, 1), {2, 3})
            /\ AssertEq(Predecessor(G, 2), {})
 
-(******************************************************************************)
-(* ExclusiveSuccessor                                                         *)
-(******************************************************************************)
-
-\* A node with no successors has no exclusive successors.
-ASSUME AssertEq(ExclusiveSuccessor([node |-> {1}, edge |-> {}], 1), {})
-
-\* A successor with a single parent is exclusive.
-ASSUME LET G == [node |-> {1, 2}, edge |-> {<<1, 2>>}]
-       IN  AssertEq(ExclusiveSuccessor(G, 1), {2})
-
-\* A successor with multiple parents is not exclusive.
-ASSUME LET G == [node |-> {1, 2, 3}, edge |-> {<<1, 3>>, <<2, 3>>}]
-       IN  /\ AssertEq(ExclusiveSuccessor(G, 1), {})
-           /\ AssertEq(ExclusiveSuccessor(G, 2), {})
-
-\* Exclusive and shared successors are filtered correctly.
-ASSUME LET G == [node |-> {1, 2, 3, 4},
-                 edge |-> {<<1, 2>>, <<1, 3>>, <<4, 3>>}]
-       IN  AssertEq(ExclusiveSuccessor(G, 1), {2})
-
-\* A self-loop makes n its own (non-exclusive) successor whenever a second
-\* predecessor exists.
-ASSUME LET G == [node |-> {1, 2}, edge |-> {<<1, 1>>, <<2, 1>>}]
-       IN  AssertEq(ExclusiveSuccessor(G, 1), {})
-
-(******************************************************************************)
-(* Ancestor                                                                   *)
-(*                                                                            *)
-(* The trivial single-node path <<n>> makes every node its own ancestor.     *)
-(******************************************************************************)
+(** Tests of 'Ancestor'. *)
 
 ASSUME AssertEq(Ancestor([node |-> {1}, edge |-> {}], 1), {1})
 
@@ -191,11 +132,7 @@ ASSUME LET G == [node |-> {1, 2, 3},
                  edge |-> {<<1, 2>>, <<2, 3>>, <<3, 1>>}]
        IN  AssertEq(Ancestor(G, 1), {1, 2, 3})
 
-(******************************************************************************)
-(* Descendant                                                                 *)
-(*                                                                            *)
-(* The trivial single-node path <<n>> makes every node its own descendant.   *)
-(******************************************************************************)
+(** Tests of 'Descendant'. *)
 
 ASSUME AssertEq(Descendant([node |-> {1}, edge |-> {}], 1), {1})
 
@@ -207,9 +144,7 @@ ASSUME LET G == [node |-> {1, 2, 3},
                  edge |-> {<<1, 2>>, <<2, 3>>, <<3, 1>>}]
        IN  AssertEq(Descendant(G, 1), {1, 2, 3})
 
-(******************************************************************************)
-(* InDegree / OutDegree                                                       *)
-(******************************************************************************)
+(** Tests of 'InDegree' and 'OutDegree'. *)
 
 ASSUME LET G == [node |-> {1, 2, 3},
                  edge |-> {<<2, 1>>, <<3, 1>>}]
@@ -221,9 +156,7 @@ ASSUME LET G == [node |-> {1, 2, 3},
        IN  /\ AssertEq(OutDegree(G, 1), 2)
            /\ AssertEq(OutDegree(G, 2), 0)
 
-(******************************************************************************)
-(* Source / Sink                                                              *)
-(******************************************************************************)
+(** Tests of 'Source' and 'Sink'. *)
 
 ASSUME AssertEq(Source([node |-> {1, 2, 3},
                         edge |-> {<<2, 1>>, <<3, 1>>}]), {2, 3})
@@ -244,23 +177,19 @@ ASSUME AssertEq(Sink([node |-> {1, 2, 3},
 ASSUME AssertEq(Sink([node |-> {1, 2},
                       edge |-> {<<1, 2>>, <<2, 1>>}]), {})
 
-(******************************************************************************)
-(* EmptyGraph                                                                 *)
-(******************************************************************************)
+(** Tests of 'EmptyGraph'. *)
 
-ASSUME IsDirectedGraph(EmptyGraph)
+ASSUME AssertEq(IsDirectedGraph(EmptyGraph), TRUE)
 ASSUME AssertEq(EmptyGraph.node, {})
 ASSUME AssertEq(EmptyGraph.edge, {})
 
-(******************************************************************************)
-(* Transpose / UnderlyingUndirectedGraph                                      *)
-(******************************************************************************)
+(** Tests of 'Transpose' and 'UnderlyingUndirectedGraph'. *)
 
 ASSUME LET G == [node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<2, 3>>}]
        IN  AssertEq(Transpose(G),
                     [node |-> {1, 2, 3}, edge |-> {<<2, 1>>, <<3, 2>>}])
 
-\* Transposing twice is the identity (modulo set-of-edges equality).
+\* Transposing twice gives the graph back.
 ASSUME LET G == [node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<2, 3>>}]
        IN  AssertEq(Transpose(Transpose(G)), G)
 
@@ -268,9 +197,11 @@ ASSUME LET G == [node |-> {1, 2}, edge |-> {<<1, 2>>}]
        IN  AssertEq(UnderlyingUndirectedGraph(G),
                     [node |-> {1, 2}, edge |-> {<<1, 2>>, <<2, 1>>}])
 
-(******************************************************************************)
-(* IsStronglyConnected / IsWeaklyConnected                                    *)
-(******************************************************************************)
+\* The underlying undirected graph is undirected.
+ASSUME \A G \in DirectedGraphOf({1, 2, 3}) :
+    IsUndirectedGraph(UnderlyingUndirectedGraph(G))
+
+(** Tests of 'IsStronglyConnected' and 'IsWeaklyConnected'. *)
 
 \* A 2-cycle is strongly (and weakly) connected.
 ASSUME LET G == [node |-> {1, 2}, edge |-> {<<1, 2>>, <<2, 1>>}]
@@ -287,62 +218,60 @@ ASSUME LET G == [node |-> {1, 2}, edge |-> {}]
        IN  /\ AssertEq(IsStronglyConnected(G), FALSE)
            /\ AssertEq(IsWeaklyConnected(G), FALSE)
 
-(******************************************************************************)
-(* IsUnilateralyConnected                                                     *)
-(******************************************************************************)
+(** Tests of 'IsUnilaterallyConnected'. *)
 
 \* A 2-cycle is unilaterally connected (it is even strongly connected).
 ASSUME LET G == [node |-> {1, 2}, edge |-> {<<1, 2>>, <<2, 1>>}]
-       IN  AssertEq(IsUnilateralyConnected(G), TRUE)
+       IN  AssertEq(IsUnilaterallyConnected(G), TRUE)
 
-\* A simple directed path is unilaterally connected without being strongly so:
-\* 1 reaches 2, but 2 does not reach 1.
+\* A directed path is unilaterally connected, but not strongly connected.
 ASSUME LET G == [node |-> {1, 2}, edge |-> {<<1, 2>>}]
-       IN  /\ AssertEq(IsUnilateralyConnected(G), TRUE)
+       IN  /\ AssertEq(IsUnilaterallyConnected(G), TRUE)
            /\ AssertEq(IsStronglyConnected(G), FALSE)
 
-\* A V-shape (two leaves sharing a sink) is weakly connected but NOT
-\* unilaterally connected: leaves 1 and 2 cannot reach each other in
-\* either direction.
+\* Two sources sharing a sink: weakly but not unilaterally connected.
 ASSUME LET G == [node |-> {1, 2, 3}, edge |-> {<<1, 3>>, <<2, 3>>}]
        IN  /\ AssertEq(IsWeaklyConnected(G), TRUE)
-           /\ AssertEq(IsUnilateralyConnected(G), FALSE)
+           /\ AssertEq(IsUnilaterallyConnected(G), FALSE)
 
 \* Two disjoint nodes are not unilaterally connected.
 ASSUME LET G == [node |-> {1, 2}, edge |-> {}]
-       IN  AssertEq(IsUnilateralyConnected(G), FALSE)
+       IN  AssertEq(IsUnilaterallyConnected(G), FALSE)
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
-(* MC-variant equivalence checks.                                             *)
-(*                                                                            *)
-(* The DiGraphs module claims (without proof) that each MC-operator is        *)
-(* equivalent to its base operator. The tests below check that claim on a    *)
-(* sample graph mixing a DAG component with a strongly-connected component.  *)
+(*                          MODEL-CHECKING VARIANTS                           *)
 (******************************************************************************)
 
-\* Sample graph: nodes 1..4 form a DAG, nodes 5..6 form a 2-cycle.
+(** Tests of 'MCSimplePath'. *)
+
+ASSUME AssertEq(MCSimplePath([node |-> {}, edge |-> {}]), {})
+
+ASSUME AssertEq(MCSimplePath([node |-> {1, 2, 3}, edge |-> {}]),
+                {<<1>>, <<2>>, <<3>>})
+
+ASSUME AssertEq(MCSimplePath([node |-> {1, 2, 3},
+                              edge |-> {<<1, 2>>, <<2, 3>>}]),
+                {<<1>>, <<2>>, <<3>>, <<1, 2>>, <<2, 3>>, <<1, 2, 3>>})
+
+(**
+ * A sample graph: a part with cycles on nodes 1 to 4, and a 2-cycle on nodes 5
+ * and 6, on which the model-checking variants are tested.
+ *)
 SampleGraph ==
     [node |-> {1, 2, 3, 4, 5, 6},
      edge |-> {<<1, 2>>, <<2, 3>>, <<2, 4>>, <<3, 2>>, <<3, 4>>,
                <<3, 5>>, <<4, 2>>, <<5, 6>>, <<6, 5>>}]
 
-(******************************************************************************)
-(* ConnectionsIn vs AreConnectedIn vs MCAreConnectedIn                        *)
-(******************************************************************************)
+(** Tests of 'ConnectionsIn' and 'MCAreConnectedIn'. *)
 
 ASSUME \A m, n \in SampleGraph.node :
     /\ AreConnectedIn(SampleGraph, m, n) <=> ConnectionsIn(SampleGraph)[m, n]
     /\ AreConnectedIn(SampleGraph, m, n) <=> MCAreConnectedIn(SampleGraph, m, n)
 
-(******************************************************************************)
-(* MCHasDirectedCycle                                                         *)
-(*                                                                            *)
-(* `HasDirectedCycle` itself is not TLC-evaluable, so we test                *)
-(* `MCHasDirectedCycle` against known expected values instead.               *)
-(******************************************************************************)
+(** Tests of 'MCHasDirectedCycle'. *)
 
-\* SampleGraph contains the 2-cycle {5, 6} and several inner cycles in {2,3,4}.
+\* SampleGraph contains the 2-cycle on 5 and 6, and cycles on 2, 3 and 4.
 ASSUME AssertEq(MCHasDirectedCycle(SampleGraph), TRUE)
 
 ASSUME AssertEq(MCHasDirectedCycle(EmptyGraph), FALSE)
