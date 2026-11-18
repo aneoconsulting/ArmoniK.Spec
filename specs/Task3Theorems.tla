@@ -46,27 +46,6 @@ LEMMA LemT2BarStates ==
 (******************************************************************************)
 
 (**
- * The lifecycle of a task only moves forward: a succeeded task can only be
- * completed, a discarded task aborted, a failed task retried, a halted task
- * discarded, and the final states never change. Stated for one step, so that
- * refining layers lift it through their step simulation. Not lifted from
- * Task2: its step lemma says nothing of the halted tasks, which Task2 sees as
- * staged.
- *)
-LEMMA LemTaskStateStable ==
-    ASSUME NEW t \in Task, [Next]_vars
-    PROVE  /\ taskState[t] \in {TASK_SUCCEEDED, TASK_COMPLETED}
-              => taskState'[t] \in {TASK_SUCCEEDED, TASK_COMPLETED}
-           /\ taskState[t] \in {TASK_DISCARDED, TASK_ABORTED}
-              => taskState'[t] \in {TASK_DISCARDED, TASK_ABORTED}
-           /\ taskState[t] \in {TASK_FAILED, TASK_RETRIED}
-              => taskState'[t] \in {TASK_FAILED, TASK_RETRIED}
-           /\ taskState[t] = TASK_HALTED
-              => taskState'[t] \in {TASK_HALTED, TASK_DISCARDED}
-           /\ taskState[t] \in {TASK_COMPLETED, TASK_ABORTED, TASK_RETRIED}
-              => taskState'[t] = taskState[t]
-
-(**
  * The identifier of the attempt chain of a task is the task itself or one of
  * its previous attempts, and has no previous attempt, when the attempt chains
  * have no cycle and the task has finitely many previous attempts. The previous
@@ -90,8 +69,8 @@ LEMMA LemChainId ==
 LEMMA LemChainIdStable ==
     ASSUME LinkedTask \subseteq FailedTask \union RetriedTask,
            \A x \in Task : <<x, x>> \notin TCNextAttemptOfRel,
-           [Next]_vars, NEW t \in Task, IsFiniteSet(PreviousAttempts(t)),
-           ChainId(t) \in KnownChainId
+           NEW t \in Task, IsFiniteSet(PreviousAttempts(t)),
+           ChainId(t) \in KnownChainId, [Next]_vars
     PROVE  ChainId(t)' = ChainId(t) /\ ChainId(t) \in KnownChainId'
 
 --------------------------------------------------------------------------------
@@ -171,26 +150,6 @@ LEMMA LemResumeTasksSimulateT2Stuttering ==
 
 LEMMA LemNextSimulateT2Next == [Next]_vars => [T2!Next]_T2!vars
 
-(**
- * A step that Task2 sees as the registration of 't' registers 't'. The task
- * 't' is not bound to Task, so that the lemma applies to a next attempt. Not
- * a property: cited by Graph3's LemPreserveT3WFRegisterTasks.
- *)
-LEMMA LemRegisterTasksFromT2Step ==
-    ASSUME NEW t
-    PROVE  [Next]_vars /\ <<T2!RegisterTasks({t})>>_(T2!vars)
-           => <<RegisterTasks({t})>>_vars
-
-(**
- * A step that Task2 sees as the staging of 't' stages 't'. The task 't' is
- * not bound to Task, so that the lemma applies to a next attempt. Not a
- * property: cited by Graph3's LemPreserveT3WFStageTasks.
- *)
-LEMMA LemStageTasksFromT2Step ==
-    ASSUME NEW t
-    PROVE  [Next]_vars /\ <<T2!StageTasks({t})>>_(T2!vars)
-           => <<StageTasks({t})>>_vars
-
 --------------------------------------------------------------------------------
 (******************************************************************************)
 (*                               LIFTED SAFETY                                *)
@@ -244,29 +203,33 @@ LEMMA LemInv == Init /\ [][Next]_vars => []Inv
 (******************************************************************************)
 
 (**
- * A succeeded task stays succeeded or is completed, a discarded task stays
- * discarded or is aborted, and a halted task stays halted or is discarded, at
- * every step.
+ * A succeeded or completed task stays succeeded or completed, a failed or
+ * retried task stays failed or retried, a discarded or aborted task stays
+ * discarded or aborted, and a halted, discarded or aborted task stays halted,
+ * discarded or aborted, at every step. Not lifted from Task2: it sees the
+ * halted tasks as staged, and the direct proof is one BY.
  *)
 LEMMA LemPermanentOutcome ==
     ASSUME NEW t \in Task, [Next]_vars
-    PROVE  /\ t \in SucceededTask
+    PROVE  /\ t \in SucceededTask \union CompletedTask
               => (t \in SucceededTask \union CompletedTask)'
-           /\ t \in DiscardedTask
+           /\ t \in FailedTask \union RetriedTask
+              => (t \in FailedTask \union RetriedTask)'
+           /\ t \in DiscardedTask \union AbortedTask
               => (t \in DiscardedTask \union AbortedTask)'
-           /\ t \in HaltedTask
-              => (t \in HaltedTask \union DiscardedTask)'
+           /\ t \in UNION {HaltedTask, DiscardedTask, AbortedTask}
+              => (t \in UNION {HaltedTask, DiscardedTask, AbortedTask})'
 
 (**
- * A cancelled attempt chain stays cancelled after a step.
+ * A cancelled attempt chain stays cancelled at every step.
  *)
 LEMMA LemPermanentCancellation ==
     ASSUME NEW t \in Task, Inv, [Next]_vars
     PROVE  Intends(t, INTENT_CANCEL) => Intends(t, INTENT_CANCEL)'
 
 (**
- * A task of a cancelled attempt chain that is not assigned is not assigned
- * after a step.
+ * A task of a cancelled attempt chain that is not assigned stays unassigned
+ * at every step.
  *)
 LEMMA LemCancellationPreventsAssignment ==
     ASSUME NEW t \in Task, [Next]_vars
@@ -282,7 +245,7 @@ LEMMA LemCancellationPreventsAssignment ==
  * The fairness conditions restated without ENABLED, which a substitution does
  * not distribute over: a refinement proves the instantiated restatements and
  * recovers the instantiated Fairness through LemFairnessEnabledFree. Each
- * Enabled<Action>(t) holds exactly when the fair action is enabled.
+ * Enabled predicate holds exactly when its fair action is enabled.
  *)
 EnabledSetTaskRetries(t) ==
     /\ t \in FailedTask \ LinkedTask
@@ -424,6 +387,19 @@ LEMMA LemPreserveT2WFRetryTasks ==
 (******************************************************************************)
 
 (**
+ * The first conjunct is lifted from Task2. The second is not lifted from
+ * Task2: Task2's staged tasks include the paused and halted ones.
+ *)
+LEMMA LemFailedTaskEventualRetry ==
+    ASSUME NEW t \in Task
+    PROVE  /\ []Inv
+           /\ [][Next]_vars
+           /\ FairSetTaskRetries(t)
+           /\ FairRegisterTasks(t)
+           /\ FairStageTasks(t)
+           => FailedTaskEventualRetry!At(t)
+
+(**
  * Lifted from Task2, then split: a halted task never becomes staged or paused
  * again.
  *)
@@ -438,19 +414,6 @@ LEMMA LemEventualStability ==
            /\ FairAbortTasks(t)
            /\ FairRetryTasks(t)
            => EventualStability!At(t)
-
-(**
- * The first conjunct is lifted from Task2. The second is not lifted from
- * Task2: Task2's staged tasks include the paused and halted ones.
- *)
-LEMMA LemFailedTaskEventualRetry ==
-    ASSUME NEW t \in Task
-    PROVE  /\ []Inv
-           /\ [][Next]_vars
-           /\ FairSetTaskRetries(t)
-           /\ FairRegisterTasks(t)
-           /\ FairStageTasks(t)
-           => FailedTaskEventualRetry!At(t)
 
 (**
  * Lifted from Task2, whose state eventually stops changing: then, without
@@ -510,9 +473,9 @@ THEOREM ThmCancellationPreventsAssignment ==
 
 THEOREM ThmRefineTask2 == Spec => RefineTask2
 
-THEOREM ThmEventualStability == Spec => EventualStability
-
 THEOREM ThmFailedTaskEventualRetry == Spec => FailedTaskEventualRetry
+
+THEOREM ThmEventualStability == Spec => EventualStability
 
 THEOREM ThmEventualQuiescence == Spec => EventualQuiescence
 
