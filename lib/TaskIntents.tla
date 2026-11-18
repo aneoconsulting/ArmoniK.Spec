@@ -5,17 +5,26 @@
 (* the system acknowledges on each attempt. An attempt chain is identified by *)
 (* its first attempt, which never changes; the attempt chains to pause and to *)
 (* cancel are recorded, and the other known ones are to run.                  *)
+(*                                                                            *)
+(* The module extends TaskRetries: a specification instantiates the task      *)
+(* states, the retries and the intents with one INSTANCE.                     *)
 (******************************************************************************)
 
 EXTENDS TaskRetries
 
-VARIABLE
-    intent  \* intent[i]: identifiers of the chains whose recorded intent is i
+VARIABLES
+    intent  \* intent[i]: first attempts of the chains whose intent is i
 
+(**
+ * The intents a user may give an attempt chain.
+ *)
 INTENT_RUN    == "INTENT_RUN"     \* May run; given at submission and on resume
 INTENT_PAUSE  == "INTENT_PAUSE"   \* To be paused (revocable)
 INTENT_CANCEL == "INTENT_CANCEL"  \* To be cancelled (irrevocable)
 
+(**
+ * The set of the intents.
+ *)
 Intent == {INTENT_RUN, INTENT_PAUSE, INTENT_CANCEL}
 
 (**
@@ -47,9 +56,13 @@ Intends(t, i) == ChainId(t) \in IntentChainIds(i)
  * cancellation is irrevocable.
  *)
 Requested(T, i) ==
-    LET R == {ChainId(t) : t \in T} \ intent[INTENT_CANCEL] IN
-        [j \in RecordedIntent |-> IF j = i THEN intent[j] \union R
-                                           ELSE intent[j] \ R]
+    LET
+        R == {ChainId(t) : t \in T} \ intent[INTENT_CANCEL]
+    IN
+        [j \in RecordedIntent |->
+            IF j = i
+                THEN intent[j] \union R
+                ELSE intent[j] \ R]
 
 (**
  * The states in which intent 'i' is in effect on a task, or no longer
@@ -57,8 +70,8 @@ Requested(T, i) ==
  *)
 IntentEffect(i) ==
     CASE i = INTENT_RUN    -> T3State \ {TASK_PAUSED}
-      [] i = INTENT_PAUSE  -> {TASK_REGISTERED, TASK_PAUSED, TASK_HALTED,
-                               TASK_COMPLETED, TASK_RETRIED, TASK_ABORTED}
+      [] i = INTENT_PAUSE  -> {TASK_REGISTERED, TASK_COMPLETED, TASK_RETRIED,
+                               TASK_ABORTED, TASK_PAUSED, TASK_HALTED}
       [] i = INTENT_CANCEL -> {TASK_COMPLETED, TASK_RETRIED, TASK_ABORTED}
 
 ================================================================================
