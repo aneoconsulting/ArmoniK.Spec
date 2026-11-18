@@ -238,14 +238,16 @@ EventualFinalization ==
 
 (**
  * LIVENESS
- * A registered task eventually stays registered, staged or finalized forever.
+ * Every task eventually stays unknown, registered, staged or finalized
+ * forever: no task stays assigned or processed.
  *)
-EventualQuiescence ==
+EventualStability ==
     \A t \in Task :
-        t \in RegisteredTask ~>
-            \/ [](t \in RegisteredTask)
-            \/ [](t \in StagedTask)
-            \/ [](t \in FinalizedTask)
+        At(t) ::
+            \/ <>[](t \in UnknownTask)
+            \/ <>[](t \in RegisteredTask)
+            \/ <>[](t \in StagedTask)
+            \/ <>[](t \in FinalizedTask)
 
 (**
  * LIVENESS
