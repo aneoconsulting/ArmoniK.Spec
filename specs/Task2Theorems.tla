@@ -36,7 +36,7 @@ LEMMA LemT1BarStates ==
 
 (**
  * The lifecycle of a task only moves forward: a succeeded task can only be
- * completed, a discarded task aborted, a failed task retried, and the final
+ * completed, a failed task retried, a discarded task aborted, and the final
  * states never change. Stated for one step, so that refining layers lift it
  * through their step simulation.
  *)
@@ -44,15 +44,11 @@ LEMMA LemTaskStateStable ==
     ASSUME NEW t \in Task, [Next]_vars
     PROVE  /\ taskState[t] \in {TASK_SUCCEEDED, TASK_COMPLETED}
               => taskState'[t] \in {TASK_SUCCEEDED, TASK_COMPLETED}
-           /\ taskState[t] \in {TASK_DISCARDED, TASK_ABORTED}
-              => taskState'[t] \in {TASK_DISCARDED, TASK_ABORTED}
            /\ taskState[t] \in {TASK_FAILED, TASK_RETRIED}
               => taskState'[t] \in {TASK_FAILED, TASK_RETRIED}
-           /\ taskState[t] \in {TASK_DISCARDED, TASK_COMPLETED, TASK_ABORTED,
-                                TASK_RETRIED}
-              => taskState'[t] \in {TASK_DISCARDED, TASK_COMPLETED,
-                                    TASK_ABORTED, TASK_RETRIED}
-           /\ taskState[t] \in {TASK_COMPLETED, TASK_ABORTED, TASK_RETRIED}
+           /\ taskState[t] \in {TASK_DISCARDED, TASK_ABORTED}
+              => taskState'[t] \in {TASK_DISCARDED, TASK_ABORTED}
+           /\ taskState[t] \in {TASK_COMPLETED, TASK_RETRIED, TASK_ABORTED}
               => taskState'[t] = taskState[t]
 
 (**
@@ -252,14 +248,17 @@ LEMMA LemPermanentFinalization ==
            /\ t \in AbortedTask => (t \in AbortedTask)'
 
 (**
- * A succeeded task stays succeeded or is completed, and a discarded task
- * stays discarded or is aborted, at every step.
+ * A succeeded or completed task stays succeeded or completed, a failed or
+ * retried task stays failed or retried, and a discarded or aborted task stays
+ * discarded or aborted, at every step.
  *)
 LEMMA LemPermanentOutcome ==
     ASSUME NEW t \in Task, [Next]_vars
-    PROVE  /\ t \in SucceededTask
+    PROVE  /\ t \in SucceededTask \union CompletedTask
               => (t \in SucceededTask \union CompletedTask)'
-           /\ t \in DiscardedTask
+           /\ t \in FailedTask \union RetriedTask
+              => (t \in FailedTask \union RetriedTask)'
+           /\ t \in DiscardedTask \union AbortedTask
               => (t \in DiscardedTask \union AbortedTask)'
 
 --------------------------------------------------------------------------------
@@ -271,7 +270,7 @@ LEMMA LemPermanentOutcome ==
  * The fairness conditions restated without ENABLED, which a substitution does
  * not distribute over: a refinement proves the instantiated restatements and
  * recovers the instantiated Fairness through LemFairnessEnabledFree. Each
- * Enabled<Action>(t) holds exactly when the fair action is enabled.
+ * Enabled predicate holds exactly when its fair action is enabled.
  *)
 EnabledSetTaskRetries(t) ==
     /\ t \in FailedTask \ LinkedTask
@@ -333,8 +332,8 @@ LEMMA LemFairnessEnabledFree ==
 
 (**
  * One section, as the two depend on each other: LemPreserveT1WFFinalizeTasks
- * follows from LemEventualFinalization, and LemEventualQuiescence from the
- * preservations.
+ * follows from LemEventualFinalization, and LemEventualStability and
+ * LemEventualQuiescence from the preservations.
  *)
 
 (**
@@ -348,7 +347,8 @@ LEMMA LemPreserveT1SFProcessTasks ==
 (**
  * A failed task without a next attempt is eventually given one. Not a
  * property: shared by LemFailedTaskEventualRetry and
- * LemEventualFinalizationFailed.
+ * LemEventualFinalizationFailed. Here rather than with the helper lemmas: it
+ * is a liveness result, which assumes a fairness restatement.
  *)
 LEMMA LemFailedTaskEventuallyLinked ==
     ASSUME NEW t \in Task
@@ -369,7 +369,8 @@ LEMMA LemFailedTaskEventualRetry ==
  * A failed task is eventually retried. Not a property: the conjunct of
  * EventualFinalization that needs the fairness of neither the completion nor
  * the abortion, which a refining layer lifts before it preserves these two;
- * LemEventualFinalization cites it.
+ * LemEventualFinalization cites it. Here rather than with the helper lemmas:
+ * it is a liveness result, which assumes fairness restatements.
  *)
 LEMMA LemEventualFinalizationFailed ==
     ASSUME NEW t \in Task
@@ -380,6 +381,10 @@ LEMMA LemEventualFinalizationFailed ==
            /\ FairRetryTasks(t)
            => t \in FailedTask ~> t \in RetriedTask
 
+(**
+ * It breaks a cycle: the lift would need the fairness of Task1's
+ * finalization, which LemPreserveT1WFFinalizeTasks derives from this lemma.
+ *)
 LEMMA LemEventualFinalization ==
     ASSUME NEW t \in Task
     PROVE  /\ []Inv
