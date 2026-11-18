@@ -13,7 +13,7 @@ USE DEF OBJECT_FINALIZED, OBJECT_REGISTERED, OBJECT_UNKNOWN
 (******************************************************************************)
 
 LEMMA LemTypeOk == Init /\ [][Next]_vars => []TypeOk
-<1>. USE DEF FinalizedObject, O1State, RegisteredObject, TypeOk, UnknownObject
+<1>. USE DEF O1State, TypeOk
 <1>1. Init => TypeOk
     BY DEF Init
 <1>2. TypeOk /\ [Next]_vars => TypeOk'
@@ -31,11 +31,11 @@ LEMMA LemTargetValidity == Init /\ [][Next]_vars => []TargetValidity
 <1>. USE DEF FinalizedObject, RegisteredObject, TargetValidity, UnknownObject
 <1>1. Init => TargetValidity
     BY DEF Init
-<1>2. TypeOk /\ TargetValidity /\ [Next]_vars => TargetValidity'
-    BY DEF FinalizeObjects, Next, RegisterObjects, TargetObjects, TypeOk,
+<1>2. TargetValidity /\ [Next]_vars => TargetValidity'
+    BY DEF FinalizeObjects, Next, RegisterObjects, TargetObjects,
         UntargetObjects, vars
 <1>. QED
-    BY <1>1, <1>2, LemTypeOk, PTL
+    BY <1>1, <1>2, PTL
 
 LEMMA LemFiniteKnownObjects == Init /\ [][Next]_vars => []FiniteKnownObjects
 <1>. USE DEF FiniteKnownObjects, UnknownObject
@@ -48,13 +48,9 @@ LEMMA LemFiniteKnownObjects == Init /\ [][Next]_vars => []FiniteKnownObjects
             BY <2>1 DEF RegisterObjects
         <3>. QED
             BY <2>1, <3>1, FS_Union DEF RegisterObjects
-    <2>2. ASSUME NEW O \in SUBSET Object,
-                 TargetObjects(O) \/ UntargetObjects(O) \/ FinalizeObjects(O)
-          PROVE  (Object \ UnknownObject)' = Object \ UnknownObject
-        BY <2>2 DEF FinalizeObjects, RegisteredObject, TargetObjects,
-            UntargetObjects
     <2>. QED
-        BY <2>1, <2>2 DEF Next, vars
+        BY <2>1 DEF FinalizeObjects, Next, RegisteredObject, TargetObjects,
+            UntargetObjects, vars
 <1>. QED
     BY <1>1, <1>2, PTL
 
@@ -85,8 +81,8 @@ BY LemFiniteKnownObjects, LemTargetValidity, LemTypeOk, PTL DEF Inv
 LEMMA LemPermanentFinalization ==
     ASSUME NEW o \in Object, [Next]_vars
     PROVE  o \in FinalizedObject => (o \in FinalizedObject)'
-BY DEF FinalizedObject, FinalizeObjects, Next, RegisteredObject,
-    RegisterObjects, TargetObjects, UnknownObject, UntargetObjects, vars
+BY DEF FinalizedObject, FinalizeObjects, Next, RegisterObjects,
+    TargetObjects, UnknownObject, UntargetObjects, vars
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -95,10 +91,9 @@ BY DEF FinalizedObject, FinalizeObjects, Next, RegisteredObject,
 
 (**
  * The fairness condition restated without ENABLED, which a substitution does
- * not distribute over: a refinement proves the instantiated
- * FairFinalizeObjects(o) and recovers the instantiated Fairness through
- * LemFairnessEnabledFree. Finalizing a targeted object is enabled exactly
- * when the object is registered.
+ * not distribute over: a refinement proves the instantiated restatement and
+ * recovers the instantiated Fairness through LemFairnessEnabledFree. Each
+ * Enabled predicate holds exactly when its fair action is enabled.
  *)
 EnabledFinalizeObjects(o) == o \in objectTargets /\ o \in RegisteredObject
 
@@ -124,29 +119,36 @@ LEMMA LemFairnessEnabledFree ==
 (*                                  LIVENESS                                  *)
 (******************************************************************************)
 
+(**
+ * ----
+ * Rule: WF1 on FinalizeObjects({o}).
+ *)
 LEMMA LemEventualTargetFinalization ==
     ASSUME NEW o \in Object
     PROVE  []Inv /\ [][Next]_vars /\ FairFinalizeObjects(o)
            => EventualTargetFinalization!At(o)
-<1>1. Inv /\ o \in objectTargets /\ ~(o \in FinalizedObject)
+<1>1. Inv /\ o \in objectTargets /\ ~ (o \in FinalizedObject)
         => EnabledFinalizeObjects(o)
     BY DEF EnabledFinalizeObjects, FinalizedObject, Inv, O1State,
         RegisteredObject, TargetValidity, TypeOk, UnknownObject
 <1>2. <<o \in objectTargets /\ FinalizeObjects({o})>>_vars
         => (o \in FinalizedObject)'
     BY DEF FinalizedObject, FinalizeObjects, vars
-<1>3. o \in FinalizedObject /\ [Next]_vars => (o \in FinalizedObject)'
-    BY LemPermanentFinalization
 <1>. QED
-    BY <1>1, <1>2, <1>3, PTL DEF FairFinalizeObjects
+    BY <1>1, <1>2, LemPermanentFinalization, PTL DEF FairFinalizeObjects
 
+(**
+ * ----
+ * Rule: TL_EventuallyAlwaysForallStationary over the targets, then
+ * TL_FiniteSetDescent over the registered objects. Each object targeted
+ * forever is eventually finalized for good (1). Once the user stops, the
+ * finitely many targets freeze, so they eventually stay finalized together
+ * (2). A step then only finalizes registered objects, finitely many: the
+ * state freezes (3).
+ *)
 LEMMA LemEventualQuiescence ==
     []Inv /\ [][Next]_vars /\ (\A o \in Object : FairFinalizeObjects(o))
     => EventualQuiescence
-(* Each object targeted forever is eventually finalized for good (1). Once
-   the user stops, the finitely many targets freeze, so they eventually stay
-   finalized together (2). A step then only finalizes registered objects,
-   finitely many: the state freezes (3). *)
 <1>1. []Inv /\ [][Next]_vars /\ (\A o \in Object : FairFinalizeObjects(o))
       => EventualTargetFinalization
     BY LemEventualTargetFinalization DEF EventualTargetFinalization
@@ -155,8 +157,8 @@ LEMMA LemEventualQuiescence ==
       /\ <>[][NoUserAction]_vars
       /\ EventualTargetFinalization
       => <>[]Idle
-    (* tlapm: TL_EventuallyAlwaysForallStationary is cited at the bound names
-       S, G and x. *)
+    (* tlapm: TL_EventuallyAlwaysForallStationary is cited at its parameter
+       names S, G. *)
     <2>. DEFINE S == objectTargets
                 G(x) == x \in FinalizedObject
     <2>1. [Next]_vars /\ [NoUserAction]_vars => [FALSE]_S
@@ -165,7 +167,7 @@ LEMMA LemEventualQuiescence ==
         BY FS_Subset DEF FiniteKnownObjects, Inv, TargetValidity, TypeOk
     <2>3. []Inv /\ <>[][FALSE]_S /\ EventualTargetFinalization
           => \A x : <>[](x \in S => G(x))
-        (* tlapm: a temporal formula under a binder is folded. *)
+        (* tlapm: a temporal formula under a binder needs a hidden name. *)
         <3>. DEFINE Final(o) == EventualTargetFinalization!At(o)
         <3>1. ASSUME NEW x \in Object
               PROVE  <>[][FALSE]_S /\ Final(x) => <>[](x \in S => G(x))
@@ -173,9 +175,9 @@ LEMMA LemEventualQuiescence ==
                 OBVIOUS
             <4>. QED
                 BY <4>1, PTL
-        <3>2. ASSUME NEW x, ~(x \in Object)
+        <3>2. ASSUME NEW x, x \notin Object
               PROVE  []Inv => <>[](x \in S => G(x))
-            <4>1. Inv => ~(x \in S)
+            <4>1. Inv => ~ (x \in S)
                 BY <3>2 DEF Inv, TypeOk
             <4>. QED
                 BY <4>1, PTL
@@ -190,12 +192,11 @@ LEMMA LemEventualQuiescence ==
     <2>. QED
         BY <2>1, <2>2, <2>3, <2>4, TL_EventuallyAlwaysForallStationary, PTL
 <1>3. []Inv /\ [][Next]_vars /\ <>[][NoUserAction]_vars => <>[][FALSE]_vars
-    (* tlapm: TL_FiniteSetDescent is cited at the bound name S. *)
+    (* tlapm: TL_FiniteSetDescent is cited at its parameter name S. *)
     <2>. DEFINE S == RegisteredObject
     <2>1. [Next]_vars /\ [NoUserAction]_vars
             => [S' \subseteq S]_S /\ ([FALSE]_S => [FALSE]_vars)
-        BY DEF FinalizeObjects, Next, NoUserAction, RegisteredObject,
-            RegisterObjects, TargetObjects, UnknownObject, UntargetObjects, vars
+        BY DEF FinalizeObjects, Next, NoUserAction, RegisteredObject, vars
     <2>2. Inv => IsFiniteSet(S)
         BY FS_Subset DEF FiniteKnownObjects, Inv, RegisteredObject,
             UnknownObject
@@ -220,25 +221,18 @@ THEOREM ThmFiniteKnownObjects == Spec => []FiniteKnownObjects
 BY LemFiniteKnownObjects DEF Spec
 
 THEOREM ThmPermanentFinalization == Spec => PermanentFinalization
-<1>. SUFFICES
-        ASSUME NEW o \in Object
-        PROVE  Spec => [](o \in FinalizedObject => [](o \in FinalizedObject))
+<1>. SUFFICES ASSUME NEW o \in Object
+              PROVE  Spec
+                     => [](o \in FinalizedObject => [](o \in FinalizedObject))
     BY DEF PermanentFinalization
-<1>1. [Next]_vars => (o \in FinalizedObject => (o \in FinalizedObject)')
-    BY LemPermanentFinalization
 <1>. QED
-    BY <1>1, PTL DEF Spec
+    BY LemPermanentFinalization, PTL DEF Spec
 
 THEOREM ThmEventualTargetFinalization == Spec => EventualTargetFinalization
-<1>. SUFFICES ASSUME NEW o \in Object
-              PROVE  Spec => EventualTargetFinalization!At(o)
-    BY DEF EventualTargetFinalization
-<1>1. Fairness => FairFinalizeObjects(o)
-    BY LemFairnessEnabledFree, Isa
-<1>. QED
-    BY <1>1, LemEventualTargetFinalization, LemInv, PTL DEF Spec
+BY LemEventualTargetFinalization, LemFairnessEnabledFree, LemInv
+    DEF EventualTargetFinalization, Spec
 
 THEOREM ThmEventualQuiescence == Spec => EventualQuiescence
-BY LemEventualQuiescence, LemFairnessEnabledFree, LemInv, PTL DEF Spec
+BY LemEventualQuiescence, LemFairnessEnabledFree, LemInv DEF Spec
 
 ================================================================================

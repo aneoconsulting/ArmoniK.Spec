@@ -55,10 +55,9 @@ LEMMA LemPermanentFinalization ==
 
 (**
  * The fairness condition restated without ENABLED, which a substitution does
- * not distribute over: a refinement proves the instantiated
- * FairFinalizeObjects(o) and recovers the instantiated Fairness through
- * LemFairnessEnabledFree. Finalizing a targeted object is enabled exactly
- * when the object is registered.
+ * not distribute over: a refinement proves the instantiated restatement and
+ * recovers the instantiated Fairness through LemFairnessEnabledFree. Each
+ * Enabled predicate holds exactly when its fair action is enabled.
  *)
 EnabledFinalizeObjects(o) == o \in objectTargets /\ o \in RegisteredObject
 
