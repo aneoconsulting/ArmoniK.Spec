@@ -14,30 +14,22 @@ EXTENDS Graph2
  * Under the instance, the graph operators of Graph1 denote those of Graph2.
  *)
 LEMMA LemG1Bridges ==
-    /\ \A G, n : Predecessor(G, n) = G1!Predecessor(G, n)
-    /\ \A G, n : Successor(G, n) = G1!Successor(G, n)
-    /\ \A G : Source(G) = G1!Source(G)
-    /\ \A G : Sink(G) = G1!Sink(G)
-    /\ \A G, H : GraphUnion(G, H) = G1!GraphUnion(G, H)
-    /\ EmptyGraph = G1!EmptyGraph
-    /\ \A G : IsDirectedGraph(G) <=> G1!IsDirectedGraph(G)
-    /\ \A G, U, V :
-           IsBipartiteWithPartitions(G, U, V)
-           <=> G1!IsBipartiteWithPartitions(G, U, V)
-    /\ \A G : IsDag(G) <=> G1!IsDag(G)
-    /\ \A G, T, O : IsDDGraph(G, T, O) <=> G1!IsDDGraph(G, T, O)
-    /\ \A S : IsFiniteSet(S) <=> G1!IsFiniteSet(S)
-    /\ \A S : DirectedGraphOf(S) = G1!DirectedGraphOf(S)
-    /\ \A G : DirectedSubgraph(G) = G1!DirectedSubgraph(G)
+    /\ \A G, n : G1!Predecessor(G, n) = Predecessor(G, n)
+    /\ \A G, n : G1!Successor(G, n) = Successor(G, n)
+    /\ \A G : G1!Source(G) = Source(G)
+    /\ \A G, H : G1!GraphUnion(G, H) = GraphUnion(G, H)
+    /\ \A G, T, O : G1!IsDDGraph(G, T, O) <=> IsDDGraph(G, T, O)
+    /\ \A S : G1!IsFiniteSet(S) <=> IsFiniteSet(S)
+    /\ \A S : G1!DirectedGraphOf(S) = DirectedGraphOf(S)
+    /\ \A G : G1!DirectedSubgraph(G) = DirectedSubgraph(G)
 
 (**
  * Under the instance, the operators of Task2 denote those of Graph2.
  *)
 LEMMA LemT2Bridges ==
-    /\ \A S, T : Bijection(S, T) = T2!Bijection(S, T)
-    /\ \A S : IsFiniteSet(S) <=> T2!IsFiniteSet(S)
-    /\ \A S : Cardinality(S) = T2!Cardinality(S)
-    /\ \A t \in Task : PreviousAttempts(t) = T2!PreviousAttempts(t)
+    /\ \A S, T : T2!Bijection(S, T) = Bijection(S, T)
+    /\ \A S : T2!Cardinality(S) = Cardinality(S)
+    /\ \A t \in Task : T2!PreviousAttempts(t) = PreviousAttempts(t)
 
 (**
  * The assumptions of Graph2 imply those of Graph1.
@@ -58,18 +50,18 @@ LEMMA LemT2Assumptions == T2!Assumptions
  * The sets of tasks and objects of Graph1 under the refinement mappings.
  *)
 LEMMA LemG1BarStates ==
-    ASSUME TypeOk
-    PROVE  /\ G1!UnknownTask = UnknownTask
-           /\ G1!RegisteredTask = RegisteredTask
-           /\ G1!StagedTask = StagedTask
-           /\ G1!AssignedTask = AssignedTask
-           /\ G1!ProcessedTask
-                = UNION {SucceededTask, DiscardedTask, FailedTask}
-           /\ G1!FinalizedTask
-                = UNION {CompletedTask, AbortedTask, RetriedTask}
-           /\ G1!UnknownObject = UnknownObject
-           /\ G1!RegisteredObject = RegisteredObject
-           /\ G1!FinalizedObject = CompletedObject \union AbortedObject
+    /\ G1!UnknownTask = UnknownTask
+    /\ G1!RegisteredTask = RegisteredTask
+    /\ G1!StagedTask = StagedTask
+    /\ G1!AssignedTask = AssignedTask
+    /\ G1!UnknownObject = UnknownObject
+    /\ G1!RegisteredObject = RegisteredObject
+    /\ TypeOk
+       => /\ G1!ProcessedTask
+                = UNION {SucceededTask, FailedTask, DiscardedTask}
+          /\ G1!FinalizedTask
+                = UNION {CompletedTask, RetriedTask, AbortedTask}
+          /\ G1!FinalizedObject = CompletedObject \union AbortedObject
 
 (**
  * The refinement mappings are unchanged when the states are.
@@ -84,8 +76,8 @@ LEMMA LemBarStutter ==
  *)
 LEMMA LemG1OpenAncestry ==
     ASSUME TypeOk
-    PROVE  /\ \A n : IsOpenNode(n) <=> G1!IsOpenNode(n)
-           /\ \A o : OA(o) = G1!OA(o)
+    PROVE  /\ \A n : G1!IsOpenNode(n) <=> IsOpenNode(n)
+           /\ \A o : G1!OA(o) = OA(o)
 
 (**
  * Under the instance, the invariants of Graph1 about the dependency graph
@@ -113,23 +105,15 @@ LEMMA LemDepsChangeRegistersGraph ==
  *)
 LEMMA LemDepsMonotone ==
     [Next]_vars
-    => deps.node \subseteq deps'.node /\ deps.edge \subseteq deps'.edge
+    => /\ deps.node \subseteq deps'.node
+       /\ deps.edge \subseteq deps'.edge
 
 (**
  * The producers of an object are tasks.
  *)
 LEMMA LemProducersAreTasks ==
     ASSUME NEW o \in Object
-    PROVE  TypeOk /\ G1!DepsCompliant
-           => Predecessor(deps, o) \subseteq Task
-
-(**
- * The outputs of a task are objects.
- *)
-LEMMA LemOutputsAreObjects ==
-    ASSUME NEW t \in Task
-    PROVE  TypeOk /\ G1!DepsCompliant
-           => Successor(deps, t) \subseteq Object
+    PROVE  G1!DepsCompliant => Predecessor(deps, o) \subseteq Task
 
 (**
  * The open ancestry of an object that eventually stops growing eventually
@@ -139,14 +123,6 @@ LEMMA LemUpstreamStabilizationNodeSets ==
     ASSUME NEW o \in Object
     PROVE  UpstreamStabilization!At(o)
            => <>[][(OA(o).node)' \subseteq OA(o).node]_vars
-
-(**
- * The liveness assumption holds at every suffix of a behavior where it
- * holds. A lemma of its own: tlapm matches the temporal formulas under its
- * quantifier by bound name, which a proof about an object 'o' would shadow.
- *)
-LEMMA LemUpstreamStabilizationStable ==
-    UpstreamStabilization => []UpstreamStabilization
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -163,7 +139,7 @@ LEMMA LemTypeOk == Init /\ [][Next]_vars => []TypeOk
 LEMMA LemInitSimulateG1Init == Init => G1!Init
 
 LEMMA LemRegisterGraphSimulateG1RegisterGraph ==
-    ASSUME NEW G \in DirectedGraphOf(Task \union Object)
+    ASSUME NEW G
     PROVE  TypeOk /\ RegisterGraph(G) => G1!RegisterGraph(G)
 
 LEMMA LemTargetObjectsSimulateG1TargetObjects ==
@@ -204,22 +180,22 @@ LEMMA LemStageTasksSimulateG1StageTasks ==
  *)
 LEMMA LemDiscardTasksSimulateG1DiscardTasks ==
     ASSUME NEW T \in SUBSET Task
-    PROVE  TypeOk /\ DiscardTasks(T) => G1!DiscardTasks(T)
+    PROVE  DiscardTasks(T) => G1!DiscardTasks(T)
 
 LEMMA LemAssignTasksSimulateG1AssignTasks ==
     ASSUME NEW T \in SUBSET Task
-    PROVE  TypeOk /\ AssignTasks(T) => G1!AssignTasks(T)
+    PROVE  AssignTasks(T) => G1!AssignTasks(T)
 
 LEMMA LemReleaseTasksSimulateG1ReleaseTasks ==
     ASSUME NEW T \in SUBSET Task
-    PROVE  TypeOk /\ ReleaseTasks(T) => G1!ReleaseTasks(T)
+    PROVE  ReleaseTasks(T) => G1!ReleaseTasks(T)
 
 (**
  * Each outcome of processing is the processed state of Graph1.
  *)
 LEMMA LemProcessTasksSimulateG1ProcessTasks ==
     ASSUME NEW T \in SUBSET Task
-    PROVE  TypeOk /\ ProcessTasks(T) => G1!ProcessTasks(T)
+    PROVE  ProcessTasks(T) => G1!ProcessTasks(T)
 
 (**
  * Completing a task finalizes it.
@@ -254,9 +230,9 @@ LEMMA LemInitSimulateO2Init == Init => O2!Init
  * states unchanged when it has none.
  *)
 LEMMA LemRegisterGraphSimulateO2RegisterObjects ==
-    ASSUME NEW G \in DirectedGraphOf(Task \union Object)
+    ASSUME NEW G
     PROVE  TypeOk /\ RegisterGraph(G)
-           => [O2!RegisterObjects(G.node \intersect UnknownObject)]_(O2!vars)
+           => [O2!RegisterObjects(G.node \intersect UnknownObject)]_O2!vars
 
 LEMMA LemTargetObjectsSimulateO2TargetObjects ==
     ASSUME NEW O \in SUBSET Object
@@ -319,9 +295,9 @@ LEMMA LemInitSimulateT2Init == Init => T2!Init
  * unchanged when it has none.
  *)
 LEMMA LemRegisterGraphSimulateT2RegisterTasks ==
-    ASSUME NEW G \in DirectedGraphOf(Task \union Object)
+    ASSUME NEW G
     PROVE  TypeOk /\ RegisterGraph(G)
-           => [T2!RegisterTasks(G.node \intersect Task)]_(T2!vars)
+           => [T2!RegisterTasks(G.node \intersect Task)]_T2!vars
 
 LEMMA LemTargetObjectsSimulateT2Stuttering ==
     ASSUME NEW O \in SUBSET Object
@@ -382,6 +358,10 @@ LEMMA LemNextSimulateT2Next == TypeOk /\ [Next]_vars => [T2!Next]_T2!vars
 (*                               LIFTED SAFETY                                *)
 (******************************************************************************)
 
+LEMMA LemO2Inv == Init /\ [][Next]_vars => []O2!Inv
+
+LEMMA LemT2Inv == Init /\ [][Next]_vars => []T2!Inv
+
 (**
  * Lifted from Task2: the lifecycle of a task only moves forward.
  *)
@@ -389,54 +369,16 @@ LEMMA LemT2TaskStateStable ==
     ASSUME NEW t \in Task, TypeOk, [Next]_vars
     PROVE  /\ taskState[t] \in {TASK_SUCCEEDED, TASK_COMPLETED}
               => taskState'[t] \in {TASK_SUCCEEDED, TASK_COMPLETED}
-           /\ taskState[t] \in {TASK_DISCARDED, TASK_ABORTED}
-              => taskState'[t] \in {TASK_DISCARDED, TASK_ABORTED}
            /\ taskState[t] \in {TASK_FAILED, TASK_RETRIED}
               => taskState'[t] \in {TASK_FAILED, TASK_RETRIED}
-           /\ taskState[t] \in {TASK_DISCARDED, TASK_COMPLETED, TASK_ABORTED,
-                                TASK_RETRIED}
-              => taskState'[t] \in {TASK_DISCARDED, TASK_COMPLETED,
-                                    TASK_ABORTED, TASK_RETRIED}
-           /\ taskState[t] \in {TASK_COMPLETED, TASK_ABORTED, TASK_RETRIED}
+           /\ taskState[t] \in {TASK_DISCARDED, TASK_ABORTED}
+              => taskState'[t] \in {TASK_DISCARDED, TASK_ABORTED}
+           /\ taskState[t] \in {TASK_COMPLETED, TASK_RETRIED, TASK_ABORTED}
               => taskState'[t] = taskState[t]
 
 (**
- * Lifted from Task2: a succeeded task stays succeeded or is completed, a
- * discarded task stays discarded or is aborted, and a completed or aborted
- * task, neither succeeded nor discarded, keeps its state. Stated with the atoms
- * of the PTL steps of LemCompleteAbortTasksEventuallyEnabled and
- * LemPreserveG1WFFinalizeObjects, which cite it.
- *)
-LEMMA LemT2PermanentOutcome ==
-    ASSUME NEW t \in Task, TypeOk, [Next]_vars
-    PROVE  /\ t \in SucceededTask
-              => (t \in SucceededTask)' \/ (t \in CompletedTask)'
-           /\ t \in DiscardedTask
-              => (t \in DiscardedTask)' \/ (t \in AbortedTask)'
-           /\ t \in CompletedTask => (t \in CompletedTask)'
-           /\ t \in AbortedTask => (t \in AbortedTask)'
-           /\ t \in CompletedTask \/ t \in AbortedTask
-              => ~ (t \in SucceededTask) /\ ~ (t \in DiscardedTask)
-
-(**
- * Lifted from Object2: completed and aborted objects keep their state.
- *)
-LEMMA LemO2PermanentFinalization ==
-    ASSUME NEW o \in Object, TypeOk, [Next]_vars
-    PROVE  /\ o \in CompletedObject => (o \in CompletedObject)'
-           /\ o \in AbortedObject => (o \in AbortedObject)'
-
-(**
- * Lifted from Task2: a recorded next attempt is never overwritten.
- *)
-LEMMA LemT2NextAttemptFrozen ==
-    ASSUME NEW t \in Task
-    PROVE  TypeOk /\ nextAttemptOf[t] /= NULL /\ [Next]_vars
-           => nextAttemptOf'[t] = nextAttemptOf[t]
-
-(**
- * Lifted from Graph1: no step changes the inputs or the outputs of a known
- * task.
+ * Lifted from Graph1: the inputs and the outputs of a known task are
+ * unchanged at every step.
  *)
 LEMMA LemG1ImmutableTaskDependencies ==
     ASSUME NEW t \in Task, TypeOk, G1!Inv, GraphStateIntegrity, [Next]_vars
@@ -444,9 +386,14 @@ LEMMA LemG1ImmutableTaskDependencies ==
             => /\ Predecessor(deps, t) = Predecessor(deps', t)
                /\ Successor(deps, t) = Successor(deps', t)]_deps
 
-LEMMA LemO2Inv == Init /\ [][Next]_vars => []O2!Inv
-
-LEMMA LemT2Inv == Init /\ [][Next]_vars => []T2!Inv
+(**
+ * Lifted from Object2: completed and aborted objects keep their state at
+ * every step.
+ *)
+LEMMA LemO2PermanentFinalization ==
+    ASSUME NEW o \in Object, TypeOk, [Next]_vars
+    PROVE  /\ o \in CompletedObject => (o \in CompletedObject)'
+           /\ o \in AbortedObject => (o \in AbortedObject)'
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -508,7 +455,7 @@ LEMMA LemPermanentFinalizedSource ==
               => (o \in Source(deps) /\ o \in AbortedObject)'
 
 (**
- * No step changes the producers of an aborted object.
+ * The producers of an aborted object are unchanged at every step.
  *)
 LEMMA LemAbortedObjectProducersFrozen ==
     ASSUME NEW o \in Object, Inv, [Next]_vars
@@ -545,7 +492,7 @@ LEMMA LemProducersFrozenUnderQuiescence ==
  * The fairness conditions restated without ENABLED, which a substitution does
  * not distribute over: a refinement proves the instantiated restatements and
  * recovers the instantiated Fairness through LemFairnessEnabledFree. Each
- * Enabled predicate is the enabledness of its action, written out.
+ * Enabled predicate holds exactly when its fair action is enabled.
  *)
 EnabledCompleteObjects(o) ==
     /\ o \in RegisteredObject
@@ -559,8 +506,8 @@ EnabledAbortObjects(o) ==
     /\ o \in RegisteredObject
     /\ \/ o \in Source(deps)
        \/ /\ Predecessor(deps, o)
-                \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask,
-                                 RetriedTask}
+                \subseteq UNION {DiscardedTask, CompletedTask, RetriedTask,
+                                 AbortedTask}
           /\ \E t \in Predecessor(deps, o) : t \in DiscardedTask
 
 FairAbortObjects(o) ==
@@ -576,7 +523,7 @@ FairSetTaskRetries(t) ==
 
 EnabledRegisterRetryGraph(t) ==
     LET
-        G == RetrySubGraph(deps, t, nextAttemptOf[t])
+        G == RetrySubgraph(deps, t, nextAttemptOf[t])
     IN
         /\ IsFiniteSet(G.node)
         /\ G.node \intersect Task \subseteq UnknownTask
@@ -586,9 +533,9 @@ EnabledRegisterRetryGraph(t) ==
                     \intersect CompletedObject = {}
         /\ IsDDGraph(GraphUnion(deps, G), Task, Object)
         /\ \A s \in Task :
-            nextAttemptOf[s] /= NULL /\ nextAttemptOf[s] \in G.node =>
-                /\ Predecessor(G, nextAttemptOf[s]) = Predecessor(deps, s)
-                /\ Successor(G, nextAttemptOf[s]) = Successor(deps, s)
+            nextAttemptOf[s] /= NULL /\ nextAttemptOf[s] \in G.node
+                => /\ Predecessor(G, nextAttemptOf[s]) = Predecessor(deps, s)
+                   /\ Successor(G, nextAttemptOf[s]) = Successor(deps, s)
         /\ \/ GraphUnion(deps, G) /= deps
            \/ [o \in Object |->
                   IF o \in G.node \intersect UnknownObject
@@ -601,7 +548,7 @@ EnabledRegisterRetryGraph(t) ==
 
 FairRegisterRetryGraph(t) ==
     <>[]EnabledRegisterRetryGraph(t)
-        => []<><<RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t]))>>_vars
+        => []<><<RegisterGraph(RetrySubgraph(deps, t, nextAttemptOf[t]))>>_vars
 
 EnabledStageTasks(t) ==
     /\ t \in RegisteredTask
@@ -621,8 +568,8 @@ EnabledCompleteTasks(t) ==
     /\ \A o \in Successor(deps, t) :
         o \in RegisteredObject
             => \E u \in (Predecessor(deps, o) \ {t}) :
-                u \notin UNION {CompletedTask, AbortedTask, RetriedTask,
-                                FailedTask}
+                u \notin UNION {FailedTask, CompletedTask, RetriedTask,
+                                AbortedTask}
 
 FairCompleteTasks(t) ==
     <>[]EnabledCompleteTasks(t) => []<><<CompleteTasks({t})>>_vars
@@ -632,15 +579,15 @@ EnabledAbortTasks(t) ==
     /\ \A o \in Successor(deps, t) :
         o \in RegisteredObject
             => \E u \in (Predecessor(deps, o) \ {t}) :
-                u \notin UNION {CompletedTask, AbortedTask, RetriedTask,
-                                FailedTask}
+                u \notin UNION {FailedTask, CompletedTask, RetriedTask,
+                                AbortedTask}
 
 FairAbortTasks(t) ==
     <>[]EnabledAbortTasks(t) => []<><<AbortTasks({t})>>_vars
 
 EnabledRetryTasks(t) ==
-    /\ t \in FailedTask
-    /\ nextAttemptOf[t] \notin UnknownTask \union {NULL}
+    /\ t \in FailedTask \intersect LinkedTask
+    /\ nextAttemptOf[t] \notin UnknownTask
 
 FairRetryTasks(t) ==
     <>[]EnabledRetryTasks(t) => []<><<RetryTasks({t})>>_vars
@@ -665,7 +612,7 @@ FairAssignForTarget(t, o) ==
 
 LEMMA LemFairnessEnabledFree ==
     Fairness
-    <=> /\ \A o \in Object : FairCompleteObjects(o) /\ FairAbortObjects(o)
+    <=> /\ \A x \in Object : FairCompleteObjects(x) /\ FairAbortObjects(x)
         /\ \A t \in Task :
                /\ FairSetTaskRetries(t)
                /\ FairRegisterRetryGraph(t)
@@ -677,25 +624,10 @@ LEMMA LemFairnessEnabledFree ==
         /\ \A t \in Task, o \in Object :
                FairDiscardOnAbortedInput(t, o) /\ FairAssignForTarget(t, o)
 
-(**
- * Once it holds, the fairness of the completion and of the abortion of every
- * object holds forever. Here rather than with the helper lemmas: its
- * statement uses the restatements above.
- *)
-LEMMA LemFairObjectFinalizationStable ==
-    (\A x \in Object : FairCompleteObjects(x) /\ FairAbortObjects(x))
-    => [](\A x \in Object : FairCompleteObjects(x) /\ FairAbortObjects(x))
-
 --------------------------------------------------------------------------------
 (******************************************************************************)
-(*                      FAIRNESS PRESERVATION / LIVENESS                      *)
+(*                           FAIRNESS PRESERVATION                            *)
 (******************************************************************************)
-
-(**
- * One section, as the two depend on each other: several preservations rest
- * on liveness lemmas stated before them, and the liveness of Object2 and
- * Graph2 rests on the preserved fairness.
- *)
 
 (**
  * The strong fairness of the processing of a task in Graph1 holds under
@@ -712,31 +644,21 @@ LEMMA LemPreserveG1SFProcessTasks ==
  * input that stays registered in the open ancestry of the target is
  * discarded, so the task eventually has no aborted input.
  *)
-LEMMA LemPreserveG1WFStageTasks ==
+LEMMA LemPreserveG1WFStageForTarget ==
     ASSUME NEW t \in Task, NEW o \in Object
     PROVE  /\ []Inv
            /\ [][Next]_vars
            /\ FairStageTasks(t)
            /\ FairDiscardOnAbortedInput(t, o)
-           => G1!FairStageTasks(t, o)
+           => G1!FairStageForTarget(t, o)
 
 (**
  * The weak fairness of the assignment of a task in the open ancestry of a
  * target in Graph1 holds under Graph2, where it is the same action.
  *)
-LEMMA LemPreserveG1WFAssignTasks ==
+LEMMA LemPreserveG1WFAssignForTarget ==
     ASSUME NEW t \in Task, NEW o \in Object
-    PROVE  []Inv /\ FairAssignForTarget(t, o) => G1!FairAssignTasks(t, o)
-
-(**
- * The liveness assumption of Graph1 for an object holds under Graph2, where
- * the open ancestries coincide and the assumption holds for every object,
- * targeted or not.
- *)
-LEMMA LemPreserveG1UpstreamStabilization ==
-    ASSUME NEW o \in Object
-    PROVE  []Inv /\ UpstreamStabilization!At(o)
-           => G1!UpstreamStabilization!At(o)
+    PROVE  []Inv /\ FairAssignForTarget(t, o) => G1!FairAssignForTarget(t, o)
 
 (**
  * The weak fairness of the linking of a failed task to a next attempt in
@@ -786,7 +708,9 @@ LEMMA LemPreserveT2WFRetryTasks ==
     PROVE  FairRetryTasks(t) => T2!FairRetryTasks(t)
 
 (**
- * Lifted from Task2: a failed task is eventually retried.
+ * Lifted from Task2: a failed task is eventually retried. Here rather than
+ * with the helper lemmas: it is a liveness result, which assumes fairness
+ * restatements.
  *)
 LEMMA LemT2EventualFinalizationFailed ==
     ASSUME NEW t \in Task
@@ -798,10 +722,13 @@ LEMMA LemT2EventualFinalizationFailed ==
            => t \in FailedTask ~> t \in RetriedTask
 
 (**
- * While an object stays registered and its open ancestry never grows, none of
- * its producers eventually stays failed: the producers are a fixed finite set,
- * each of which is eventually retried. Not a property: shared by
- * LemCompleteAbortTasksEventuallyEnabled and LemPreserveG1WFFinalizeObjects.
+ * If an object eventually stays registered and its open ancestry eventually
+ * stops growing, eventually none of its producers is failed: the producers are
+ * eventually a fixed finite set, each of which is eventually retried. Not a
+ * property, and not a step of its citer LemCompleteAbortTasksEventuallyEnabled:
+ * both cite TL_EventuallyAlwaysForallStationary at its parameter names. Here
+ * rather than with the helper lemmas: it is a liveness result, which assumes
+ * fairness restatements.
  *)
 LEMMA LemNoFailedProducersUnderQuiescence ==
     ASSUME NEW o \in Object
@@ -811,23 +738,27 @@ LEMMA LemNoFailedProducersUnderQuiescence ==
                   /\ FairSetTaskRetries(x)
                   /\ FairRegisterRetryGraph(x)
                   /\ FairRetryTasks(x)
-           /\ [](o \in RegisteredObject)
-           /\ [][(OA(o).node)' \subseteq OA(o).node]_vars
+           /\ <>[](o \in RegisteredObject)
+           /\ <>[][(OA(o).node)' \subseteq OA(o).node]_vars
            => <>[](\A x \in Task :
                        ~ (x \in Predecessor(deps, o) /\ x \in FailedTask))
 
 (**
  * A task that is succeeded or discarded is eventually for good completable
  * or abortable: each registered output keeps another producer that can still
- * produce it. The task eventually stays succeeded or discarded, or neither;
+ * finalize it. The task eventually stays succeeded or discarded, or neither;
  * in the first two cases its outputs are a fixed finite set, each of which
- * is retained.
+ * is retained. Not a property: shared by LemPreserveT2WFCompleteTasks,
+ * LemPreserveT2WFAbortTasks, LemPreserveG1WFFinalizeObjects and
+ * LemPreserveG1WFFinalizeTasks, and lifted by Graph3. Here rather than with
+ * the helper lemmas: it is a liveness result, which assumes fairness
+ * restatements.
  *)
 LEMMA LemCompleteAbortTasksEventuallyEnabled ==
     ASSUME NEW t \in Task
     PROVE  /\ []Inv
            /\ [][Next]_vars
-           /\ \A o \in Object : FairCompleteObjects(o) /\ FairAbortObjects(o)
+           /\ \A x \in Object : FairCompleteObjects(x) /\ FairAbortObjects(x)
            /\ \A x \in Task :
                   /\ FairSetTaskRetries(x)
                   /\ FairRegisterRetryGraph(x)
@@ -837,35 +768,14 @@ LEMMA LemCompleteAbortTasksEventuallyEnabled ==
                    /\ t \in DiscardedTask => EnabledAbortTasks(t))
 
 (**
- * The weak fairness of the finalization of a task in Graph1 holds under
- * Graph2: a finalizable task of Graph1 is succeeded, discarded or failed. A
- * failed task is eventually retried, and a succeeded or discarded one is
- * eventually for good completable or abortable.
- *)
-LEMMA LemPreserveG1WFFinalizeTasks ==
-    ASSUME NEW t \in Task
-    PROVE  /\ []Inv
-           /\ [][Next]_vars
-           /\ \A o \in Object : FairCompleteObjects(o) /\ FairAbortObjects(o)
-           /\ \A x \in Task :
-                  /\ FairSetTaskRetries(x)
-                  /\ FairRegisterRetryGraph(x)
-                  /\ FairRetryTasks(x)
-           /\ FairCompleteTasks(t)
-           /\ FairAbortTasks(t)
-           /\ UpstreamStabilization
-           => G1!FairFinalizeTasks(t)
-
-(**
  * The weak fairness of the completion of a task in Task2 holds under
- * Graph2, where it is the same action: a succeeded task is eventually for
- * good completable.
+ * Graph2: a succeeded task is eventually for good completable.
  *)
 LEMMA LemPreserveT2WFCompleteTasks ==
     ASSUME NEW t \in Task
     PROVE  /\ []Inv
            /\ [][Next]_vars
-           /\ \A o \in Object : FairCompleteObjects(o) /\ FairAbortObjects(o)
+           /\ \A x \in Object : FairCompleteObjects(x) /\ FairAbortObjects(x)
            /\ \A x \in Task :
                   /\ FairSetTaskRetries(x)
                   /\ FairRegisterRetryGraph(x)
@@ -875,15 +785,14 @@ LEMMA LemPreserveT2WFCompleteTasks ==
            => T2!FairCompleteTasks(t)
 
 (**
- * The weak fairness of the abortion of a task in Task2 holds under Graph2,
- * where it is the same action: a discarded task is eventually for good
- * abortable.
+ * The weak fairness of the abortion of a task in Task2 holds under Graph2:
+ * a discarded task is eventually for good abortable.
  *)
 LEMMA LemPreserveT2WFAbortTasks ==
     ASSUME NEW t \in Task
     PROVE  /\ []Inv
            /\ [][Next]_vars
-           /\ \A o \in Object : FairCompleteObjects(o) /\ FairAbortObjects(o)
+           /\ \A x \in Object : FairCompleteObjects(x) /\ FairAbortObjects(x)
            /\ \A x \in Task :
                   /\ FairSetTaskRetries(x)
                   /\ FairRegisterRetryGraph(x)
@@ -894,8 +803,9 @@ LEMMA LemPreserveT2WFAbortTasks ==
 
 (**
  * The weak fairness of the finalization of an object in Graph1 holds under
- * Graph2: a finalizable object of Graph1 is registered with a root or a
- * succeeded, discarded or failed producer, and is then completed.
+ * Graph2: a finalizable object of Graph1 is a registered root, or a
+ * registered object with a succeeded, discarded or failed producer, and is
+ * then completed.
  *)
 LEMMA LemPreserveG1WFFinalizeObjects ==
     ASSUME NEW o \in Object
@@ -910,6 +820,36 @@ LEMMA LemPreserveG1WFFinalizeObjects ==
                   /\ FairRetryTasks(t)
            /\ UpstreamStabilization
            => G1!FairFinalizeObjects(o)
+
+(**
+ * The weak fairness of the finalization of a task in Graph1 holds under
+ * Graph2: a finalizable task of Graph1 is succeeded, discarded or failed. A
+ * failed task is eventually retried, and a succeeded or discarded one is
+ * eventually for good completable or abortable.
+ *)
+LEMMA LemPreserveG1WFFinalizeTasks ==
+    ASSUME NEW t \in Task
+    PROVE  /\ []Inv
+           /\ [][Next]_vars
+           /\ \A x \in Object : FairCompleteObjects(x) /\ FairAbortObjects(x)
+           /\ \A x \in Task :
+                  /\ FairSetTaskRetries(x)
+                  /\ FairRegisterRetryGraph(x)
+                  /\ FairRetryTasks(x)
+           /\ FairCompleteTasks(t)
+           /\ FairAbortTasks(t)
+           /\ UpstreamStabilization
+           => G1!FairFinalizeTasks(t)
+
+(**
+ * The liveness assumption of Graph1 for an object holds under Graph2, where
+ * the open ancestries coincide and the assumption holds for every object,
+ * targeted or not.
+ *)
+LEMMA LemPreserveG1UpstreamStabilization ==
+    ASSUME NEW o \in Object
+    PROVE  []Inv /\ UpstreamStabilization!At(o)
+           => G1!UpstreamStabilization!At(o)
 
 (**
  * The weak fairness of the completion of a target in Object2 holds under
@@ -932,6 +872,11 @@ LEMMA LemPreserveO2WFCompleteObjects ==
                   /\ FairAssignForTarget(t, o)
            /\ UpstreamStabilization
            => O2!FairCompleteObjects(o)
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                                  LIVENESS                                  *)
+(******************************************************************************)
 
 (**
  * Lifted from Object2: a target eventually stays completed or stays aborted.
@@ -1002,14 +947,14 @@ LEMMA LemUnderivableObjectsEventualAbortion ==
            => UnderivableObjectsEventualAbortion!At(o)
 
 (**
- * Lifted from Task2 and Object2: under user quiescence, a step of Graph2 is
+ * Lifted from Object2 and Task2: under user quiescence, a step of Graph2 is
  * quiescent in both, and it registers no graph once the task states no
  * longer change.
  *)
 LEMMA LemEventualQuiescence ==
     /\ []Inv
     /\ [][Next]_vars
-    /\ \A o \in Object : FairCompleteObjects(o) /\ FairAbortObjects(o)
+    /\ \A x \in Object : FairCompleteObjects(x) /\ FairAbortObjects(x)
     /\ \A t \in Task :
            /\ FairSetTaskRetries(t)
            /\ FairRegisterRetryGraph(t)
