@@ -110,6 +110,17 @@ IsOpenNode(n) ==
                     AbortedObject}
 
 (**
+ * A task 't' can still finalize its outputs, by producing or aborting them:
+ * it is neither finalized nor failed, or it is failed and its next attempt is
+ * not registered.
+ *)
+CanProduce(t) ==
+    \/ t \notin UNION {FailedTask, CompletedTask, RetriedTask, AbortedTask}
+    \/ /\ t \in FailedTask
+       /\ \/ nextAttemptOf[t] = NULL
+          \/ nextAttemptOf[t] \in UnknownTask
+
+(**
  * The open ancestry of object 'o': the subgraph of 'o' and of its ancestors
  * reachable through open nodes, which can still contribute to producing 'o'.
  * It is empty unless 'o' is an open node of the graph.
@@ -626,12 +637,43 @@ TypeOk ==
 
 (**
  * INVARIANT
- * A paused or halted task has completed inputs.
+ * The graph agrees with the lifecycle states. Its nodes are the known tasks
+ * and objects. A task that is staged, paused or halted, or that went further
+ * than staging without being discarded, has completed inputs. An object that
+ * is not a root is registered only while one of its producers can still
+ * finalize its outputs, by producing or aborting them. It is completed only
+ * once one of its producers has succeeded or is completed, and aborted only
+ * once one of them is discarded or aborted and all of them are discarded or
+ * finalized. Restated from Graph2, whose staged tasks are the staged, paused
+ * and halted ones.
  *)
 GraphStateIntegrity ==
-    \A t \in Task :
-        t \in PausedTask \union HaltedTask
-            => Predecessor(deps, t) \subseteq CompletedObject
+    /\ \A t \in Task : t \in deps.node <=> t \notin UnknownTask
+    /\ \A o \in Object : o \in deps.node <=> o \notin UnknownObject
+    /\ \A t \in Task :
+        \/ t \in StagedTask
+        \/ t \in PausedTask
+        \/ t \in HaltedTask
+        \/ t \in AssignedTask
+        \/ t \in SucceededTask
+        \/ t \in FailedTask
+        \/ t \in CompletedTask
+        \/ t \in RetriedTask
+        => Predecessor(deps, t) \subseteq CompletedObject
+    /\ \A o \in Object :
+        o \notin Source(deps) /\ o \in RegisteredObject
+           => \E t \in Predecessor(deps, o) : CanProduce(t)
+    /\ \A o \in Object :
+        o \notin Source(deps) /\ o \in CompletedObject
+           => Predecessor(deps, o)
+                \intersect (SucceededTask \union CompletedTask) /= {}
+    /\ \A o \in Object :
+        o \notin Source(deps) /\ o \in AbortedObject
+           => /\ Predecessor(deps, o)
+                    \intersect (DiscardedTask \union AbortedTask) /= {}
+              /\ Predecessor(deps, o)
+                    \subseteq UNION {DiscardedTask, CompletedTask,
+                                     RetriedTask, AbortedTask}
 
 (**
  * REFINEMENT
