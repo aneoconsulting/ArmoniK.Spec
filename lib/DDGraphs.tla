@@ -48,7 +48,7 @@ DDGraphOf(T, O) ==
  * by the ancestors of 'n' in the subgraph of 'G' that keeps only the nodes
  * satisfying 'Op'. It is empty when 'n' does not satisfy 'Op'.
  *)
-AncestorSubGraph(G, n, Op(_)) ==
+AncestorSubgraph(G, n, Op(_)) ==
     LET
         InducedNodes == {m \in G.node : Op(m)}
         InducedGraph ==
@@ -67,7 +67,7 @@ AncestorSubGraph(G, n, Op(_)) ==
  * and no edge between 't' and 'u'. Its nodes are 'u' and the neighbors of 't',
  * so that it is a directed graph on its own; 't' itself is left out.
  *)
-RetrySubGraph(G, t, u) ==
+RetrySubgraph(G, t, u) ==
     LET
         preds == Predecessor(G, t)
         succs == Successor(G, t)
@@ -79,7 +79,7 @@ RetrySubGraph(G, t, u) ==
  * The set of the derivations of 'n' in 'G' under 'Op', with task ids 'T': the
  * subgraphs of the ancestor subgraph of 'n' that witness how 'n' can be
  * produced from the sources of 'G'. A derivation 'D' satisfies:
- *   - 'D' is a directed subgraph of 'AncestorSubGraph(G, n, Op)';
+ *   - 'D' is a directed subgraph of 'AncestorSubgraph(G, n, Op)';
  *   - the only sink of 'D' is 'n', so every node of 'D' reaches 'n';
  *   - the sources of 'D' are sources of 'G';
  *   - every task of 'D' has all its input objects in 'D' (AND-semantics on
@@ -90,7 +90,7 @@ RetrySubGraph(G, t, u) ==
  *)
 Derivation(G, n, Op(_), T) ==
     LET
-        V == AncestorSubGraph(G, n, Op)
+        V == AncestorSubgraph(G, n, Op)
     IN
         {D \in DirectedSubgraph(V) :
             /\ Sink(D) = {n}
