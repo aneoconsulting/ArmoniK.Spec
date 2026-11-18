@@ -277,14 +277,19 @@ TypeOk ==
 
 (**
  * INVARIANT
- * Only failed and retried tasks have a next attempt, and every retried task
- * has one. No two tasks have the same next attempt.
+ * Only failed and retried tasks have a next attempt, every retried task has
+ * one, and a task whose next attempt is still unknown is failed: it is
+ * retried only once its next attempt is known. No two tasks have the same
+ * next attempt, and no task is one of its own attempts: the retries of a task
+ * form a chain without cycle.
  *)
 TaskAttemptsIntegrity ==
     /\ RetriedTask \subseteq LinkedTask
     /\ LinkedTask \subseteq FailedTask \union RetriedTask
+    /\ \A t \in Task : nextAttemptOf[t] \in UnknownTask => t \in FailedTask
     /\ \A t, u, v \in Task :
         nextAttemptOf[u] = t /\ nextAttemptOf[v] = t => u = v
+    /\ \A t \in Task : <<t, t>> \notin TCNextAttemptOfRel
 
 (**
  * INVARIANT
