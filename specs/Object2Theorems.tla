@@ -106,10 +106,9 @@ LEMMA LemPermanentFinalization ==
 
 (**
  * The fairness condition restated without ENABLED, which a substitution does
- * not distribute over: a refinement proves the instantiated
- * FairCompleteObjects(o) and recovers the instantiated Fairness through
- * LemFairnessEnabledFree. Completing a targeted object is enabled exactly
- * when the object is registered.
+ * not distribute over: a refinement proves the instantiated restatement and
+ * recovers the instantiated Fairness through LemFairnessEnabledFree. Each
+ * Enabled predicate holds exactly when its fair action is enabled.
  *)
 EnabledCompleteObjects(o) == o \in objectTargets /\ o \in RegisteredObject
 
@@ -126,7 +125,7 @@ LEMMA LemFairnessEnabledFree ==
 (******************************************************************************)
 
 (**
- * The weak fairness of the finalization of an object in Object1 holds under
+ * The weak fairness of the finalization of a target in Object1 holds under
  * Object2: it follows from the weak fairness of its completion.
  *)
 LEMMA LemPreserveO1WFFinalizeObjects ==
@@ -139,8 +138,8 @@ LEMMA LemPreserveO1WFFinalizeObjects ==
 (******************************************************************************)
 
 (**
- * Lifted from Object1, whose finalized objects are the completed and the
- * aborted ones; the outcome then never changes.
+ * Lifted from Object1, then split: the completed and aborted objects keep
+ * their state.
  *)
 LEMMA LemEventualTargetFinalization ==
     ASSUME NEW o \in Object
