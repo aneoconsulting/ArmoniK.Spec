@@ -602,6 +602,19 @@ CompletedObjectHasDerivation ==
 
 (**
  * SAFETY
+ * A completed root object stays a completed root, and an aborted one an
+ * aborted root. Restated from Graph1, whose finalized objects are the
+ * completed and the aborted ones.
+ *)
+PermanentFinalizedSource ==
+    \A o \in Object :
+        /\ [](o \in Source(deps) /\ o \in CompletedObject
+           => [](o \in Source(deps) /\ o \in CompletedObject))
+        /\ [](o \in Source(deps) /\ o \in AbortedObject
+           => [](o \in Source(deps) /\ o \in AbortedObject))
+
+(**
+ * SAFETY
  * Once an object is aborted, its producers never change. TLC cannot check
  * this form, which the model leaves out.
  *)
