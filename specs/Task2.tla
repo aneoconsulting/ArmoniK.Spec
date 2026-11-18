@@ -66,6 +66,22 @@ T1 == INSTANCE Task1Theorems WITH taskState <- taskStateBar
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
+(*                                  HELPERS                                   *)
+(******************************************************************************)
+
+(**
+ * No task is assigned or processed: no work is in progress, although tasks
+ * may wait registered or staged. A succeeded, failed or discarded task is a
+ * processed task of Task1.
+ *)
+Idle ==
+    /\ AssignedTask = {}
+    /\ SucceededTask = {}
+    /\ FailedTask = {}
+    /\ DiscardedTask = {}
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
 (*                    SYSTEM INITIAL STATE AND TRANSITIONS                    *)
 (******************************************************************************)
 
@@ -202,6 +218,21 @@ RetryTasks(T) ==
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_RETRIED ELSE taskState[t]]
     /\ UNCHANGED nextAttemptOf
+
+--------------------------------------------------------------------------------
+(******************************************************************************)
+(*                               ACTION HELPERS                               *)
+(******************************************************************************)
+
+(**
+ * A step in which the user drives no new work: every registered task is the
+ * next attempt of a task. Registering next attempts is how the system retries
+ * failed tasks, not a user action.
+ *)
+NoUserAction ==
+    ~ \E T \in SUBSET Task :
+        /\ RegisterTasks(T)
+        /\ ~ (T \subseteq {nextAttemptOf[t] : t \in Task})
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -419,5 +450,18 @@ EventualStability ==
             \/ <>[](t \in CompletedTask)
             \/ <>[](t \in RetriedTask)
             \/ <>[](t \in AbortedTask)
+
+(**
+ * LIVENESS
+ * If the user eventually stops driving the system, the system eventually
+ * stays idle and its state stops changing. The conclusion is equivalent to
+ * <>([]Idle /\ [][FALSE]_vars), written as a conjunction that TLC can check.
+ * Restated from Task1, whose NoUserAction also forbids registering the next
+ * attempts of failed tasks.
+ *)
+EventualQuiescence ==
+    <>[][NoUserAction]_vars
+    => /\ <>[]Idle
+       /\ <>[][FALSE]_vars
 
 ================================================================================
