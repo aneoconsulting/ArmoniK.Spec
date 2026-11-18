@@ -5,11 +5,11 @@
 (* graph that grows as the user registers new graphs. The user targets the    *)
 (* objects it wants finalized. A task is staged once its inputs are           *)
 (* finalized, and an object is finalized when it is a root of the graph or    *)
-(* one of its producers has been processed. This specification refines Task1  *)
-(* and Object1, whose lifecycles it links through the dependency graph.       *)
+(* one of its producers has been processed. This specification refines        *)
+(* Object1 and Task1, whose lifecycles it links through the dependency graph. *)
 (******************************************************************************)
 
-EXTENDS DDGraphs, DenumerableSets, TLAPS
+EXTENDS DDGraphs, DenumerableSets, FiniteSets, TLAPS
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -21,7 +21,7 @@ CONSTANTS
     Task     \* Set of task identifiers
 
 ASSUMPTION Assumptions ==
-    /\ Task \intersect Object = {}  \* A node is a task or an object
+    /\ Object \intersect Task = {}  \* A node is a task or an object
     /\ IsDenumerableSet(Object)     \* Unbounded supply of fresh objects
     /\ IsDenumerableSet(Task)       \* Unbounded supply of fresh tasks
 
@@ -49,16 +49,16 @@ INSTANCE ObjectStates
 INSTANCE TaskStates
 
 (**
- * Task1 under the identity refinement mapping: its task states are those of
- * this specification.
- *)
-T1 == INSTANCE Task1Theorems
-
-(**
  * Object1 under the identity refinement mapping: its object states and
  * targets are those of this specification.
  *)
 O1 == INSTANCE Object1Theorems
+
+(**
+ * Task1 under the identity refinement mapping: its task states are those of
+ * this specification.
+ *)
+T1 == INSTANCE Task1Theorems
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -78,8 +78,7 @@ IsOpenNode(n) ==
  * reachable through open nodes, which can still contribute to producing 'o'.
  * It is empty unless 'o' is an open node of the graph.
  *)
-OA(o) == AncestorSubGraph(deps, o, IsOpenNode)
-
+OA(o) == AncestorSubgraph(deps, o, IsOpenNode)
 
 (**
  * Every target is finalized and no task is assigned or processed: no work
@@ -109,8 +108,7 @@ Init ==
  * ACTION
  * A finite graph 'G' is added to the dependency graph, which stays a
  * data-dependency graph. Its tasks are unknown, and none of them produces a
- * finalized root object. Its tasks and unknown objects are registered: the
- * dependencies of a known task never change.
+ * finalized root object. Its tasks and unknown objects are registered.
  *)
 RegisterGraph(G) ==
     LET
@@ -251,6 +249,24 @@ FinalizeTasks(T) ==
 (******************************************************************************)
 
 (**
+ * A task 't' is staged while it stands in the open ancestry of the target
+ * 'o'.
+ *)
+StageForTarget(t, o) ==
+    /\ o \in objectTargets
+    /\ t \in OA(o).node
+    /\ StageTasks({t})
+
+(**
+ * A task 't' is assigned while it stands in the open ancestry of the target
+ * 'o'.
+ *)
+AssignForTarget(t, o) ==
+    /\ o \in objectTargets
+    /\ t \in OA(o).node
+    /\ AssignTasks({t})
+
+(**
  * A step in which the user drives no new work: no graph is registered and no
  * object is targeted or untargeted.
  *)
@@ -289,12 +305,12 @@ Next ==
  *   eventually processed.
  * - Weak fairness of FinalizeTasks: a task that stays finalizable is
  *   eventually finalized.
- * - Weak fairness of StageTasks, for a task 't' and an object 'o': a task
- *   that stays stageable in the open ancestry of the target 'o' is
+ * - Weak fairness of StageForTarget, for a task 't' and an object 'o': a
+ *   task that stays stageable in the open ancestry of the target 'o' is
  *   eventually staged.
- * - Weak fairness of AssignTasks, for a task 't' and an object 'o': a task
- *   that stays staged in the open ancestry of the target 'o' is eventually
- *   assigned.
+ * - Weak fairness of AssignForTarget, for a task 't' and an object 'o': a
+ *   task that stays staged in the open ancestry of the target 'o' is
+ *   eventually assigned.
  *)
 Fairness ==
     /\ \A o \in Object :
@@ -303,8 +319,8 @@ Fairness ==
         /\ SF_vars(ProcessTasks({t}))
         /\ WF_vars(FinalizeTasks({t}))
     /\ \A t \in Task, o \in Object :
-        /\ WF_vars(o \in objectTargets /\ t \in OA(o).node /\ StageTasks({t}))
-        /\ WF_vars(o \in objectTargets /\ t \in OA(o).node /\ AssignTasks({t}))
+        /\ WF_vars(StageForTarget(t, o))
+        /\ WF_vars(AssignForTarget(t, o))
 
 (**
  * LIVENESS ASSUMPTION
@@ -410,23 +426,25 @@ ImmutableTaskDependencies ==
 
 (**
  * REFINEMENT
- * Graph1 refines Task1.
- *)
-RefineTask1 ==
-    T1!Spec
-
-(**
- * REFINEMENT
  * Graph1 refines Object1.
  *)
 RefineObject1 ==
     O1!Spec
 
 (**
+ * REFINEMENT
+ * Graph1 refines Task1.
+ *)
+RefineTask1 ==
+    T1!Spec
+
+(**
  * LIVENESS
  * If the user eventually stops driving the system, the system eventually
- * stays idle and its state stops changing. The conclusion is written as a
- * conjunction that TLC can check, as in Task1 and Object1.
+ * stays idle and its state stops changing. The conclusion is equivalent to
+ * <>([]Idle /\ [][FALSE]_vars), written as a conjunction that TLC can check.
+ * Restated from Object1 and Task1, whose NoUserAction allow the user actions
+ * of the other one.
  *)
 EventualQuiescence ==
     <>[][NoUserAction]_vars
