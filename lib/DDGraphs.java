@@ -48,7 +48,7 @@ public final class DDGraphs {
     /**
      * TLC override of the operator {@code DDGraphOf(T, O)} of
      * {@code DDGraphs.tla}: the set of the DD graphs over the task ids
-     * {@code T} and the object ids {@code O}.
+     * {@code T} and the object ids {@code O}, which must be disjoint.
      * <p>
      * A graph {@code g = [node, edge]} belongs to the result iff there exists a
      * pair {@code (t, o)} with {@code t} a subset of {@code T} and {@code o} a
@@ -68,6 +68,9 @@ public final class DDGraphs {
      * subsets of {@code o}; the induced task-to-task relation
      * {@code u -> v iff S(u) \intersect P(v) /= {}} is then checked for
      * acyclicity via DFS over bitmask adjacency.
+     * <p>
+     * The TLA+ definition differs on overlapping {@code T} and {@code O}, where
+     * its members need not be DD graphs: the override throws instead.
      */
     public static Value DDGraphOf(final Value t, final Value o) throws Exception {
         Value tEnum = t.toSetEnum();
@@ -80,6 +83,13 @@ public final class DDGraphs {
         }
         Value[] allTasks = ((SetEnumValue) tEnum).elems.toArray();
         Value[] allObjects = ((SetEnumValue) oEnum).elems.toArray();
+        for (Value task : allTasks) {
+            for (Value object : allObjects) {
+                if (task.equals(object)) {
+                    throw new Exception("DDGraphOf: task and object ids overlap on " + task);
+                }
+            }
+        }
 
         if (allTasks.length > 30 || allObjects.length > 30) {
             throw new Exception("DDGraphOf: bitmask enumeration is limited to 30 task/object ids");
@@ -117,7 +127,7 @@ public final class DDGraphs {
 
         long[][] options = new long[tasks.length][];
         for (int i = 0; i < tasks.length; i++) {
-            options[i] = predSuccOptions(objects, tasks[i]);
+            options[i] = predSuccOptions(objects);
             if (options[i].length == 0) {
                 return; // some task has no valid (P, S) — no graph in this (t, o) cell
             }
@@ -142,17 +152,9 @@ public final class DDGraphs {
 
     // (P, S) options for a task, packed as ((long) P << 32) | S. Bit k of P
     // (resp. S) means objects[k] is a predecessor (resp. successor) of the
-    // task. P and S are disjoint, both non-empty, and never include the task
-    // itself (the last clause only matters when T and O overlap).
-    private static long[] predSuccOptions(Value[] objects, Value task) {
-        int n = objects.length;
-        int forbid = 0;
-        for (int i = 0; i < n; i++) {
-            if (objects[i].equals(task)) {
-                forbid |= 1 << i;
-            }
-        }
-        int allowed = ((1 << n) - 1) & ~forbid;
+    // task. P and S are disjoint and both non-empty.
+    private static long[] predSuccOptions(Value[] objects) {
+        int allowed = (1 << objects.length) - 1;
         List<Long> opts = new ArrayList<>();
         // Iterate over every non-empty P subset of `allowed`.
         for (int p = allowed; p > 0; p = (p - 1) & allowed) {
