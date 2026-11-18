@@ -134,6 +134,12 @@ OA(o) == AncestorSubgraph(deps, o, IsOpenNode)
  *)
 G3Derivation(o) == Derivation(deps, o, IsViableNode, Task)
 
+(**
+ * The viable ancestry of object 'o': the subgraph of 'o' and of its ancestors
+ * reachable through viable nodes, which determines the derivations of 'o'.
+ *)
+ViableAncestry(o) == AncestorSubgraph(deps, o, IsViableNode)
+
 --------------------------------------------------------------------------------
 (******************************************************************************)
 (*                    SYSTEM INITIAL STATE AND TRANSITIONS                    *)
@@ -478,6 +484,14 @@ PauseAttemptChain(t) ==
         /\ \E u \in T : ChainId(u) = ChainId(t)
         /\ RequestTasks(T, INTENT_PAUSE)
 
+(**
+ * A step that registers a graph leaves the viable ancestry of the object 'o'
+ * unchanged.
+ *)
+RegistrationKeepsViableAncestry(o) ==
+    (\E G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G))
+        => UNCHANGED ViableAncestry(o)
+
 --------------------------------------------------------------------------------
 (******************************************************************************)
 (*                            SYSTEM SPECIFICATION                            *)
@@ -669,6 +683,33 @@ GraphStateIntegrity ==
               /\ Predecessor(deps, o)
                     \subseteq UNION {DiscardedTask, CompletedTask,
                                      RetriedTask, AbortedTask}
+
+(**
+ * INVARIANT
+ * An object is completed exactly when it has a derivation whose objects are
+ * completed and whose tasks have succeeded or are completed. Restated from
+ * Graph2, whose derivations may also go through halted tasks.
+ *)
+CompletedObjectHasDerivation ==
+    \A o \in Object :
+        o \in CompletedObject
+        <=> \E d \in G3Derivation(o) :
+                /\ (d.node \intersect Object) \subseteq CompletedObject
+                /\ (d.node \intersect Task)
+                    \subseteq (SucceededTask \union CompletedTask)
+
+(**
+ * SAFETY
+ * An underivable object stays underivable while no registration changes its
+ * viable ancestry: the failures and the halts are permanent, so only a
+ * registration can give it a derivation. TLC cannot check this form, which
+ * the model leaves out. Restated from Graph2, whose derivations may also go
+ * through halted tasks.
+ *)
+UnderivableQuiescence ==
+    \A o \in Object :
+        [][RegistrationKeepsViableAncestry(o)]_vars
+        => [](G3Derivation(o) = {} => [](G3Derivation(o) = {}))
 
 (**
  * REFINEMENT
