@@ -54,6 +54,9 @@ TLAPM_OPTS := --strict -I $(CURDIR)/$(COMMUNITY_MODULES_SRC) -I $(CURDIR)/$(LIB_
 TLAPM_OPT_OPTS := $(TLAPM_OPTS) --stretch 3
 # GC settings of the upstream tlapm: a larger minor heap, ~2.5x faster on Graph2.
 TLAPM_GC ?= s=32M,o=200
+# Timeout factor of the upstream tlapm (--stretch). Empty locally, so that local
+# checks keep the default timeouts; CI sets 2, a margin for its slower runners.
+TLAPM_STRETCH ?=
 # Options of scripts/chunk_proofs.py for the chunks target, e.g.
 # CHUNK_OPTS="--budget 800 --max-steps 30". Empty means the script's defaults,
 # which it owns.
@@ -166,7 +169,8 @@ tlc: $(TLA2TOOLS_JAR) $(COMMUNITY_MODULES_JAR) build-java
 
 tlapm: $(TLAPM)
 	@$(call locate, [BEGIN=<line> END=<line>])
-	OCAMLRUNPARAM="$(TLAPM_GC)" $(TLAPM) $(TLAPM_OPTS) $(TOOLBOX) $(MODULE_DIR)/$(MODULE).tla
+	OCAMLRUNPARAM="$(TLAPM_GC)" $(TLAPM) $(TLAPM_OPTS) $(if $(TLAPM_STRETCH),--stretch $(TLAPM_STRETCH)) \
+	  $(TOOLBOX) $(MODULE_DIR)/$(MODULE).tla
 
 tlapm-opt: $(TLAPM_OPT)
 	@$(call locate, [BEGIN=<line> END=<line>])
