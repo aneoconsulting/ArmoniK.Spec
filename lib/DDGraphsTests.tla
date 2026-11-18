@@ -1,36 +1,27 @@
----------------------------- MODULE DDGraphsTests ------------------------------
+----------------------------- MODULE DDGraphsTests -----------------------------
 (******************************************************************************)
-(* Tests for the DDGraphs module.                                             *)
-(*                                                                            *)
-(* Each test is encoded as an `ASSUME` statement: TLC evaluates them at       *)
-(* startup and aborts as soon as one fails. Tests are grouped per operator    *)
-(* in the same order as the DDGraphs module.                                  *)
+(* Tests of the DDGraphs module. Each test is an ASSUME that TLC evaluates at *)
+(* startup, aborting at the first failure. The tests follow the order of      *)
+(* DDGraphs.                                                                  *)
 (******************************************************************************)
 
 EXTENDS DDGraphs, TLCExt
 
-(******************************************************************************)
-(* Initialization                                                             *)
-(******************************************************************************)
 ASSUME LET T == INSTANCE TLC IN T!PrintT("DDGraphsTests")
 
-(******************************************************************************)
-(* Test predicates passed to the higher-order operators.                      *)
-(******************************************************************************)
-TestAll(x)  == TRUE
-TestNone(x) == FALSE
-TestNot2(x) == x /= 2
-TestNotT2(x) == x /= "t2"
+(** Predicates passed to the higher-order operators. *)
+IsAny(x)   == TRUE
+IsNone(x)  == FALSE
+IsNot2(x)  == x /= 2
+IsNotT2(x) == x /= "t2"
 
-(******************************************************************************)
-(* IsDDGraph                                                                  *)
-(******************************************************************************)
+(** Tests of 'IsDDGraph'. *)
 
 \* The empty graph is a DD graph over any partition.
 ASSUME AssertEq(IsDDGraph(EmptyGraph, {}, {}), TRUE)
 ASSUME AssertEq(IsDDGraph(EmptyGraph, {"t"}, {"o"}), TRUE)
 
-\* A canonical chain o1 -> t -> o2.
+\* The chain o1 -> t -> o2 is a DD graph.
 ASSUME LET G == [node |-> {"t", "o1", "o2"},
                  edge |-> {<<"o1", "t">>, <<"t", "o2">>}]
        IN  AssertEq(IsDDGraph(G, {"t"}, {"o1", "o2"}), TRUE)
@@ -54,9 +45,8 @@ ASSUME LET G == [node |-> {"t", "u", "o", "p"},
                            <<"p", "u">>, <<"u", "o">>}]
        IN  AssertEq(IsDDGraph(G, {"t", "u"}, {"o", "p"}), FALSE)
 
-(******************************************************************************)
-(* DDGraphOf                                                                  *)
-(******************************************************************************)
+(** Tests of 'DDGraphOf'. *)
+
 ASSUME AssertEq(DDGraphOf({"t"}, {"o", "p"}), {
         [node |-> {},              edge |-> {}],
         [node |-> {"o"},           edge |-> {}],
@@ -75,63 +65,51 @@ ASSUME AssertEq(Cardinality(DDGraphOf({"t", "u"}, {"o", "p", "q"})), 146)
 
 ASSUME AssertEq(Cardinality(DDGraphOf({"t", "u", "v"}, {"o", "p", "q"})), 962)
 
-\* Every member of DDGraphOf(T, O) satisfies IsDDGraph(G, T, O).
+\* Every member of 'DDGraphOf(T, O)' is a DD graph over 'T' and 'O'.
 ASSUME \A G \in DDGraphOf({"t"}, {"o", "p"}) : IsDDGraph(G, {"t"}, {"o", "p"})
 
-(******************************************************************************)
-(* AncestorSubGraph                                                           *)
-(******************************************************************************)
+(** Tests of 'AncestorSubgraph'. *)
 
-\* All-true predicate: AncestorSubGraph yields the ancestor closure.
+\* Under a predicate that all nodes satisfy, the result is the ancestor closure.
 ASSUME LET G == [node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<2, 3>>}]
-       IN  AssertEq(AncestorSubGraph(G, 3, TestAll), G)
+       IN  AssertEq(AncestorSubgraph(G, 3, IsAny), G)
 
-\* All-false predicate: empty.
+\* Under a predicate that no node satisfies, the result is empty.
 ASSUME LET G == [node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<2, 3>>}]
-       IN  AssertEq(AncestorSubGraph(G, 3, TestNone),
-                    EmptyGraph)
+       IN  AssertEq(AncestorSubgraph(G, 3, IsNone), EmptyGraph)
 
 \* Excluding 2 leaves only the target itself (1 can no longer reach 3).
 ASSUME LET G == [node |-> {1, 2, 3}, edge |-> {<<1, 2>>, <<2, 3>>}]
-       IN  AssertEq(AncestorSubGraph(G, 3, TestNot2),
-                    [node |-> {3}, edge |-> {}])
+       IN  AssertEq(AncestorSubgraph(G, 3, IsNot2), [node |-> {3}, edge |-> {}])
 
-(******************************************************************************)
-(* RetrySubGraph                                                              *)
-(******************************************************************************)
+(** Tests of 'RetrySubgraph'. *)
 
 \* The retry of t in a single-task chain creates u with the same wiring.
 ASSUME LET G == [node |-> {"t", "o1", "o2"},
                  edge |-> {<<"o1", "t">>, <<"t", "o2">>}]
-       IN  AssertEq(RetrySubGraph(G, "t", "u"),
+       IN  AssertEq(RetrySubgraph(G, "t", "u"),
                     [node |-> {"u", "o1", "o2"},
                      edge |-> {<<"o1", "u">>, <<"u", "o2">>}])
 
 \* An isolated task retries into an isolated fresh node.
 ASSUME LET G == [node |-> {"t"}, edge |-> {}]
-       IN  AssertEq(RetrySubGraph(G, "t", "u"),
-                    [node |-> {"u"}, edge |-> {}])
+       IN  AssertEq(RetrySubgraph(G, "t", "u"), [node |-> {"u"}, edge |-> {}])
 
 \* After attaching the retry, u mirrors t's neighborhood in the union.
 ASSUME LET G == [node |-> {"t", "o1", "o2", "o3"},
                  edge |-> {<<"o1", "t">>, <<"o2", "t">>, <<"t", "o3">>}]
-           H == GraphUnion(G, RetrySubGraph(G, "t", "u"))
+           H == GraphUnion(G, RetrySubgraph(G, "t", "u"))
        IN  /\ AssertEq(Predecessor(H, "u"), Predecessor(H, "t"))
            /\ AssertEq(Successor(H, "u"),   Successor(H, "t"))
 
-(******************************************************************************)
-(* Derivation                                                                 *)
-(******************************************************************************)
+(** Tests of 'Derivation'. *)
 
-\* On the simple chain o1 -> t -> o2, the only derivation of o2 is the graph
-\* itself: dropping any node either removes the sink, exposes a non-source as
-\* a source, or strips a task of one of its required inputs.
+\* On the chain o1 -> t -> o2, the only derivation of o2 is the graph itself.
 ASSUME LET G == [node |-> {"t", "o1", "o2"},
                  edge |-> {<<"o1", "t">>, <<"t", "o2">>}]
-       IN  AssertEq(Derivation(G, "o2", TestAll, {"t"}), {G})
+       IN  AssertEq(Derivation(G, "o2", IsAny, {"t"}), {G})
 
-\* Two tasks producing the same object: each task on its own yields a
-\* derivation; the union of both is also a derivation.
+\* Two producers of o: each alone and both together are derivations.
 ASSUME LET G == [node |-> {"t1", "t2", "o1", "o2", "o"},
                  edge |-> {<<"o1", "t1">>, <<"t1", "o">>,
                            <<"o2", "t2">>, <<"t2", "o">>}]
@@ -139,7 +117,7 @@ ASSUME LET G == [node |-> {"t1", "t2", "o1", "o2", "o"},
                   edge |-> {<<"o1", "t1">>, <<"t1", "o">>}]
            D2 == [node |-> {"o2", "t2", "o"},
                   edge |-> {<<"o2", "t2">>, <<"t2", "o">>}]
-       IN  Derivation(G, "o", TestAll, {"t1", "t2"}) = {D1, D2, G}
+       IN  AssertEq(Derivation(G, "o", IsAny, {"t1", "t2"}), {D1, D2, G})
 
 \* Filtering out t2 with the predicate leaves only the derivation through t1.
 ASSUME LET G == [node |-> {"t1", "t2", "o1", "o2", "o"},
@@ -147,6 +125,6 @@ ASSUME LET G == [node |-> {"t1", "t2", "o1", "o2", "o"},
                            <<"o2", "t2">>, <<"t2", "o">>}]
            D1 == [node |-> {"o1", "t1", "o"},
                   edge |-> {<<"o1", "t1">>, <<"t1", "o">>}]
-       IN  Derivation(G, "o", TestNotT2, {"t1", "t2"}) = {D1}
+       IN  AssertEq(Derivation(G, "o", IsNotT2, {"t1", "t2"}), {D1})
 
 ================================================================================
