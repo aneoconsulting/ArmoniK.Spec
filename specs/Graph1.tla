@@ -398,12 +398,13 @@ GraphStateIntegrity ==
 
 (**
  * SAFETY
- * A finalized root object stays a root: no producer is ever added to it.
+ * A finalized root object stays a finalized root: no producer is ever added
+ * to it.
  *)
 PermanentFinalizedSource ==
     \A o \in Object :
         [](o \in Source(deps) /\ o \in FinalizedObject
-           => [](o \in Source(deps)))
+           => [](o \in Source(deps) /\ o \in FinalizedObject))
 
 (**
  * SAFETY
