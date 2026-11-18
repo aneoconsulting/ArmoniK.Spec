@@ -46,26 +46,27 @@ public final class DDGraphs {
     }
 
     /**
-     * Java overload of the TLA+ operator {@code DDGraphOf(T, O)} defined in
-     * {@code DDGraphs.tla}. Returns the set of all Data-Dependency graphs over
-     * task ids {@code T} and object ids {@code O}.
+     * TLC override of the operator {@code DDGraphOf(T, O)} of
+     * {@code DDGraphs.tla}: the set of the DD graphs over the task ids
+     * {@code T} and the object ids {@code O}.
      * <p>
      * A graph {@code g = [node, edge]} belongs to the result iff there exists a
      * pair {@code (t, o)} with {@code t} a subset of {@code T} and {@code o} a
      * subset of {@code O} such that:
      * <ul>
-     *   <li>{@code g.node} equals {@code t} union {@code o};</li>
-     *   <li>{@code g.edge} is a subset of {@code (t x o) cup (o x t)};</li>
+     *   <li>{@code g.node} is the union of {@code t} and {@code o};</li>
+     *   <li>{@code g.edge} is a subset of the union of {@code t \X o} and
+     *       {@code o \X t};</li>
      *   <li>{@code g} is a DAG;</li>
-     *   <li>every root of {@code g} is in {@code o} (tasks are never roots);</li>
-     *   <li>every leaf of {@code g} is in {@code o} (tasks are never leaves).</li>
+     *   <li>every source of {@code g} is in {@code o} (tasks are never sources);</li>
+     *   <li>every sink of {@code g} is in {@code o} (tasks are never sinks).</li>
      * </ul>
      * Objects may be isolated and may have any number of predecessors.
      * <p>
      * Implementation: bitmask enumeration. For each {@code (t, o)} pair, each
      * task independently picks a pair {@code (P, S)} of disjoint non-empty
      * subsets of {@code o}; the induced task-to-task relation
-     * {@code u -> v iff S(u) intersect P(v) is non-empty} is then checked for
+     * {@code u -> v iff S(u) \intersect P(v) /= {}} is then checked for
      * acyclicity via DFS over bitmask adjacency.
      */
     public static Value DDGraphOf(final Value t, final Value o) throws Exception {
@@ -102,7 +103,7 @@ public final class DDGraphs {
     }
 
     /**
-     * Enumerate every DDGraph over the given task / object subsets and append
+     * Enumerate every DD graph over the given task / object subsets and append
      * the resulting {@link RecordValue}s to {@code out}.
      */
     private static void enumerate(Value[] tasks, Value[] objects, List<Value> out) {
@@ -111,7 +112,7 @@ public final class DDGraphs {
             return;
         }
         if (objects.length == 0) {
-            return; // tasks would be isolated roots/leaves, violating the spec
+            return; // tasks would be isolated sources and sinks
         }
 
         long[][] options = new long[tasks.length][];
@@ -170,7 +171,7 @@ public final class DDGraphs {
 
     /**
      * The bipartite graph is a DAG iff the induced task-to-task relation
-     * {@code u_i -> u_j iff S(u_i) \cap P(u_j) != \emptyset} is acyclic.
+     * {@code u_i -> u_j iff S(u_i) \intersect P(u_j) /= {}} is acyclic.
      */
     private static boolean taskGraphIsAcyclic(int[][] ps) {
         int n = ps.length;
