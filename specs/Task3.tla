@@ -349,13 +349,21 @@ IntentIntegrity ==
 
 (**
  * SAFETY
- * A halted task is never processed again: it stays halted until it is
- * discarded, then aborted.
+ * The outcome of a processed task is permanent: a succeeded task can only be
+ * completed, a failed task only retried, a discarded task only aborted, and a
+ * halted task is never processed again, only discarded, then aborted.
+ * Restated from Task2, whose processing has no halted outcome.
  *)
-PermanentHalting ==
+PermanentOutcome ==
     \A t \in Task :
-        [](t \in HaltedTask
-           => [](t \in UNION {HaltedTask, DiscardedTask, AbortedTask}))
+        /\ [](t \in SucceededTask
+              => [](t \in SucceededTask \union CompletedTask))
+        /\ [](t \in FailedTask
+              => [](t \in FailedTask \union RetriedTask))
+        /\ [](t \in DiscardedTask
+              => [](t \in DiscardedTask \union AbortedTask))
+        /\ [](t \in HaltedTask
+              => [](t \in UNION {HaltedTask, DiscardedTask, AbortedTask}))
 
 (**
  * SAFETY
