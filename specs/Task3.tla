@@ -51,8 +51,8 @@ INSTANCE TaskIntents
  *)
 taskStateBar ==
     [t \in Task |->
-        CASE taskState[t] = TASK_HALTED -> TASK_STAGED
-          [] taskState[t] = TASK_PAUSED -> TASK_STAGED
+        CASE taskState[t] = TASK_PAUSED -> TASK_STAGED
+          [] taskState[t] = TASK_HALTED -> TASK_STAGED
           [] OTHER                      -> taskState[t]
     ]
 
@@ -117,8 +117,8 @@ StageTasks(T) ==
 
 (**
  * ACTION
- * A set 'T' of tasks that are not processing is discarded without being
- * processed.
+ * A set 'T' of registered, staged, paused or halted tasks is discarded,
+ * bypassing assignment and processing.
  *)
 DiscardTasks(T) ==
     /\ T /= {}
@@ -168,10 +168,11 @@ ReleaseTasks(T) ==
 
 (**
  * ACTION
- * A set 'T' of assigned tasks is processed, whatever the intents of their
- * attempt chains, since a request races with the processing. Processing
- * either succeeds, crashes and discards the tasks, fails when the tasks have
- * retries left, or fails and halts the tasks.
+ * A set 'T' of assigned tasks completes processing with one outcome, whatever
+ * the intents of their attempt chains, since a request races with the
+ * processing: the tasks succeed, are discarded, fail, or are halted. Failed
+ * tasks will be retried, which is only possible while each of them has fewer
+ * than MaxRetries previous attempts.
  *)
 ProcessTasks(T) ==
     /\ T /= {}
@@ -377,14 +378,16 @@ IntentIntegrity ==
 (**
  * SAFETY
  * The outcome of a processed task is permanent: a succeeded task can only be
- * completed, a discarded task only aborted, and a halted task is never
- * processed again, only discarded, then aborted. Restated from Task2, whose
- * processing has no halted outcome.
+ * completed, a failed task only retried, a discarded task only aborted, and a
+ * halted task is never processed again, only discarded, then aborted.
+ * Restated from Task2, whose processing has no halted outcome.
  *)
 PermanentOutcome ==
     \A t \in Task :
         /\ [](t \in SucceededTask
               => [](t \in SucceededTask \union CompletedTask))
+        /\ [](t \in FailedTask
+              => [](t \in FailedTask \union RetriedTask))
         /\ [](t \in DiscardedTask
               => [](t \in DiscardedTask \union AbortedTask))
         /\ [](t \in HaltedTask
@@ -396,7 +399,7 @@ PermanentOutcome ==
  *)
 PermanentCancellation ==
     \A t \in Task :
-        [](Intends(t, INTENT_CANCEL) => [](Intends(t, INTENT_CANCEL)))
+        [](Intends(t, INTENT_CANCEL) => []Intends(t, INTENT_CANCEL))
 
 (**
  * SAFETY
@@ -417,30 +420,11 @@ RefineTask2 ==
 
 (**
  * LIVENESS
- * Every task eventually stays unknown, registered, staged or paused, halted,
- * completed, retried or aborted forever. A task may move between staged and
- * paused forever, as the user changes the intent of its attempt chain.
- * Restated from Task2, whose staged tasks also include the paused and halted
- * ones.
- *)
-EventualStability ==
-    \A t \in Task :
-        At(t) ::
-            \/ <>[](t \in UnknownTask)
-            \/ <>[](t \in RegisteredTask)
-            \/ <>[](t \in StagedTask \union PausedTask)
-            \/ <>[](t \in HaltedTask)
-            \/ <>[](t \in CompletedTask)
-            \/ <>[](t \in RetriedTask)
-            \/ <>[](t \in AbortedTask)
-
-(**
- * LIVENESS
  * A task that failed without a next attempt is eventually given one, which
  * is registered; a registered next attempt that is never discarded is
- * eventually staged. Restated from Task2, whose staged tasks also include the
- * paused and halted ones. TLC cannot check this form, which the model leaves
- * out.
+ * eventually staged. TLC cannot check this form, which the model leaves out.
+ * Restated from Task2, whose staged tasks also include the paused and halted
+ * ones.
  *)
 FailedTaskEventualRetry ==
     \A t \in Task :
@@ -454,10 +438,30 @@ FailedTaskEventualRetry ==
 
 (**
  * LIVENESS
+ * Every task eventually stays unknown, registered, staged or paused,
+ * completed, retried, aborted or halted forever: no task stays assigned,
+ * succeeded, failed or discarded. A task may move between staged and paused
+ * forever, as the user changes the intent of its attempt chain. Restated from
+ * Task2, whose staged tasks also include the paused and halted ones.
+ *)
+EventualStability ==
+    \A t \in Task :
+        At(t) ::
+            \/ <>[](t \in UnknownTask)
+            \/ <>[](t \in RegisteredTask)
+            \/ <>[](t \in StagedTask \union PausedTask)
+            \/ <>[](t \in CompletedTask)
+            \/ <>[](t \in RetriedTask)
+            \/ <>[](t \in AbortedTask)
+            \/ <>[](t \in HaltedTask)
+
+(**
+ * LIVENESS
  * If the user eventually stops driving the system, the system eventually
- * stays idle and its state stops changing. Restated from Task2, whose
- * NoUserAction allows the requests, which Task2 sees as stutters. The
- * conclusion is written as a conjunction that TLC can check, as in Task1.
+ * stays idle and its state stops changing. The conclusion is equivalent to
+ * <>([]Idle /\ [][FALSE]_vars), written as a conjunction that TLC can check.
+ * Restated from Task2, whose NoUserAction allows the requests, which Task2
+ * sees as stutters.
  *)
 EventualQuiescence ==
     <>[][NoUserAction]_vars
