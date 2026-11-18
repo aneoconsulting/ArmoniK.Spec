@@ -659,7 +659,7 @@ RefineTask2 ==
 (**
  * LIVENESS
  * An object targeted forever from some point on whose derivations eventually
- * never all vanish is eventually completed. Derivability may drop for a
+ * never all vanish eventually stays completed. Derivability may drop for a
  * while, between the failure of a producer and the registration of its next
  * attempt: only its limit matters.
  *)
@@ -667,17 +667,17 @@ DerivableObjectsEventualCompletion ==
     \A o \in Object :
         At(o) ::
             <>[](o \in objectTargets) /\ <>[](G2Derivation(o) /= {})
-            => <>(o \in CompletedObject)
+            => <>[](o \in CompletedObject)
 
 (**
  * LIVENESS
  * An object targeted forever from some point on that eventually stays
- * underivable is eventually aborted.
+ * underivable eventually stays aborted.
  *)
 UnderivableObjectsEventualAbortion ==
     \A o \in Object :
         At(o) ::
             <>[](o \in objectTargets) /\ <>[](G2Derivation(o) = {})
-            => <>(o \in AbortedObject)
+            => <>[](o \in AbortedObject)
 
 ================================================================================
