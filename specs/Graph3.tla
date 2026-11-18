@@ -8,8 +8,8 @@
 (* through the data. The progress of the targets rests on the user, who       *)
 (* eventually stops pausing, resumes and cancels the tasks that stand in      *)
 (* their way. The refinement mapping sends the PAUSED and HALTED states to    *)
-(* the STAGED state of Graph2. This specification also refines Task3 and      *)
-(* Object2.                                                                   *)
+(* the STAGED state of Graph2. This specification also refines Object2 and    *)
+(* Task3.                                                                     *)
 (******************************************************************************)
 
 EXTENDS DDGraphs, DenumerableSets, FiniteSets, TLAPS
@@ -65,8 +65,8 @@ INSTANCE TaskIntents
  *)
 taskStateBar ==
     [t \in Task |->
-        CASE taskState[t] = TASK_HALTED -> TASK_STAGED
-          [] taskState[t] = TASK_PAUSED -> TASK_STAGED
+        CASE taskState[t] = TASK_PAUSED -> TASK_STAGED
+          [] taskState[t] = TASK_HALTED -> TASK_STAGED
           [] OTHER                      -> taskState[t]
     ]
 
@@ -93,12 +93,12 @@ T3 == INSTANCE Task3Theorems
 (******************************************************************************)
 
 (**
- * A node is viable while it has not failed for good: a discarded, failed,
- * aborted, retried or halted task, or an aborted object, cannot contribute to
+ * A node is viable while it has not failed for good: a failed, discarded,
+ * retried, aborted or halted task, or an aborted object, cannot contribute to
  * producing an object any more. A halted task never produces its outputs.
  *)
 IsViableNode(n) ==
-    n \notin UNION {DiscardedTask, FailedTask, AbortedTask, RetriedTask,
+    n \notin UNION {FailedTask, DiscardedTask, RetriedTask, AbortedTask,
                     HaltedTask, AbortedObject}
 
 (**
@@ -107,15 +107,26 @@ IsViableNode(n) ==
  * produce.
  *)
 IsOpenNode(n) ==
-    n \notin UNION {CompletedTask, AbortedTask, RetriedTask, CompletedObject,
+    n \notin UNION {CompletedTask, RetriedTask, AbortedTask, CompletedObject,
                     AbortedObject}
+
+(**
+ * A task 't' can still finalize its outputs, by producing or aborting them:
+ * it is neither finalized nor failed, or it is failed and its next attempt is
+ * not registered.
+ *)
+CanProduce(t) ==
+    \/ t \notin UNION {FailedTask, CompletedTask, RetriedTask, AbortedTask}
+    \/ /\ t \in FailedTask
+       /\ \/ nextAttemptOf[t] = NULL
+          \/ nextAttemptOf[t] \in UnknownTask
 
 (**
  * The open ancestry of object 'o': the subgraph of 'o' and of its ancestors
  * reachable through open nodes, which can still contribute to producing 'o'.
  * It is empty unless 'o' is an open node of the graph.
  *)
-OA(o) == AncestorSubGraph(deps, o, IsOpenNode)
+OA(o) == AncestorSubgraph(deps, o, IsOpenNode)
 
 (**
  * The derivations of object 'o': the subgraphs of its ancestry through
@@ -128,7 +139,7 @@ G3Derivation(o) == Derivation(deps, o, IsViableNode, Task)
  * The viable ancestry of object 'o': the subgraph of 'o' and of its ancestors
  * reachable through viable nodes, which determines the derivations of 'o'.
  *)
-ViableAncestry(o) == AncestorSubGraph(deps, o, IsViableNode)
+ViableAncestry(o) == AncestorSubgraph(deps, o, IsViableNode)
 
 (**
  * Every target is completed or aborted and no task is assigned, succeeded,
@@ -180,9 +191,9 @@ RegisterGraph(G) ==
                     \intersect CompletedObject = {}
         /\ IsDDGraph(newDeps, Task, Object)
         /\ \A t \in Task :
-            nextAttemptOf[t] /= NULL /\ nextAttemptOf[t] \in G.node =>
-                /\ Predecessor(G, nextAttemptOf[t]) = Predecessor(deps, t)
-                /\ Successor(G, nextAttemptOf[t]) = Successor(deps, t)
+            nextAttemptOf[t] /= NULL /\ nextAttemptOf[t] \in G.node
+                => /\ Predecessor(G, nextAttemptOf[t]) = Predecessor(deps, t)
+                   /\ Successor(G, nextAttemptOf[t]) = Successor(deps, t)
         /\ deps' = newDeps
         /\ objectState' =
             [o \in Object |->
@@ -243,8 +254,8 @@ AbortObjects(O) ==
     /\ \/ O \subseteq Source(deps)
        \/ \A o \in O :
             /\ Predecessor(deps, o)
-                \subseteq UNION {DiscardedTask, CompletedTask, AbortedTask,
-                                 RetriedTask}
+                \subseteq UNION {DiscardedTask, CompletedTask, RetriedTask,
+                                 AbortedTask}
             /\ \E t \in Predecessor(deps, o) : t \in DiscardedTask
     /\ objectState' =
         [o \in Object |-> IF o \in O THEN OBJECT_ABORTED ELSE objectState[o]]
@@ -273,7 +284,7 @@ SetTaskRetries(T, U) ==
 StageTasks(T) ==
     /\ T /= {}
     /\ T \subseteq RegisteredTask
-    /\ UNION {Predecessor(deps, t) : t \in T} \subseteq CompletedObject
+    /\ \A t \in T : Predecessor(deps, t) \subseteq CompletedObject
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
     /\ UNCHANGED << deps, intent, nextAttemptOf, objectState, objectTargets >>
@@ -316,10 +327,11 @@ ReleaseTasks(T) ==
 
 (**
  * ACTION
- * A set 'T' of assigned tasks is processed, whatever the intents of their
- * attempt chains, since a request races with the processing. Processing
- * either succeeds, crashes and discards the tasks, fails when the tasks have
- * retries left, or fails and halts the tasks.
+ * A set 'T' of assigned tasks completes processing with one outcome, whatever
+ * the intents of their attempt chains, since a request races with the
+ * processing: the tasks succeed, are discarded, fail, or are halted. Failed
+ * tasks will be retried, which is only possible while each of them has fewer
+ * than MaxRetries previous attempts.
  *)
 ProcessTasks(T) ==
     /\ T /= {}
@@ -330,7 +342,7 @@ ProcessTasks(T) ==
             [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
        \/ /\ \A t \in T : Cardinality(PreviousAttempts(t)) < MaxRetries
           /\ taskState' =
-                [t \in Task |-> IF t \in T THEN TASK_FAILED ELSE taskState[t]]
+              [t \in Task |-> IF t \in T THEN TASK_FAILED ELSE taskState[t]]
        \/ taskState' =
             [t \in Task |-> IF t \in T THEN TASK_HALTED ELSE taskState[t]]
     /\ UNCHANGED << deps, intent, nextAttemptOf, objectState, objectTargets >>
@@ -338,16 +350,18 @@ ProcessTasks(T) ==
 (**
  * ACTION
  * A set 'T' of succeeded tasks is completed. Each registered output object
- * keeps a producer outside 'T' that is neither finalized nor failed.
+ * keeps a producer outside 'T' that is neither finalized nor failed: a
+ * failed producer cannot produce the object before its retry, so the last
+ * succeeded producer of an object waits for the object to be completed.
  *)
 CompleteTasks(T) ==
     /\ T /= {}
     /\ T \subseteq SucceededTask
     /\ \A o \in UNION {Successor(deps, t) : t \in T} :
         o \in RegisteredObject
-            => \E t \in (Predecessor(deps, o) \ T) :
-                t \notin UNION {CompletedTask, AbortedTask, RetriedTask,
-                                FailedTask}
+            => \E u \in (Predecessor(deps, o) \ T) :
+                u \notin UNION {FailedTask, CompletedTask, RetriedTask,
+                                AbortedTask}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_COMPLETED ELSE taskState[t]]
     /\ UNCHANGED << deps, intent, nextAttemptOf, objectState, objectTargets >>
@@ -356,30 +370,31 @@ CompleteTasks(T) ==
  * ACTION
  * A set 'T' of discarded tasks is aborted: they will never be retried. Each
  * registered output object keeps a producer outside 'T' that is neither
- * finalized nor failed.
+ * finalized nor failed: a failed producer cannot abort the object, so the
+ * last discarded producer of an object waits for the object to be aborted.
  *)
 AbortTasks(T) ==
     /\ T /= {}
     /\ T \subseteq DiscardedTask
     /\ \A o \in UNION {Successor(deps, t) : t \in T} :
         o \in RegisteredObject
-            => \E t \in (Predecessor(deps, o) \ T) :
-                t \notin UNION {CompletedTask, AbortedTask, RetriedTask,
-                                FailedTask}
+            => \E u \in (Predecessor(deps, o) \ T) :
+                u \notin UNION {FailedTask, CompletedTask, RetriedTask,
+                                AbortedTask}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_ABORTED ELSE taskState[t]]
     /\ UNCHANGED << deps, intent, nextAttemptOf, objectState, objectTargets >>
 
 (**
  * ACTION
- * A set 'T' of failed tasks whose next attempts are registered is retried.
+ * A set 'T' of failed tasks whose next attempts are known is retried.
  * The retry waits for no object: each registered output keeps a producer
- * that can still produce it (GraphStateIntegrity).
+ * that can still finalize it (GraphStateIntegrity).
  *)
 RetryTasks(T) ==
     /\ T /= {}
-    /\ T \subseteq FailedTask
-    /\ \A t \in T : nextAttemptOf[t] \notin UnknownTask \union {NULL}
+    /\ T \subseteq FailedTask \intersect LinkedTask
+    /\ \A t \in T : nextAttemptOf[t] \notin UnknownTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_RETRIED ELSE taskState[t]]
     /\ UNCHANGED << deps, intent, nextAttemptOf, objectState, objectTargets >>
@@ -521,9 +536,9 @@ Next ==
         \/ CompleteObjects(O)
         \/ AbortObjects(O)
     \/ \E T \in SUBSET Task :
+        \/ \E U \in SUBSET Task : SetTaskRetries(T, U)
         \/ StageTasks(T)
         \/ DiscardTasks(T)
-        \/ \E U \in SUBSET Task : SetTaskRetries(T, U)
         \/ AssignTasks(T)
         \/ ReleaseTasks(T)
         \/ ProcessTasks(T)
@@ -546,11 +561,15 @@ Next ==
  *   't', which registers the next attempt of 't', is eventually registered
  *   while it stays registrable.
  * - Weak fairness of StageTasks: a task that stays stageable is eventually
- *   staged.
+ *   staged, whether or not it stands in the way of a target.
  * - Strong fairness of ProcessTasks: a task assigned infinitely often
  *   eventually succeeds.
- * - Weak fairness of CompleteTasks, AbortTasks and RetryTasks: a task that
- *   stays completable, abortable or retriable eventually is.
+ * - Weak fairness of CompleteTasks: a task that stays completable is
+ *   eventually completed.
+ * - Weak fairness of AbortTasks: a task that stays abortable is eventually
+ *   aborted.
+ * - Weak fairness of RetryTasks: a failed task whose next attempt stays known
+ *   is eventually retried.
  * - Weak fairness of PauseTasks: a staged task whose attempt chain stays to
  *   pause is eventually paused.
  * - Weak fairness of ResumeTasks: a paused task whose attempt chain stays to
@@ -560,7 +579,9 @@ Next ==
  * - Weak fairness of DiscardOnAbortedInput, for a task 't' and an object
  *   'o': a task with an aborted input that stays registered, staged, paused
  *   or halted in the open ancestry of the target 'o' is eventually
- *   discarded.
+ *   discarded. Elsewhere it may stay registered forever: abortion only
+ *   propagates where a target needs it, as Graph1 only stages the tasks a
+ *   target needs.
  * - Weak fairness of AssignForTarget, for a task 't' and an object 'o': a
  *   task that stays assignable in the open ancestry of the target 'o' is
  *   eventually assigned.
@@ -580,7 +601,7 @@ Fairness ==
         /\ WF_vars(AbortObjects({o}))
     /\ \A t \in Task :
         /\ WF_vars(\E u \in Task : SetTaskRetries({t}, {u}))
-        /\ WF_vars(RegisterGraph(RetrySubGraph(deps, t, nextAttemptOf[t])))
+        /\ WF_vars(RegisterGraph(RetrySubgraph(deps, t, nextAttemptOf[t])))
         /\ WF_vars(StageTasks({t}))
         /\ SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
         /\ WF_vars(CompleteTasks({t}))
@@ -613,7 +634,11 @@ UserStopsPausingUpstream ==
 (**
  * LIVENESS ASSUMPTION
  * The open ancestry of every object eventually stops growing: it may still
- * lose nodes and edges, but never gains one, as in Graph2.
+ * lose nodes and edges, but never gains one. With the fairness conditions and
+ * UserStopsPausingUpstream, it gets every target finalized, as Object2
+ * requires. It holds for every object, targeted or not, so that the retries
+ * of the producers of an object cannot keep it registered forever, as the
+ * fairness of the object finalization of Graph1 requires.
  *)
 UpstreamStabilization ==
     \A o \in Object :
@@ -648,15 +673,15 @@ TypeOk ==
 
 (**
  * INVARIANT
- * The graph agrees with the lifecycle states: Graph2's invariant, with the
- * paused and halted tasks. Its nodes are the known tasks and objects. A task
- * that is staged, paused or halted, or that went further than staging
- * without being discarded, has completed inputs. An object that is not a
- * root is registered only while one of its producers is neither finalized
- * nor failed, or is failed with a next attempt that is not registered. It is
- * completed only once one of its producers has succeeded or is completed,
- * and aborted only once one of them is discarded or aborted and all of them
- * are discarded or finalized.
+ * The graph agrees with the lifecycle states. Its nodes are the known tasks
+ * and objects. A task that is staged, paused or halted, or that went further
+ * than staging without being discarded, has completed inputs. An object that
+ * is not a root is registered only while one of its producers can still
+ * finalize its outputs, by producing or aborting them. It is completed only
+ * once one of its producers has succeeded or is completed, and aborted only
+ * once one of them is discarded or aborted and all of them are discarded or
+ * finalized. Restated from Graph2, whose staged tasks are the staged, paused
+ * and halted ones.
  *)
 GraphStateIntegrity ==
     /\ \A t \in Task : t \in deps.node <=> t \notin UnknownTask
@@ -673,23 +698,18 @@ GraphStateIntegrity ==
         => Predecessor(deps, t) \subseteq CompletedObject
     /\ \A o \in Object :
         o \notin Source(deps) /\ o \in RegisteredObject
-           => \E t \in Predecessor(deps, o) :
-                  \/ t \notin UNION {CompletedTask, AbortedTask, RetriedTask,
-                                     FailedTask}
-                  \/ /\ t \in FailedTask
-                     /\ \/ nextAttemptOf[t] = NULL
-                        \/ nextAttemptOf[t] \in UnknownTask
+           => \E t \in Predecessor(deps, o) : CanProduce(t)
     /\ \A o \in Object :
         o \notin Source(deps) /\ o \in CompletedObject
-               => Predecessor(deps, o)
-                    \intersect (SucceededTask \union CompletedTask) /= {}
+           => Predecessor(deps, o)
+                \intersect (SucceededTask \union CompletedTask) /= {}
     /\ \A o \in Object :
         o \notin Source(deps) /\ o \in AbortedObject
-               => /\ Predecessor(deps, o)
-                        \intersect (DiscardedTask \union AbortedTask) /= {}
-                  /\ Predecessor(deps, o)
-                        \subseteq UNION {DiscardedTask, CompletedTask,
-                                         AbortedTask, RetriedTask}
+           => /\ Predecessor(deps, o)
+                    \intersect (DiscardedTask \union AbortedTask) /= {}
+              /\ Predecessor(deps, o)
+                    \subseteq UNION {DiscardedTask, CompletedTask,
+                                     RetriedTask, AbortedTask}
 
 (**
  * INVARIANT
@@ -709,9 +729,9 @@ CompletedObjectHasDerivation ==
  * SAFETY
  * An underivable object stays underivable while no registration changes its
  * viable ancestry: the failures and the halts are permanent, so only a
- * registration can give it a derivation. Restated from Graph2, whose
- * derivations may also go through halted tasks. TLC cannot check this form,
- * which the model leaves out.
+ * registration can give it a derivation. TLC cannot check this form, which
+ * the model leaves out. Restated from Graph2, whose derivations may also go
+ * through halted tasks.
  *)
 UnderivableQuiescence ==
     \A o \in Object :
@@ -754,10 +774,10 @@ UnderivableObjectsEventualAbortion ==
 (**
  * LIVENESS
  * If the user eventually stops driving the system, the system eventually
- * stays idle and its state stops changing. Restated from Graph2 and Task3,
- * whose NoUserAction allow the requests and the registrations of the other
- * one. The conclusion is written as a conjunction that TLC can check, as in
- * Graph2.
+ * stays idle and its state stops changing. The conclusion is equivalent to
+ * <>([]Idle /\ [][FALSE]_vars), written as a conjunction that TLC can check.
+ * Restated from Graph2 and Task3, whose NoUserAction allow the requests and
+ * the registrations of the other one.
  *)
 EventualQuiescence ==
     <>[][NoUserAction]_vars
