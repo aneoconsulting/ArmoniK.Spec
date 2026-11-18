@@ -410,6 +410,25 @@ FailedTaskEventualRetry ==
 
 (**
  * LIVENESS
+ * Every task eventually stays unknown, registered, staged or paused,
+ * completed, retried, aborted or halted forever: no task stays assigned,
+ * succeeded, failed or discarded. A task may move between staged and paused
+ * forever, as the user changes the intent of its attempt chain. Restated from
+ * Task2, whose staged tasks also include the paused and halted ones.
+ *)
+EventualStability ==
+    \A t \in Task :
+        At(t) ::
+            \/ <>[](t \in UnknownTask)
+            \/ <>[](t \in RegisteredTask)
+            \/ <>[](t \in StagedTask \union PausedTask)
+            \/ <>[](t \in CompletedTask)
+            \/ <>[](t \in RetriedTask)
+            \/ <>[](t \in AbortedTask)
+            \/ <>[](t \in HaltedTask)
+
+(**
+ * LIVENESS
  * The intent of the attempt chain of a task is eventually in effect on the
  * task, unless it is replaced first.
  *)
