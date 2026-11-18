@@ -194,14 +194,6 @@ EventualTargetFinalization ==
 
 (**
  * LIVENESS
- * A targeted object is eventually finalized or untargeted.
- *)
-EventualTargetResolution ==
-    \A o \in Object :
-        o \in objectTargets ~> (o \in FinalizedObject \/ ~ o \in objectTargets)
-
-(**
- * LIVENESS
  * If the user eventually stops driving the system, the system eventually
  * stays idle and its state stops changing. The conclusion is equivalent to
  * <>([]Idle /\ [][FALSE]_vars), written as a conjunction that TLC can check.
