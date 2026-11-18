@@ -398,6 +398,13 @@ GraphStateIntegrity ==
 
 (**
  * SAFETY
+ * The dependency graph only grows: each step keeps it as a subgraph.
+ *)
+DepsMonotone ==
+    [][(deps \in DirectedSubgraph(deps'))]_deps
+
+(**
+ * SAFETY
  * A finalized root object stays a finalized root: no producer is ever added
  * to it.
  *)
