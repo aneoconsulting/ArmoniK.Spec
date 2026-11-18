@@ -11,35 +11,14 @@ EXTENDS Graph1
 (******************************************************************************)
 
 (**
- * The assumptions of Graph1 imply those of Task1.
- *)
-LEMMA LemT1Assumptions == T1!Assumptions
-
-(**
  * The assumptions of Graph1 imply those of Object1.
  *)
 LEMMA LemO1Assumptions == O1!Assumptions
 
 (**
- * Under the instance, the operators of Task1 denote those of Graph1.
+ * The assumptions of Graph1 imply those of Task1.
  *)
-LEMMA LemT1Bridges ==
-    /\ \A S : T1!IsFiniteSet(S) <=> IsFiniteSet(S)
-    /\ T1!UnknownTask = UnknownTask
-    /\ T1!RegisteredTask = RegisteredTask
-    /\ T1!StagedTask = StagedTask
-    /\ T1!AssignedTask = AssignedTask
-    /\ T1!ProcessedTask = ProcessedTask
-    /\ T1!FinalizedTask = FinalizedTask
-
-(**
- * Under the instance, the operators of Object1 denote those of Graph1.
- *)
-LEMMA LemO1Bridges ==
-    /\ \A S : O1!IsFiniteSet(S) <=> IsFiniteSet(S)
-    /\ O1!UnknownObject = UnknownObject
-    /\ O1!RegisteredObject = RegisteredObject
-    /\ O1!FinalizedObject = FinalizedObject
+LEMMA LemT1Assumptions == T1!Assumptions
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -53,55 +32,6 @@ LEMMA LemTypeOk == Init /\ [][Next]_vars => []TypeOk
 (*                              STEP SIMULATION                               *)
 (******************************************************************************)
 
-LEMMA LemInitSimulateT1Init == Init => T1!Init
-
-(**
- * Registering a graph registers its tasks, or leaves the task states
- * unchanged when it has none.
- *)
-LEMMA LemRegisterGraphSimulateT1RegisterTasks ==
-    ASSUME NEW G \in DirectedGraphOf(Task \union Object)
-    PROVE  TypeOk /\ RegisterGraph(G)
-           => [T1!RegisterTasks(G.node \intersect Task)]_(T1!vars)
-
-LEMMA LemTargetObjectsSimulateT1Stuttering ==
-    ASSUME NEW O \in SUBSET Object
-    PROVE  TargetObjects(O) => UNCHANGED T1!vars
-
-LEMMA LemUntargetObjectsSimulateT1Stuttering ==
-    ASSUME NEW O \in SUBSET Object
-    PROVE  UntargetObjects(O) => UNCHANGED T1!vars
-
-LEMMA LemFinalizeObjectsSimulateT1Stuttering ==
-    ASSUME NEW O \in SUBSET Object
-    PROVE  FinalizeObjects(O) => UNCHANGED T1!vars
-
-LEMMA LemStageTasksSimulateT1StageTasks ==
-    ASSUME NEW T \in SUBSET Task
-    PROVE  StageTasks(T) => T1!StageTasks(T)
-
-LEMMA LemDiscardTasksSimulateT1DiscardTasks ==
-    ASSUME NEW T \in SUBSET Task
-    PROVE  DiscardTasks(T) => T1!DiscardTasks(T)
-
-LEMMA LemAssignTasksSimulateT1AssignTasks ==
-    ASSUME NEW T \in SUBSET Task
-    PROVE  AssignTasks(T) => T1!AssignTasks(T)
-
-LEMMA LemReleaseTasksSimulateT1ReleaseTasks ==
-    ASSUME NEW T \in SUBSET Task
-    PROVE  ReleaseTasks(T) => T1!ReleaseTasks(T)
-
-LEMMA LemProcessTasksSimulateT1ProcessTasks ==
-    ASSUME NEW T \in SUBSET Task
-    PROVE  ProcessTasks(T) => T1!ProcessTasks(T)
-
-LEMMA LemFinalizeTasksSimulateT1FinalizeTasks ==
-    ASSUME NEW T \in SUBSET Task
-    PROVE  FinalizeTasks(T) => T1!FinalizeTasks(T)
-
-LEMMA LemNextSimulateT1Next == TypeOk /\ [Next]_vars => [T1!Next]_T1!vars
-
 LEMMA LemInitSimulateO1Init == Init => O1!Init
 
 (**
@@ -109,9 +39,9 @@ LEMMA LemInitSimulateO1Init == Init => O1!Init
  * states unchanged when it has none.
  *)
 LEMMA LemRegisterGraphSimulateO1RegisterObjects ==
-    ASSUME NEW G \in DirectedGraphOf(Task \union Object)
+    ASSUME NEW G
     PROVE  TypeOk /\ RegisterGraph(G)
-           => [O1!RegisterObjects(G.node \intersect UnknownObject)]_(O1!vars)
+           => [O1!RegisterObjects(G.node \intersect UnknownObject)]_O1!vars
 
 LEMMA LemTargetObjectsSimulateO1TargetObjects ==
     ASSUME NEW O \in SUBSET Object
@@ -151,25 +81,72 @@ LEMMA LemFinalizeTasksSimulateO1Stuttering ==
 
 LEMMA LemNextSimulateO1Next == TypeOk /\ [Next]_vars => [O1!Next]_O1!vars
 
+LEMMA LemInitSimulateT1Init == Init => T1!Init
+
+(**
+ * Registering a graph registers its tasks, or leaves the task states
+ * unchanged when it has none.
+ *)
+LEMMA LemRegisterGraphSimulateT1RegisterTasks ==
+    ASSUME NEW G
+    PROVE  TypeOk /\ RegisterGraph(G)
+           => [T1!RegisterTasks(G.node \intersect Task)]_T1!vars
+
+LEMMA LemTargetObjectsSimulateT1Stuttering ==
+    ASSUME NEW O \in SUBSET Object
+    PROVE  TargetObjects(O) => UNCHANGED T1!vars
+
+LEMMA LemUntargetObjectsSimulateT1Stuttering ==
+    ASSUME NEW O \in SUBSET Object
+    PROVE  UntargetObjects(O) => UNCHANGED T1!vars
+
+LEMMA LemFinalizeObjectsSimulateT1Stuttering ==
+    ASSUME NEW O \in SUBSET Object
+    PROVE  FinalizeObjects(O) => UNCHANGED T1!vars
+
+LEMMA LemStageTasksSimulateT1StageTasks ==
+    ASSUME NEW T \in SUBSET Task
+    PROVE  StageTasks(T) => T1!StageTasks(T)
+
+LEMMA LemDiscardTasksSimulateT1DiscardTasks ==
+    ASSUME NEW T \in SUBSET Task
+    PROVE  DiscardTasks(T) => T1!DiscardTasks(T)
+
+LEMMA LemAssignTasksSimulateT1AssignTasks ==
+    ASSUME NEW T \in SUBSET Task
+    PROVE  AssignTasks(T) => T1!AssignTasks(T)
+
+LEMMA LemReleaseTasksSimulateT1ReleaseTasks ==
+    ASSUME NEW T \in SUBSET Task
+    PROVE  ReleaseTasks(T) => T1!ReleaseTasks(T)
+
+LEMMA LemProcessTasksSimulateT1ProcessTasks ==
+    ASSUME NEW T \in SUBSET Task
+    PROVE  ProcessTasks(T) => T1!ProcessTasks(T)
+
+LEMMA LemFinalizeTasksSimulateT1FinalizeTasks ==
+    ASSUME NEW T \in SUBSET Task
+    PROVE  FinalizeTasks(T) => T1!FinalizeTasks(T)
+
+LEMMA LemNextSimulateT1Next == TypeOk /\ [Next]_vars => [T1!Next]_T1!vars
+
 --------------------------------------------------------------------------------
 (******************************************************************************)
 (*                               LIFTED SAFETY                                *)
 (******************************************************************************)
 
-LEMMA LemT1Inv == Init /\ [][Next]_vars => []T1!Inv
-
 LEMMA LemO1Inv == Init /\ [][Next]_vars => []O1!Inv
+
+LEMMA LemT1Inv == Init /\ [][Next]_vars => []T1!Inv
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
 (*                                 INVARIANTS                                 *)
 (******************************************************************************)
 
-LEMMA LemDepsCompliant ==
-    Init /\ [][Next]_vars => []DepsCompliant
+LEMMA LemDepsCompliant == Init /\ [][Next]_vars => []DepsCompliant
 
-LEMMA LemDepsFinite ==
-    Init /\ [][Next]_vars => []DepsFinite
+LEMMA LemDepsFinite == Init /\ [][Next]_vars => []DepsFinite
 
 LEMMA LemGraphStateIntegrity == Init /\ [][Next]_vars => []GraphStateIntegrity
 
@@ -183,8 +160,8 @@ LEMMA LemGraphStateIntegrity == Init /\ [][Next]_vars => []GraphStateIntegrity
  *)
 Inv ==
     /\ TypeOk
-    /\ T1!Inv
     /\ O1!Inv
+    /\ T1!Inv
     /\ DepsCompliant
     /\ DepsFinite
     /\ GraphStateIntegrity
@@ -197,10 +174,10 @@ LEMMA LemInv == Init /\ [][Next]_vars => []Inv
 (******************************************************************************)
 
 (**
- * Each step keeps the dependency graph as a subgraph of the next one.
+ * The dependency graph is a subgraph of the next one at every step.
  *)
 LEMMA LemDepsMonotone ==
-    ASSUME IsDirectedGraph(deps), [Next]_vars
+    ASSUME Inv, [Next]_vars
     PROVE  [(deps \in DirectedSubgraph(deps'))]_deps
 
 (**
@@ -212,7 +189,7 @@ LEMMA LemPermanentFinalizedSource ==
            => (o \in Source(deps) /\ o \in FinalizedObject)'
 
 (**
- * No step changes the inputs or the outputs of a known task.
+ * The inputs and the outputs of a known task are unchanged at every step.
  *)
 LEMMA LemImmutableTaskDependencies ==
     ASSUME NEW t \in Task, Inv, [Next]_vars
@@ -229,7 +206,7 @@ LEMMA LemImmutableTaskDependencies ==
  * The fairness conditions restated without ENABLED, which a substitution does
  * not distribute over: a refinement proves the instantiated restatements and
  * recovers the instantiated Fairness through LemFairnessEnabledFree. Each
- * Enabled predicate is the enabledness of its action, written out.
+ * Enabled predicate holds exactly when its fair action is enabled.
  *)
 EnabledFinalizeObjects(o) ==
     /\ o \in RegisteredObject
@@ -253,46 +230,29 @@ EnabledFinalizeTasks(t) ==
 FairFinalizeTasks(t) ==
     <>[]EnabledFinalizeTasks(t) => []<><<FinalizeTasks({t})>>_vars
 
-EnabledStageTasks(t, o) ==
+EnabledStageForTarget(t, o) ==
     /\ o \in objectTargets
     /\ t \in OA(o).node
-    /\ Predecessor(deps, t) \subseteq FinalizedObject
     /\ t \in RegisteredTask
+    /\ Predecessor(deps, t) \subseteq FinalizedObject
 
-FairStageTasks(t, o) ==
-    <>[]EnabledStageTasks(t, o)
-        => []<><<
-               /\ o \in objectTargets
-               /\ t \in OA(o).node
-               /\ StageTasks({t})>>_vars
+FairStageForTarget(t, o) ==
+    <>[]EnabledStageForTarget(t, o) => []<><<StageForTarget(t, o)>>_vars
 
-EnabledAssignTasks(t, o) ==
+EnabledAssignForTarget(t, o) ==
     /\ o \in objectTargets
     /\ t \in OA(o).node
     /\ t \in StagedTask
 
-FairAssignTasks(t, o) ==
-    <>[]EnabledAssignTasks(t, o)
-        => []<><<
-               /\ o \in objectTargets
-               /\ t \in OA(o).node
-               /\ AssignTasks({t})>>_vars
+FairAssignForTarget(t, o) ==
+    <>[]EnabledAssignForTarget(t, o) => []<><<AssignForTarget(t, o)>>_vars
 
 LEMMA LemFairnessEnabledFree ==
     Fairness
-    <=> /\ \A o \in Object : FairFinalizeObjects(o)
+    <=> /\ \A x \in Object : FairFinalizeObjects(x)
         /\ \A t \in Task : FairProcessTasks(t) /\ FairFinalizeTasks(t)
         /\ \A t \in Task, o \in Object :
-               FairStageTasks(t, o) /\ FairAssignTasks(t, o)
-
-(**
- * Once it holds, the fairness of the finalization of every object holds
- * forever. Here rather than with the helper lemmas: its statement uses the
- * restatements above.
- *)
-LEMMA LemFairFinalizeObjectsStable ==
-    (\A x \in Object : FairFinalizeObjects(x))
-    => [](\A x \in Object : FairFinalizeObjects(x))
+               FairStageForTarget(t, o) /\ FairAssignForTarget(t, o)
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -301,7 +261,7 @@ LEMMA LemFairFinalizeObjectsStable ==
 
 (**
  * The strong fairness of the processing of a task in Task1 holds under
- * Graph1, where processing is the same action.
+ * Graph1, where it is the same action.
  *)
 LEMMA LemPreserveT1SFProcessTasks ==
     ASSUME NEW t \in Task
@@ -333,8 +293,8 @@ LEMMA LemPreserveO1WFFinalizeObjects ==
            /\ \A t \in Task :
                   /\ FairProcessTasks(t)
                   /\ FairFinalizeTasks(t)
-                  /\ FairStageTasks(t, o)
-                  /\ FairAssignTasks(t, o)
+                  /\ FairStageForTarget(t, o)
+                  /\ FairAssignForTarget(t, o)
            /\ UpstreamStabilization!At(o)
            => O1!FairFinalizeObjects(o)
 
@@ -344,16 +304,16 @@ LEMMA LemPreserveO1WFFinalizeObjects ==
 (******************************************************************************)
 
 (**
- * Lifted from Task1 and Object1: under user quiescence, a step of Graph1 is
+ * Lifted from Object1 and Task1: under user quiescence, a step of Graph1 is
  * quiescent in both, and the graph no longer changes.
  *)
 LEMMA LemEventualQuiescence ==
     /\ []Inv
     /\ [][Next]_vars
-    /\ \A o \in Object : FairFinalizeObjects(o)
+    /\ \A x \in Object : FairFinalizeObjects(x)
     /\ \A t \in Task : FairProcessTasks(t) /\ FairFinalizeTasks(t)
     /\ \A t \in Task, o \in Object :
-           FairStageTasks(t, o) /\ FairAssignTasks(t, o)
+           FairStageForTarget(t, o) /\ FairAssignForTarget(t, o)
     /\ UpstreamStabilization
     => EventualQuiescence
 
@@ -376,9 +336,9 @@ THEOREM ThmPermanentFinalizedSource == Spec => PermanentFinalizedSource
 
 THEOREM ThmImmutableTaskDependencies == Spec => ImmutableTaskDependencies
 
-THEOREM ThmRefineTask1 == Spec => RefineTask1
-
 THEOREM ThmRefineObject1 == Spec => RefineObject1
+
+THEOREM ThmRefineTask1 == Spec => RefineTask1
 
 THEOREM ThmEventualQuiescence == Spec => EventualQuiescence
 

@@ -6,7 +6,7 @@
 EXTENDS DDGraphTheorems, FiniteSetTheorems, Graph1, TemporalLogicTheorems,
     TLAPS
 
-USE Assumptions DEF OBJECT_FINALIZED, O1!OBJECT_FINALIZED, OBJECT_REGISTERED,
+USE DEF OBJECT_FINALIZED, O1!OBJECT_FINALIZED, OBJECT_REGISTERED,
     O1!OBJECT_REGISTERED, OBJECT_UNKNOWN, O1!OBJECT_UNKNOWN, TASK_ASSIGNED,
     T1!TASK_ASSIGNED, TASK_FINALIZED, T1!TASK_FINALIZED, TASK_PROCESSED,
     T1!TASK_PROCESSED, TASK_REGISTERED, T1!TASK_REGISTERED, TASK_STAGED,
@@ -18,14 +18,6 @@ USE Assumptions DEF OBJECT_FINALIZED, O1!OBJECT_FINALIZED, OBJECT_REGISTERED,
 (******************************************************************************)
 
 (**
- * The assumptions of Graph1 imply those of Task1.
- *)
-LEMMA LemT1Assumptions == T1!Assumptions
-BY Assumptions DEF T1!Assumptions, Bijection, T1!Bijection, ExistsBijection,
-    T1!ExistsBijection, Injection, T1!Injection, IsDenumerableSet,
-    T1!IsDenumerableSet, IsInjective, T1!IsInjective, Surjection, T1!Surjection
-
-(**
  * The assumptions of Graph1 imply those of Object1.
  *)
 LEMMA LemO1Assumptions == O1!Assumptions
@@ -34,31 +26,12 @@ BY Assumptions DEF O1!Assumptions, Bijection, O1!Bijection, ExistsBijection,
     O1!IsDenumerableSet, IsInjective, O1!IsInjective, Surjection, O1!Surjection
 
 (**
- * Under the instance, the operators of Task1 denote those of Graph1.
+ * The assumptions of Graph1 imply those of Task1.
  *)
-LEMMA LemT1Bridges ==
-    /\ \A S : T1!IsFiniteSet(S) <=> IsFiniteSet(S)
-    /\ T1!UnknownTask = UnknownTask
-    /\ T1!RegisteredTask = RegisteredTask
-    /\ T1!StagedTask = StagedTask
-    /\ T1!AssignedTask = AssignedTask
-    /\ T1!ProcessedTask = ProcessedTask
-    /\ T1!FinalizedTask = FinalizedTask
-BY DEF AssignedTask, T1!AssignedTask, FinalizedTask, T1!FinalizedTask,
-    IsFiniteSet, T1!IsFiniteSet, ProcessedTask, T1!ProcessedTask,
-    RegisteredTask, T1!RegisteredTask, StagedTask, T1!StagedTask, UnknownTask,
-    T1!UnknownTask
-
-(**
- * Under the instance, the operators of Object1 denote those of Graph1.
- *)
-LEMMA LemO1Bridges ==
-    /\ \A S : O1!IsFiniteSet(S) <=> IsFiniteSet(S)
-    /\ O1!UnknownObject = UnknownObject
-    /\ O1!RegisteredObject = RegisteredObject
-    /\ O1!FinalizedObject = FinalizedObject
-BY DEF FinalizedObject, O1!FinalizedObject, IsFiniteSet, O1!IsFiniteSet,
-    RegisteredObject, O1!RegisteredObject, UnknownObject, O1!UnknownObject
+LEMMA LemT1Assumptions == T1!Assumptions
+BY Assumptions DEF T1!Assumptions, Bijection, T1!Bijection, ExistsBijection,
+    T1!ExistsBijection, Injection, T1!Injection, IsDenumerableSet,
+    T1!IsDenumerableSet, IsInjective, T1!IsInjective, Surjection, T1!Surjection
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -68,47 +41,12 @@ BY DEF FinalizedObject, O1!FinalizedObject, IsFiniteSet, O1!IsFiniteSet,
 LEMMA LemTypeOk == Init /\ [][Next]_vars => []TypeOk
 <1>. USE DEF O1State, T1State, TypeOk
 <1>1. Init => TypeOk
-    <2>1. EmptyGraph \in DirectedGraphOf(Task \union Object)
-        BY DG_EmptyGraphProperties
-    <2>. QED
-        BY <2>1 DEF Init
+    BY DG_EmptyGraphProperties DEF Init
 <1>2. TypeOk /\ [Next]_vars => TypeOk'
-    <2>. SUFFICES ASSUME TypeOk, [Next]_vars
-                  PROVE  TypeOk'
-        OBVIOUS
-    <2>1. ASSUME NEW G \in DirectedGraphOf(Task \union Object), RegisterGraph(G)
-          PROVE  TypeOk'
-        <3>1. deps' \in DirectedGraphOf(Task \union Object)
-            <4>1. IsDirectedGraph(deps')
-                BY <2>1, DG_DagProperties DEF IsDDGraph, RegisterGraph
-            <4>2. deps'.node \subseteq Task \union Object
-                BY <2>1 DEF IsBipartiteWithPartitions, IsDDGraph, RegisterGraph
-            <4>. QED
-                BY <4>1, <4>2 DEF DirectedGraphOf, IsDirectedGraph
-        <3>. QED
-            BY <2>1, <3>1 DEF RegisterGraph
-    <2>2. ASSUME NEW O \in SUBSET Object,
-                 \/ TargetObjects(O)
-                 \/ UntargetObjects(O)
-                 \/ FinalizeObjects(O)
-          PROVE  TypeOk'
-        BY <2>2 DEF FinalizedObject, FinalizeObjects, RegisteredObject,
-            TargetObjects, UntargetObjects
-    <2>3. ASSUME NEW T \in SUBSET Task,
-                 \/ StageTasks(T)
-                 \/ DiscardTasks(T)
-                 \/ AssignTasks(T)
-                 \/ ReleaseTasks(T)
-                 \/ ProcessTasks(T)
-                 \/ FinalizeTasks(T)
-          PROVE  TypeOk'
-        BY <2>3 DEF AssignedTask, AssignTasks, DiscardTasks, FinalizeTasks,
-            ProcessedTask, ProcessTasks, RegisteredTask, ReleaseTasks,
-            StagedTask, StageTasks
-    <2>4. CASE UNCHANGED vars
-        BY <2>4 DEF vars
-    <2>. QED
-        BY <2>1, <2>2, <2>3, <2>4 DEF Next
+    BY DG_DagProperties DEF AssignTasks, DirectedGraphOf, DiscardTasks,
+        FinalizeObjects, FinalizeTasks, IsBipartiteWithPartitions, IsDDGraph,
+        IsDirectedGraph, Next, ProcessTasks, RegisterGraph, ReleaseTasks,
+        StageTasks, TargetObjects, UntargetObjects, vars
 <1>. QED
     BY <1>1, <1>2, PTL
 
@@ -116,93 +54,6 @@ LEMMA LemTypeOk == Init /\ [][Next]_vars => []TypeOk
 (******************************************************************************)
 (*                              STEP SIMULATION                               *)
 (******************************************************************************)
-
-LEMMA LemInitSimulateT1Init == Init => T1!Init
-BY DEF Init, T1!Init
-
-(**
- * Registering a graph registers its tasks, or leaves the task states
- * unchanged when it has none.
- *)
-LEMMA LemRegisterGraphSimulateT1RegisterTasks ==
-    ASSUME NEW G \in DirectedGraphOf(Task \union Object)
-    PROVE  TypeOk /\ RegisterGraph(G)
-           => [T1!RegisterTasks(G.node \intersect Task)]_(T1!vars)
-<1>. SUFFICES ASSUME TypeOk, RegisterGraph(G)
-              PROVE  [T1!RegisterTasks(G.node \intersect Task)]_(T1!vars)
-    OBVIOUS
-<1>1. CASE G.node \intersect Task = {}
-    <2>1. taskState' = [t \in Task |-> taskState[t]]
-        BY <1>1 DEF RegisterGraph
-    <2>. QED
-        BY <2>1 DEF TypeOk, T1!vars
-<1>2. CASE G.node \intersect Task /= {}
-    <2>1. IsFiniteSet(G.node \intersect Task)
-        BY FS_Subset DEF RegisterGraph
-    <2>. QED
-        BY <1>2, <2>1, LemT1Bridges DEF RegisterGraph, T1!RegisterTasks
-<1>. QED
-    BY <1>1, <1>2
-
-LEMMA LemTargetObjectsSimulateT1Stuttering ==
-    ASSUME NEW O \in SUBSET Object
-    PROVE  TargetObjects(O) => UNCHANGED T1!vars
-BY DEF TargetObjects, T1!vars
-
-LEMMA LemUntargetObjectsSimulateT1Stuttering ==
-    ASSUME NEW O \in SUBSET Object
-    PROVE  UntargetObjects(O) => UNCHANGED T1!vars
-BY DEF UntargetObjects, T1!vars
-
-LEMMA LemFinalizeObjectsSimulateT1Stuttering ==
-    ASSUME NEW O \in SUBSET Object
-    PROVE  FinalizeObjects(O) => UNCHANGED T1!vars
-BY DEF FinalizeObjects, T1!vars
-
-LEMMA LemStageTasksSimulateT1StageTasks ==
-    ASSUME NEW T \in SUBSET Task
-    PROVE  StageTasks(T) => T1!StageTasks(T)
-BY LemT1Bridges DEF StageTasks, T1!StageTasks
-
-LEMMA LemDiscardTasksSimulateT1DiscardTasks ==
-    ASSUME NEW T \in SUBSET Task
-    PROVE  DiscardTasks(T) => T1!DiscardTasks(T)
-BY LemT1Bridges DEF DiscardTasks, T1!DiscardTasks
-
-LEMMA LemAssignTasksSimulateT1AssignTasks ==
-    ASSUME NEW T \in SUBSET Task
-    PROVE  AssignTasks(T) => T1!AssignTasks(T)
-BY LemT1Bridges DEF AssignTasks, T1!AssignTasks
-
-LEMMA LemReleaseTasksSimulateT1ReleaseTasks ==
-    ASSUME NEW T \in SUBSET Task
-    PROVE  ReleaseTasks(T) => T1!ReleaseTasks(T)
-BY LemT1Bridges DEF ReleaseTasks, T1!ReleaseTasks
-
-LEMMA LemProcessTasksSimulateT1ProcessTasks ==
-    ASSUME NEW T \in SUBSET Task
-    PROVE  ProcessTasks(T) => T1!ProcessTasks(T)
-BY LemT1Bridges DEF ProcessTasks, T1!ProcessTasks
-
-LEMMA LemFinalizeTasksSimulateT1FinalizeTasks ==
-    ASSUME NEW T \in SUBSET Task
-    PROVE  FinalizeTasks(T) => T1!FinalizeTasks(T)
-BY LemT1Bridges DEF FinalizeTasks, T1!FinalizeTasks
-
-LEMMA LemNextSimulateT1Next == TypeOk /\ [Next]_vars => [T1!Next]_T1!vars
-<1>1. CASE UNCHANGED vars
-    BY <1>1 DEF vars, T1!vars
-<1>. QED
-    BY <1>1, LemAssignTasksSimulateT1AssignTasks,
-        LemDiscardTasksSimulateT1DiscardTasks,
-        LemFinalizeObjectsSimulateT1Stuttering,
-        LemFinalizeTasksSimulateT1FinalizeTasks,
-        LemProcessTasksSimulateT1ProcessTasks,
-        LemRegisterGraphSimulateT1RegisterTasks,
-        LemReleaseTasksSimulateT1ReleaseTasks,
-        LemStageTasksSimulateT1StageTasks,
-        LemTargetObjectsSimulateT1Stuttering,
-        LemUntargetObjectsSimulateT1Stuttering DEF Next, T1!Next
 
 LEMMA LemInitSimulateO1Init == Init => O1!Init
 BY DEF Init, O1!Init
@@ -212,30 +63,17 @@ BY DEF Init, O1!Init
  * states unchanged when it has none.
  *)
 LEMMA LemRegisterGraphSimulateO1RegisterObjects ==
-    ASSUME NEW G \in DirectedGraphOf(Task \union Object)
+    ASSUME NEW G
     PROVE  TypeOk /\ RegisterGraph(G)
-           => [O1!RegisterObjects(G.node \intersect UnknownObject)]_(O1!vars)
-<1>. SUFFICES ASSUME TypeOk, RegisterGraph(G)
-              PROVE  [O1!RegisterObjects(G.node \intersect UnknownObject)]_
-                         (O1!vars)
-    OBVIOUS
-<1>1. CASE G.node \intersect UnknownObject = {}
-    <2>1. objectState' = [o \in Object |-> objectState[o]]
-        BY <1>1 DEF RegisterGraph
-    <2>. QED
-        BY <2>1 DEF RegisterGraph, TypeOk, O1!vars
-<1>2. CASE G.node \intersect UnknownObject /= {}
-    <2>1. IsFiniteSet(G.node \intersect UnknownObject)
-        BY FS_Subset DEF RegisterGraph
-    <2>. QED
-        BY <1>2, <2>1, LemO1Bridges DEF RegisterGraph, O1!RegisterObjects
-<1>. QED
-    BY <1>1, <1>2
+           => [O1!RegisterObjects(G.node \intersect UnknownObject)]_O1!vars
+BY FS_Subset DEF IsFiniteSet, O1!IsFiniteSet, RegisterGraph,
+    O1!RegisterObjects, TypeOk, UnknownObject, O1!UnknownObject, O1!vars
 
 LEMMA LemTargetObjectsSimulateO1TargetObjects ==
     ASSUME NEW O \in SUBSET Object
     PROVE  TargetObjects(O) => O1!TargetObjects(O)
-BY LemO1Bridges DEF TargetObjects, O1!TargetObjects
+BY DEF FinalizedObject, O1!FinalizedObject, RegisteredObject,
+    O1!RegisteredObject, TargetObjects, O1!TargetObjects
 
 LEMMA LemUntargetObjectsSimulateO1UntargetObjects ==
     ASSUME NEW O \in SUBSET Object
@@ -245,7 +83,8 @@ BY DEF UntargetObjects, O1!UntargetObjects
 LEMMA LemFinalizeObjectsSimulateO1FinalizeObjects ==
     ASSUME NEW O \in SUBSET Object
     PROVE  FinalizeObjects(O) => O1!FinalizeObjects(O)
-BY LemO1Bridges DEF FinalizeObjects, O1!FinalizeObjects
+BY DEF FinalizeObjects, O1!FinalizeObjects, RegisteredObject,
+    O1!RegisteredObject
 
 LEMMA LemStageTasksSimulateO1Stuttering ==
     ASSUME NEW T \in SUBSET Task
@@ -278,48 +117,107 @@ LEMMA LemFinalizeTasksSimulateO1Stuttering ==
 BY DEF FinalizeTasks, O1!vars
 
 LEMMA LemNextSimulateO1Next == TypeOk /\ [Next]_vars => [O1!Next]_O1!vars
-<1>1. CASE UNCHANGED vars
-    BY <1>1 DEF vars, O1!vars
-<1>. QED
-    BY <1>1, LemAssignTasksSimulateO1Stuttering,
-        LemDiscardTasksSimulateO1Stuttering,
-        LemFinalizeObjectsSimulateO1FinalizeObjects,
-        LemFinalizeTasksSimulateO1Stuttering,
-        LemProcessTasksSimulateO1Stuttering,
-        LemRegisterGraphSimulateO1RegisterObjects,
-        LemReleaseTasksSimulateO1Stuttering,
-        LemStageTasksSimulateO1Stuttering,
-        LemTargetObjectsSimulateO1TargetObjects,
-        LemUntargetObjectsSimulateO1UntargetObjects
-        DEF Next, O1!Next, UnknownObject
+BY LemAssignTasksSimulateO1Stuttering, LemDiscardTasksSimulateO1Stuttering,
+    LemFinalizeObjectsSimulateO1FinalizeObjects,
+    LemFinalizeTasksSimulateO1Stuttering, LemProcessTasksSimulateO1Stuttering,
+    LemRegisterGraphSimulateO1RegisterObjects,
+    LemReleaseTasksSimulateO1Stuttering, LemStageTasksSimulateO1Stuttering,
+    LemTargetObjectsSimulateO1TargetObjects,
+    LemUntargetObjectsSimulateO1UntargetObjects
+    DEF Next, O1!Next, UnknownObject, vars, O1!vars
+
+LEMMA LemInitSimulateT1Init == Init => T1!Init
+BY DEF Init, T1!Init
+
+(**
+ * Registering a graph registers its tasks, or leaves the task states
+ * unchanged when it has none.
+ *)
+LEMMA LemRegisterGraphSimulateT1RegisterTasks ==
+    ASSUME NEW G
+    PROVE  TypeOk /\ RegisterGraph(G)
+           => [T1!RegisterTasks(G.node \intersect Task)]_T1!vars
+BY FS_Subset DEF IsFiniteSet, T1!IsFiniteSet, RegisterGraph,
+    T1!RegisterTasks, TypeOk, UnknownTask, T1!UnknownTask, T1!vars
+
+LEMMA LemTargetObjectsSimulateT1Stuttering ==
+    ASSUME NEW O \in SUBSET Object
+    PROVE  TargetObjects(O) => UNCHANGED T1!vars
+BY DEF TargetObjects, T1!vars
+
+LEMMA LemUntargetObjectsSimulateT1Stuttering ==
+    ASSUME NEW O \in SUBSET Object
+    PROVE  UntargetObjects(O) => UNCHANGED T1!vars
+BY DEF UntargetObjects, T1!vars
+
+LEMMA LemFinalizeObjectsSimulateT1Stuttering ==
+    ASSUME NEW O \in SUBSET Object
+    PROVE  FinalizeObjects(O) => UNCHANGED T1!vars
+BY DEF FinalizeObjects, T1!vars
+
+LEMMA LemStageTasksSimulateT1StageTasks ==
+    ASSUME NEW T \in SUBSET Task
+    PROVE  StageTasks(T) => T1!StageTasks(T)
+BY DEF RegisteredTask, T1!RegisteredTask, StageTasks, T1!StageTasks
+
+LEMMA LemDiscardTasksSimulateT1DiscardTasks ==
+    ASSUME NEW T \in SUBSET Task
+    PROVE  DiscardTasks(T) => T1!DiscardTasks(T)
+BY DEF DiscardTasks, T1!DiscardTasks, RegisteredTask, T1!RegisteredTask,
+    StagedTask, T1!StagedTask
+
+LEMMA LemAssignTasksSimulateT1AssignTasks ==
+    ASSUME NEW T \in SUBSET Task
+    PROVE  AssignTasks(T) => T1!AssignTasks(T)
+BY DEF AssignTasks, T1!AssignTasks, StagedTask, T1!StagedTask
+
+LEMMA LemReleaseTasksSimulateT1ReleaseTasks ==
+    ASSUME NEW T \in SUBSET Task
+    PROVE  ReleaseTasks(T) => T1!ReleaseTasks(T)
+BY DEF AssignedTask, T1!AssignedTask, ReleaseTasks, T1!ReleaseTasks
+
+LEMMA LemProcessTasksSimulateT1ProcessTasks ==
+    ASSUME NEW T \in SUBSET Task
+    PROVE  ProcessTasks(T) => T1!ProcessTasks(T)
+BY DEF AssignedTask, T1!AssignedTask, ProcessTasks, T1!ProcessTasks
+
+LEMMA LemFinalizeTasksSimulateT1FinalizeTasks ==
+    ASSUME NEW T \in SUBSET Task
+    PROVE  FinalizeTasks(T) => T1!FinalizeTasks(T)
+BY DEF FinalizeTasks, T1!FinalizeTasks, ProcessedTask, T1!ProcessedTask
+
+LEMMA LemNextSimulateT1Next == TypeOk /\ [Next]_vars => [T1!Next]_T1!vars
+BY LemAssignTasksSimulateT1AssignTasks, LemDiscardTasksSimulateT1DiscardTasks,
+    LemFinalizeObjectsSimulateT1Stuttering,
+    LemFinalizeTasksSimulateT1FinalizeTasks,
+    LemProcessTasksSimulateT1ProcessTasks,
+    LemRegisterGraphSimulateT1RegisterTasks,
+    LemReleaseTasksSimulateT1ReleaseTasks, LemStageTasksSimulateT1StageTasks,
+    LemTargetObjectsSimulateT1Stuttering,
+    LemUntargetObjectsSimulateT1Stuttering DEF Next, T1!Next, vars, T1!vars
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
 (*                               LIFTED SAFETY                                *)
 (******************************************************************************)
 
-LEMMA LemT1Inv == Init /\ [][Next]_vars => []T1!Inv
-<1>1. Init /\ [][Next]_vars => T1!Init /\ [][T1!Next]_T1!vars
-    BY LemInitSimulateT1Init, LemNextSimulateT1Next, LemTypeOk, PTL
-<1>. QED
-    BY <1>1, T1!LemInv, LemT1Assumptions
-
 LEMMA LemO1Inv == Init /\ [][Next]_vars => []O1!Inv
-<1>1. Init /\ [][Next]_vars => O1!Init /\ [][O1!Next]_O1!vars
-    BY LemInitSimulateO1Init, LemNextSimulateO1Next, LemTypeOk, PTL
-<1>. QED
-    BY <1>1, O1!LemInv, LemO1Assumptions
+BY LemInitSimulateO1Init, O1!LemInv, LemNextSimulateO1Next, LemO1Assumptions,
+    LemTypeOk, PTL
+
+LEMMA LemT1Inv == Init /\ [][Next]_vars => []T1!Inv
+BY LemInitSimulateT1Init, T1!LemInv, LemNextSimulateT1Next, LemT1Assumptions,
+    LemTypeOk, PTL
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
 (*                                 INVARIANTS                                 *)
 (******************************************************************************)
 
-LEMMA LemDepsCompliant ==
-    Init /\ [][Next]_vars => []DepsCompliant
+LEMMA LemDepsCompliant == Init /\ [][Next]_vars => []DepsCompliant
 <1>. USE DEF DepsCompliant
 <1>1. Init => DepsCompliant
-    BY DDG_EmptyGraphIsDDGraph DEF Init
+    BY Assumptions, DDG_EmptyGraphIsDDGraph DEF Init
 <1>2. DepsCompliant /\ [Next]_vars => DepsCompliant'
     BY DEF AssignTasks, DiscardTasks, FinalizeObjects, FinalizeTasks, Next,
         ProcessTasks, RegisterGraph, ReleaseTasks, StageTasks, TargetObjects,
@@ -327,126 +225,47 @@ LEMMA LemDepsCompliant ==
 <1>. QED
     BY <1>1, <1>2, PTL
 
-LEMMA LemDepsFinite ==
-    Init /\ [][Next]_vars => []DepsFinite
+LEMMA LemDepsFinite == Init /\ [][Next]_vars => []DepsFinite
 <1>. USE DEF DepsFinite
 <1>1. Init => DepsFinite
     BY FS_EmptySet DEF EmptyGraph, Init
 <1>2. DepsFinite /\ [Next]_vars => DepsFinite'
-    <2>1. ASSUME NEW G \in DirectedGraphOf(Task \union Object),
-                 RegisterGraph(G), DepsFinite
-          PROVE  DepsFinite'
-        <3>1. deps'.node = deps.node \union G.node
-            BY <2>1 DEF GraphUnion, RegisterGraph
-        <3>. QED
-            BY <2>1, <3>1, FS_Union DEF RegisterGraph
-    <2>. QED
-        BY <2>1 DEF AssignTasks, DiscardTasks, FinalizeObjects, FinalizeTasks,
-            Next, ProcessTasks, ReleaseTasks, StageTasks, TargetObjects,
-            UntargetObjects, vars
+    BY FS_Union DEF AssignTasks, DiscardTasks, FinalizeObjects, FinalizeTasks,
+        GraphUnion, Next, ProcessTasks, RegisterGraph, ReleaseTasks,
+        StageTasks, TargetObjects, UntargetObjects, vars
 <1>. QED
     BY <1>1, <1>2, PTL
 
 LEMMA LemGraphStateIntegrity == Init /\ [][Next]_vars => []GraphStateIntegrity
+<1>. USE DEF GraphStateIntegrity
 <1>1. Init => GraphStateIntegrity
     BY DG_EmptyGraphProperties DEF AssignedTask, EmptyGraph, FinalizedObject,
-        GraphStateIntegrity, Init, Predecessor, RegisteredObject, Source,
-        StagedTask, UnknownObject, UnknownTask
+        Init, Predecessor, RegisteredObject, Source, StagedTask, UnknownObject,
+        UnknownTask
 <1>2. TypeOk /\ GraphStateIntegrity /\ [Next]_vars => GraphStateIntegrity'
     <2>. SUFFICES ASSUME TypeOk, GraphStateIntegrity, [Next]_vars
                   PROVE  GraphStateIntegrity'
         OBVIOUS
-    <2>1. IsDirectedGraph(deps)
-        BY DEF DirectedGraphOf, TypeOk
+    <2>1. deps.edge \subseteq deps.node \X deps.node
+        BY DEF DirectedGraphOf, IsDirectedGraph, TypeOk
     <2>2. (\A t \in Task : t \in deps.node <=> t \notin UnknownTask)'
-        <3>. SUFFICES ASSUME NEW t \in Task
-                      PROVE  (t \in deps.node <=> t \notin UnknownTask)'
-            OBVIOUS
-        <3>1. ASSUME NEW G \in DirectedGraphOf(Task \union Object),
-                     RegisterGraph(G)
-              PROVE  (t \in deps.node <=> t \notin UnknownTask)'
-            BY <3>1 DEF GraphStateIntegrity, GraphUnion, RegisterGraph,
-                UnknownTask
-        <3>2. ASSUME NEW T \in SUBSET Task,
-                     \/ StageTasks(T)
-                     \/ DiscardTasks(T)
-                     \/ AssignTasks(T)
-                     \/ ReleaseTasks(T)
-                     \/ ProcessTasks(T)
-                     \/ FinalizeTasks(T)
-              PROVE  (t \in deps.node <=> t \notin UnknownTask)'
-            BY <3>2 DEF AssignedTask, AssignTasks, DiscardTasks, FinalizeTasks,
-                GraphStateIntegrity, ProcessedTask, ProcessTasks,
-                RegisteredTask, ReleaseTasks, StagedTask, StageTasks,
-                UnknownTask
-        <3>3. CASE UNCHANGED << deps, taskState >>
-            BY <3>3 DEF GraphStateIntegrity, UnknownTask
-        <3>. QED
-            BY <3>1, <3>2, <3>3 DEF FinalizeObjects, Next, TargetObjects,
-                UntargetObjects, vars
+        BY DEF AssignedTask, AssignTasks, DiscardTasks, FinalizeObjects,
+            FinalizeTasks, GraphUnion, Next, ProcessedTask, ProcessTasks,
+            RegisteredTask, RegisterGraph, ReleaseTasks, StagedTask,
+            StageTasks, TargetObjects, UnknownTask, UntargetObjects, vars
     <2>3. (\A o \in Object : o \in deps.node <=> o \notin UnknownObject)'
-        <3>. SUFFICES ASSUME NEW o \in Object
-                      PROVE  (o \in deps.node <=> o \notin UnknownObject)'
-            OBVIOUS
-        <3>1. ASSUME NEW G \in DirectedGraphOf(Task \union Object),
-                     RegisterGraph(G)
-              PROVE  (o \in deps.node <=> o \notin UnknownObject)'
-            BY <3>1 DEF GraphStateIntegrity, GraphUnion, RegisterGraph,
-                UnknownObject
-        <3>2. ASSUME NEW O \in SUBSET Object, FinalizeObjects(O)
-              PROVE  (o \in deps.node <=> o \notin UnknownObject)'
-            BY <3>2 DEF FinalizeObjects, GraphStateIntegrity, RegisteredObject,
-                UnknownObject
-        <3>3. CASE UNCHANGED << deps, objectState >>
-            BY <3>3 DEF GraphStateIntegrity, UnknownObject
-        <3>. QED
-            BY <3>1, <3>2, <3>3 DEF AssignTasks, DiscardTasks, FinalizeTasks,
-                Next, ProcessTasks, ReleaseTasks, StageTasks, TargetObjects,
-                UntargetObjects, vars
+        BY DEF AssignTasks, DiscardTasks, FinalizeObjects, FinalizeTasks,
+            GraphUnion, Next, ProcessTasks, RegisteredObject, RegisterGraph,
+            ReleaseTasks, StageTasks, TargetObjects, UnknownObject,
+            UntargetObjects, vars
     <2>4. (\A t \in Task :
             t \in StagedTask \union AssignedTask
                => Predecessor(deps, t) \subseteq FinalizedObject)'
-        <3>. SUFFICES ASSUME NEW t \in Task,
-                             (t \in StagedTask \union AssignedTask)'
-                      PROVE  (Predecessor(deps, t) \subseteq FinalizedObject)'
-            OBVIOUS
-        <3>1. ASSUME NEW G \in DirectedGraphOf(Task \union Object),
-                     RegisterGraph(G)
-              PROVE  (Predecessor(deps, t) \subseteq FinalizedObject)'
-            <4>1. t \notin G.node
-                BY <3>1 DEF AssignedTask, RegisterGraph, StagedTask
-            <4>2. Predecessor(deps', t) = Predecessor(deps, t)
-                BY <2>1, <3>1, <4>1 DEF DirectedGraphOf, GraphUnion,
-                    IsDirectedGraph, Predecessor, RegisterGraph
-            <4>. QED
-                BY <3>1, <4>1, <4>2 DEF AssignedTask, FinalizedObject,
-                    GraphStateIntegrity, RegisterGraph, StagedTask,
-                    UnknownObject
-        <3>2. ASSUME NEW O \in SUBSET Object, FinalizeObjects(O)
-              PROVE  (Predecessor(deps, t) \subseteq FinalizedObject)'
-            BY <3>2 DEF AssignedTask, FinalizedObject, FinalizeObjects,
-                GraphStateIntegrity, Predecessor, StagedTask
-        <3>3. ASSUME NEW T \in SUBSET Task, StageTasks(T)
-              PROVE  (Predecessor(deps, t) \subseteq FinalizedObject)'
-            BY <3>3 DEF AssignedTask, FinalizedObject, GraphStateIntegrity,
-                Predecessor, StagedTask, StageTasks
-        <3>4. ASSUME NEW T \in SUBSET Task,
-                     \/ DiscardTasks(T)
-                     \/ AssignTasks(T)
-                     \/ ReleaseTasks(T)
-                     \/ ProcessTasks(T)
-                     \/ FinalizeTasks(T)
-              PROVE  (Predecessor(deps, t) \subseteq FinalizedObject)'
-            BY <3>4 DEF AssignedTask, AssignTasks, DiscardTasks,
-                FinalizedObject, FinalizedTask, FinalizeTasks,
-                GraphStateIntegrity, Predecessor, ProcessedTask, ProcessTasks,
-                RegisteredTask, ReleaseTasks, StagedTask
-        <3>5. CASE UNCHANGED << deps, objectState, taskState >>
-            BY <3>5 DEF AssignedTask, FinalizedObject, GraphStateIntegrity,
-                Predecessor, StagedTask
-        <3>. QED
-            BY <3>1, <3>2, <3>3, <3>4, <3>5 DEF Next, TargetObjects,
-                UntargetObjects, vars
+        BY <2>1 DEF AssignedTask, AssignTasks, DirectedGraphOf, DiscardTasks,
+            FinalizedObject, FinalizeObjects, FinalizeTasks, GraphUnion,
+            IsDirectedGraph, Next, Predecessor, ProcessTasks, RegisterGraph,
+            ReleaseTasks, StagedTask, StageTasks, TargetObjects, UnknownObject,
+            UntargetObjects, vars
     <2>5. (\A o \in Object :
             o \notin Source(deps) /\ o \in RegisteredObject
                => Predecessor(deps, o) \ FinalizedTask /= {})'
@@ -455,62 +274,32 @@ LEMMA LemGraphStateIntegrity == Init /\ [][Next]_vars => []GraphStateIntegrity
                              (o \in RegisteredObject)'
                       PROVE  (Predecessor(deps, o) \ FinalizedTask /= {})'
             OBVIOUS
-        <3>1. ASSUME NEW G \in DirectedGraphOf(Task \union Object),
+        <3>1. CASE \E G \in DirectedGraphOf(Task \union Object) :
+                       RegisterGraph(G)
+            <4>. PICK G \in DirectedGraphOf(Task \union Object) :
                      RegisterGraph(G)
-              PROVE  (Predecessor(deps, o) \ FinalizedTask /= {})'
-            <4>1. CASE Predecessor(deps, o) = {}
-                <5>1. PICK x \in Predecessor(deps', o) : TRUE
-                    BY <2>3 DEF RegisteredObject, Source, UnknownObject
-                <5>. QED
-                    BY <2>1, <3>1, <4>1, <5>1 DEF DirectedGraphOf,
-                        FinalizedTask, GraphUnion, IsBipartiteWithPartitions,
-                        IsDDGraph, IsDirectedGraph, Predecessor, RegisterGraph
-            <4>2. CASE Predecessor(deps, o) /= {}
-                BY <2>1, <3>1, <4>2 DEF FinalizedTask, GraphStateIntegrity,
-                    GraphUnion, IsDirectedGraph, Predecessor, RegisteredObject,
+                BY <3>1
+            <4>1. PICK x \in Predecessor(deps', o) : TRUE
+                BY <2>3 DEF RegisteredObject, Source, UnknownObject
+            <4>. QED
+                BY <2>1, <4>1 DEF DirectedGraphOf, FinalizedTask, GraphUnion,
+                    IsDirectedGraph, Predecessor, RegisteredObject,
                     RegisterGraph, Source, UnknownObject, UnknownTask
-            <4>. QED
-                BY <4>1, <4>2
-        <3>2. ASSUME NEW O \in SUBSET Object, FinalizeObjects(O)
-              PROVE  (Predecessor(deps, o) \ FinalizedTask /= {})'
-            BY <3>2 DEF FinalizedTask, FinalizeObjects, GraphStateIntegrity,
-                Predecessor, RegisteredObject, Source
-        <3>3. ASSUME NEW T \in SUBSET Task,
-                     \/ StageTasks(T)
-                     \/ DiscardTasks(T)
-                     \/ AssignTasks(T)
-                     \/ ReleaseTasks(T)
-                     \/ ProcessTasks(T)
-              PROVE  (Predecessor(deps, o) \ FinalizedTask /= {})'
-            BY <3>3 DEF AssignedTask, AssignTasks, DiscardTasks, FinalizedTask,
-                GraphStateIntegrity, Predecessor, ProcessTasks,
-                RegisteredObject, RegisteredTask, ReleaseTasks, Source,
-                StagedTask, StageTasks
-        <3>4. ASSUME NEW T \in SUBSET Task, FinalizeTasks(T)
-              PROVE  (Predecessor(deps, o) \ FinalizedTask /= {})'
+        <3>2. CASE \E T \in SUBSET Task : FinalizeTasks(T)
+            <4>. PICK T \in SUBSET Task : FinalizeTasks(T)
+                BY <3>2
             <4>1. PICK x \in Predecessor(deps, o) : x \notin FinalizedTask
-                BY <3>4 DEF FinalizeTasks, GraphStateIntegrity,
-                    RegisteredObject, Source
-            <4>2. CASE x \notin T
-                BY <3>4, <4>1, <4>2 DEF FinalizedTask, FinalizeTasks,
-                    Predecessor
-            <4>3. CASE x \in T
-                <5>1. o \in UNION {Successor(deps, u) : u \in T}
-                    BY <2>1, <4>1, <4>3 DEF IsDirectedGraph, Predecessor,
-                        Successor
-                <5>2. PICK y \in Predecessor(deps, o) \ T :
-                        y \notin FinalizedTask
-                    BY <3>4, <5>1 DEF FinalizeTasks, RegisteredObject
-                <5>. QED
-                    BY <3>4, <5>2 DEF FinalizedTask, FinalizeTasks, Predecessor
+                BY DEF FinalizeTasks, RegisteredObject, Source
+            <4>2. x \in T => o \in UNION {Successor(deps, u) : u \in T}
+                BY <2>1, <4>1 DEF Predecessor, Successor
             <4>. QED
-                BY <4>2, <4>3
-        <3>5. CASE UNCHANGED << deps, objectState, taskState >>
-            BY <3>5 DEF FinalizedTask, GraphStateIntegrity, Predecessor,
-                RegisteredObject, Source
+                BY <4>1, <4>2 DEF FinalizedTask, FinalizeTasks, Predecessor,
+                    RegisteredObject
         <3>. QED
-            BY <3>1, <3>2, <3>3, <3>4, <3>5 DEF Next, TargetObjects,
-                UntargetObjects, vars
+            BY <3>1, <3>2 DEF AssignTasks, DiscardTasks, FinalizedTask,
+                FinalizeObjects, Next, Predecessor, ProcessTasks,
+                RegisteredObject, ReleaseTasks, Source, StageTasks,
+                TargetObjects, UntargetObjects, vars
     <2>6. (\A o \in Object :
             o \notin Source(deps) /\ o \in FinalizedObject
                => Predecessor(deps, o)
@@ -522,54 +311,27 @@ LEMMA LemGraphStateIntegrity == Init /\ [][Next]_vars => []GraphStateIntegrity
                                 \intersect (ProcessedTask \union FinalizedTask)
                                     /= {})'
             OBVIOUS
-        <3>1. ASSUME NEW G \in DirectedGraphOf(Task \union Object),
+        <3>1. CASE \E G \in DirectedGraphOf(Task \union Object) :
+                       RegisterGraph(G)
+            <4>. PICK G \in DirectedGraphOf(Task \union Object) :
                      RegisterGraph(G)
-              PROVE  (Predecessor(deps, o)
-                        \intersect (ProcessedTask \union FinalizedTask) /= {})'
-            <4>1. /\ o \in FinalizedObject
-                  /\ ProcessedTask' = ProcessedTask
-                  /\ FinalizedTask' = FinalizedTask
-                BY <3>1 DEF FinalizedObject, FinalizedTask, ProcessedTask,
-                    RegisterGraph, UnknownObject, UnknownTask
-            <4>2. o \notin Source(deps)
-                <5>. SUFFICES ASSUME o \in Source(deps),
-                                     NEW x, <<x, o>> \in G.edge
-                              PROVE  FALSE
-                    BY <2>1, <3>1 DEF GraphUnion, IsDirectedGraph, Predecessor,
-                        RegisterGraph, Source
-                <5>. QED
-                    BY <3>1, <4>1 DEF DirectedGraphOf, GraphUnion,
-                        IsBipartiteWithPartitions, IsDDGraph, IsDirectedGraph,
-                        RegisterGraph, Successor
+                BY <3>1
+            <4>1. o \in Source(deps) => \A x : <<x, o>> \notin G.edge
+                BY DEF DirectedGraphOf, FinalizedObject, GraphUnion,
+                    IsBipartiteWithPartitions, IsDDGraph, IsDirectedGraph,
+                    RegisterGraph, Successor, UnknownObject
             <4>. QED
-                BY <3>1, <4>1, <4>2 DEF GraphStateIntegrity, GraphUnion,
-                    Predecessor, RegisterGraph
-        <3>2. ASSUME NEW O \in SUBSET Object, FinalizeObjects(O)
-              PROVE  (Predecessor(deps, o)
-                        \intersect (ProcessedTask \union FinalizedTask) /= {})'
-            BY <3>2 DEF FinalizedObject, FinalizedTask, FinalizeObjects,
-                GraphStateIntegrity, Predecessor, ProcessedTask, Source
-        <3>3. ASSUME NEW T \in SUBSET Task,
-                     \/ StageTasks(T)
-                     \/ DiscardTasks(T)
-                     \/ AssignTasks(T)
-                     \/ ReleaseTasks(T)
-                     \/ ProcessTasks(T)
-                     \/ FinalizeTasks(T)
-              PROVE  (Predecessor(deps, o)
-                        \intersect (ProcessedTask \union FinalizedTask) /= {})'
-            BY <3>3 DEF AssignedTask, AssignTasks, DiscardTasks,
-                FinalizedObject, FinalizedTask, FinalizeTasks,
-                GraphStateIntegrity, Predecessor, ProcessedTask, ProcessTasks,
-                RegisteredTask, ReleaseTasks, Source, StagedTask, StageTasks
-        <3>4. CASE UNCHANGED << deps, objectState, taskState >>
-            BY <3>4 DEF FinalizedObject, FinalizedTask, GraphStateIntegrity,
-                Predecessor, ProcessedTask, Source
+                BY <2>1, <4>1 DEF FinalizedObject, FinalizedTask, GraphUnion,
+                    Predecessor, ProcessedTask, RegisterGraph, Source,
+                    UnknownObject, UnknownTask
         <3>. QED
-            BY <3>1, <3>2, <3>3, <3>4 DEF Next, TargetObjects, UntargetObjects,
-                vars
+            BY <3>1 DEF AssignedTask, AssignTasks, DiscardTasks,
+                FinalizedObject, FinalizedTask, FinalizeObjects, FinalizeTasks,
+                Next, Predecessor, ProcessedTask, ProcessTasks, RegisteredTask,
+                ReleaseTasks, Source, StagedTask, StageTasks, TargetObjects,
+                UntargetObjects, vars
     <2>. QED
-        BY <2>2, <2>3, <2>4, <2>5, <2>6 DEF GraphStateIntegrity
+        BY <2>2, <2>3, <2>4, <2>5, <2>6
 <1>. QED
     BY <1>1, <1>2, LemTypeOk, PTL
 
@@ -583,15 +345,15 @@ LEMMA LemGraphStateIntegrity == Init /\ [][Next]_vars => []GraphStateIntegrity
  *)
 Inv ==
     /\ TypeOk
-    /\ T1!Inv
     /\ O1!Inv
+    /\ T1!Inv
     /\ DepsCompliant
     /\ DepsFinite
     /\ GraphStateIntegrity
 
 LEMMA LemInv == Init /\ [][Next]_vars => []Inv
-BY LemDepsCompliant, LemDepsFinite,
-    LemGraphStateIntegrity, LemO1Inv, LemT1Inv, LemTypeOk, PTL DEF Inv
+BY LemDepsCompliant, LemDepsFinite, LemGraphStateIntegrity, LemO1Inv,
+    LemT1Inv, LemTypeOk, PTL DEF Inv
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -599,17 +361,15 @@ BY LemDepsCompliant, LemDepsFinite,
 (******************************************************************************)
 
 (**
- * Each step keeps the dependency graph as a subgraph of the next one.
+ * The dependency graph is a subgraph of the next one at every step.
  *)
 LEMMA LemDepsMonotone ==
-    ASSUME IsDirectedGraph(deps), [Next]_vars
+    ASSUME Inv, [Next]_vars
     PROVE  [(deps \in DirectedSubgraph(deps'))]_deps
-<1>1. deps.node \subseteq deps'.node /\ deps.edge \subseteq deps'.edge
-    BY DEF AssignTasks, DiscardTasks, FinalizeObjects, FinalizeTasks,
-        GraphUnion, Next, ProcessTasks, RegisterGraph, ReleaseTasks,
-        StageTasks, TargetObjects, UntargetObjects, vars
-<1>. QED
-    BY <1>1, DG_DirectedSubgraphIntro
+BY DG_DirectedSubgraphIntro DEF AssignTasks, DirectedGraphOf, DiscardTasks,
+    FinalizeObjects, FinalizeTasks, GraphUnion, Inv, Next, ProcessTasks,
+    RegisterGraph, ReleaseTasks, StageTasks, TargetObjects, TypeOk,
+    UntargetObjects, vars
 
 (**
  * A finalized root object stays a finalized root at every step.
@@ -618,76 +378,24 @@ LEMMA LemPermanentFinalizedSource ==
     ASSUME NEW o \in Object, Inv, [Next]_vars
     PROVE  o \in Source(deps) /\ o \in FinalizedObject
            => (o \in Source(deps) /\ o \in FinalizedObject)'
-<1>. TypeOk
-    BY DEF Inv
-<1>. SUFFICES ASSUME o \in Source(deps), o \in FinalizedObject
-              PROVE  (o \in Source(deps) /\ o \in FinalizedObject)'
-    OBVIOUS
-<1>1. (o \in FinalizedObject)'
-    BY DEF AssignTasks, DiscardTasks, FinalizedObject, FinalizeObjects,
-        FinalizeTasks, Next, ProcessTasks, RegisteredObject, RegisterGraph,
-        ReleaseTasks, StageTasks, TargetObjects, UnknownObject,
-        UntargetObjects, vars
-<1>2. ASSUME NEW G \in DirectedGraphOf(Task \union Object), RegisterGraph(G)
-      PROVE  (o \in Source(deps))'
-    <2>1. deps' = GraphUnion(deps, G)
-        BY <1>2 DEF RegisterGraph
-    <2>2. IsDirectedGraph(G) /\ IsDirectedGraph(deps)
-        BY <1>2, DG_DirectedGraphOfMember DEF DirectedGraphOf, TypeOk
-    <2>3. \A m : <<m, o>> \notin G.edge
-        <3>. SUFFICES ASSUME NEW m, <<m, o>> \in G.edge PROVE FALSE
-            OBVIOUS
-        <3>1. m \in G.node /\ o \in G.node
-            BY <2>2 DEF IsDirectedGraph
-        <3>2. m \in Task
-            BY <1>2, <2>1 DEF GraphUnion, IsBipartiteWithPartitions, IsDDGraph,
-                RegisterGraph
-        <3>3. o \in Successor(G, m)
-            BY <3>1 DEF Successor
-        <3>. QED
-            BY <1>2, <3>1, <3>2, <3>3 DEF RegisterGraph
-    <2>. QED
-        BY <2>1, <2>2, <2>3 DEF GraphUnion, IsDirectedGraph, Predecessor, Source
-<1>3. deps' = deps => (o \in Source(deps))'
-    BY DEF Predecessor, Source
-<1>4. \/ deps' = deps
-      \/ \E G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G)
-    BY DEF AssignTasks, DiscardTasks, FinalizeObjects, FinalizeTasks, Next,
-        ProcessTasks, ReleaseTasks, StageTasks, TargetObjects, UntargetObjects,
-        vars
-<1>. QED
-    BY <1>1, <1>2, <1>3, <1>4, Zenon
+BY DEF AssignTasks, DirectedGraphOf, DiscardTasks, FinalizedObject,
+    FinalizeObjects, FinalizeTasks, GraphUnion, Inv, IsBipartiteWithPartitions,
+    IsDDGraph, IsDirectedGraph, Next, Predecessor, ProcessTasks, RegisterGraph,
+    ReleaseTasks, Source, StageTasks, Successor, TargetObjects, TypeOk,
+    UnknownObject, UntargetObjects, vars
 
 (**
- * No step changes the inputs or the outputs of a known task.
+ * The inputs and the outputs of a known task are unchanged at every step.
  *)
 LEMMA LemImmutableTaskDependencies ==
     ASSUME NEW t \in Task, Inv, [Next]_vars
     PROVE  [t \notin UnknownTask
             => /\ Predecessor(deps, t) = Predecessor(deps', t)
                /\ Successor(deps, t) = Successor(deps', t)]_deps
-<1>. TypeOk
-    BY DEF Inv
-<1>1. ASSUME NEW G \in DirectedGraphOf(Task \union Object), RegisterGraph(G),
-             t \notin UnknownTask
-      PROVE  /\ Predecessor(deps, t) = Predecessor(deps', t)
-             /\ Successor(deps, t) = Successor(deps', t)
-    <2>1. deps' = GraphUnion(deps, G)
-        BY <1>1 DEF RegisterGraph
-    <2>2. IsDirectedGraph(G) /\ IsDirectedGraph(deps)
-        BY <1>1, DG_DirectedGraphOfMember DEF DirectedGraphOf, TypeOk
-    <2>3. \A m : <<t, m>> \notin G.edge /\ <<m, t>> \notin G.edge
-        <3>1. t \notin G.node
-            BY <1>1 DEF RegisterGraph
-        <3>. QED
-            BY <2>2, <3>1 DEF IsDirectedGraph
-    <2>. QED
-        BY <2>1, <2>2, <2>3 DEF GraphUnion, IsDirectedGraph, Predecessor,
-            Successor
-<1>. QED
-    BY <1>1 DEF AssignTasks, DiscardTasks, FinalizeObjects, FinalizeTasks, Next,
-        ProcessTasks, ReleaseTasks, StageTasks, TargetObjects, UntargetObjects,
-        vars
+BY DEF AssignTasks, DirectedGraphOf, DiscardTasks, FinalizeObjects,
+    FinalizeTasks, GraphUnion, Inv, IsDirectedGraph, Next, Predecessor,
+    ProcessTasks, RegisterGraph, ReleaseTasks, StageTasks, Successor,
+    TargetObjects, TypeOk, UnknownTask, UntargetObjects, vars
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -698,7 +406,7 @@ LEMMA LemImmutableTaskDependencies ==
  * The fairness conditions restated without ENABLED, which a substitution does
  * not distribute over: a refinement proves the instantiated restatements and
  * recovers the instantiated Fairness through LemFairnessEnabledFree. Each
- * Enabled predicate is the enabledness of its action, written out.
+ * Enabled predicate holds exactly when its fair action is enabled.
  *)
 EnabledFinalizeObjects(o) ==
     /\ o \in RegisteredObject
@@ -722,110 +430,63 @@ EnabledFinalizeTasks(t) ==
 FairFinalizeTasks(t) ==
     <>[]EnabledFinalizeTasks(t) => []<><<FinalizeTasks({t})>>_vars
 
-EnabledStageTasks(t, o) ==
+EnabledStageForTarget(t, o) ==
     /\ o \in objectTargets
     /\ t \in OA(o).node
-    /\ Predecessor(deps, t) \subseteq FinalizedObject
     /\ t \in RegisteredTask
+    /\ Predecessor(deps, t) \subseteq FinalizedObject
 
-FairStageTasks(t, o) ==
-    <>[]EnabledStageTasks(t, o)
-        => []<><<
-               /\ o \in objectTargets
-               /\ t \in OA(o).node
-               /\ StageTasks({t})>>_vars
+FairStageForTarget(t, o) ==
+    <>[]EnabledStageForTarget(t, o) => []<><<StageForTarget(t, o)>>_vars
 
-EnabledAssignTasks(t, o) ==
+EnabledAssignForTarget(t, o) ==
     /\ o \in objectTargets
     /\ t \in OA(o).node
     /\ t \in StagedTask
 
-FairAssignTasks(t, o) ==
-    <>[]EnabledAssignTasks(t, o)
-        => []<><<
-               /\ o \in objectTargets
-               /\ t \in OA(o).node
-               /\ AssignTasks({t})>>_vars
+FairAssignForTarget(t, o) ==
+    <>[]EnabledAssignForTarget(t, o) => []<><<AssignForTarget(t, o)>>_vars
 
 LEMMA LemFairnessEnabledFree ==
     Fairness
-    <=> /\ \A o \in Object : FairFinalizeObjects(o)
+    <=> /\ \A x \in Object : FairFinalizeObjects(x)
         /\ \A t \in Task : FairProcessTasks(t) /\ FairFinalizeTasks(t)
         /\ \A t \in Task, o \in Object :
-               FairStageTasks(t, o) /\ FairAssignTasks(t, o)
-<1>1. (\A o \in Object : WF_vars(FinalizeObjects({o})))
-      <=> \A o \in Object : FairFinalizeObjects(o)
-    <2>1. ASSUME NEW o \in Object
-          PROVE  WF_vars(FinalizeObjects({o})) <=> FairFinalizeObjects(o)
-        <3>1. (ENABLED <<FinalizeObjects({o})>>_vars)
-              <=> EnabledFinalizeObjects(o)
-            BY ExpandENABLED DEF EnabledFinalizeObjects, FinalizeObjects,
-                RegisteredObject, vars
-        <3>. QED
-            BY <3>1, PTL DEF FairFinalizeObjects
+               FairStageForTarget(t, o) /\ FairAssignForTarget(t, o)
+<1>1. ASSUME NEW o \in Object
+      PROVE  WF_vars(FinalizeObjects({o})) <=> FairFinalizeObjects(o)
+    <2>1. (ENABLED <<FinalizeObjects({o})>>_vars)
+            <=> EnabledFinalizeObjects(o)
+        BY ExpandENABLED DEF EnabledFinalizeObjects, FinalizeObjects,
+            RegisteredObject, vars
     <2>. QED
-        BY <2>1
-<1>2. (\A t \in Task :
-         /\ SF_vars(ProcessTasks({t}))
-         /\ WF_vars(FinalizeTasks({t})))
-      <=> \A t \in Task : FairProcessTasks(t) /\ FairFinalizeTasks(t)
-    <2>1. ASSUME NEW t \in Task
-          PROVE  /\ SF_vars(ProcessTasks({t})) <=> FairProcessTasks(t)
-                 /\ WF_vars(FinalizeTasks({t})) <=> FairFinalizeTasks(t)
-        <3>1. (ENABLED <<ProcessTasks({t})>>_vars) <=> EnabledProcessTasks(t)
-            BY ExpandENABLED DEF AssignedTask, EnabledProcessTasks,
-                ProcessTasks, vars
-        <3>2. (ENABLED <<FinalizeTasks({t})>>_vars) <=> EnabledFinalizeTasks(t)
-            BY ExpandENABLED DEF EnabledFinalizeTasks, FinalizeTasks,
-                ProcessedTask, vars
-        <3>. QED
-            BY <3>1, <3>2, PTL DEF FairFinalizeTasks, FairProcessTasks
+        BY <2>1, PTL DEF FairFinalizeObjects
+<1>2. ASSUME NEW t \in Task
+      PROVE  /\ SF_vars(ProcessTasks({t})) <=> FairProcessTasks(t)
+             /\ WF_vars(FinalizeTasks({t})) <=> FairFinalizeTasks(t)
+    <2>1. (ENABLED <<ProcessTasks({t})>>_vars) <=> EnabledProcessTasks(t)
+        BY ExpandENABLED DEF AssignedTask, EnabledProcessTasks, ProcessTasks,
+            vars
+    <2>2. (ENABLED <<FinalizeTasks({t})>>_vars) <=> EnabledFinalizeTasks(t)
+        BY ExpandENABLED DEF EnabledFinalizeTasks, FinalizeTasks,
+            ProcessedTask, vars
     <2>. QED
-        BY <2>1
-<1>3. (\A t \in Task, o \in Object :
-         /\ WF_vars(o \in objectTargets /\ t \in OA(o).node
-                    /\ StageTasks({t}))
-         /\ WF_vars(o \in objectTargets /\ t \in OA(o).node
-                    /\ AssignTasks({t})))
-      <=> \A t \in Task, o \in Object :
-             FairStageTasks(t, o) /\ FairAssignTasks(t, o)
-    <2>1. ASSUME NEW t \in Task, NEW o \in Object
-          PROVE  /\ WF_vars(o \in objectTargets /\ t \in OA(o).node
-                            /\ StageTasks({t}))
-                    <=> FairStageTasks(t, o)
-                 /\ WF_vars(o \in objectTargets /\ t \in OA(o).node
-                            /\ AssignTasks({t}))
-                    <=> FairAssignTasks(t, o)
-        <3>1. (ENABLED <<o \in objectTargets /\ t \in OA(o).node
-                         /\ StageTasks({t})>>_vars)
-                <=> EnabledStageTasks(t, o)
-            BY ExpandENABLED DEF EnabledStageTasks, RegisteredTask,
-                StageTasks, vars
-        <3>2. (ENABLED <<o \in objectTargets /\ t \in OA(o).node
-                         /\ AssignTasks({t})>>_vars)
-                <=> EnabledAssignTasks(t, o)
-            BY ExpandENABLED DEF AssignTasks, EnabledAssignTasks, StagedTask,
-                vars
-        <3>. QED
-            BY <3>1, <3>2, PTL DEF FairAssignTasks, FairStageTasks
+        BY <2>1, <2>2, PTL DEF FairFinalizeTasks, FairProcessTasks
+<1>3. ASSUME NEW t \in Task, NEW o \in Object
+      PROVE  /\ WF_vars(StageForTarget(t, o)) <=> FairStageForTarget(t, o)
+             /\ WF_vars(AssignForTarget(t, o)) <=> FairAssignForTarget(t, o)
+    <2>1. (ENABLED <<StageForTarget(t, o)>>_vars)
+            <=> EnabledStageForTarget(t, o)
+        BY ExpandENABLED DEF EnabledStageForTarget, RegisteredTask,
+            StageForTarget, StageTasks, vars
+    <2>2. (ENABLED <<AssignForTarget(t, o)>>_vars)
+            <=> EnabledAssignForTarget(t, o)
+        BY ExpandENABLED DEF AssignForTarget, AssignTasks,
+            EnabledAssignForTarget, StagedTask, vars
     <2>. QED
-        BY <2>1, IsaMT("blast", 120)
+        BY <2>1, <2>2, PTL DEF FairAssignForTarget, FairStageForTarget
 <1>. QED
-    BY <1>1, <1>2, <1>3, PTL DEF Fairness
-
-(**
- * Once it holds, the fairness of the finalization of every object holds
- * forever. Here rather than with the helper lemmas: its statement uses the
- * restatements above.
- *)
-LEMMA LemFairFinalizeObjectsStable ==
-    (\A x \in Object : FairFinalizeObjects(x))
-    => [](\A x \in Object : FairFinalizeObjects(x))
-<1>1. ASSUME NEW x \in Object
-      PROVE  FairFinalizeObjects(x) => []FairFinalizeObjects(x)
-    BY PTL DEF FairFinalizeObjects
-<1>. QED
-    BY <1>1
+    BY <1>1, <1>2, <1>3, IsaMT("blast", 120) DEF Fairness
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -834,15 +495,18 @@ LEMMA LemFairFinalizeObjectsStable ==
 
 (**
  * The strong fairness of the processing of a task in Task1 holds under
- * Graph1, where processing is the same action.
+ * Graph1, where it is the same action.
+ * ----
+ * Rule: SF2, with no condition: the enabledness transfers directly.
  *)
 LEMMA LemPreserveT1SFProcessTasks ==
     ASSUME NEW t \in Task
     PROVE  FairProcessTasks(t) => T1!FairProcessTasks(t)
-<1>1. T1!EnabledProcessTasks(t) => EnabledProcessTasks(t)
-    BY LemT1Bridges DEF EnabledProcessTasks, T1!EnabledProcessTasks
-<1>2. <<ProcessTasks({t})>>_vars => <<T1!ProcessTasks({t})>>_T1!vars
+<1>1. <<ProcessTasks({t})>>_vars => <<T1!ProcessTasks({t})>>_T1!vars
     BY LemProcessTasksSimulateT1ProcessTasks DEF ProcessTasks, vars, T1!vars
+<1>2. T1!EnabledProcessTasks(t) => EnabledProcessTasks(t)
+    BY DEF AssignedTask, T1!AssignedTask, EnabledProcessTasks,
+        T1!EnabledProcessTasks
 <1>. QED
     BY <1>1, <1>2, PTL DEF FairProcessTasks, T1!FairProcessTasks
 
@@ -863,41 +527,29 @@ LEMMA LemPreserveT1WFFinalizeTasks ==
            /\ FairFinalizeTasks(t)
            /\ \A x \in Object : FairFinalizeObjects(x)
            => T1!FairFinalizeTasks(t)
+(* tlapm: TL_EventuallyAlwaysForallStationary is cited at its parameter names
+   S, G. *)
+<1>. DEFINE S == Successor(deps, t)
+            G(x) == x \in FinalizedObject
+            H == /\ []Inv
+                 /\ [][Next]_vars
+                 /\ \A x \in Object : FairFinalizeObjects(x)
+                 /\ []T1!EnabledFinalizeTasks(t)
 <1>1. <<FinalizeTasks({t})>>_vars => <<T1!FinalizeTasks({t})>>_T1!vars
     BY LemFinalizeTasksSimulateT1FinalizeTasks DEF FinalizeTasks, vars, T1!vars
-<1>2. T1!EnabledFinalizeTasks(t) /\ Successor(deps, t) \subseteq FinalizedObject
+<1>2. T1!EnabledFinalizeTasks(t) /\ (\A x \in S : G(x))
       => EnabledFinalizeTasks(t)
-    BY LemT1Bridges DEF EnabledFinalizeTasks, T1!EnabledFinalizeTasks,
-        FinalizedObject, RegisteredObject
-<1>3. /\ []Inv
-      /\ [][Next]_vars
-      /\ \A x \in Object : FairFinalizeObjects(x)
-      /\ []T1!EnabledFinalizeTasks(t)
-      => <>[](Successor(deps, t) \subseteq FinalizedObject)
-    (* tlapm: TL_EventuallyAlwaysForallStationary is cited at the bound names
-       S, G and x. *)
-    <2>. DEFINE S == Successor(deps, t)
-                G(x) == x \in FinalizedObject
-                Stays(x) == <>[](x \in S => G(x))
+    BY DEF EnabledFinalizeTasks, T1!EnabledFinalizeTasks, FinalizedObject,
+        ProcessedTask, T1!ProcessedTask, RegisteredObject
+<1>3. H => <>[](\A x \in S : G(x))
+    <2>. DEFINE Stays(x) == <>[](x \in S => G(x))
     <2>1. Inv => IsFiniteSet(S)
-        BY FS_Subset, Zenon DEF DepsCompliant, DepsFinite, Inv,
-            IsBipartiteWithPartitions, IsDDGraph, Successor
+        BY FS_Subset, Zenon DEF DepsFinite, Inv, Successor
     <2>2. Inv /\ T1!EnabledFinalizeTasks(t) /\ [Next]_vars => [FALSE]_S
-        BY LemImmutableTaskDependencies, LemT1Bridges
-            DEF T1!EnabledFinalizeTasks, Inv, ProcessedTask, UnknownTask
-    <2>3. /\ []Inv
-          /\ [][Next]_vars
-          /\ \A x \in Object : FairFinalizeObjects(x)
-          /\ []T1!EnabledFinalizeTasks(t)
-          => \A x : Stays(x)
-        <3>. HIDE DEF Stays
-        <3>. SUFFICES ASSUME NEW o
-                      PROVE  /\ []Inv
-                             /\ [][Next]_vars
-                             /\ \A x \in Object : FairFinalizeObjects(x)
-                             /\ []T1!EnabledFinalizeTasks(t)
-                             => Stays(o)
-            OBVIOUS
+        BY LemImmutableTaskDependencies DEF T1!EnabledFinalizeTasks,
+            ProcessedTask, T1!ProcessedTask, UnknownTask
+    <2>3. ASSUME NEW o
+          PROVE  H => Stays(o)
         <3>1. Inv /\ T1!EnabledFinalizeTasks(t) /\ [Next]_vars
               => (o \in S <=> (o \in S)')
             BY <2>2
@@ -908,47 +560,56 @@ LEMMA LemPreserveT1WFFinalizeTasks ==
         <3>3. /\ Inv
               /\ T1!EnabledFinalizeTasks(t)
               /\ o \in S
-              /\ ~(o \in FinalizedObject)
+              /\ ~ (o \in FinalizedObject)
               => EnabledFinalizeObjects(o)
-            BY LemT1Bridges DEF DepsCompliant, DirectedGraphOf,
-                EnabledFinalizeObjects, T1!EnabledFinalizeTasks,
-                FinalizedObject, GraphStateIntegrity, Inv,
-                IsBipartiteWithPartitions, IsDDGraph, IsDirectedGraph, O1State,
-                Predecessor, RegisteredObject, Successor, TypeOk, UnknownObject
+            BY DEF DepsCompliant, EnabledFinalizeObjects,
+                T1!EnabledFinalizeTasks, FinalizedObject, GraphStateIntegrity,
+                Inv, IsBipartiteWithPartitions, IsDDGraph, O1State,
+                Predecessor, ProcessedTask, T1!ProcessedTask, RegisteredObject,
+                Successor, TypeOk, UnknownObject, UnknownTask
         <3>4. <<FinalizeObjects({o})>>_vars => (o \in FinalizedObject)'
             BY DEF FinalizedObject, FinalizeObjects, RegisteredObject, vars
-        <3>5. o \in FinalizedObject /\ [Next]_vars => (o \in FinalizedObject)'
-            BY DEF AssignTasks, DiscardTasks, FinalizedObject, FinalizeObjects,
-                FinalizeTasks, Next, ProcessTasks, RegisteredObject,
-                RegisterGraph, ReleaseTasks, StageTasks, TargetObjects,
-                UnknownObject, UntargetObjects, vars
+        <3>5. Inv /\ o \in FinalizedObject /\ [Next]_vars
+              => (o \in FinalizedObject)'
+            BY LemNextSimulateO1Next, LemO1Assumptions,
+                O1!LemPermanentFinalization DEF FinalizedObject,
+                O1!FinalizedObject, Inv
         <3>. QED
-            BY <3>1, <3>2, <3>3, <3>4, <3>5, PTL DEF FairFinalizeObjects, Stays
-    <2>4. (\A x \in S : G(x)) => Successor(deps, t) \subseteq FinalizedObject
-        OBVIOUS
-    <2>. HIDE DEF G, S
+            BY <3>1, <3>2, <3>3, <3>4, <3>5, PTL DEF FairFinalizeObjects
+    (* tlapm: a temporal formula under a binder needs a hidden name. *)
+    <2>. HIDE DEF G, S, Stays
+    <2>4. H => \A x : Stays(x)
+        BY <2>3
     <2>. QED
-        BY <2>1, <2>2, <2>3, <2>4, TL_EventuallyAlwaysForallStationary, PTL
+        BY <2>1, <2>2, <2>4, TL_EventuallyAlwaysForallStationary, PTL
             DEF Stays
+<1>4. (\A x \in Object : FairFinalizeObjects(x))
+      => [](\A x \in Object : FairFinalizeObjects(x))
+    <2>1. ASSUME NEW x \in Object
+          PROVE  FairFinalizeObjects(x) => []FairFinalizeObjects(x)
+        BY PTL DEF FairFinalizeObjects
+    <2>. QED
+        BY <2>1
 <1>. QED
-    BY <1>1, <1>2, <1>3, LemFairFinalizeObjectsStable, PTL
-        DEF FairFinalizeTasks, T1!FairFinalizeTasks
+    BY <1>1, <1>2, <1>3, <1>4, PTL DEF FairFinalizeTasks, T1!FairFinalizeTasks
 
 (**
  * Openness at the next state, a module-level operator so that the lemmas of
  * DDGraphTheorems, whose parameter Op(_) a proof-local definition does not
  * instantiate, apply to the next-state graph.
  *)
-OpPrimed(m) == IsOpenNode(m)'
+IsOpenNodeP(n) == IsOpenNode(n)'
 
 (**
  * The weak fairness of the finalization of a target in Object1 holds under
  * Graph1: a target whose open ancestry stops growing is eventually no longer
  * registered, so its finalization never stays enabled.
  * ----
- * Rule: descent of the finite open ancestry. Once the ancestry no longer
- * changes, a source of it would stay one forever, which fairness forbids: the
- * ancestry has no source, so it is empty and the target is not registered.
+ * Rule: TL_FiniteSetDescent over the open ancestry, finite and never
+ * growing, then fairness at its sources. Once the ancestry no longer changes,
+ * a source of it would stay one forever, which the fairness of its objects
+ * and Task1's EventualStability for its tasks forbid: the ancestry has no
+ * source, so it is empty and the target is not registered.
  *)
 LEMMA LemPreserveO1WFFinalizeObjects ==
     ASSUME NEW o \in Object
@@ -958,8 +619,8 @@ LEMMA LemPreserveO1WFFinalizeObjects ==
            /\ \A t \in Task :
                   /\ FairProcessTasks(t)
                   /\ FairFinalizeTasks(t)
-                  /\ FairStageTasks(t, o)
-                  /\ FairAssignTasks(t, o)
+                  /\ FairStageForTarget(t, o)
+                  /\ FairAssignForTarget(t, o)
            /\ UpstreamStabilization!At(o)
            => O1!FairFinalizeObjects(o)
 <1>. DEFINE S == OA(o).node
@@ -971,209 +632,139 @@ LEMMA LemPreserveO1WFFinalizeObjects ==
                  /\ \A t \in Task :
                         /\ FairProcessTasks(t)
                         /\ FairFinalizeTasks(t)
-                        /\ FairStageTasks(t, o)
-                        /\ FairAssignTasks(t, o)
+                        /\ FairStageForTarget(t, o)
+                        /\ FairAssignForTarget(t, o)
 (* tlapm: a temporal formula under a binder needs a hidden name. *)
 <1>. HIDE DEF Stuck
-<1>1. H /\ UpstreamStabilization!At(o) /\ <>[](o \in objectTargets)
-      => <>[]~(o \in RegisteredObject)
-    (* The open ancestry is finite; its sources are open, with closed inputs. *)
-    <2>1. Inv => S \subseteq deps.node /\ IsFiniteSet(S)
-        <3>. SUFFICES ASSUME Inv
-                      PROVE  S \subseteq deps.node /\ IsFiniteSet(S)
-            OBVIOUS
-        <3>1. IsDirectedGraph(deps)
-            BY DEF DepsCompliant, Inv, IsDag, IsDDGraph
-        <3>2. S \subseteq deps.node
-            BY <3>1, DDG_AncestorSubGraphBasic, Zenon DEF DirectedSubgraph, OA
-        <3>. QED
-            BY <3>2, FS_Subset DEF DepsFinite, Inv
-    <2>2. ASSUME NEW x, Inv, IsSource(x)
-          PROVE  /\ x \in deps.node
-                 /\ x \in Task \union Object
-                 /\ IsOpenNode(x)
-                 /\ \A u \in Predecessor(deps, x) : ~IsOpenNode(u)
-        <3>1. IsDirectedGraph(deps)
-            BY <2>2 DEF DepsCompliant, Inv, IsDag, IsDDGraph
-        <3>2. S \subseteq {m \in deps.node : IsOpenNode(m)}
-            BY <3>1, DDG_AncestorSubGraphBasic, Isa DEF OA
-        <3>3. x \in S /\ \A u \in Predecessor(deps, x) : ~IsOpenNode(u)
-            BY <2>2, <3>1, DDG_AncestorSubGraphSource, Isa DEF OA
-        <3>. QED
-            BY <2>2, <3>2, <3>3 DEF DirectedGraphOf, Inv, TypeOk
-    <2>3. UpstreamStabilization!At(o) /\ <>[](o \in objectTargets)
-          => <>[][S' \subseteq S]_S
-        <3>1. [OA(o)' \in DirectedSubgraph(OA(o))]_(OA(o))
-              => [S' \subseteq S]_S
-            BY Zenon DEF DirectedSubgraph, OA
-        <3>. QED
-            BY <3>1, PTL
-    (* tlapm: TL_FiniteSetDescent is cited at the bound name S. *)
-    <2>4. []Inv /\ <>[][S' \subseteq S]_S => <>[][FALSE]_S
-        <3>. HIDE DEF S
-        <3>. QED
-            BY <2>1, TL_FiniteSetDescent, PTL
-    (* No node ever remains a source forever. *)
-    <2>5. H /\ <>[](o \in objectTargets) => [](\A x : ~Stuck(x))
-        (* An object does not: its finalization is enabled. *)
-        <3>1. ASSUME NEW x \in Object
-              PROVE  H => ~Stuck(x)
-            <4>1. Inv /\ IsSource(x) => EnabledFinalizeObjects(x)
-                <5>. SUFFICES ASSUME Inv, IsSource(x)
-                              PROVE  EnabledFinalizeObjects(x)
-                    OBVIOUS
-                <5>1. x \in RegisteredObject
-                    BY <2>2 DEF FinalizedObject, GraphStateIntegrity, Inv,
-                        IsOpenNode, O1State, RegisteredObject, TypeOk,
-                        UnknownObject
-                <5>2. x \in Source(deps)
-                    <6>1. Predecessor(deps, x) \subseteq FinalizedTask
-                        BY <2>2 DEF DepsCompliant, FinalizedObject, Inv,
-                            IsBipartiteWithPartitions, IsDDGraph, IsOpenNode,
-                            Predecessor
-                    <6>. QED
-                        BY <5>1, <6>1 DEF GraphStateIntegrity, Inv
-                <5>. QED
-                    BY <5>1, <5>2, Zenon DEF EnabledFinalizeObjects
-            <4>2. Inv /\ IsSource(x) => IsOpenNode(x)
-                BY <2>2
-            <4>3. <<FinalizeObjects({x})>>_vars => ~IsOpenNode(x)'
-                BY DEF FinalizedObject, FinalizeObjects, IsOpenNode, vars
-            <4>4. H => FairFinalizeObjects(x)
-                OBVIOUS
-            <4>. QED
-                BY <4>1, <4>2, <4>3, <4>4, PTL DEF FairFinalizeObjects, Stuck
-        (* A task does not: it would be staged, then assigned. *)
-        <3>2. ASSUME NEW t \in Task
-              PROVE  H /\ <>[](o \in objectTargets) => ~Stuck(t)
-            <4>1. H => T1!FairProcessTasks(t) /\ T1!FairFinalizeTasks(t)
-                BY LemPreserveT1SFProcessTasks, LemPreserveT1WFFinalizeTasks
-            <4>2. Inv /\ [Next]_vars => T1!Inv /\ [T1!Next]_T1!vars
-                BY LemNextSimulateT1Next DEF Inv
-            <4>3. /\ []T1!Inv
-                  /\ [][T1!Next]_T1!vars
-                  /\ T1!FairProcessTasks(t)
-                  /\ T1!FairFinalizeTasks(t)
-                  => T1!EventualStability!At(t)
-                BY T1!LemEventualStability, LemT1Assumptions
-            <4>4. /\ t \in T1!UnknownTask <=> t \in UnknownTask
-                  /\ t \in T1!RegisteredTask <=> t \in RegisteredTask
-                  /\ t \in T1!StagedTask <=> t \in StagedTask
-                  /\ t \in T1!FinalizedTask <=> t \in FinalizedTask
-                BY LemT1Bridges
-            <4>5. Inv /\ IsSource(t)
-                  => /\ ~(t \in UnknownTask)
-                     /\ ~(t \in FinalizedTask)
-                     /\ t \in OA(o).node
-                     /\ Predecessor(deps, t) \subseteq FinalizedObject
-                BY <2>2 DEF DepsCompliant, FinalizedTask, GraphStateIntegrity,
-                    Inv, IsBipartiteWithPartitions, IsDDGraph, IsOpenNode,
-                    Predecessor, Source
-            <4>6. /\ <<o \in objectTargets
-                      /\ t \in OA(o).node
-                      /\ StageTasks({t})>>_vars
-                     => ~(t \in RegisteredTask)'
-                  /\ <<o \in objectTargets
-                      /\ t \in OA(o).node
-                      /\ AssignTasks({t})>>_vars
-                     => ~(t \in StagedTask)'
-                BY DEF AssignTasks, RegisteredTask, StagedTask, StageTasks,
-                    vars
-            <4>7. H => FairStageTasks(t, o) /\ FairAssignTasks(t, o)
-                OBVIOUS
-            <4>. QED
-                BY <4>1, <4>2, <4>3, <4>4, <4>5, <4>6, <4>7, PTL
-                    DEF EnabledAssignTasks, EnabledStageTasks, FairAssignTasks,
-                    FairStageTasks, Stuck
-        <3>. SUFFICES ASSUME NEW x
-                      PROVE  H /\ <>[](o \in objectTargets) => []~Stuck(x)
-            OBVIOUS
-        <3>3. ASSUME ~(x \in Task \union Object)
-              PROVE  H => ~Stuck(x)
-            <4>1. Inv => ~IsSource(x)
-                BY <2>2, <3>3
-            <4>. QED
-                BY <4>1, PTL DEF Stuck
-        <3>4. H /\ <>[](o \in objectTargets) => ~Stuck(x)
-            BY <3>1, <3>2, <3>3
-        <3>. QED
-            BY <3>4, PTL DEF Stuck
-    (* An ancestry that no longer changes keeps its sources: it has none. *)
-    <2>6. /\ []Inv
-          /\ [][Next]_vars
-          /\ [][FALSE]_S
-          /\ \A x : ~Stuck(x)
-          => [](\A x : ~IsSource(x))
-        <3>. SUFFICES ASSUME NEW x
-                      PROVE  /\ []Inv
-                             /\ [][Next]_vars
-                             /\ [][FALSE]_S
-                             /\ ~Stuck(x)
-                             => []~IsSource(x)
-            OBVIOUS
-        <3>1. Inv /\ Inv' /\ [Next]_vars /\ [FALSE]_S /\ IsSource(x)
-              => IsSource(x)'
-            <4>1. ASSUME NEW u, TypeOk, [Next]_vars, ~IsOpenNode(u)
-                  PROVE  ~OpPrimed(u)
-                BY <4>1, LemNextSimulateO1Next, LemNextSimulateT1Next,
-                    LemO1Assumptions, O1!LemPermanentFinalization,
-                    T1!LemPermanentFinalization, LemT1Assumptions
-                    DEF FinalizedObject, O1!FinalizedObject, FinalizedTask,
-                    T1!FinalizedTask, IsOpenNode, OpPrimed
-            <4>. SUFFICES ASSUME Inv, Inv', [Next]_vars, S' = S, IsSource(x)
-                          PROVE  IsSource(x)'
-                OBVIOUS
-            <4>2. IsDirectedGraph(deps')
-                BY DEF DepsCompliant, Inv, IsDag, IsDDGraph
-            <4>3. OA(o)' = AncestorSubGraph(deps', o, OpPrimed)
-                BY DEF AncestorSubGraph, OA, OpPrimed
-            <4>4. x \in S'
-                BY DEF Source
-            <4>. SUFFICES ASSUME NEW u \in Predecessor(deps', x), OpPrimed(u)
-                          PROVE  FALSE
-                BY <4>2, <4>3, <4>4, DDG_AncestorSubGraphSource, Isa
-            <4>5. u \in S
-                <5>1. \A m \in S' :
-                        \A n \in Predecessor(deps', m) \ S' : ~OpPrimed(n)
-                    BY ONLY <4>2, <4>3, DDG_AncestorSubGraphIsMaximal, Isa
-                <5>. QED
-                    BY <4>4, <5>1
-            <4>6. u \in Predecessor(deps, x)
-                <5>1. u \in deps.node /\ x \in deps.node
-                    BY <2>1, <2>2, <4>5
-                <5>2. u \in Task \/ x \in Task
-                    BY DEF DepsCompliant, Inv, IsBipartiteWithPartitions,
-                        IsDDGraph, Predecessor
-                <5>3. CASE u \in Task
-                    BY <4>2, <5>1, <5>3, LemImmutableTaskDependencies
-                        DEF GraphStateIntegrity, Inv, IsDirectedGraph,
-                        Predecessor, Successor
-                <5>4. CASE x \in Task
-                    BY <5>1, <5>4, LemImmutableTaskDependencies
-                        DEF GraphStateIntegrity, Inv
-                <5>. QED
-                    BY <5>2, <5>3, <5>4
-            <4>. QED
-                BY <2>2, <4>1, <4>6 DEF Inv
-        <3>. QED
-            BY <3>1, PTL DEF Stuck
-    <2>7. Inv /\ (\A x : ~IsSource(x)) => ~(o \in RegisteredObject)
-        <3>. SUFFICES ASSUME Inv, o \in RegisteredObject
-                      PROVE  \E x : IsSource(x)
-            OBVIOUS
-        <3>1. o \in deps.node /\ IsOpenNode(o)
-            BY DEF FinalizedObject, FinalizedTask, GraphStateIntegrity, Inv,
-                IsOpenNode, RegisteredObject, UnknownObject
-        <3>. QED
-            BY <3>1, DDG_AncestorSubGraphHasSource, Isa
-                DEF DepsCompliant, DepsFinite, Inv, IsDDGraph, OA
+<1>1. Inv => S \subseteq {m \in deps.node : IsOpenNode(m)} /\ IsFiniteSet(S)
+    <2>1. S \subseteq {m \in deps.node : IsOpenNode(m)}
+        BY DDG_AncestorSubgraphProperties, Isa DEF OA
     <2>. QED
-        BY <2>3, <2>4, <2>5, <2>6, <2>7, PTL
-<1>2. O1!EnabledFinalizeObjects(o)
+        BY <2>1, FS_Subset DEF DepsFinite, Inv
+<1>2. [OA(o)' \in DirectedSubgraph(OA(o))]_(OA(o)) => [S' \subseteq S]_S
+    BY Zenon DEF DirectedSubgraph, OA
+<1>3. ASSUME NEW x, Inv, IsSource(x)
+      PROVE  /\ x \in deps.node
+             /\ x \in Task \union Object
+             /\ IsOpenNode(x)
+             /\ \A u \in Predecessor(deps, x) : ~ IsOpenNode(u)
+    <2>1. x \in S /\ \A u \in Predecessor(deps, x) : ~ IsOpenNode(u)
+        BY <1>3, DDG_AncestorSubgraphSource, Isa DEF OA
+    <2>. QED
+        BY <1>1, <1>3, <2>1 DEF DirectedGraphOf, Inv, TypeOk
+<1>4. H /\ <>[](o \in objectTargets)
+      => [](\A x \in Task \union Object : ~ Stuck(x))
+    <2>1. ASSUME NEW x \in Object
+          PROVE  H => ~ Stuck(x)
+        <3>1. Inv /\ IsSource(x) => EnabledFinalizeObjects(x) /\ IsOpenNode(x)
+            BY <1>3 DEF DepsCompliant, EnabledFinalizeObjects, FinalizedObject,
+                GraphStateIntegrity, Inv, IsBipartiteWithPartitions,
+                IsDDGraph, IsOpenNode, O1State, Predecessor, RegisteredObject,
+                TypeOk, UnknownObject
+        <3>2. <<FinalizeObjects({x})>>_vars => ~ IsOpenNode(x)'
+            BY DEF FinalizedObject, FinalizeObjects, IsOpenNode, vars
+        <3>3. H => FairFinalizeObjects(x)
+            OBVIOUS
+        <3>. QED
+            BY <3>1, <3>2, <3>3, PTL DEF FairFinalizeObjects, Stuck
+    <2>2. ASSUME NEW t \in Task
+          PROVE  H /\ <>[](o \in objectTargets) => ~ Stuck(t)
+        <3>1. H => /\ FairProcessTasks(t)
+                   /\ FairFinalizeTasks(t)
+                   /\ FairStageForTarget(t, o)
+                   /\ FairAssignForTarget(t, o)
+            OBVIOUS
+        <3>2. Inv /\ IsSource(t)
+              => /\ ~ (t \in UnknownTask)
+                 /\ ~ (t \in FinalizedTask)
+                 /\ t \in OA(o).node
+                 /\ Predecessor(deps, t) \subseteq FinalizedObject
+            BY <1>3 DEF DepsCompliant, FinalizedTask, GraphStateIntegrity,
+                Inv, IsBipartiteWithPartitions, IsDDGraph, IsOpenNode,
+                Predecessor, Source
+        <3>3. /\ <<StageForTarget(t, o)>>_vars => ~ (t \in RegisteredTask)'
+              /\ <<AssignForTarget(t, o)>>_vars => ~ (t \in StagedTask)'
+            BY DEF AssignForTarget, AssignTasks, RegisteredTask, StagedTask,
+                StageForTarget, StageTasks, vars
+        <3>. QED
+            BY <3>1, <3>2, <3>3, T1!LemEventualStability,
+                LemNextSimulateT1Next, LemPreserveT1SFProcessTasks,
+                LemPreserveT1WFFinalizeTasks, LemT1Assumptions, PTL
+                DEF EnabledAssignForTarget, EnabledStageForTarget,
+                FairAssignForTarget, FairStageForTarget, FinalizedTask,
+                T1!FinalizedTask, Inv, RegisteredTask, T1!RegisteredTask,
+                StagedTask, T1!StagedTask, Stuck, UnknownTask, T1!UnknownTask
+    <2>. SUFFICES ASSUME NEW x \in Task \union Object
+                  PROVE  H /\ <>[](o \in objectTargets) => [] ~ Stuck(x)
+        OBVIOUS
+    <2>3. H /\ <>[](o \in objectTargets) => ~ Stuck(x)
+        BY <2>1, <2>2
+    <2>. QED
+        BY <2>3, PTL DEF Stuck
+<1>5. /\ []Inv
+      /\ [][Next]_vars
+      /\ [][FALSE]_S
+      /\ \A x \in Task \union Object : ~ Stuck(x)
+      => [](\A x \in Task \union Object : ~ IsSource(x))
+    <2>. SUFFICES ASSUME NEW x \in Task \union Object
+                  PROVE  /\ []Inv
+                         /\ [][Next]_vars
+                         /\ [][FALSE]_S
+                         /\ ~ Stuck(x)
+                         => [] ~ IsSource(x)
+        OBVIOUS
+    <2>1. Inv /\ Inv' /\ [Next]_vars /\ [FALSE]_S /\ IsSource(x)
+          => IsSource(x)'
+        <3>. SUFFICES ASSUME Inv, Inv', [Next]_vars, S' = S, IsSource(x)
+                      PROVE  IsSource(x)'
+            OBVIOUS
+        <3>1. OA(o)' = AncestorSubgraph(deps', o, IsOpenNodeP)
+            BY DEF AncestorSubgraph, IsOpenNodeP, OA
+        <3>2. x \in S'
+            BY DEF Source
+        <3>. SUFFICES ASSUME NEW u \in Predecessor(deps', x), IsOpenNodeP(u)
+                      PROVE  FALSE
+            BY <3>1, <3>2, DDG_AncestorSubgraphSource, Isa
+        <3>3. u \in S
+            <4>1. \A m \in S' :
+                    \A n \in Predecessor(deps', m) \ S' : ~ IsOpenNodeP(n)
+                BY ONLY <3>1, DDG_AncestorSubgraphIsMaximal, Isa
+            <4>. QED
+                BY <3>2, <4>1
+        <3>4. u \in Predecessor(deps, x)
+            BY <1>1, <3>2, <3>3, LemImmutableTaskDependencies
+                DEF DepsCompliant, GraphStateIntegrity, Inv,
+                IsBipartiteWithPartitions, IsDag, IsDDGraph, IsDirectedGraph,
+                Predecessor, Successor
+        <3>. QED
+            BY <1>3, <3>4, LemNextSimulateO1Next, LemNextSimulateT1Next,
+                LemO1Assumptions, O1!LemPermanentFinalization,
+                T1!LemPermanentFinalization, LemT1Assumptions
+                DEF FinalizedObject, O1!FinalizedObject, FinalizedTask,
+                T1!FinalizedTask, Inv, IsOpenNode, IsOpenNodeP
+    <2>. QED
+        BY <2>1, PTL DEF Stuck
+<1>6. Inv /\ (\A x \in Task \union Object : ~ IsSource(x))
+      => ~ (o \in RegisteredObject)
+    <2>. SUFFICES ASSUME Inv, o \in RegisteredObject
+                  PROVE  \E x \in Task \union Object : IsSource(x)
+        OBVIOUS
+    <2>1. o \in deps.node /\ IsOpenNode(o)
+        BY Assumptions DEF FinalizedObject, FinalizedTask, GraphStateIntegrity,
+            Inv, IsOpenNode, RegisteredObject, UnknownObject
+    <2>2. Source(OA(o)) /= {}
+        BY <2>1, DDG_AncestorSubgraphHasSource, Isa
+            DEF DepsCompliant, DepsFinite, Inv, IsDDGraph, OA
+    <2>. QED
+        BY <1>3, <2>2
+<1>7. O1!EnabledFinalizeObjects(o)
       => o \in objectTargets /\ o \in RegisteredObject
-    BY LemO1Bridges DEF O1!EnabledFinalizeObjects
+    BY DEF O1!EnabledFinalizeObjects, RegisteredObject, O1!RegisteredObject
+(* tlapm: TL_FiniteSetDescent is cited at its parameter name S. *)
+<1>. HIDE DEF S
 <1>. QED
-    BY <1>1, <1>2, PTL DEF O1!FairFinalizeObjects
+    BY <1>1, <1>2, <1>4, <1>5, <1>6, <1>7, TL_FiniteSetDescent, PTL
+        DEF O1!FairFinalizeObjects
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -1181,98 +772,51 @@ LEMMA LemPreserveO1WFFinalizeObjects ==
 (******************************************************************************)
 
 (**
- * Lifted from Task1 and Object1: under user quiescence, a step of Graph1 is
+ * Lifted from Object1 and Task1: under user quiescence, a step of Graph1 is
  * quiescent in both, and the graph no longer changes.
+ * ----
+ * Rule: the quiescence of Object1 and of Task1, lifted: a step without user
+ * action is one in both.
  *)
 LEMMA LemEventualQuiescence ==
     /\ []Inv
     /\ [][Next]_vars
-    /\ \A o \in Object : FairFinalizeObjects(o)
+    /\ \A x \in Object : FairFinalizeObjects(x)
     /\ \A t \in Task : FairProcessTasks(t) /\ FairFinalizeTasks(t)
     /\ \A t \in Task, o \in Object :
-           FairStageTasks(t, o) /\ FairAssignTasks(t, o)
+           FairStageForTarget(t, o) /\ FairAssignForTarget(t, o)
     /\ UpstreamStabilization
     => EventualQuiescence
 <1>1. /\ []Inv
       /\ [][Next]_vars
-      /\ \A o \in Object : FairFinalizeObjects(o)
+      /\ \A x \in Object : FairFinalizeObjects(x)
       /\ \A t \in Task : FairProcessTasks(t) /\ FairFinalizeTasks(t)
       /\ \A t \in Task, o \in Object :
-             FairStageTasks(t, o) /\ FairAssignTasks(t, o)
+             FairStageForTarget(t, o) /\ FairAssignForTarget(t, o)
       /\ UpstreamStabilization
-      => \A o \in Object : O1!FairFinalizeObjects(o)
-    BY LemPreserveO1WFFinalizeObjects, Zenon DEF UpstreamStabilization
-<1>2. /\ []Inv
-      /\ [][Next]_vars
-      /\ \A o \in Object : FairFinalizeObjects(o)
-      /\ \A t \in Task : FairProcessTasks(t) /\ FairFinalizeTasks(t)
-      => \A t \in Task : T1!FairProcessTasks(t) /\ T1!FairFinalizeTasks(t)
-    BY LemPreserveT1SFProcessTasks, LemPreserveT1WFFinalizeTasks, Isa
-<1>3. /\ []O1!Inv
-      /\ [][O1!Next]_O1!vars
-      /\ \A o \in Object : O1!FairFinalizeObjects(o)
-      => (<>[][O1!NoUserAction]_O1!vars
-          => /\ <>[](objectTargets \subseteq O1!FinalizedObject)
-             /\ <>[][FALSE]_O1!vars)
-    BY O1!LemEventualQuiescence, LemO1Assumptions, Isa
-        DEF O1!EventualQuiescence, O1!Idle
-<1>4. /\ []T1!Inv
-      /\ [][T1!Next]_T1!vars
-      /\ \A t \in Task : T1!FairProcessTasks(t) /\ T1!FairFinalizeTasks(t)
-      => (<>[][T1!NoUserAction]_T1!vars
-          => /\ <>[]T1!Idle
-             /\ <>[][FALSE]_T1!vars)
-    BY T1!LemEventualQuiescence, LemT1Assumptions, Isa
-        DEF T1!EventualQuiescence, T1!Idle
-<1>5. /\ objectTargets \subseteq O1!FinalizedObject
-         <=> objectTargets \subseteq FinalizedObject
-      /\ T1!Idle <=> AssignedTask = {} /\ ProcessedTask = {}
-    BY LemO1Bridges, LemT1Bridges DEF T1!Idle
-(* A quiescent step is quiescent in Task1 and Object1 and leaves the graph
-   unchanged: finalizing objects changes the state of registered objects,
-   which no user action of Object1 does, and a task action registers no
-   task. *)
-<1>6. [Next]_vars /\ [NoUserAction]_vars
+      => /\ \A o \in Object : O1!FairFinalizeObjects(o)
+         /\ \A t \in Task : T1!FairProcessTasks(t) /\ T1!FairFinalizeTasks(t)
+    BY LemPreserveO1WFFinalizeObjects, LemPreserveT1SFProcessTasks,
+        LemPreserveT1WFFinalizeTasks, Zenon DEF UpstreamStabilization
+<1>2. [Next]_vars /\ [NoUserAction]_vars
       => /\ [O1!NoUserAction]_O1!vars
          /\ [T1!NoUserAction]_T1!vars
          /\ UNCHANGED deps
-    <2>1. ASSUME NEW O \in SUBSET Object, FinalizeObjects(O)
-          PROVE  O1!NoUserAction /\ UNCHANGED T1!vars /\ UNCHANGED deps
-        <3>1. /\ UNCHANGED << deps, taskState >>
-              /\ \E x \in Object : /\ objectState[x] = OBJECT_REGISTERED
-                                   /\ objectState'[x] = OBJECT_FINALIZED
-            BY <2>1 DEF FinalizeObjects, RegisteredObject
-        <3>. QED
-            BY <3>1 DEF O1!NoUserAction, O1!RegisterObjects, O1!TargetObjects,
-                O1!UntargetObjects, T1!vars
-    <2>2. ASSUME NEW T \in SUBSET Task,
-                 \/ StageTasks(T)
-                 \/ DiscardTasks(T)
-                 \/ AssignTasks(T)
-                 \/ ReleaseTasks(T)
-                 \/ ProcessTasks(T)
-                 \/ FinalizeTasks(T)
-          PROVE  UNCHANGED O1!vars /\ T1!NoUserAction /\ UNCHANGED deps
-        <3>1. /\ UNCHANGED << deps, objectState, objectTargets >>
-              /\ \A t \in Task :
-                    taskState[t] = TASK_UNKNOWN
-                    => taskState'[t] = TASK_UNKNOWN
-            BY <2>2 DEF AssignedTask, AssignTasks, DiscardTasks, FinalizeTasks,
-                ProcessedTask, ProcessTasks, RegisteredTask, ReleaseTasks,
-                StagedTask, StageTasks
-        <3>. QED
-            BY <3>1 DEF T1!NoUserAction, T1!RegisterTasks, T1!UnknownTask,
-                O1!vars
-    <2>. QED
-        BY <2>1, <2>2 DEF Next, NoUserAction, vars, O1!vars, T1!vars
-<1>7. [FALSE]_O1!vars /\ [FALSE]_T1!vars /\ UNCHANGED deps => [FALSE]_vars
+    BY DEF AssignTasks, DiscardTasks, FinalizeObjects, FinalizeTasks, Next,
+        NoUserAction, O1!NoUserAction, T1!NoUserAction, ProcessTasks,
+        O1!RegisterObjects, T1!RegisterTasks, ReleaseTasks, StageTasks,
+        O1!TargetObjects, O1!UnknownObject, T1!UnknownTask,
+        O1!UntargetObjects, vars, O1!vars, T1!vars
+<1>3. [FALSE]_O1!vars /\ [FALSE]_T1!vars /\ UNCHANGED deps => [FALSE]_vars
     BY DEF vars, O1!vars, T1!vars
-<1>8. []Inv /\ [][Next]_vars
-      => []O1!Inv /\ [][O1!Next]_O1!vars /\ []T1!Inv /\ [][T1!Next]_T1!vars
-    BY LemNextSimulateO1Next, LemNextSimulateT1Next, PTL DEF Inv
 <1>. QED
-    BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8, PTL
-        DEF EventualQuiescence, Idle
+    BY <1>1, <1>2, <1>3, O1!LemEventualQuiescence, T1!LemEventualQuiescence,
+        LemNextSimulateO1Next, LemNextSimulateT1Next, LemO1Assumptions,
+        LemT1Assumptions, PTL
+        DEF AssignedTask, T1!AssignedTask, EventualQuiescence,
+        O1!EventualQuiescence, T1!EventualQuiescence, FinalizedObject,
+        O1!FinalizedObject, Idle, O1!Idle, T1!Idle, Inv, ProcessedTask,
+        T1!ProcessedTask
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -1292,10 +836,7 @@ THEOREM ThmGraphStateIntegrity == Spec => []GraphStateIntegrity
 BY LemGraphStateIntegrity DEF Spec
 
 THEOREM ThmDepsMonotone == Spec => DepsMonotone
-<1>1. TypeOk /\ [Next]_vars => [(deps \in DirectedSubgraph(deps'))]_deps
-    BY LemDepsMonotone DEF DirectedGraphOf, TypeOk
-<1>. QED
-    BY <1>1, LemTypeOk, PTL DEF DepsMonotone, Spec
+BY LemDepsMonotone, LemInv, PTL DEF DepsMonotone, Spec
 
 THEOREM ThmPermanentFinalizedSource == Spec => PermanentFinalizedSource
 <1>. SUFFICES ASSUME NEW o \in Object
@@ -1303,12 +844,8 @@ THEOREM ThmPermanentFinalizedSource == Spec => PermanentFinalizedSource
                                 => [](o \in Source(deps)
                                       /\ o \in FinalizedObject))
     BY DEF PermanentFinalizedSource
-<1>1. Inv /\ [Next]_vars
-      => (o \in Source(deps) /\ o \in FinalizedObject
-          => (o \in Source(deps) /\ o \in FinalizedObject)')
-    BY LemPermanentFinalizedSource
 <1>. QED
-    BY <1>1, LemInv, PTL DEF Spec
+    BY LemInv, LemPermanentFinalizedSource, PTL DEF Spec
 
 THEOREM ThmImmutableTaskDependencies == Spec => ImmutableTaskDependencies
 <1>. SUFFICES ASSUME NEW t \in Task
@@ -1319,65 +856,32 @@ THEOREM ThmImmutableTaskDependencies == Spec => ImmutableTaskDependencies
                                  /\ Successor(deps, t)
                                     = Successor(deps', t)]_deps)
     BY DEF ImmutableTaskDependencies
-<1>1. Inv /\ [Next]_vars
-      => [t \notin UnknownTask
-          => /\ Predecessor(deps, t) = Predecessor(deps', t)
-             /\ Successor(deps, t) = Successor(deps', t)]_deps
-    BY LemImmutableTaskDependencies
-<1>2. [Next]_vars => (t \notin UnknownTask => (t \notin UnknownTask)')
+<1>1. [Next]_vars => (t \notin UnknownTask => (t \notin UnknownTask)')
     BY DEF AssignTasks, DiscardTasks, FinalizeObjects, FinalizeTasks, Next,
         ProcessTasks, RegisterGraph, ReleaseTasks, StageTasks, TargetObjects,
         UnknownTask, UntargetObjects, vars
 <1>. QED
-    BY <1>1, <1>2, LemInv, PTL DEF Spec
-
-THEOREM ThmRefineTask1 == Spec => RefineTask1
-<1>1. Spec => T1!Fairness
-    <2>. SUFFICES ASSUME NEW t \in Task
-                  PROVE  Spec
-                         => T1!FairProcessTasks(t) /\ T1!FairFinalizeTasks(t)
-        BY T1!LemFairnessEnabledFree, LemT1Assumptions, Isa
-    <2>1. Fairness
-          => /\ FairProcessTasks(t)
-             /\ FairFinalizeTasks(t)
-             /\ \A x \in Object : FairFinalizeObjects(x)
-        BY LemFairnessEnabledFree, Isa
-    <2>2. FairProcessTasks(t) => T1!FairProcessTasks(t)
-        BY LemPreserveT1SFProcessTasks
-    <2>3. /\ []Inv
-          /\ [][Next]_vars
-          /\ FairFinalizeTasks(t)
-          /\ \A x \in Object : FairFinalizeObjects(x)
-          => T1!FairFinalizeTasks(t)
-        BY LemPreserveT1WFFinalizeTasks
-    <2>. QED
-        BY <2>1, <2>2, <2>3, LemInv, PTL DEF Spec
-<1>. QED
-    BY <1>1, LemInitSimulateT1Init, LemNextSimulateT1Next, LemTypeOk, PTL
-        DEF RefineTask1, Spec, T1!Spec
+    BY <1>1, LemImmutableTaskDependencies, LemInv, PTL DEF Spec
 
 THEOREM ThmRefineObject1 == Spec => RefineObject1
 <1>1. Spec => O1!Fairness
-    <2>. SUFFICES ASSUME NEW o \in Object
-                  PROVE  Spec => O1!FairFinalizeObjects(o)
-        BY O1!LemFairnessEnabledFree, LemO1Assumptions, Isa
-    <2>1. Fairness
-          => /\ \A x \in Object : FairFinalizeObjects(x)
-             /\ \A t \in Task :
-                    /\ FairProcessTasks(t)
-                    /\ FairFinalizeTasks(t)
-                    /\ FairStageTasks(t, o)
-                    /\ FairAssignTasks(t, o)
-        BY LemFairnessEnabledFree, Isa
-    <2>2. UpstreamStabilization => UpstreamStabilization!At(o)
-        BY DEF UpstreamStabilization
-    <2>. QED
-        BY <2>1, <2>2, LemInv, LemPreserveO1WFFinalizeObjects, PTL DEF Spec
+    BY LemFairnessEnabledFree, O1!LemFairnessEnabledFree, LemInv,
+        LemO1Assumptions, LemPreserveO1WFFinalizeObjects
+        DEF Spec, UpstreamStabilization
 <1>. QED
     BY <1>1, LemInitSimulateO1Init, LemNextSimulateO1Next, LemTypeOk, PTL
         DEF RefineObject1, Spec, O1!Spec
 
+THEOREM ThmRefineTask1 == Spec => RefineTask1
+<1>1. Spec => T1!Fairness
+    BY LemFairnessEnabledFree, T1!LemFairnessEnabledFree, LemInv,
+        LemPreserveT1SFProcessTasks, LemPreserveT1WFFinalizeTasks,
+        LemT1Assumptions DEF Spec
+<1>. QED
+    BY <1>1, LemInitSimulateT1Init, LemNextSimulateT1Next, LemTypeOk, PTL
+        DEF RefineTask1, Spec, T1!Spec
+
 THEOREM ThmEventualQuiescence == Spec => EventualQuiescence
-BY LemEventualQuiescence, LemFairnessEnabledFree, LemInv, PTL DEF Spec
+BY LemEventualQuiescence, LemFairnessEnabledFree, LemInv DEF Spec
 
 ================================================================================
