@@ -213,23 +213,6 @@ PermanentFinalization ==
 
 (**
  * LIVENESS
- * An assigned task is eventually released back to the staged ones or
- * processed.
- *)
-EventualDeallocation ==
-    \A t \in Task :
-        t \in AssignedTask ~> t \in StagedTask \/ t \in ProcessedTask
-
-(**
- * LIVENESS
- * A task assigned infinitely often is eventually processed.
- *)
-EventualProcessing ==
-    \A t \in Task :
-        []<>(t \in AssignedTask) => <>(t \in ProcessedTask)
-
-(**
- * LIVENESS
  * A processed task is eventually finalized.
  *)
 EventualFinalization ==
