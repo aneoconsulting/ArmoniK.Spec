@@ -185,4 +185,17 @@ PermanentFinalization ==
 RefineObject1 ==
     O1!Spec
 
+(**
+ * LIVENESS
+ * An object targeted forever from some point on is eventually completed for
+ * good or aborted for good. Restated from Object1, whose finalized objects
+ * are the completed and the aborted ones.
+ *)
+EventualTargetFinalization ==
+    \A o \in Object :
+        At(o) ::
+            <>[](o \in objectTargets)
+            => \/ <>[](o \in CompletedObject)
+               \/ <>[](o \in AbortedObject)
+
 ================================================================================
