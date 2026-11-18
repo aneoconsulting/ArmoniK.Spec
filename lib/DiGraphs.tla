@@ -117,13 +117,6 @@ Successor(G, n) == {m \in G.node : <<n, m>> \in G.edge}
 Predecessor(G, n) == {m \in G.node : <<m, n>> \in G.edge}
 
 (**
- * The set of the immediate successors of node 'n' in 'G' whose only
- * predecessor is 'n'.
- *)
-ExclusiveSuccessor(G, n) ==
-    {m \in Successor(G, n) : Predecessor(G, m) = {n}}
-
-(**
  * The set of the nodes of 'G' from which 'n' is reachable through a simple
  * path. Every node of 'G' is its own ancestor.
  *)
