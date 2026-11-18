@@ -1,43 +1,39 @@
------------------------------ MODULE ObjectStates -----------------------------
-(*****************************************************************************)
-(* This module defines the possible states of an object in the scheduling    *)
-(* system. A state represents a phase in the object lifecycle, from          *)
-(* registration to finalization.                                             *)
-(*                                                                           *)
-(* The module also provides definitions of object sets in each state,        *)
-(* allowing other specifications to reason about groups of objects sharing   *)
-(* the same lifecycle phase.                                                 *)
-(*****************************************************************************)
+------------------------------ MODULE ObjectStates -----------------------------
+(******************************************************************************)
+(* This module defines the lifecycle states of an object in the scheduling    *)
+(* system, from registration to finalization, the states of each refinement   *)
+(* layer, and the set of objects in each state, which lets a specification    *)
+(* reason about the objects that share a lifecycle phase.                     *)
+(******************************************************************************)
 
-CONSTANT
-    Object
+CONSTANTS
+    Object  \* Set of object identifiers
 
-VARIABLE
-    objectState
+VARIABLES
+    objectState  \* objectState[o]: lifecycle state of object o
 
 (**
- * Object lifecycle states.
+ * The object states, in the order of their lifecycle.
  *)
-OBJECT_UNKNOWN    == "OBJECT_UNKNOWN"       \* Object is virtual, not yet known to the system
-OBJECT_REGISTERED == "OBJECT_REGISTERED" \* Object created with only its metadata and empty data.
-OBJECT_FINALIZED  == "OBJECT_FINALIZED"  \* Object has been successfully generated
-OBJECT_COMPLETED  == "OBJECT_COMPLETED"  \* Object has been generated with a non-empty data
-OBJECT_ABORTED    == "OBJECT_ABORTED"    \* Object has been genereted without any data
+OBJECT_UNKNOWN    == "OBJECT_UNKNOWN"     \* Virtual, unknown to the system
+OBJECT_REGISTERED == "OBJECT_REGISTERED"  \* Known, its data not provided yet
+OBJECT_FINALIZED  == "OBJECT_FINALIZED"   \* Final, never changes again
+OBJECT_COMPLETED  == "OBJECT_COMPLETED"   \* Finalized, its data written
+OBJECT_ABORTED    == "OBJECT_ABORTED"     \* Finalized, its data never provided
 
 (**
- * Sets of states accessible for each level of refinement.
+ * The states of each refinement layer.
  *)
 O1State == {OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_FINALIZED}
-O2State == {OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_COMPLETED,
-             OBJECT_ABORTED}
+O2State == {OBJECT_UNKNOWN, OBJECT_REGISTERED, OBJECT_COMPLETED, OBJECT_ABORTED}
 
 (**
- * Sets of objects by state.
+ * The objects in each state.
  *)
-UnknownObject    == {o \in Object: objectState[o] = OBJECT_UNKNOWN}
-RegisteredObject == {o \in Object: objectState[o] = OBJECT_REGISTERED}
-FinalizedObject  == {o \in Object: objectState[o] = OBJECT_FINALIZED}
-CompletedObject  == {o \in Object: objectState[o] = OBJECT_COMPLETED}
-AbortedObject    == {o \in Object: objectState[o] = OBJECT_ABORTED}
+UnknownObject    == {o \in Object : objectState[o] = OBJECT_UNKNOWN}
+RegisteredObject == {o \in Object : objectState[o] = OBJECT_REGISTERED}
+FinalizedObject  == {o \in Object : objectState[o] = OBJECT_FINALIZED}
+CompletedObject  == {o \in Object : objectState[o] = OBJECT_COMPLETED}
+AbortedObject    == {o \in Object : objectState[o] = OBJECT_ABORTED}
 
-===============================================================================
+================================================================================
