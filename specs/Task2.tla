@@ -341,6 +341,20 @@ PermanentFinalization ==
         /\ [](t \in AbortedTask => [](t \in AbortedTask))
 
 (**
+ * SAFETY
+ * The outcome of a processed task is permanent: a succeeded task can only be
+ * completed, a failed task only retried, and a discarded task only aborted.
+ *)
+PermanentOutcome ==
+    \A t \in Task :
+        /\ [](t \in SucceededTask
+              => [](t \in SucceededTask \union CompletedTask))
+        /\ [](t \in FailedTask
+              => [](t \in FailedTask \union RetriedTask))
+        /\ [](t \in DiscardedTask
+              => [](t \in DiscardedTask \union AbortedTask))
+
+(**
  * LIVENESS
  * A task that failed without a next attempt is eventually given one, which
  * is registered; a registered next attempt that is never discarded is
