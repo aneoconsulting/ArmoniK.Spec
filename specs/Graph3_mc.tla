@@ -1,6 +1,12 @@
 ------------------------------- MODULE Graph3_mc -------------------------------
 (******************************************************************************)
 (* Model of Graph3 for TLC, on finitely many tasks and objects.               *)
+(*                                                                            *)
+(* UpstreamStabilization holds in every behavior of the model: with finitely  *)
+(* many identifiers, the dependency graph grows finitely many times, and only *)
+(* its growth enlarges an open ancestry, since a finalized node never         *)
+(* reopens. UserStopsPausingUpstream is an assumption on the user that the    *)
+(* finite model does not imply: the properties are checked under it.          *)
 (******************************************************************************)
 
 EXTENDS Graph3
@@ -19,39 +25,6 @@ EXTENDS Graph3
  * its roots and leaves are objects. The substitution hides no registration.
  *)
 MCDirectedGraphOf(N) == DDGraphOf(N \intersect Task, N \intersect Object)
-
-(**
- * Stuttering step enabled once the system is idle. With finitely many
- * identifiers, every behavior reaches a state where Next is disabled, which TLC
- * reports as a deadlock. This step makes the expected terminal states legal and
- * leaves the others reported. It adds no behavior, since
- * [Next \/ Terminating]_vars equals [Next]_vars.
- *)
-Terminating ==
-    /\ Idle
-    /\ UNCHANGED vars
-
-(**
- * The next-state relation of the specification, with the terminal step.
- *)
-MCNext ==
-    \/ Next
-    \/ Terminating
-
-(**
- * The specification with MCNext for Next. UpstreamStabilization holds in
- * every behavior of the model: with finitely many identifiers, the dependency
- * graph grows finitely many times, and only its growth enlarges an open
- * ancestry, since a finalized node never reopens. UserStopsPausingUpstream is
- * an assumption on the user that the finite model does not imply: the
- * properties are checked under it.
- *)
-MCSpec ==
-    /\ Init
-    /\ [][MCNext]_vars
-    /\ Fairness
-    /\ UserStopsPausingUpstream
-    /\ UpstreamStabilization
 
 --------------------------------------------------------------------------------
 (******************************************************************************)

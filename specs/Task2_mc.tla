@@ -7,37 +7,6 @@ EXTENDS Task2
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
-(*                                 OVERRIDES                                  *)
-(******************************************************************************)
-
-(**
- * Stuttering step enabled once the system is idle. With finitely many tasks,
- * every behavior reaches a state where Next is disabled, which TLC reports as
- * a deadlock. This step makes the expected terminal states legal and leaves
- * the others reported. It adds no behavior, since [Next \/ Terminating]_vars
- * equals [Next]_vars.
- *)
-Terminating ==
-    /\ Idle
-    /\ UNCHANGED vars
-
-(**
- * The next-state relation of the specification, with the terminal step.
- *)
-MCNext ==
-    \/ Next
-    \/ Terminating
-
-(**
- * The specification with MCNext for Next.
- *)
-MCSpec ==
-    /\ Init
-    /\ [][MCNext]_vars
-    /\ Fairness
-
---------------------------------------------------------------------------------
-(******************************************************************************)
 (*                        MODEL-CHECKING CONFIGURATION                        *)
 (******************************************************************************)
 
