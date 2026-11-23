@@ -21,9 +21,9 @@ messages, one for pull-request titles, and the automation that enforces both.
 
 A module of this repository is never self-contained: a specification `<X>.tla` states its properties
 in `<X>Theorems.tla`, discharges them in `<X>Theorems_proofs.tla`, and is model-checked through
-`<X>_mc.tla` with `<X>_mc.cfg`. A single idea — a new action, a new status — therefore touches four
-files whose verification costs differ by orders of magnitude, from a one-second parse to a
-twenty-minute proof.
+`<X>_mc.tla` with `<X>_mc.cfg` (or `<X>.cfg` alone). A single idea — a new action, a new status —
+therefore touches four files whose verification costs differ by orders of magnitude, from a
+one-second parse to a twenty-minute proof.
 
 Recording all four in one commit has a concrete cost. A reviewer cannot judge the model instance
 without first judging the behaviour it instantiates, and the diff of a 2500-line proof module buries
