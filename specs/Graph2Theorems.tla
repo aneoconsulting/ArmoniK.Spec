@@ -24,12 +24,34 @@ LEMMA LemG1Bridges ==
     /\ \A G : G1!DirectedSubgraph(G) = DirectedSubgraph(G)
 
 (**
+ * Under the instance, the sets of objects of Object2 denote those of Graph2.
+ *)
+LEMMA LemO2Bridges ==
+    /\ O2!UnknownObject = UnknownObject
+    /\ O2!RegisteredObject = RegisteredObject
+    /\ O2!CompletedObject = CompletedObject
+    /\ O2!AbortedObject = AbortedObject
+    /\ \A S : O2!IsFiniteSet(S) <=> IsFiniteSet(S)
+
+(**
  * Under the instance, the operators of Task2 denote those of Graph2.
  *)
 LEMMA LemT2Bridges ==
     /\ \A S, T : T2!Bijection(S, T) = Bijection(S, T)
     /\ \A S : T2!Cardinality(S) = Cardinality(S)
     /\ \A t \in Task : T2!PreviousAttempts(t) = PreviousAttempts(t)
+    /\ \A S : T2!IsFiniteSet(S) <=> IsFiniteSet(S)
+    /\ T2!UnknownTask = UnknownTask
+    /\ T2!RegisteredTask = RegisteredTask
+    /\ T2!StagedTask = StagedTask
+    /\ T2!AssignedTask = AssignedTask
+    /\ T2!SucceededTask = SucceededTask
+    /\ T2!FailedTask = FailedTask
+    /\ T2!DiscardedTask = DiscardedTask
+    /\ T2!CompletedTask = CompletedTask
+    /\ T2!RetriedTask = RetriedTask
+    /\ T2!AbortedTask = AbortedTask
+    /\ T2!LinkedTask = LinkedTask
 
 (**
  * The assumptions of Graph2 imply those of Graph1.
@@ -226,13 +248,12 @@ LEMMA LemNextSimulateG1Next ==
 LEMMA LemInitSimulateO2Init == Init => O2!Init
 
 (**
- * Registering a graph registers its unknown objects, or leaves the object
- * states unchanged when it has none.
+ * Registering a graph registers its unknown objects.
  *)
 LEMMA LemRegisterGraphSimulateO2RegisterObjects ==
     ASSUME NEW G
-    PROVE  TypeOk /\ RegisterGraph(G)
-           => [O2!RegisterObjects(G.node \intersect UnknownObject)]_O2!vars
+    PROVE  RegisterGraph(G)
+           => O2!RegisterObjects(G.node \intersect UnknownObject)
 
 LEMMA LemTargetObjectsSimulateO2TargetObjects ==
     ASSUME NEW O \in SUBSET Object
@@ -286,18 +307,16 @@ LEMMA LemRetryTasksSimulateO2Stuttering ==
     ASSUME NEW T \in SUBSET Task
     PROVE  RetryTasks(T) => UNCHANGED O2!vars
 
-LEMMA LemNextSimulateO2Next == TypeOk /\ [Next]_vars => [O2!Next]_O2!vars
+LEMMA LemNextSimulateO2Next == [Next]_vars => [O2!Next]_O2!vars
 
 LEMMA LemInitSimulateT2Init == Init => T2!Init
 
 (**
- * Registering a graph registers its tasks, or leaves the task states
- * unchanged when it has none.
+ * Registering a graph registers its tasks.
  *)
 LEMMA LemRegisterGraphSimulateT2RegisterTasks ==
     ASSUME NEW G
-    PROVE  TypeOk /\ RegisterGraph(G)
-           => [T2!RegisterTasks(G.node \intersect Task)]_T2!vars
+    PROVE  RegisterGraph(G) => T2!RegisterTasks(G.node \intersect Task)
 
 LEMMA LemTargetObjectsSimulateT2Stuttering ==
     ASSUME NEW O \in SUBSET Object
@@ -351,7 +370,7 @@ LEMMA LemRetryTasksSimulateT2RetryTasks ==
     ASSUME NEW T \in SUBSET Task
     PROVE  RetryTasks(T) => T2!RetryTasks(T)
 
-LEMMA LemNextSimulateT2Next == TypeOk /\ [Next]_vars => [T2!Next]_T2!vars
+LEMMA LemNextSimulateT2Next == [Next]_vars => [T2!Next]_T2!vars
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -525,7 +544,8 @@ EnabledRegisterRetryGraph(t) ==
     LET
         G == RetrySubgraph(deps, t, nextAttemptOf[t])
     IN
-        /\ IsFiniteSet(G.node)
+        /\ IsFiniteSet(G.node \intersect UnknownObject)
+        /\ IsFiniteSet(G.node \intersect Task)
         /\ G.node \intersect Task \subseteq UnknownTask
         /\ \A s \in G.node \intersect Task :
             /\ Successor(G, s) \intersect AbortedObject = {}
