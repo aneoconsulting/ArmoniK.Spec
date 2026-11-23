@@ -872,16 +872,16 @@ LEMMA LemEventualQuiescence ==
     BY FS_Subset, T2!LemT1BarStates, LemT2Assumptions, LemT2BarStates
         DEF T2!T1!FiniteKnownTasks, Inv, T2!Inv, T2!T1!Inv, IsFiniteSet,
         T2!T1!IsFiniteSet, PausedTask, StagedTask, UnknownTask
-<1>5. ASSUME [Next]_vars, [NoUserAction]_vars, UNCHANGED T2!vars
+<1>5. ASSUME Inv, [Next]_vars, [NoUserAction]_vars, UNCHANGED T2!vars
       PROVE  S' \subseteq S /\ (UNCHANGED S => UNCHANGED vars)
     <2>1. \/ UNCHANGED vars
           \/ \E T \in SUBSET Task : PauseTasks(T) \/ ResumeTasks(T)
-        BY <1>5, Assumptions DEF AbortTasks, AssignedTask, AssignTasks,
-            Bijection, CompleteTasks, DiscardedTask, DiscardTasks, FailedTask,
-            HaltedTask, Injection, LinkedTask, Next, NoUserAction, PausedTask,
-            ProcessTasks, RegisteredTask, RegisterTasks, ReleaseTasks,
-            RetryTasks, SetTaskRetries, StagedTask, StageTasks, SucceededTask,
-            taskStateBar, UnknownTask, T2!vars
+        BY <1>5 DEF AbortTasks, AssignedTask, AssignTasks, CompleteTasks,
+            DiscardedTask, DiscardTasks, FailedTask, HaltedTask, Inv,
+            LinkedTask, Next, NoUserAction, PausedTask, ProcessTasks,
+            RegisteredTask, RegisterTasks, ReleaseTasks, RetryTasks,
+            SetTaskRetries, StagedTask, StageTasks, SucceededTask, taskStateBar,
+            TypeOk, UnknownTask, vars, T2!vars
     <2>2. \A x \in Task, i \in Intent : Intends(x, i)' <=> Intends(x, i)
         <3>1. /\ UNCHANGED intent
               /\ UnknownTask' = UnknownTask
@@ -892,8 +892,9 @@ LEMMA LemEventualQuiescence ==
             BY <3>1, Isa DEF ChainId, Intends, IntentChainIds, KnownChainId,
                 PreviousAttempts
     <2>. QED
-        BY <2>1, <2>2 DEF Intends, Intent, IntentChainIds, PausedTask,
-            PauseTasks, RecordedIntent, ResumeTasks, StagedTask, vars
+        BY <1>5, <2>1, <2>2 DEF Intends, Intent, IntentChainIds, Inv,
+            PausedTask, PauseTasks, RecordedIntent, ResumeTasks, StagedTask,
+            TypeOk, vars
 <1>. HIDE DEF S
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, <1>5, T2!LemEventualQuiescence,
