@@ -235,9 +235,10 @@ LEMMA LemEventualQuiescence ==
         objectStateBar, RegisteredObject, O1!RegisterObjects, O1!TargetObjects,
         O1!UntargetObjects, vars, O1!vars
 (* No step moves an object between COMPLETED and ABORTED. *)
-<1>4. [Next]_vars /\ [NoUserAction]_vars /\ UNCHANGED O1!vars => UNCHANGED vars
+<1>4. TypeOk /\ [Next]_vars /\ [NoUserAction]_vars /\ UNCHANGED O1!vars
+      => UNCHANGED vars
     BY DEF AbortObjects, CompleteObjects, Next, NoUserAction, objectStateBar,
-        RegisteredObject, vars, O1!vars
+        RegisteredObject, TypeOk, vars, O1!vars
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, O1!LemEventualQuiescence, LemNextSimulateO1Next,
         LemO1Assumptions, PTL DEF EventualQuiescence, O1!EventualQuiescence,
