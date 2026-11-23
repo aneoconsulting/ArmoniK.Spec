@@ -650,14 +650,21 @@ LEMMA LemFairnessEnabledFree ==
         BY <2>1, PTL DEF FairStageTasks
 <1>4. SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
         <=> FairProcessTasks(t)
-    <2>1. (ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars)
-            => EnabledProcessTasks(t)
-        BY ExpandENABLED DEF AssignedTask, EnabledProcessTasks, ProcessTasks,
-            SucceededTask, vars
-    <2>2. ASSUME EnabledProcessTasks(t)
-          PROVE  ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
-        BY <2>2, ExpandENABLED, SMT DEF AssignedTask, EnabledProcessTasks,
-            ProcessTasks, SucceededTask, vars
+    (* tlapm: SMT finds no witness for ProcessTasks; Succeed has one. *)
+    <2>. DEFINE Succeed ==
+                    /\ t \in AssignedTask
+                    /\ taskState' =
+                        [x \in Task |->
+                            IF x \in {t} THEN TASK_SUCCEEDED ELSE taskState[x]]
+                    /\ UNCHANGED nextAttemptOf
+    <2>1. (ENABLED Succeed)
+          <=> ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
+        <3>1. Succeed <=> <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
+            BY DEF AssignedTask, ProcessTasks, SucceededTask, vars
+        <3>. QED
+            BY <3>1, ENABLEDaxioms
+    <2>2. (ENABLED Succeed) <=> EnabledProcessTasks(t)
+        BY ExpandENABLED DEF EnabledProcessTasks
     <2>. QED
         BY <2>1, <2>2, PTL DEF FairProcessTasks
 <1>5. WF_vars(CompleteTasks({t})) <=> FairCompleteTasks(t)
@@ -1156,11 +1163,12 @@ LEMMA LemEventualQuiescence ==
     BY LemPreserveT1SFProcessTasks, LemPreserveT1WFFinalizeTasks, Isa
 <1>4. Inv => (T1!Idle => Idle)
     BY LemT1BarStates DEF Idle, T1!Idle, Inv
-<1>5. [Next]_vars /\ UNCHANGED T1!vars /\ FailedTask = {} => UNCHANGED vars
+<1>5. Inv /\ [Next]_vars /\ UNCHANGED T1!vars /\ FailedTask = {}
+      => UNCHANGED vars
     BY DEF AbortTasks, AssignedTask, AssignTasks, CompleteTasks, DiscardedTask,
-        DiscardTasks, FailedTask, LinkedTask, Next, ProcessTasks,
-        RegisteredTask, RegisterTasks, ReleaseTasks, RetryTasks,
-        SetTaskRetries, StagedTask, StageTasks, SucceededTask, taskStateBar,
+        DiscardTasks, FailedTask, Inv, LinkedTask, Next, ProcessTasks,
+        RegisteredTask, RegisterTasks, ReleaseTasks, RetryTasks, SetTaskRetries,
+        StagedTask, StageTasks, SucceededTask, taskStateBar, TypeOk,
         UnknownTask, vars, T1!vars
 <1>. QED
     BY <1>1, <1>2, <1>3, <1>4, <1>5, T1!LemEventualQuiescence,
