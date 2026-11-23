@@ -97,7 +97,6 @@ Init ==
  * not yet ready for processing.
  *)
 RegisterTasks(T) ==
-    /\ T /= {}
     /\ T \subseteq UnknownTask
     /\ IsFiniteSet(T)
     /\ taskState' =
@@ -109,7 +108,6 @@ RegisterTasks(T) ==
  * A set 'T' of registered tasks is staged: made ready for processing.
  *)
 StageTasks(T) ==
-    /\ T /= {}
     /\ T \subseteq RegisteredTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
@@ -121,7 +119,6 @@ StageTasks(T) ==
  * bypassing assignment and processing.
  *)
 DiscardTasks(T) ==
-    /\ T /= {}
     /\ T \subseteq UNION {RegisteredTask, StagedTask, PausedTask, HaltedTask}
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
@@ -133,7 +130,6 @@ DiscardTasks(T) ==
  * unknown task of 'U' that is the next attempt of no task.
  *)
 SetTaskRetries(T, U) ==
-    /\ T /= {}
     /\ T \subseteq FailedTask \ LinkedTask
     /\ U \subseteq UnknownTask
     /\ \A u \in U : ~ \E t \in Task : nextAttemptOf[t] = u
@@ -148,7 +144,6 @@ SetTaskRetries(T, U) ==
  * processing.
  *)
 AssignTasks(T) ==
-    /\ T /= {}
     /\ T \subseteq StagedTask
     /\ \A t \in T : Intends(t, INTENT_RUN)
     /\ taskState' =
@@ -160,7 +155,6 @@ AssignTasks(T) ==
  * A set 'T' of assigned tasks is released back to the staged ones.
  *)
 ReleaseTasks(T) ==
-    /\ T /= {}
     /\ T \subseteq AssignedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
@@ -175,7 +169,6 @@ ReleaseTasks(T) ==
  * than MaxRetries previous attempts.
  *)
 ProcessTasks(T) ==
-    /\ T /= {}
     /\ T \subseteq AssignedTask
     /\ \/ taskState' =
             [t \in Task |-> IF t \in T THEN TASK_SUCCEEDED ELSE taskState[t]]
@@ -193,7 +186,6 @@ ProcessTasks(T) ==
  * A set 'T' of succeeded tasks is completed.
  *)
 CompleteTasks(T) ==
-    /\ T /= {}
     /\ T \subseteq SucceededTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_COMPLETED ELSE taskState[t]]
@@ -204,7 +196,6 @@ CompleteTasks(T) ==
  * A set 'T' of discarded tasks is aborted: they will never be retried.
  *)
 AbortTasks(T) ==
-    /\ T /= {}
     /\ T \subseteq DiscardedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_ABORTED ELSE taskState[t]]
@@ -215,7 +206,6 @@ AbortTasks(T) ==
  * A set 'T' of failed tasks whose next attempts are known is retried.
  *)
 RetryTasks(T) ==
-    /\ T /= {}
     /\ T \subseteq FailedTask \intersect LinkedTask
     /\ \A t \in T : nextAttemptOf[t] \notin UnknownTask
     /\ taskState' =
@@ -228,7 +218,6 @@ RetryTasks(T) ==
  * chains of a set 'T' of known tasks.
  *)
 RequestTasks(T, i) ==
-    /\ T /= {}
     /\ T \intersect UnknownTask = {}
     /\ intent' = Requested(T, i)
     /\ UNCHANGED << nextAttemptOf, taskState >>
@@ -238,7 +227,6 @@ RequestTasks(T, i) ==
  * A set 'T' of staged tasks whose attempt chains are to pause is paused.
  *)
 PauseTasks(T) ==
-    /\ T /= {}
     /\ T \subseteq StagedTask
     /\ \A t \in T : Intends(t, INTENT_PAUSE)
     /\ taskState' =
@@ -250,7 +238,6 @@ PauseTasks(T) ==
  * A set 'T' of paused tasks whose attempt chains are to run is staged again.
  *)
 ResumeTasks(T) ==
-    /\ T /= {}
     /\ T \subseteq PausedTask
     /\ \A t \in T : Intends(t, INTENT_RUN)
     /\ taskState' =
