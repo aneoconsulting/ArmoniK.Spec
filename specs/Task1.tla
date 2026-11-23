@@ -67,7 +67,6 @@ Init ==
  * not yet ready for processing.
  *)
 RegisterTasks(T) ==
-    /\ T /= {}
     /\ T \subseteq UnknownTask
     /\ IsFiniteSet(T)
     /\ taskState' =
@@ -78,7 +77,6 @@ RegisterTasks(T) ==
  * A set 'T' of registered tasks is staged: made ready for processing.
  *)
 StageTasks(T) ==
-    /\ T /= {}
     /\ T \subseteq RegisteredTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
@@ -89,7 +87,6 @@ StageTasks(T) ==
  * state, bypassing assignment and processing.
  *)
 DiscardTasks(T) ==
-    /\ T /= {}
     /\ T \subseteq RegisteredTask \union StagedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_PROCESSED ELSE taskState[t]]
@@ -99,7 +96,6 @@ DiscardTasks(T) ==
  * A set 'T' of staged tasks is assigned for processing.
  *)
 AssignTasks(T) ==
-    /\ T /= {}
     /\ T \subseteq StagedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
@@ -109,7 +105,6 @@ AssignTasks(T) ==
  * A set 'T' of assigned tasks is released back to the staged ones.
  *)
 ReleaseTasks(T) ==
-    /\ T /= {}
     /\ T \subseteq AssignedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
@@ -119,7 +114,6 @@ ReleaseTasks(T) ==
  * A set 'T' of assigned tasks completes processing.
  *)
 ProcessTasks(T) ==
-    /\ T /= {}
     /\ T \subseteq AssignedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_PROCESSED ELSE taskState[t]]
@@ -129,7 +123,6 @@ ProcessTasks(T) ==
  * A set 'T' of processed tasks is post-processed, which finalizes them.
  *)
 FinalizeTasks(T) ==
-    /\ T /= {}
     /\ T \subseteq ProcessedTask
     /\ taskState' =
         [t \in Task |-> IF t \in T THEN TASK_FINALIZED ELSE taskState[t]]
