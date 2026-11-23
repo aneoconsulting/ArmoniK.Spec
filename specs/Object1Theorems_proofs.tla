@@ -194,9 +194,10 @@ LEMMA LemEventualQuiescence ==
 <1>3. []Inv /\ [][Next]_vars /\ <>[][NoUserAction]_vars => <>[][FALSE]_vars
     (* tlapm: TL_FiniteSetDescent is cited at its parameter name S. *)
     <2>. DEFINE S == RegisteredObject
-    <2>1. [Next]_vars /\ [NoUserAction]_vars
+    <2>1. Inv /\ [Next]_vars /\ [NoUserAction]_vars
             => [S' \subseteq S]_S /\ ([FALSE]_S => [FALSE]_vars)
-        BY DEF FinalizeObjects, Next, NoUserAction, RegisteredObject, vars
+        BY DEF FinalizeObjects, Inv, Next, NoUserAction, RegisteredObject,
+            TypeOk, vars
     <2>2. Inv => IsFiniteSet(S)
         BY FS_Subset DEF FiniteKnownObjects, Inv, RegisteredObject,
             UnknownObject
