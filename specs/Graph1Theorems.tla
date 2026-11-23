@@ -11,6 +11,25 @@ EXTENDS Graph1
 (******************************************************************************)
 
 (**
+ * Under the instance, the sets of objects of Object1 denote those of Graph1.
+ *)
+LEMMA LemO1Bridges ==
+    /\ O1!UnknownObject = UnknownObject
+    /\ O1!RegisteredObject = RegisteredObject
+    /\ O1!FinalizedObject = FinalizedObject
+
+(**
+ * Under the instance, the sets of tasks of Task1 denote those of Graph1.
+ *)
+LEMMA LemT1Bridges ==
+    /\ T1!UnknownTask = UnknownTask
+    /\ T1!RegisteredTask = RegisteredTask
+    /\ T1!StagedTask = StagedTask
+    /\ T1!AssignedTask = AssignedTask
+    /\ T1!ProcessedTask = ProcessedTask
+    /\ T1!FinalizedTask = FinalizedTask
+
+(**
  * The assumptions of Graph1 imply those of Object1.
  *)
 LEMMA LemO1Assumptions == O1!Assumptions
@@ -22,10 +41,15 @@ LEMMA LemT1Assumptions == T1!Assumptions
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
-(*                              TYPE CORRECTNESS                              *)
+(*                               HELPER LEMMAS                                *)
 (******************************************************************************)
 
-LEMMA LemTypeOk == Init /\ [][Next]_vars => []TypeOk
+(**
+ * Only the registration of a graph changes the dependency graph.
+ *)
+LEMMA LemDepsChangeRegistersGraph ==
+    ASSUME [Next]_vars, deps' /= deps
+    PROVE  \E G \in DirectedGraphOf(Task \union Object) : RegisterGraph(G)
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -35,13 +59,12 @@ LEMMA LemTypeOk == Init /\ [][Next]_vars => []TypeOk
 LEMMA LemInitSimulateO1Init == Init => O1!Init
 
 (**
- * Registering a graph registers its unknown objects, or leaves the object
- * states unchanged when it has none.
+ * Registering a graph registers its unknown objects.
  *)
 LEMMA LemRegisterGraphSimulateO1RegisterObjects ==
     ASSUME NEW G
-    PROVE  TypeOk /\ RegisterGraph(G)
-           => [O1!RegisterObjects(G.node \intersect UnknownObject)]_O1!vars
+    PROVE  RegisterGraph(G)
+           => O1!RegisterObjects(G.node \intersect UnknownObject)
 
 LEMMA LemTargetObjectsSimulateO1TargetObjects ==
     ASSUME NEW O \in SUBSET Object
@@ -79,18 +102,16 @@ LEMMA LemFinalizeTasksSimulateO1Stuttering ==
     ASSUME NEW T \in SUBSET Task
     PROVE  FinalizeTasks(T) => UNCHANGED O1!vars
 
-LEMMA LemNextSimulateO1Next == TypeOk /\ [Next]_vars => [O1!Next]_O1!vars
+LEMMA LemNextSimulateO1Next == [Next]_vars => [O1!Next]_O1!vars
 
 LEMMA LemInitSimulateT1Init == Init => T1!Init
 
 (**
- * Registering a graph registers its tasks, or leaves the task states
- * unchanged when it has none.
+ * Registering a graph registers its tasks.
  *)
 LEMMA LemRegisterGraphSimulateT1RegisterTasks ==
     ASSUME NEW G
-    PROVE  TypeOk /\ RegisterGraph(G)
-           => [T1!RegisterTasks(G.node \intersect Task)]_T1!vars
+    PROVE  RegisterGraph(G) => T1!RegisterTasks(G.node \intersect Task)
 
 LEMMA LemTargetObjectsSimulateT1Stuttering ==
     ASSUME NEW O \in SUBSET Object
@@ -128,7 +149,7 @@ LEMMA LemFinalizeTasksSimulateT1FinalizeTasks ==
     ASSUME NEW T \in SUBSET Task
     PROVE  FinalizeTasks(T) => T1!FinalizeTasks(T)
 
-LEMMA LemNextSimulateT1Next == TypeOk /\ [Next]_vars => [T1!Next]_T1!vars
+LEMMA LemNextSimulateT1Next == [Next]_vars => [T1!Next]_T1!vars
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -145,6 +166,13 @@ LEMMA LemT1Inv == Init /\ [][Next]_vars => []T1!Inv
 (******************************************************************************)
 
 LEMMA LemDepsCompliant == Init /\ [][Next]_vars => []DepsCompliant
+
+(**
+ * Here rather than with the type correctness: its proof lifts the type
+ * correctness of Object1 and Task1 through LemO1Inv and LemT1Inv, and takes
+ * the type of the dependency graph from LemDepsCompliant.
+ *)
+LEMMA LemTypeOk == Init /\ [][Next]_vars => []TypeOk
 
 LEMMA LemDepsFinite == Init /\ [][Next]_vars => []DepsFinite
 
