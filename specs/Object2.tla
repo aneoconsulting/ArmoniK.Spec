@@ -79,7 +79,6 @@ Init ==
  * A finite set 'O' of unknown objects is registered.
  *)
 RegisterObjects(O) ==
-    /\ O /= {}
     /\ O \subseteq UnknownObject
     /\ IsFiniteSet(O)
     /\ objectState' =
@@ -91,7 +90,6 @@ RegisterObjects(O) ==
  * The user targets a set 'O' of known objects.
  *)
 TargetObjects(O) ==
-    /\ O /= {}
     /\ O \subseteq UNION {RegisteredObject, CompletedObject, AbortedObject}
     /\ objectTargets' = objectTargets \union O
     /\ UNCHANGED objectState
@@ -101,7 +99,6 @@ TargetObjects(O) ==
  * The user untargets a set 'O' of targeted objects.
  *)
 UntargetObjects(O) ==
-    /\ O /= {}
     /\ O \subseteq objectTargets
     /\ objectTargets' = objectTargets \ O
     /\ UNCHANGED objectState
@@ -112,7 +109,6 @@ UntargetObjects(O) ==
  * will never change.
  *)
 CompleteObjects(O) ==
-    /\ O /= {}
     /\ O \subseteq RegisteredObject
     /\ objectState' =
         [o \in Object |-> IF o \in O THEN OBJECT_COMPLETED ELSE objectState[o]]
@@ -124,7 +120,6 @@ CompleteObjects(O) ==
  * provided.
  *)
 AbortObjects(O) ==
-    /\ O /= {}
     /\ O \subseteq RegisteredObject
     /\ objectState' =
         [o \in Object |-> IF o \in O THEN OBJECT_ABORTED ELSE objectState[o]]
