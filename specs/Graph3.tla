@@ -164,15 +164,12 @@ Idle ==
  *)
 Init ==
     /\ deps = EmptyGraph
-    /\ intent = [i \in RecordedIntent |-> {}]
-    /\ nextAttemptOf = [t \in Task |-> NULL]
-    /\ objectState = [o \in Object |-> OBJECT_UNKNOWN]
-    /\ objectTargets = {}
-    /\ taskState = [t \in Task |-> TASK_UNKNOWN]
+    /\ O2!Init
+    /\ T3!Init
 
 (**
  * ACTION
- * A finite graph 'G' is added to the dependency graph, which stays a
+ * A graph 'G' is added to the dependency graph, which stays a
  * data-dependency graph. Its tasks are unknown, and none of them produces an
  * aborted object or a completed root object. A next attempt it contains has
  * the inputs and the outputs of the task it retries. Its tasks and unknown
@@ -182,9 +179,6 @@ RegisterGraph(G) ==
     LET
         newDeps == GraphUnion(deps, G)
     IN
-        /\ G /= EmptyGraph
-        /\ IsFiniteSet(G.node)
-        /\ G.node \intersect Task \subseteq UnknownTask
         /\ \A t \in G.node \intersect Task :
             /\ Successor(G, t) \intersect AbortedObject = {}
             /\ Successor(G, t) \intersect Source(deps)
@@ -194,38 +188,25 @@ RegisterGraph(G) ==
             nextAttemptOf[t] /= NULL /\ nextAttemptOf[t] \in G.node
                 => /\ Predecessor(G, nextAttemptOf[t]) = Predecessor(deps, t)
                    /\ Successor(G, nextAttemptOf[t]) = Successor(deps, t)
+        /\ O2!RegisterObjects(G.node \intersect UnknownObject)
+        /\ T3!RegisterTasks(G.node \intersect Task)
         /\ deps' = newDeps
-        /\ objectState' =
-            [o \in Object |->
-                IF o \in G.node \intersect UnknownObject
-                    THEN OBJECT_REGISTERED
-                    ELSE objectState[o]]
-        /\ taskState' =
-            [t \in Task |->
-                IF t \in G.node
-                    THEN TASK_REGISTERED
-                    ELSE taskState[t]]
-        /\ UNCHANGED << intent, nextAttemptOf, objectTargets >>
 
 (**
  * ACTION
  * The user targets a set 'O' of known objects.
  *)
 TargetObjects(O) ==
-    /\ O /= {}
-    /\ O \subseteq UNION {RegisteredObject, CompletedObject, AbortedObject}
-    /\ objectTargets' = objectTargets \union O
-    /\ UNCHANGED << deps, intent, nextAttemptOf, objectState, taskState >>
+    /\ O2!TargetObjects(O)
+    /\ UNCHANGED << deps, intent, nextAttemptOf, taskState >>
 
 (**
  * ACTION
  * The user untargets a set 'O' of targeted objects.
  *)
 UntargetObjects(O) ==
-    /\ O /= {}
-    /\ O \subseteq objectTargets
-    /\ objectTargets' = objectTargets \ O
-    /\ UNCHANGED << deps, intent, nextAttemptOf, objectState, taskState >>
+    /\ O2!UntargetObjects(O)
+    /\ UNCHANGED << deps, intent, nextAttemptOf, taskState >>
 
 (**
  * ACTION
@@ -234,13 +215,10 @@ UntargetObjects(O) ==
  * producer.
  *)
 CompleteObjects(O) ==
-    /\ O /= {}
-    /\ O \subseteq RegisteredObject
     /\ \/ O \subseteq Source(deps)
        \/ \A o \in O : \E t \in Predecessor(deps, o) : t \in SucceededTask
-    /\ objectState' =
-        [o \in Object |-> IF o \in O THEN OBJECT_COMPLETED ELSE objectState[o]]
-    /\ UNCHANGED << deps, intent, nextAttemptOf, objectTargets, taskState >>
+    /\ O2!CompleteObjects(O)
+    /\ UNCHANGED << deps, intent, nextAttemptOf, taskState >>
 
 (**
  * ACTION
@@ -249,17 +227,14 @@ CompleteObjects(O) ==
  * still produce it.
  *)
 AbortObjects(O) ==
-    /\ O /= {}
-    /\ O \subseteq RegisteredObject
     /\ \/ O \subseteq Source(deps)
        \/ \A o \in O :
             /\ Predecessor(deps, o)
                 \subseteq UNION {DiscardedTask, CompletedTask, RetriedTask,
                                  AbortedTask}
             /\ \E t \in Predecessor(deps, o) : t \in DiscardedTask
-    /\ objectState' =
-        [o \in Object |-> IF o \in O THEN OBJECT_ABORTED ELSE objectState[o]]
-    /\ UNCHANGED << deps, intent, nextAttemptOf, objectTargets, taskState >>
+    /\ O2!AbortObjects(O)
+    /\ UNCHANGED << deps, intent, nextAttemptOf, taskState >>
 
 (**
  * ACTION
@@ -267,14 +242,8 @@ AbortObjects(O) ==
  * unknown task of 'U' that is the next attempt of no task.
  *)
 SetTaskRetries(T, U) ==
-    /\ T /= {}
-    /\ T \subseteq FailedTask \ LinkedTask
-    /\ U \subseteq UnknownTask
-    /\ \A u \in U : ~ \E t \in Task : nextAttemptOf[t] = u
-    /\ \E f \in Bijection(T, U) :
-        nextAttemptOf' =
-            [t \in Task |-> IF t \in T THEN f[t] ELSE nextAttemptOf[t]]
-    /\ UNCHANGED << deps, intent, objectState, objectTargets, taskState >>
+    /\ T3!SetTaskRetries(T, U)
+    /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
  * ACTION
@@ -282,12 +251,9 @@ SetTaskRetries(T, U) ==
  * ready for processing.
  *)
 StageTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq RegisteredTask
     /\ \A t \in T : Predecessor(deps, t) \subseteq CompletedObject
-    /\ taskState' =
-        [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
-    /\ UNCHANGED << deps, intent, nextAttemptOf, objectState, objectTargets >>
+    /\ T3!StageTasks(T)
+    /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
  * ACTION
@@ -295,11 +261,8 @@ StageTasks(T) ==
  * bypassing assignment and processing.
  *)
 DiscardTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq UNION {RegisteredTask, StagedTask, PausedTask, HaltedTask}
-    /\ taskState' =
-        [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
-    /\ UNCHANGED << deps, intent, nextAttemptOf, objectState, objectTargets >>
+    /\ T3!DiscardTasks(T)
+    /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
  * ACTION
@@ -307,23 +270,16 @@ DiscardTasks(T) ==
  * processing.
  *)
 AssignTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq StagedTask
-    /\ \A t \in T : Intends(t, INTENT_RUN)
-    /\ taskState' =
-        [t \in Task |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
-    /\ UNCHANGED << deps, intent, nextAttemptOf, objectState, objectTargets >>
+    /\ T3!AssignTasks(T)
+    /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
  * ACTION
  * A set 'T' of assigned tasks is released back to the staged ones.
  *)
 ReleaseTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq AssignedTask
-    /\ taskState' =
-        [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
-    /\ UNCHANGED << deps, intent, nextAttemptOf, objectState, objectTargets >>
+    /\ T3!ReleaseTasks(T)
+    /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
  * ACTION
@@ -334,18 +290,8 @@ ReleaseTasks(T) ==
  * than MaxRetries previous attempts.
  *)
 ProcessTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq AssignedTask
-    /\ \/ taskState' =
-            [t \in Task |-> IF t \in T THEN TASK_SUCCEEDED ELSE taskState[t]]
-       \/ taskState' =
-            [t \in Task |-> IF t \in T THEN TASK_DISCARDED ELSE taskState[t]]
-       \/ /\ \A t \in T : Cardinality(PreviousAttempts(t)) < MaxRetries
-          /\ taskState' =
-              [t \in Task |-> IF t \in T THEN TASK_FAILED ELSE taskState[t]]
-       \/ taskState' =
-            [t \in Task |-> IF t \in T THEN TASK_HALTED ELSE taskState[t]]
-    /\ UNCHANGED << deps, intent, nextAttemptOf, objectState, objectTargets >>
+    /\ T3!ProcessTasks(T)
+    /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
  * ACTION
@@ -355,16 +301,13 @@ ProcessTasks(T) ==
  * succeeded producer of an object waits for the object to be completed.
  *)
 CompleteTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq SucceededTask
     /\ \A o \in UNION {Successor(deps, t) : t \in T} :
         o \in RegisteredObject
             => \E u \in (Predecessor(deps, o) \ T) :
                 u \notin UNION {FailedTask, CompletedTask, RetriedTask,
                                 AbortedTask}
-    /\ taskState' =
-        [t \in Task |-> IF t \in T THEN TASK_COMPLETED ELSE taskState[t]]
-    /\ UNCHANGED << deps, intent, nextAttemptOf, objectState, objectTargets >>
+    /\ T3!CompleteTasks(T)
+    /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
  * ACTION
@@ -374,16 +317,13 @@ CompleteTasks(T) ==
  * last discarded producer of an object waits for the object to be aborted.
  *)
 AbortTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq DiscardedTask
     /\ \A o \in UNION {Successor(deps, t) : t \in T} :
         o \in RegisteredObject
             => \E u \in (Predecessor(deps, o) \ T) :
                 u \notin UNION {FailedTask, CompletedTask, RetriedTask,
                                 AbortedTask}
-    /\ taskState' =
-        [t \in Task |-> IF t \in T THEN TASK_ABORTED ELSE taskState[t]]
-    /\ UNCHANGED << deps, intent, nextAttemptOf, objectState, objectTargets >>
+    /\ T3!AbortTasks(T)
+    /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
  * ACTION
@@ -392,12 +332,8 @@ AbortTasks(T) ==
  * that can still finalize it (GraphStateIntegrity).
  *)
 RetryTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq FailedTask \intersect LinkedTask
-    /\ \A t \in T : nextAttemptOf[t] \notin UnknownTask
-    /\ taskState' =
-        [t \in Task |-> IF t \in T THEN TASK_RETRIED ELSE taskState[t]]
-    /\ UNCHANGED << deps, intent, nextAttemptOf, objectState, objectTargets >>
+    /\ T3!RetryTasks(T)
+    /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
  * ACTION
@@ -405,35 +341,24 @@ RetryTasks(T) ==
  * chains of a set 'T' of known tasks.
  *)
 RequestTasks(T, i) ==
-    /\ T /= {}
-    /\ T \intersect UnknownTask = {}
-    /\ intent' = Requested(T, i)
-    /\ UNCHANGED << deps, nextAttemptOf, objectState, objectTargets,
-                    taskState >>
+    /\ T3!RequestTasks(T, i)
+    /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
  * ACTION
  * A set 'T' of staged tasks whose attempt chains are to pause is paused.
  *)
 PauseTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq StagedTask
-    /\ \A t \in T : Intends(t, INTENT_PAUSE)
-    /\ taskState' =
-        [t \in Task |-> IF t \in T THEN TASK_PAUSED ELSE taskState[t]]
-    /\ UNCHANGED << deps, intent, nextAttemptOf, objectState, objectTargets >>
+    /\ T3!PauseTasks(T)
+    /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
  * ACTION
  * A set 'T' of paused tasks whose attempt chains are to run is staged again.
  *)
 ResumeTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq PausedTask
-    /\ \A t \in T : Intends(t, INTENT_RUN)
-    /\ taskState' =
-        [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
-    /\ UNCHANGED << deps, intent, nextAttemptOf, objectState, objectTargets >>
+    /\ T3!ResumeTasks(T)
+    /\ UNCHANGED << deps, objectState, objectTargets >>
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
