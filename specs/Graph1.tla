@@ -100,13 +100,12 @@ Idle ==
  *)
 Init ==
     /\ deps = EmptyGraph
-    /\ objectState = [o \in Object |-> OBJECT_UNKNOWN]
-    /\ objectTargets = {}
-    /\ taskState = [t \in Task |-> TASK_UNKNOWN]
+    /\ O1!Init
+    /\ T1!Init
 
 (**
  * ACTION
- * A finite graph 'G' is added to the dependency graph, which stays a
+ * A graph 'G' is added to the dependency graph, which stays a
  * data-dependency graph. Its tasks are unknown, and none of them produces a
  * finalized root object. Its tasks and unknown objects are registered.
  *)
@@ -114,45 +113,29 @@ RegisterGraph(G) ==
     LET
         newDeps == GraphUnion(deps, G)
     IN
-        /\ G /= EmptyGraph
-        /\ IsFiniteSet(G.node)
-        /\ G.node \intersect Task \subseteq UnknownTask
         /\ \A t \in G.node \intersect Task :
             Successor(G, t) \intersect Source(deps) \intersect FinalizedObject
                 = {}
         /\ IsDDGraph(newDeps, Task, Object)
+        /\ O1!RegisterObjects(G.node \intersect UnknownObject)
+        /\ T1!RegisterTasks(G.node \intersect Task)
         /\ deps' = newDeps
-        /\ objectState' =
-            [o \in Object |->
-                IF o \in G.node \intersect UnknownObject
-                    THEN OBJECT_REGISTERED
-                    ELSE objectState[o]]
-        /\ taskState' =
-            [t \in Task |->
-                IF t \in G.node
-                    THEN TASK_REGISTERED
-                    ELSE taskState[t]]
-        /\ UNCHANGED objectTargets
 
 (**
  * ACTION
  * The user targets a set 'O' of known objects.
  *)
 TargetObjects(O) ==
-    /\ O /= {}
-    /\ O \subseteq (RegisteredObject \union FinalizedObject)
-    /\ objectTargets' = objectTargets \union O
-    /\ UNCHANGED << deps, objectState, taskState >>
+    /\ O1!TargetObjects(O)
+    /\ UNCHANGED << deps, taskState >>
 
 (**
  * ACTION
  * The user untargets a set 'O' of targeted objects.
  *)
 UntargetObjects(O) ==
-    /\ O /= {}
-    /\ O \subseteq objectTargets
-    /\ objectTargets' = objectTargets \ O
-    /\ UNCHANGED << deps, objectState, taskState >>
+    /\ O1!UntargetObjects(O)
+    /\ UNCHANGED << deps, taskState >>
 
 (**
  * ACTION
@@ -161,13 +144,10 @@ UntargetObjects(O) ==
  * producer.
  *)
 FinalizeObjects(O) ==
-    /\ O /= {}
-    /\ O \subseteq RegisteredObject
     /\ \/ O \subseteq Source(deps)
        \/ \A o \in O : \E t \in Predecessor(deps, o) : t \in ProcessedTask
-    /\ objectState' =
-        [o \in Object |-> IF o \in O THEN OBJECT_FINALIZED ELSE objectState[o]]
-    /\ UNCHANGED << deps, objectTargets, taskState >>
+    /\ O1!FinalizeObjects(O)
+    /\ UNCHANGED << deps, taskState >>
 
 (**
  * ACTION
@@ -175,11 +155,8 @@ FinalizeObjects(O) ==
  * ready for processing.
  *)
 StageTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq RegisteredTask
     /\ \A t \in T : Predecessor(deps, t) \subseteq FinalizedObject
-    /\ taskState' =
-        [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
+    /\ T1!StageTasks(T)
     /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
@@ -188,10 +165,7 @@ StageTasks(T) ==
  * state, bypassing assignment and processing.
  *)
 DiscardTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq RegisteredTask \union StagedTask
-    /\ taskState' =
-        [t \in Task |-> IF t \in T THEN TASK_PROCESSED ELSE taskState[t]]
+    /\ T1!DiscardTasks(T)
     /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
@@ -199,10 +173,7 @@ DiscardTasks(T) ==
  * A set 'T' of staged tasks is assigned for processing.
  *)
 AssignTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq StagedTask
-    /\ taskState' =
-        [t \in Task |-> IF t \in T THEN TASK_ASSIGNED ELSE taskState[t]]
+    /\ T1!AssignTasks(T)
     /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
@@ -210,10 +181,7 @@ AssignTasks(T) ==
  * A set 'T' of assigned tasks is released back to the staged ones.
  *)
 ReleaseTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq AssignedTask
-    /\ taskState' =
-        [t \in Task |-> IF t \in T THEN TASK_STAGED ELSE taskState[t]]
+    /\ T1!ReleaseTasks(T)
     /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
@@ -221,10 +189,7 @@ ReleaseTasks(T) ==
  * A set 'T' of assigned tasks completes processing.
  *)
 ProcessTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq AssignedTask
-    /\ taskState' =
-        [t \in Task |-> IF t \in T THEN TASK_PROCESSED ELSE taskState[t]]
+    /\ T1!ProcessTasks(T)
     /\ UNCHANGED << deps, objectState, objectTargets >>
 
 (**
@@ -234,13 +199,10 @@ ProcessTasks(T) ==
  * last producer of an object waits for the object to be finalized.
  *)
 FinalizeTasks(T) ==
-    /\ T /= {}
-    /\ T \subseteq ProcessedTask
     /\ \A o \in UNION {Successor(deps, t) : t \in T} :
         o \in RegisteredObject
             => \E u \in (Predecessor(deps, o) \ T) : u \notin FinalizedTask
-    /\ taskState' =
-        [t \in Task |-> IF t \in T THEN TASK_FINALIZED ELSE taskState[t]]
+    /\ T1!FinalizeTasks(T)
     /\ UNCHANGED << deps, objectState, objectTargets >>
 
 --------------------------------------------------------------------------------
@@ -369,8 +331,8 @@ DepsCompliant ==
 
 (**
  * INVARIANT
- * The dependency graph is finite, since each registration adds a finite
- * graph.
+ * The dependency graph is finite, since each registration adds finitely
+ * many new nodes.
  *)
 DepsFinite ==
     IsFiniteSet(deps.node)
