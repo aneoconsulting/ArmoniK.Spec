@@ -241,11 +241,11 @@ LEMMA LemEventualQuiescence ==
       => <>[][FALSE]_vars
     (* tlapm: TL_FiniteSetDescent is cited at its parameter name S. *)
     <2>. DEFINE S == RegisteredTask
-    <2>1. Idle /\ Idle' /\ [Next]_vars /\ [NoUserAction]_vars
+    <2>1. Inv /\ Idle /\ Idle' /\ [Next]_vars /\ [NoUserAction]_vars
             => [S' \subseteq S]_S /\ ([FALSE]_S => [FALSE]_vars)
         BY DEF AssignedTask, AssignTasks, DiscardTasks, FinalizeTasks, Idle,
-            Next, NoUserAction, ProcessedTask, ProcessTasks, RegisteredTask,
-            ReleaseTasks, StageTasks, vars
+            Inv, Next, NoUserAction, ProcessedTask, ProcessTasks,
+            RegisteredTask, ReleaseTasks, StageTasks, TypeOk, vars
     <2>2. Inv => IsFiniteSet(S)
         BY FS_Subset DEF FiniteKnownTasks, Inv, RegisteredTask, UnknownTask
     <2>. HIDE DEF S
