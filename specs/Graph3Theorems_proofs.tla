@@ -64,6 +64,19 @@ BY Zenon DEF Bijection, G2!Bijection, Cardinality, G2!Cardinality,
     G2!TCNextAttemptOfRel, TransitiveClosureOn, G2!TransitiveClosureOn
 
 (**
+ * Under the instance, the sets of objects of Object2 denote those of Graph3.
+ *)
+LEMMA LemO2Bridges ==
+    /\ O2!UnknownObject = UnknownObject
+    /\ O2!RegisteredObject = RegisteredObject
+    /\ O2!CompletedObject = CompletedObject
+    /\ O2!AbortedObject = AbortedObject
+    /\ \A S : O2!IsFiniteSet(S) <=> IsFiniteSet(S)
+BY DEF AbortedObject, O2!AbortedObject, CompletedObject, O2!CompletedObject,
+    IsFiniteSet, O2!IsFiniteSet, RegisteredObject, O2!RegisteredObject,
+    UnknownObject, O2!UnknownObject
+
+(**
  * Under the instance through Graph2, the operators of Task2 denote those of
  * Graph3.
  *)
@@ -97,16 +110,46 @@ LEMMA LemT3Bridges ==
     /\ \A t \in Task : T3!ChainId(t) = ChainId(t)
     /\ \A t \in Task, i \in Intent : T3!Intends(t, i) <=> Intends(t, i)
     /\ \A T \in SUBSET Task, i \in Intent : T3!Requested(T, i) = Requested(T, i)
-BY Zenon DEF Bijection, T3!Bijection, Cardinality, T3!Cardinality, ChainId,
-    T3!ChainId, Injection, T3!Injection, Intends, T3!Intends, Intent,
-    T3!Intent, IntentChainIds, T3!IntentChainIds, IsFiniteSet, T3!IsFiniteSet,
-    IsInjective, T3!IsInjective, IsTransitivelyClosedOn,
-    T3!IsTransitivelyClosedOn, KnownChainId, T3!KnownChainId,
-    NextAttemptOfRel, T3!NextAttemptOfRel, PreviousAttempts,
-    T3!PreviousAttempts, RecordedIntent, T3!RecordedIntent, Requested,
-    T3!Requested, Surjection, T3!Surjection, TCNextAttemptOfRel,
-    T3!TCNextAttemptOfRel, TransitiveClosureOn, T3!TransitiveClosureOn,
-    UnknownTask, T3!UnknownTask
+    /\ T3!UnknownTask = UnknownTask
+    /\ T3!RegisteredTask = RegisteredTask
+    /\ T3!StagedTask = StagedTask
+    /\ T3!AssignedTask = AssignedTask
+    /\ T3!SucceededTask = SucceededTask
+    /\ T3!FailedTask = FailedTask
+    /\ T3!DiscardedTask = DiscardedTask
+    /\ T3!CompletedTask = CompletedTask
+    /\ T3!RetriedTask = RetriedTask
+    /\ T3!AbortedTask = AbortedTask
+    /\ T3!PausedTask = PausedTask
+    /\ T3!HaltedTask = HaltedTask
+    /\ T3!LinkedTask = LinkedTask
+<1>1. /\ \A S, T : T3!Bijection(S, T) = Bijection(S, T)
+      /\ \A S : T3!IsFiniteSet(S) <=> IsFiniteSet(S)
+      /\ \A S : T3!Cardinality(S) = Cardinality(S)
+      /\ \A t \in Task : T3!PreviousAttempts(t) = PreviousAttempts(t)
+      /\ T3!TCNextAttemptOfRel = TCNextAttemptOfRel
+      /\ \A t \in Task : T3!ChainId(t) = ChainId(t)
+      /\ \A t \in Task, i \in Intent : T3!Intends(t, i) <=> Intends(t, i)
+      /\ \A T \in SUBSET Task, i \in Intent :
+            T3!Requested(T, i) = Requested(T, i)
+    BY Zenon DEF Bijection, T3!Bijection, Cardinality, T3!Cardinality, ChainId,
+        T3!ChainId, Injection, T3!Injection, Intends, T3!Intends, Intent,
+        T3!Intent, IntentChainIds, T3!IntentChainIds, IsFiniteSet,
+        T3!IsFiniteSet, IsInjective, T3!IsInjective, IsTransitivelyClosedOn,
+        T3!IsTransitivelyClosedOn, KnownChainId, T3!KnownChainId,
+        NextAttemptOfRel, T3!NextAttemptOfRel, PreviousAttempts,
+        T3!PreviousAttempts, RecordedIntent, T3!RecordedIntent, Requested,
+        T3!Requested, Surjection, T3!Surjection, TCNextAttemptOfRel,
+        T3!TCNextAttemptOfRel, TransitiveClosureOn, T3!TransitiveClosureOn,
+        UnknownTask, T3!UnknownTask
+<1>. QED
+    BY <1>1 DEF AbortedTask, T3!AbortedTask, AssignedTask, T3!AssignedTask,
+        CompletedTask, T3!CompletedTask, DiscardedTask, T3!DiscardedTask,
+        FailedTask, T3!FailedTask, HaltedTask, T3!HaltedTask, LinkedTask,
+        T3!LinkedTask, PausedTask, T3!PausedTask, RegisteredTask,
+        T3!RegisteredTask, RetriedTask, T3!RetriedTask, StagedTask,
+        T3!StagedTask, SucceededTask, T3!SucceededTask, UnknownTask,
+        T3!UnknownTask
 
 (**
  * The assumptions of Graph3 imply those of Graph2.
@@ -185,46 +228,56 @@ LEMMA LemG2OpenAncestry ==
 (******************************************************************************)
 
 LEMMA LemInitSimulateG2Init == Init => G2!Init
-BY DEF EmptyGraph, G2!EmptyGraph, Init, G2!Init, taskStateBar
+BY DEF EmptyGraph, G2!EmptyGraph, Init, G2!Init, G2!O2!Init, G2!T2!Init,
+    O2!Init, T3!Init, taskStateBar
 
 LEMMA LemRegisterGraphSimulateG2RegisterGraph ==
     ASSUME NEW G
     PROVE  RegisterGraph(G) => G2!RegisterGraph(G)
-BY LemG2BarStates, LemG2Bridges DEF EmptyGraph, G2!EmptyGraph, RegisterGraph,
-    G2!RegisterGraph, taskStateBar
+BY LemG2Assumptions, LemG2BarStates, LemG2Bridges, LemO2Bridges,
+    G2!LemO2Bridges, G2!LemT2Bridges, LemT3Bridges DEF RegisterGraph,
+    G2!RegisterGraph, G2!O2!RegisterObjects, O2!RegisterObjects,
+    G2!T2!RegisterTasks, T3!RegisterTasks, taskStateBar
 
 LEMMA LemTargetObjectsSimulateG2TargetObjects ==
     ASSUME NEW O \in SUBSET Object
     PROVE  TargetObjects(O) => G2!TargetObjects(O)
-BY LemG2BarStates DEF TargetObjects, G2!TargetObjects, taskStateBar
+BY LemG2Assumptions, LemG2BarStates, LemO2Bridges, G2!LemO2Bridges
+    DEF TargetObjects, G2!O2!TargetObjects, G2!TargetObjects, O2!TargetObjects,
+    taskStateBar
 
 LEMMA LemUntargetObjectsSimulateG2UntargetObjects ==
     ASSUME NEW O \in SUBSET Object
     PROVE  UntargetObjects(O) => G2!UntargetObjects(O)
-BY DEF taskStateBar, UntargetObjects, G2!UntargetObjects
+BY DEF taskStateBar, UntargetObjects, G2!O2!UntargetObjects, G2!UntargetObjects,
+    O2!UntargetObjects
 
 LEMMA LemCompleteObjectsSimulateG2CompleteObjects ==
     ASSUME NEW O \in SUBSET Object
     PROVE  CompleteObjects(O) => G2!CompleteObjects(O)
-BY LemG2BarStates, LemG2Bridges, Zenon DEF CompleteObjects,
-    G2!CompleteObjects, taskStateBar
+BY LemG2Assumptions, LemG2BarStates, LemG2Bridges, LemO2Bridges,
+    G2!LemO2Bridges, Zenon DEF CompleteObjects, G2!CompleteObjects,
+    G2!O2!CompleteObjects, O2!CompleteObjects, taskStateBar
 
 LEMMA LemAbortObjectsSimulateG2AbortObjects ==
     ASSUME NEW O \in SUBSET Object
     PROVE  AbortObjects(O) => G2!AbortObjects(O)
-BY LemG2BarStates, LemG2Bridges DEF AbortObjects, G2!AbortObjects,
+BY LemG2Assumptions, LemG2BarStates, LemG2Bridges, LemO2Bridges, G2!LemO2Bridges
+    DEF AbortObjects, G2!AbortObjects, G2!O2!AbortObjects, O2!AbortObjects,
     taskStateBar
 
 LEMMA LemSetTaskRetriesSimulateG2SetTaskRetries ==
     ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task
     PROVE  SetTaskRetries(T, U) => G2!SetTaskRetries(T, U)
-BY LemG2BarStates, LemG2Bridges, Zenon DEF SetTaskRetries,
-    G2!SetTaskRetries, taskStateBar
+BY LemG2Assumptions, LemG2BarStates, LemG2Bridges, G2!LemT2Bridges,
+    LemT3Bridges, Zenon DEF SetTaskRetries, G2!SetTaskRetries,
+    G2!T2!SetTaskRetries, T3!SetTaskRetries, taskStateBar
 
 LEMMA LemStageTasksSimulateG2StageTasks ==
     ASSUME NEW T \in SUBSET Task
     PROVE  StageTasks(T) => G2!StageTasks(T)
-BY LemG2BarStates, LemG2Bridges DEF StageTasks, G2!StageTasks, taskStateBar
+BY LemG2Assumptions, LemG2BarStates, LemG2Bridges, G2!LemT2Bridges, LemT3Bridges
+    DEF StageTasks, G2!StageTasks, G2!T2!StageTasks, T3!StageTasks, taskStateBar
 
 (**
  * Discarding a paused or halted task discards a staged task of Graph2.
@@ -232,17 +285,23 @@ BY LemG2BarStates, LemG2Bridges DEF StageTasks, G2!StageTasks, taskStateBar
 LEMMA LemDiscardTasksSimulateG2DiscardTasks ==
     ASSUME NEW T \in SUBSET Task
     PROVE  DiscardTasks(T) => G2!DiscardTasks(T)
-BY LemG2BarStates DEF DiscardTasks, G2!DiscardTasks, taskStateBar
+BY LemG2Assumptions, LemG2BarStates, G2!LemT2Bridges, LemT3Bridges
+    DEF DiscardTasks, G2!DiscardTasks, G2!T2!DiscardTasks, T3!DiscardTasks,
+    taskStateBar
 
 LEMMA LemAssignTasksSimulateG2AssignTasks ==
     ASSUME NEW T \in SUBSET Task
     PROVE  AssignTasks(T) => G2!AssignTasks(T)
-BY LemG2BarStates DEF AssignTasks, G2!AssignTasks, taskStateBar
+BY LemG2Assumptions, LemG2BarStates, G2!LemT2Bridges, LemT3Bridges
+    DEF AssignTasks, G2!AssignTasks, G2!T2!AssignTasks, T3!AssignTasks,
+    taskStateBar
 
 LEMMA LemReleaseTasksSimulateG2ReleaseTasks ==
     ASSUME NEW T \in SUBSET Task
     PROVE  ReleaseTasks(T) => G2!ReleaseTasks(T)
-BY LemG2BarStates DEF ReleaseTasks, G2!ReleaseTasks, taskStateBar
+BY LemG2Assumptions, LemG2BarStates, G2!LemT2Bridges, LemT3Bridges
+    DEF ReleaseTasks, G2!ReleaseTasks, G2!T2!ReleaseTasks, T3!ReleaseTasks,
+    taskStateBar
 
 (**
  * Processing that halts the tasks releases them in Graph2; every other
@@ -251,24 +310,28 @@ BY LemG2BarStates DEF ReleaseTasks, G2!ReleaseTasks, taskStateBar
 LEMMA LemProcessTasksSimulateG2ProcessTasksOrReleaseTasks ==
     ASSUME NEW T \in SUBSET Task
     PROVE  ProcessTasks(T) => G2!ProcessTasks(T) \/ G2!ReleaseTasks(T)
-BY LemG2BarStates, LemG2Bridges DEF ProcessTasks, G2!ProcessTasks,
-    G2!ReleaseTasks, taskStateBar
+BY LemG2Assumptions, LemG2BarStates, LemG2Bridges, G2!LemT2Bridges, LemT3Bridges
+    DEF ProcessTasks, G2!ProcessTasks, G2!T2!ProcessTasks, T3!ProcessTasks,
+    G2!ReleaseTasks, G2!T2!ReleaseTasks, taskStateBar
 
 LEMMA LemCompleteTasksSimulateG2CompleteTasks ==
     ASSUME NEW T \in SUBSET Task
     PROVE  CompleteTasks(T) => G2!CompleteTasks(T)
-BY LemG2BarStates, LemG2Bridges DEF CompleteTasks, G2!CompleteTasks,
+BY LemG2Assumptions, LemG2BarStates, LemG2Bridges, G2!LemT2Bridges, LemT3Bridges
+    DEF CompleteTasks, G2!CompleteTasks, G2!T2!CompleteTasks, T3!CompleteTasks,
     taskStateBar
 
 LEMMA LemAbortTasksSimulateG2AbortTasks ==
     ASSUME NEW T \in SUBSET Task
     PROVE  AbortTasks(T) => G2!AbortTasks(T)
-BY LemG2BarStates, LemG2Bridges DEF AbortTasks, G2!AbortTasks, taskStateBar
+BY LemG2Assumptions, LemG2BarStates, LemG2Bridges, G2!LemT2Bridges, LemT3Bridges
+    DEF AbortTasks, G2!AbortTasks, G2!T2!AbortTasks, T3!AbortTasks, taskStateBar
 
 LEMMA LemRetryTasksSimulateG2RetryTasks ==
     ASSUME NEW T \in SUBSET Task
     PROVE  RetryTasks(T) => G2!RetryTasks(T)
-BY LemG2BarStates DEF RetryTasks, G2!RetryTasks, taskStateBar
+BY LemG2Assumptions, LemG2BarStates, G2!LemT2Bridges, LemT3Bridges
+    DEF RetryTasks, G2!RetryTasks, G2!T2!RetryTasks, T3!RetryTasks, taskStateBar
 
 (**
  * A request leaves the states of Graph2 unchanged.
@@ -276,7 +339,7 @@ BY LemG2BarStates DEF RetryTasks, G2!RetryTasks, taskStateBar
 LEMMA LemRequestTasksSimulateG2Stuttering ==
     ASSUME NEW T \in SUBSET Task, NEW i \in Intent
     PROVE  RequestTasks(T, i) => UNCHANGED G2!vars
-BY DEF RequestTasks, taskStateBar, G2!vars
+BY DEF RequestTasks, T3!RequestTasks, taskStateBar, G2!vars
 
 (**
  * Pausing a staged task keeps it staged in Graph2.
@@ -284,7 +347,7 @@ BY DEF RequestTasks, taskStateBar, G2!vars
 LEMMA LemPauseTasksSimulateG2Stuttering ==
     ASSUME NEW T \in SUBSET Task
     PROVE  PauseTasks(T) => UNCHANGED G2!vars
-BY DEF PauseTasks, StagedTask, taskStateBar, G2!vars
+BY DEF PauseTasks, T3!PauseTasks, T3!StagedTask, taskStateBar, G2!vars
 
 (**
  * Resuming a paused task keeps it staged in Graph2.
@@ -292,7 +355,7 @@ BY DEF PauseTasks, StagedTask, taskStateBar, G2!vars
 LEMMA LemResumeTasksSimulateG2Stuttering ==
     ASSUME NEW T \in SUBSET Task
     PROVE  ResumeTasks(T) => UNCHANGED G2!vars
-BY DEF PausedTask, ResumeTasks, taskStateBar, G2!vars
+BY DEF T3!PausedTask, ResumeTasks, T3!ResumeTasks, taskStateBar, G2!vars
 
 LEMMA LemNextSimulateG2Next == [Next]_vars => [G2!Next]_G2!vars
 BY LemAbortObjectsSimulateG2AbortObjects, LemAbortTasksSimulateG2AbortTasks,
@@ -311,18 +374,15 @@ BY LemAbortObjectsSimulateG2AbortObjects, LemAbortTasksSimulateG2AbortTasks,
     DEF Next, G2!Next, taskStateBar, vars, G2!vars
 
 LEMMA LemInitSimulateT3Init == Init => T3!Init
-BY DEF Init, T3!Init, Intent, T3!Intent, RecordedIntent, T3!RecordedIntent
+BY DEF Init
 
 (**
- * Registering a graph registers its tasks, or leaves the task states
- * unchanged when it has none.
+ * Registering a graph registers its tasks.
  *)
 LEMMA LemRegisterGraphSimulateT3RegisterTasks ==
     ASSUME NEW G
-    PROVE  TypeOk /\ RegisterGraph(G)
-           => [T3!RegisterTasks(G.node \intersect Task)]_T3!vars
-BY FS_Subset DEF IsFiniteSet, T3!IsFiniteSet, RegisterGraph,
-    T3!RegisterTasks, TypeOk, UnknownTask, T3!UnknownTask, T3!vars
+    PROVE  RegisterGraph(G) => T3!RegisterTasks(G.node \intersect Task)
+BY DEF RegisterGraph
 
 LEMMA LemTargetObjectsSimulateT3Stuttering ==
     ASSUME NEW O \in SUBSET Object
@@ -347,74 +407,64 @@ BY DEF AbortObjects, T3!vars
 LEMMA LemSetTaskRetriesSimulateT3SetTaskRetries ==
     ASSUME NEW T \in SUBSET Task, NEW U \in SUBSET Task
     PROVE  SetTaskRetries(T, U) => T3!SetTaskRetries(T, U)
-BY LemT3Bridges, Zenon DEF FailedTask, T3!FailedTask, LinkedTask,
-    T3!LinkedTask, SetTaskRetries, T3!SetTaskRetries, UnknownTask,
-    T3!UnknownTask
+BY DEF SetTaskRetries
 
 LEMMA LemStageTasksSimulateT3StageTasks ==
     ASSUME NEW T \in SUBSET Task
     PROVE  StageTasks(T) => T3!StageTasks(T)
-BY DEF RegisteredTask, T3!RegisteredTask, StageTasks, T3!StageTasks
+BY DEF StageTasks
 
 LEMMA LemDiscardTasksSimulateT3DiscardTasks ==
     ASSUME NEW T \in SUBSET Task
     PROVE  DiscardTasks(T) => T3!DiscardTasks(T)
-BY Zenon DEF DiscardTasks, T3!DiscardTasks, HaltedTask, T3!HaltedTask,
-    PausedTask, T3!PausedTask, RegisteredTask, T3!RegisteredTask, StagedTask,
-    T3!StagedTask
+BY DEF DiscardTasks
 
 LEMMA LemAssignTasksSimulateT3AssignTasks ==
     ASSUME NEW T \in SUBSET Task
     PROVE  AssignTasks(T) => T3!AssignTasks(T)
-BY LemT3Bridges DEF AssignTasks, T3!AssignTasks, Intent, StagedTask,
-    T3!StagedTask
+BY DEF AssignTasks
 
 LEMMA LemReleaseTasksSimulateT3ReleaseTasks ==
     ASSUME NEW T \in SUBSET Task
     PROVE  ReleaseTasks(T) => T3!ReleaseTasks(T)
-BY DEF AssignedTask, T3!AssignedTask, ReleaseTasks, T3!ReleaseTasks
+BY DEF ReleaseTasks
 
 LEMMA LemProcessTasksSimulateT3ProcessTasks ==
     ASSUME NEW T \in SUBSET Task
     PROVE  ProcessTasks(T) => T3!ProcessTasks(T)
-BY LemT3Bridges DEF AssignedTask, T3!AssignedTask, ProcessTasks,
-    T3!ProcessTasks
+BY DEF ProcessTasks
 
 LEMMA LemCompleteTasksSimulateT3CompleteTasks ==
     ASSUME NEW T \in SUBSET Task
     PROVE  CompleteTasks(T) => T3!CompleteTasks(T)
-BY DEF CompleteTasks, T3!CompleteTasks, SucceededTask, T3!SucceededTask
+BY DEF CompleteTasks
 
 LEMMA LemAbortTasksSimulateT3AbortTasks ==
     ASSUME NEW T \in SUBSET Task
     PROVE  AbortTasks(T) => T3!AbortTasks(T)
-BY DEF AbortTasks, T3!AbortTasks, DiscardedTask, T3!DiscardedTask
+BY DEF AbortTasks
 
 LEMMA LemRetryTasksSimulateT3RetryTasks ==
     ASSUME NEW T \in SUBSET Task
     PROVE  RetryTasks(T) => T3!RetryTasks(T)
-BY DEF LinkedTask, T3!LinkedTask, RetryTasks, T3!RetryTasks, UnknownTask,
-    T3!UnknownTask
+BY DEF RetryTasks
 
 LEMMA LemRequestTasksSimulateT3RequestTasks ==
     ASSUME NEW T \in SUBSET Task, NEW i \in Intent
     PROVE  RequestTasks(T, i) => T3!RequestTasks(T, i)
-BY LemT3Bridges DEF RequestTasks, T3!RequestTasks, UnknownTask,
-    T3!UnknownTask
+BY DEF RequestTasks
 
 LEMMA LemPauseTasksSimulateT3PauseTasks ==
     ASSUME NEW T \in SUBSET Task
     PROVE  PauseTasks(T) => T3!PauseTasks(T)
-BY LemT3Bridges, Zenon DEF Intent, PauseTasks, T3!PauseTasks, StagedTask,
-    T3!StagedTask
+BY DEF PauseTasks
 
 LEMMA LemResumeTasksSimulateT3ResumeTasks ==
     ASSUME NEW T \in SUBSET Task
     PROVE  ResumeTasks(T) => T3!ResumeTasks(T)
-BY LemT3Bridges, Zenon DEF Intent, PausedTask, T3!PausedTask, ResumeTasks,
-    T3!ResumeTasks
+BY DEF ResumeTasks
 
-LEMMA LemNextSimulateT3Next == TypeOk /\ [Next]_vars => [T3!Next]_T3!vars
+LEMMA LemNextSimulateT3Next == [Next]_vars => [T3!Next]_T3!vars
 BY LemAbortObjectsSimulateT3Stuttering, LemAbortTasksSimulateT3AbortTasks,
     LemAssignTasksSimulateT3AssignTasks, LemCompleteObjectsSimulateT3Stuttering,
     LemCompleteTasksSimulateT3CompleteTasks,
@@ -425,10 +475,9 @@ BY LemAbortObjectsSimulateT3Stuttering, LemAbortTasksSimulateT3AbortTasks,
     LemRequestTasksSimulateT3RequestTasks, LemResumeTasksSimulateT3ResumeTasks,
     LemRetryTasksSimulateT3RetryTasks,
     LemSetTaskRetriesSimulateT3SetTaskRetries,
-    LemStageTasksSimulateT3StageTasks, LemT3Bridges,
-    LemTargetObjectsSimulateT3Stuttering,
-    LemUntargetObjectsSimulateT3Stuttering
-    DEF Intent, T3!Intent, Next, T3!Next, vars, T3!vars
+    LemStageTasksSimulateT3StageTasks, LemTargetObjectsSimulateT3Stuttering,
+    LemUntargetObjectsSimulateT3Stuttering DEF Intent, T3!Intent, Next, T3!Next,
+    vars, T3!vars
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -439,61 +488,25 @@ LEMMA LemG2Inv == Init /\ [][Next]_vars => []G2!Inv
 BY LemG2Assumptions, LemInitSimulateG2Init, G2!LemInv, LemNextSimulateG2Next,
     PTL
 
+LEMMA LemT3Inv == Init /\ [][Next]_vars => []T3!Inv
+BY LemInitSimulateT3Init, T3!LemInv, LemNextSimulateT3Next, LemT3Assumptions,
+    PTL
+
 --------------------------------------------------------------------------------
 (******************************************************************************)
 (*                                 INVARIANTS                                 *)
 (******************************************************************************)
 
 (**
- * Here rather than with the type correctness: its proof needs LemG2Inv, since
- * a request records the first attempt of an attempt chain, which exists as
- * the chain is finite and has no cycle.
+ * Here rather than with the type correctness: its proof lifts the type
+ * correctness of Graph2 and Task3 through LemG2Inv and LemT3Inv.
  *)
 LEMMA LemTypeOk == Init /\ [][Next]_vars => []TypeOk
-<1>. USE DEF O2State, T3State, TypeOk
-<1>1. Init => TypeOk
-    BY DG_EmptyGraphProperties DEF Init
-<1>2. TypeOk /\ G2!T2!Inv /\ G2!TypeOk' /\ [Next]_vars => TypeOk'
-    <2>. SUFFICES ASSUME TypeOk, G2!T2!Inv, G2!TypeOk', [Next]_vars
-                  PROVE  TypeOk'
-        OBVIOUS
-    <2>1. \A t \in Task : ChainId(t) \in Task
-        BY FS_Subset, T3!LemChainId, LemT2Bridges, LemT3Assumptions,
-            LemT3Bridges DEF FailedTask, T3!FailedTask,
-            G2!T2!FiniteTaskAttempts, G2!T2!Inv, LinkedTask, T3!LinkedTask,
-            PreviousAttempts, RetriedTask, T3!RetriedTask, TaskAttempts,
-            G2!T2!TaskAttemptsIntegrity
-    <2>2. /\ deps' \in DirectedGraphOf(Task \union Object)
-          /\ nextAttemptOf' \in [Task -> Task \union {NULL}]
-          /\ objectState' \in [Object -> O2State]
-          /\ objectTargets' \in SUBSET Object
-        BY LemG2Bridges DEF G2!O2State, G2!TypeOk
-    <2>3. intent' \in [RecordedIntent -> SUBSET Task]
-        <3>1. \/ intent' = intent
-              \/ \E T \in SUBSET Task, i \in Intent : intent' = Requested(T, i)
-            BY DEF AbortObjects, AbortTasks, AssignTasks, CompleteObjects,
-                CompleteTasks, DiscardTasks, Next, PauseTasks, ProcessTasks,
-                RegisterGraph, ReleaseTasks, RequestTasks, ResumeTasks,
-                RetryTasks, SetTaskRetries, StageTasks, TargetObjects,
-                UntargetObjects, vars
-        <3>. QED
-            BY <2>1, <3>1 DEF Requested
-    <2>4. taskState' \in [Task -> T3State]
-        BY DEF AbortObjects, AbortTasks, AssignTasks, CompleteObjects,
-            CompleteTasks, DiscardTasks, Next, PauseTasks, ProcessTasks,
-            RegisterGraph, ReleaseTasks, RequestTasks, ResumeTasks, RetryTasks,
-            SetTaskRetries, StageTasks, TargetObjects, UntargetObjects, vars
-    <2>. QED
-        BY <2>2, <2>3, <2>4
+<1>1. G2!TypeOk /\ T3!TypeOk => TypeOk
+    BY LemG2Bridges DEF Intent, T3!Intent, O2State, G2!O2State, RecordedIntent,
+        T3!RecordedIntent, T3State, T3!T3State, TypeOk, G2!TypeOk, T3!TypeOk
 <1>. QED
-    BY <1>1, <1>2, LemG2Inv, PTL DEF G2!Inv
-
-(**
- * Here rather than with the lifted safety: its proof needs LemTypeOk.
- *)
-LEMMA LemT3Inv == Init /\ [][Next]_vars => []T3!Inv
-BY LemInitSimulateT3Init, T3!LemInv, LemNextSimulateT3Next, LemT3Assumptions,
-    LemTypeOk, PTL
+    BY <1>1, LemG2Inv, LemT3Inv, PTL DEF G2!Inv, T3!Inv
 
 (**
  * Lifted from Graph2, whose staged tasks are the staged, paused and halted
@@ -660,7 +673,8 @@ EnabledRegisterRetryGraph(t) ==
     LET
         G == RetrySubgraph(deps, t, nextAttemptOf[t])
     IN
-        /\ IsFiniteSet(G.node)
+        /\ IsFiniteSet(G.node \intersect UnknownObject)
+        /\ IsFiniteSet(G.node \intersect Task)
         /\ G.node \intersect Task \subseteq UnknownTask
         /\ \A s \in G.node \intersect Task :
             /\ Successor(G, s) \intersect AbortedObject = {}
@@ -806,11 +820,11 @@ LEMMA LemFairnessEnabledFree ==
       PROVE  /\ WF_vars(CompleteObjects({o})) <=> FairCompleteObjects(o)
              /\ WF_vars(AbortObjects({o})) <=> FairAbortObjects(o)
     <2>1. (ENABLED <<CompleteObjects({o})>>_vars) <=> EnabledCompleteObjects(o)
-        BY ExpandENABLED DEF CompleteObjects, EnabledCompleteObjects,
-            RegisteredObject, vars
+        BY LemO2Bridges, ExpandENABLED DEF CompleteObjects, O2!CompleteObjects,
+            EnabledCompleteObjects, RegisteredObject, vars
     <2>2. (ENABLED <<AbortObjects({o})>>_vars) <=> EnabledAbortObjects(o)
-        BY ExpandENABLED DEF AbortObjects, EnabledAbortObjects,
-            RegisteredObject, vars
+        BY LemO2Bridges, ExpandENABLED DEF AbortObjects, O2!AbortObjects,
+            EnabledAbortObjects, RegisteredObject, vars
     <2>. QED
         BY <2>1, <2>2, PTL DEF FairAbortObjects, FairCompleteObjects
 <1>2. ASSUME NEW t \in Task
@@ -832,8 +846,8 @@ LEMMA LemFairnessEnabledFree ==
             <=> FairSetTaskRetries(t)
         <3>1. (ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars)
                 => EnabledSetTaskRetries(t)
-            BY ExpandENABLED, Zenon DEF EnabledSetTaskRetries, SetTaskRetries,
-                vars
+            BY LemT3Bridges, ExpandENABLED, Zenon DEF EnabledSetTaskRetries,
+                SetTaskRetries, T3!SetTaskRetries, vars
         (* tlapm: SMT and Zenon time out on the retry update; Upd hides it. *)
         <3>2. ASSUME EnabledSetTaskRetries(t)
               PROVE  ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
@@ -851,7 +865,8 @@ LEMMA LemFairnessEnabledFree ==
                   <=> ENABLED <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
                 <5>1. <<\E u \in Task : Alt(u)>>_vars
                       <=> <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
-                    BY <3>2 DEF EnabledSetTaskRetries, SetTaskRetries
+                    BY <3>2, LemT3Bridges DEF EnabledSetTaskRetries,
+                        SetTaskRetries, T3!SetTaskRetries
                 <5>. QED
                     BY <5>1, ENABLEDaxioms
             <4>2. PICK c \in UnknownTask :
@@ -874,14 +889,55 @@ LEMMA LemFairnessEnabledFree ==
         <3>1. (ENABLED <<RegisterGraph(
                    RetrySubgraph(deps, t, nextAttemptOf[t]))>>_vars)
                 <=> EnabledRegisterRetryGraph(t)
-            BY ExpandENABLED, SMT DEF EmptyGraph, EnabledRegisterRetryGraph,
-                RegisterGraph, RetrySubgraph, vars
+            (* tlapm: SMT finds no witness for the composed RegisterGraph;
+               Register, written with the updates, has one. *)
+            <4>. DEFINE G == RetrySubgraph(deps, t, nextAttemptOf[t])
+                        Register ==
+                            /\ IsFiniteSet(G.node \intersect UnknownObject)
+                            /\ IsFiniteSet(G.node \intersect Task)
+                            /\ G.node \intersect Task \subseteq UnknownTask
+                            /\ \A s \in G.node \intersect Task :
+                                /\ Successor(G, s) \intersect AbortedObject = {}
+                                /\ Successor(G, s) \intersect Source(deps)
+                                        \intersect CompletedObject = {}
+                            /\ IsDDGraph(GraphUnion(deps, G), Task, Object)
+                            /\ \A s \in Task :
+                                nextAttemptOf[s] /= NULL
+                                /\ nextAttemptOf[s] \in G.node
+                                => /\ Predecessor(G, nextAttemptOf[s])
+                                        = Predecessor(deps, s)
+                                   /\ Successor(G, nextAttemptOf[s])
+                                        = Successor(deps, s)
+                            /\ deps' = GraphUnion(deps, G)
+                            /\ objectState' =
+                                [o \in Object |->
+                                    IF o \in G.node \intersect UnknownObject
+                                        THEN OBJECT_REGISTERED
+                                        ELSE objectState[o]]
+                            /\ taskState' =
+                                [x \in Task |->
+                                    IF x \in G.node \intersect Task
+                                        THEN TASK_REGISTERED
+                                        ELSE taskState[x]]
+                            /\ UNCHANGED << intent, nextAttemptOf,
+                                            objectTargets >>
+            <4>1. <<Register>>_vars <=> <<RegisterGraph(G)>>_vars
+                BY LemO2Bridges, LemT3Bridges DEF RegisterGraph,
+                    O2!RegisterObjects, T3!RegisterTasks
+            <4>2. (ENABLED <<Register>>_vars)
+                    <=> ENABLED <<RegisterGraph(G)>>_vars
+                BY <4>1, ENABLEDaxioms
+            <4>3. (ENABLED <<Register>>_vars) <=> EnabledRegisterRetryGraph(t)
+                BY ExpandENABLED, SMT DEF EnabledRegisterRetryGraph,
+                    RetrySubgraph, vars
+            <4>. QED
+                BY <4>2, <4>3
         <3>. QED
             BY <3>1, PTL DEF FairRegisterRetryGraph
     <2>3. WF_vars(StageTasks({t})) <=> FairStageTasks(t)
         <3>1. (ENABLED <<StageTasks({t})>>_vars) <=> EnabledStageTasks(t)
-            BY ExpandENABLED DEF EnabledStageTasks, RegisteredTask, StageTasks,
-                vars
+            BY LemT3Bridges, ExpandENABLED DEF EnabledStageTasks,
+                RegisteredTask, StageTasks, T3!StageTasks, vars
         <3>. QED
             BY <3>1, PTL DEF FairStageTasks
     <2>4. SF_vars(ProcessTasks({t}) /\ t \in SucceededTask')
@@ -898,7 +954,8 @@ LEMMA LemFairnessEnabledFree ==
         <3>1. (ENABLED Succeed)
               <=> ENABLED <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
             <4>1. Succeed <=> <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
-                BY DEF AssignedTask, ProcessTasks, SucceededTask, vars
+                BY LemT3Bridges DEF AssignedTask, ProcessTasks, T3!ProcessTasks,
+                    SucceededTask, vars
             <4>. QED
                 BY <4>1, ENABLEDaxioms
         <3>2. (ENABLED Succeed) <=> EnabledProcessTasks(t)
@@ -907,40 +964,40 @@ LEMMA LemFairnessEnabledFree ==
             BY <3>1, <3>2, PTL DEF FairProcessTasks
     <2>5. WF_vars(CompleteTasks({t})) <=> FairCompleteTasks(t)
         <3>1. (ENABLED <<CompleteTasks({t})>>_vars) <=> EnabledCompleteTasks(t)
-            BY ExpandENABLED DEF CompleteTasks, EnabledCompleteTasks,
-                SucceededTask, vars
+            BY LemT3Bridges, ExpandENABLED DEF CompleteTasks, T3!CompleteTasks,
+                EnabledCompleteTasks, SucceededTask, vars
         <3>. QED
             BY <3>1, PTL DEF FairCompleteTasks
     <2>6. WF_vars(AbortTasks({t})) <=> FairAbortTasks(t)
         <3>1. (ENABLED <<AbortTasks({t})>>_vars) <=> EnabledAbortTasks(t)
-            BY ExpandENABLED DEF AbortTasks, DiscardedTask, EnabledAbortTasks,
-                vars
+            BY LemT3Bridges, ExpandENABLED DEF AbortTasks, T3!AbortTasks,
+                DiscardedTask, EnabledAbortTasks, vars
         <3>. QED
             BY <3>1, PTL DEF FairAbortTasks
     <2>7. WF_vars(RetryTasks({t})) <=> FairRetryTasks(t)
         <3>1. (ENABLED <<RetryTasks({t})>>_vars) <=> EnabledRetryTasks(t)
-            BY ExpandENABLED DEF EnabledRetryTasks, FailedTask, RetryTasks,
-                vars
+            BY LemT3Bridges, ExpandENABLED DEF EnabledRetryTasks, FailedTask,
+                RetryTasks, T3!RetryTasks, vars
         <3>. QED
             BY <3>1, PTL DEF FairRetryTasks
     <2>8. WF_vars(PauseTasks({t})) <=> FairPauseTasks(t)
         <3>1. (ENABLED <<PauseTasks({t})>>_vars) <=> EnabledPauseTasks(t)
-            BY ExpandENABLED DEF EnabledPauseTasks, PauseTasks, StagedTask,
-                vars
+            BY LemT3Bridges, ExpandENABLED DEF EnabledPauseTasks, Intent,
+                PauseTasks, T3!PauseTasks, StagedTask, vars
         <3>. QED
             BY <3>1, PTL DEF FairPauseTasks
     <2>9. WF_vars(ResumeTasks({t})) <=> FairResumeTasks(t)
         <3>1. (ENABLED <<ResumeTasks({t})>>_vars) <=> EnabledResumeTasks(t)
-            BY ExpandENABLED DEF EnabledResumeTasks, PausedTask, ResumeTasks,
-                vars
+            BY LemT3Bridges, ExpandENABLED DEF EnabledResumeTasks, Intent,
+                PausedTask, ResumeTasks, T3!ResumeTasks, vars
         <3>. QED
             BY <3>1, PTL DEF FairResumeTasks
     <2>10. WF_vars(DiscardOnCancel(t)) <=> FairDiscardOnCancel(t)
         <3>1. (ENABLED <<DiscardOnCancel(t)>>_vars)
                 <=> EnabledDiscardOnCancel(t)
-            BY ExpandENABLED DEF DiscardOnCancel, DiscardTasks,
-                EnabledDiscardOnCancel, HaltedTask, PausedTask, RegisteredTask,
-                StagedTask, vars
+            BY LemT3Bridges, ExpandENABLED DEF DiscardOnCancel, DiscardTasks,
+                T3!DiscardTasks, EnabledDiscardOnCancel, HaltedTask, PausedTask,
+                RegisteredTask, StagedTask, vars
         <3>. QED
             BY <3>1, PTL DEF FairDiscardOnCancel
     <2>. QED
@@ -957,32 +1014,34 @@ LEMMA LemFairnessEnabledFree ==
             <=> FairDiscardOnAbortedInput(t, o)
         <3>1. (ENABLED <<DiscardOnAbortedInput(t, o)>>_vars)
                 <=> EnabledDiscardOnAbortedInput(t, o)
-            BY ExpandENABLED DEF DiscardOnAbortedInput, DiscardTasks,
-                EnabledDiscardOnAbortedInput, HaltedTask, PausedTask,
-                RegisteredTask, StagedTask, vars
+            BY LemT3Bridges, ExpandENABLED DEF DiscardOnAbortedInput,
+                DiscardTasks, T3!DiscardTasks, EnabledDiscardOnAbortedInput,
+                HaltedTask, PausedTask, RegisteredTask, StagedTask, vars
         <3>. QED
             BY <3>1, PTL DEF FairDiscardOnAbortedInput
     <2>2. WF_vars(AssignForTarget(t, o)) <=> FairAssignForTarget(t, o)
         <3>1. (ENABLED <<AssignForTarget(t, o)>>_vars)
                 <=> EnabledAssignForTarget(t, o)
-            BY ExpandENABLED DEF AssignForTarget, AssignTasks,
-                EnabledAssignForTarget, StagedTask, vars
+            BY LemT3Bridges, ExpandENABLED DEF AssignForTarget, AssignTasks,
+                T3!AssignTasks, EnabledAssignForTarget, Intent, StagedTask, vars
         <3>. QED
             BY <3>1, PTL DEF FairAssignForTarget
     <2>3. WF_vars(RequestResumeForTarget(t, o))
             <=> FairRequestResumeForTarget(t, o)
         <3>1. (ENABLED <<RequestResumeForTarget(t, o)>>_vars)
                 <=> EnabledRequestResumeForTarget(t, o)
-            BY ExpandENABLED DEF EnabledRequestResumeForTarget, PausedTask,
-                RequestResumeForTarget, RequestTasks, UnknownTask, vars
+            BY LemT3Bridges, ExpandENABLED DEF EnabledRequestResumeForTarget,
+                Intent, PausedTask, RequestResumeForTarget, RequestTasks,
+                T3!RequestTasks, UnknownTask, vars
         <3>. QED
             BY <3>1, PTL DEF FairRequestResumeForTarget
     <2>4. WF_vars(RequestCancelForTarget(t, o))
             <=> FairRequestCancelForTarget(t, o)
         <3>1. (ENABLED <<RequestCancelForTarget(t, o)>>_vars)
                 <=> EnabledRequestCancelForTarget(t, o)
-            BY ExpandENABLED DEF EnabledRequestCancelForTarget, HaltedTask,
-                RequestCancelForTarget, RequestTasks, UnknownTask, vars
+            BY LemT3Bridges, ExpandENABLED DEF EnabledRequestCancelForTarget,
+                HaltedTask, Intent, RequestCancelForTarget, RequestTasks,
+                T3!RequestTasks, UnknownTask, vars
         <3>. QED
             BY <3>1, PTL DEF FairRequestCancelForTarget
     <2>. QED
@@ -1041,8 +1100,8 @@ LEMMA LemPreserveG2WFSetTaskRetries ==
     PROVE  FairSetTaskRetries(t) => G2!FairSetTaskRetries(t)
 <1>1. <<\E u \in Task : SetTaskRetries({t}, {u})>>_vars
       => <<\E u \in Task : G2!SetTaskRetries({t}, {u})>>_G2!vars
-    BY LemSetTaskRetriesSimulateG2SetTaskRetries DEF SetTaskRetries, vars,
-        G2!vars
+    BY LemSetTaskRetriesSimulateG2SetTaskRetries DEF SetTaskRetries,
+        T3!SetTaskRetries, vars, G2!vars
 <1>2. G2!EnabledSetTaskRetries(t) => EnabledSetTaskRetries(t)
     BY LemG2BarStates DEF EnabledSetTaskRetries, G2!EnabledSetTaskRetries
 <1>. QED
@@ -1061,7 +1120,8 @@ LEMMA LemPreserveG2WFRegisterGraph ==
       => <<G2!RegisterGraph(G2!RetrySubgraph(deps, t, nextAttemptOf[t]))>>_
              G2!vars
     BY LemG2Bridges, LemRegisterGraphSimulateG2RegisterGraph DEF RegisterGraph,
-        taskStateBar, TypeOk, vars, G2!vars
+        O2!RegisterObjects, T3!RegisterTasks, taskStateBar, TypeOk, vars,
+        G2!vars
 <1>2. G2!EnabledRegisterRetryGraph(t) => EnabledRegisterRetryGraph(t)
     BY LemG2BarStates, LemG2Bridges DEF EnabledRegisterRetryGraph,
         G2!EnabledRegisterRetryGraph, taskStateBar
@@ -1079,8 +1139,8 @@ LEMMA LemPreserveG2WFStageTasks ==
     ASSUME NEW t \in Task
     PROVE  FairStageTasks(t) => G2!FairStageTasks(t)
 <1>1. <<StageTasks({t})>>_vars => <<G2!StageTasks({t})>>_G2!vars
-    BY LemStageTasksSimulateG2StageTasks DEF G2!RegisteredTask, G2!StageTasks,
-        G2!vars
+    BY LemStageTasksSimulateG2StageTasks DEF G2!T2!RegisteredTask,
+        G2!StageTasks, G2!T2!StageTasks, G2!vars
 <1>2. G2!EnabledStageTasks(t) => EnabledStageTasks(t)
     BY LemG2BarStates, LemG2Bridges DEF EnabledStageTasks, G2!EnabledStageTasks
 <1>. QED
@@ -1097,8 +1157,9 @@ LEMMA LemPreserveG2SFProcessTasks ==
     PROVE  FairProcessTasks(t) => G2!FairProcessTasks(t)
 <1>1. <<ProcessTasks({t}) /\ t \in SucceededTask'>>_vars
       => <<G2!ProcessTasks({t}) /\ t \in G2!SucceededTask'>>_G2!vars
-    BY DEF AssignedTask, G2!AssignedTask, ProcessTasks, G2!ProcessTasks,
-        SucceededTask, G2!SucceededTask, taskStateBar, G2!vars
+    BY LemG2Assumptions, G2!LemT2Bridges, LemT3Bridges DEF AssignedTask,
+        G2!AssignedTask, ProcessTasks, G2!ProcessTasks, G2!T2!ProcessTasks,
+        T3!ProcessTasks, SucceededTask, G2!SucceededTask, taskStateBar, G2!vars
 <1>2. G2!EnabledProcessTasks(t) => EnabledProcessTasks(t)
     BY LemG2BarStates DEF EnabledProcessTasks, G2!EnabledProcessTasks
 <1>. QED
@@ -1115,7 +1176,7 @@ LEMMA LemPreserveG2WFCompleteTasks ==
     PROVE  FairCompleteTasks(t) => G2!FairCompleteTasks(t)
 <1>1. <<CompleteTasks({t})>>_vars => <<G2!CompleteTasks({t})>>_G2!vars
     BY LemCompleteTasksSimulateG2CompleteTasks DEF G2!CompleteTasks,
-        G2!SucceededTask, G2!vars
+        G2!T2!CompleteTasks, G2!T2!SucceededTask, G2!vars
 <1>2. G2!EnabledCompleteTasks(t) => EnabledCompleteTasks(t)
     BY LemG2BarStates, LemG2Bridges DEF EnabledCompleteTasks,
         G2!EnabledCompleteTasks
@@ -1132,8 +1193,8 @@ LEMMA LemPreserveG2WFAbortTasks ==
     ASSUME NEW t \in Task
     PROVE  FairAbortTasks(t) => G2!FairAbortTasks(t)
 <1>1. <<AbortTasks({t})>>_vars => <<G2!AbortTasks({t})>>_G2!vars
-    BY LemAbortTasksSimulateG2AbortTasks DEF G2!AbortTasks, G2!DiscardedTask,
-        G2!vars
+    BY LemAbortTasksSimulateG2AbortTasks DEF G2!AbortTasks, G2!T2!AbortTasks,
+        G2!T2!DiscardedTask, G2!vars
 <1>2. G2!EnabledAbortTasks(t) => EnabledAbortTasks(t)
     BY LemG2BarStates, LemG2Bridges DEF EnabledAbortTasks, G2!EnabledAbortTasks
 <1>. QED
@@ -1149,8 +1210,8 @@ LEMMA LemPreserveG2WFRetryTasks ==
     ASSUME NEW t \in Task
     PROVE  FairRetryTasks(t) => G2!FairRetryTasks(t)
 <1>1. <<RetryTasks({t})>>_vars => <<G2!RetryTasks({t})>>_G2!vars
-    BY LemRetryTasksSimulateG2RetryTasks DEF G2!FailedTask, G2!RetryTasks,
-        G2!vars
+    BY LemRetryTasksSimulateG2RetryTasks DEF G2!T2!FailedTask, G2!RetryTasks,
+        G2!T2!RetryTasks, G2!vars
 <1>2. G2!EnabledRetryTasks(t) => EnabledRetryTasks(t)
     BY LemG2BarStates DEF EnabledRetryTasks, G2!EnabledRetryTasks
 <1>. QED
@@ -1172,7 +1233,8 @@ LEMMA LemPreserveG2WFDiscardOnAbortedInput ==
       => <<G2!DiscardOnAbortedInput(t, o)>>_G2!vars
     BY LemDiscardTasksSimulateG2DiscardTasks, LemG2BarStates, LemG2Bridges,
         LemG2OpenAncestry DEF DiscardOnAbortedInput, G2!DiscardOnAbortedInput,
-        G2!DiscardTasks, G2!RegisteredTask, G2!StagedTask, G2!vars
+        G2!DiscardTasks, G2!T2!DiscardTasks, G2!T2!RegisteredTask,
+        G2!T2!StagedTask, G2!vars
 <1>2. G2!EnabledDiscardOnAbortedInput(t, o)
       => EnabledDiscardOnAbortedInput(t, o)
     BY LemG2BarStates, LemG2Bridges, LemG2OpenAncestry
@@ -1211,7 +1273,7 @@ LEMMA LemPreserveG2WFAssignForTarget ==
 <1>1. <<AssignForTarget(t, o)>>_vars => <<G2!AssignForTarget(t, o)>>_G2!vars
     BY LemAssignTasksSimulateG2AssignTasks, LemG2OpenAncestry
         DEF AssignForTarget, G2!AssignForTarget, G2!AssignTasks,
-        G2!StagedTask, G2!vars
+        G2!T2!AssignTasks, G2!T2!StagedTask, G2!vars
 <1>2. /\ []Inv
       /\ [][Next]_vars
       /\ FairPauseTasks(t)
@@ -1237,12 +1299,13 @@ LEMMA LemPreserveG2WFAssignForTarget ==
              => EnabledRequestCancelForTarget(t, o)
           /\ Inv /\ Up /\ t \in PausedTask /\ Intends(t, INTENT_PAUSE)
              => EnabledRequestResumeForTarget(t, o)
-        BY DEF DiscardOnCancel, DiscardTasks, EnabledDiscardOnCancel,
-            EnabledPauseTasks, EnabledRequestCancelForTarget,
-            EnabledRequestResumeForTarget, EnabledResumeTasks, HaltedTask,
-            Intends, Intent, IntentChainIds, T3!IntentIntegrity, Inv, T3!Inv,
-            PausedTask, PauseTasks, RecordedIntent, Requested, ResumeTasks,
-            StagedTask
+        BY DEF DiscardOnCancel, DiscardTasks, T3!DiscardTasks,
+            EnabledDiscardOnCancel, EnabledPauseTasks,
+            EnabledRequestCancelForTarget, EnabledRequestResumeForTarget,
+            EnabledResumeTasks, HaltedTask, Intends, Intent, IntentChainIds,
+            T3!IntentIntegrity, Inv, T3!Inv, PausedTask, PauseTasks,
+            T3!PauseTasks, RecordedIntent, Requested, ResumeTasks,
+            T3!ResumeTasks, StagedTask
     (* The steps and the intents of a waiting task. *)
     <2>3. /\ t \in HaltedTask /\ [Next]_vars
              => (t \in HaltedTask)' \/ ~ Waiting'
@@ -1298,28 +1361,36 @@ LEMMA LemPreserveG2WFAssignForTarget ==
                  => \/ (t \in PausedTask)'
                     \/ (t \in StagedTask)' /\ Intends(t, INTENT_RUN)
                     \/ ~ Waiting'
-            BY DEF AbortObjects, AbortTasks, AssignedTask, AssignTasks,
-                CompleteObjects, CompleteTasks, DiscardedTask, DiscardTasks,
-                FailedTask, HaltedTask, Next, PausedTask, PauseTasks,
-                ProcessTasks, RegisteredTask, RegisterGraph, ReleaseTasks,
-                RequestTasks, ResumeTasks, RetryTasks, SetTaskRetries,
-                StagedTask, StageTasks, SucceededTask, TargetObjects,
+            BY LemT3Bridges DEF AbortObjects, AbortTasks, T3!AbortTasks,
+                AssignedTask, AssignTasks, T3!AssignTasks, CompleteObjects,
+                CompleteTasks, T3!CompleteTasks, DiscardedTask, DiscardTasks,
+                T3!DiscardTasks, FailedTask, HaltedTask, Intent, Next,
+                PausedTask, PauseTasks, T3!PauseTasks, ProcessTasks,
+                T3!ProcessTasks, RegisteredTask, RegisterGraph,
+                T3!RegisterTasks, ReleaseTasks, T3!ReleaseTasks, RequestTasks,
+                T3!RequestTasks, ResumeTasks, T3!ResumeTasks, RetryTasks,
+                T3!RetryTasks, SetTaskRetries, T3!SetTaskRetries, StagedTask,
+                StageTasks, T3!StageTasks, SucceededTask, TargetObjects,
                 UnknownTask, UntargetObjects, vars
         (* Only RequestTasks changes the intents. *)
         <3>3. [Next]_vars
               => \/ intent' = intent
                  \/ \E T \in SUBSET Task, i \in Intent : RequestTasks(T, i)
-            BY DEF AbortObjects, AbortTasks, AssignTasks, CompleteObjects,
-                CompleteTasks, DiscardTasks, Next, PauseTasks, ProcessTasks,
-                RegisterGraph, ReleaseTasks, RequestTasks, ResumeTasks,
-                RetryTasks, SetTaskRetries, StageTasks, TargetObjects,
-                UntargetObjects, vars
+            BY DEF AbortObjects, AbortTasks, T3!AbortTasks, AssignTasks,
+                T3!AssignTasks, CompleteObjects, CompleteTasks,
+                T3!CompleteTasks, DiscardTasks, T3!DiscardTasks, Next,
+                PauseTasks, T3!PauseTasks, ProcessTasks, T3!ProcessTasks,
+                RegisterGraph, T3!RegisterTasks, ReleaseTasks, T3!ReleaseTasks,
+                RequestTasks, T3!RequestTasks, ResumeTasks, T3!ResumeTasks,
+                RetryTasks, T3!RetryTasks, SetTaskRetries, T3!SetTaskRetries,
+                StageTasks, T3!StageTasks, TargetObjects, UntargetObjects, vars
         <3>4. ASSUME NEW T \in SUBSET Task, NEW i \in Intent, RequestTasks(T, i)
               PROVE  /\ intent[INTENT_CANCEL] \subseteq intent'[INTENT_CANCEL]
                      /\ i /= INTENT_PAUSE
                         => intent'[INTENT_PAUSE] \subseteq intent[INTENT_PAUSE]
-            BY <3>4 DEF Intent, INTENT_CANCEL, INTENT_PAUSE, INTENT_RUN,
-                RecordedIntent, Requested, RequestTasks
+            BY <3>4, LemT3Bridges DEF Intent, INTENT_CANCEL, INTENT_PAUSE,
+                INTENT_RUN, RecordedIntent, Requested, RequestTasks,
+                T3!RequestTasks
         <3>5. Inv /\ Waiting /\ Intends(t, INTENT_CANCEL) /\ [Next]_vars
               => Intends(t, INTENT_CANCEL)'
             BY <3>1, <3>3, <3>4 DEF HaltedTask, Intends, INTENT_CANCEL,
@@ -1329,10 +1400,11 @@ LEMMA LemPreserveG2WFAssignForTarget ==
                      NEW T \in SUBSET Task, RequestTasks(T, INTENT_PAUSE),
                      ~ PauseAttemptChain(t)
               PROVE  ~ Intends(t, INTENT_PAUSE)'
-            BY <3>1, <3>6 DEF Intends, Intent, INTENT_CANCEL, INTENT_PAUSE,
-                INTENT_RUN, IntentChainIds, T3!IntentIntegrity, Inv, T3!Inv,
-                PauseAttemptChain, PausedTask, RecordedIntent, Requested,
-                RequestTasks, StagedTask, UnknownTask
+            BY <3>1, <3>6, LemT3Bridges DEF Intends, Intent, INTENT_CANCEL,
+                INTENT_PAUSE, INTENT_RUN, IntentChainIds, T3!IntentIntegrity,
+                Inv, T3!Inv, PauseAttemptChain, PausedTask, RecordedIntent,
+                Requested, RequestTasks, T3!RequestTasks, StagedTask,
+                UnknownTask
         <3>7. /\ Inv
               /\ t \in StagedTask \/ t \in PausedTask
               /\ ~ Intends(t, INTENT_PAUSE)
@@ -1355,9 +1427,9 @@ LEMMA LemPreserveG2WFAssignForTarget ==
                     T3!IntentIntegrity, Inv, T3!Inv, PausedTask,
                     RequestResumeForTarget, UnknownTask
             <4>2. intent'[INTENT_PAUSE] = intent[INTENT_PAUSE] \ {ChainId(t)}
-                BY <4>1 DEF Intent, INTENT_CANCEL, INTENT_PAUSE, INTENT_RUN,
-                    RecordedIntent, Requested, RequestResumeForTarget,
-                    RequestTasks
+                BY <4>1, LemT3Bridges DEF Intent, INTENT_CANCEL, INTENT_PAUSE,
+                    INTENT_RUN, RecordedIntent, Requested,
+                    RequestResumeForTarget, RequestTasks, T3!RequestTasks
             <4>. QED
                 BY <4>1, <4>2 DEF Intends, INTENT_PAUSE, INTENT_RUN,
                     IntentChainIds
@@ -1372,10 +1444,10 @@ LEMMA LemPreserveG2WFAssignForTarget ==
                 StagedTask, UnknownTask
         <3>10. Inv /\ [Next]_vars /\ <<RequestCancelForTarget(t, o)>>_vars
                => Intends(t, INTENT_CANCEL)'
-            BY <3>1 DEF HaltedTask, Intends, Intent, INTENT_CANCEL,
-                INTENT_PAUSE, INTENT_RUN, IntentChainIds, Inv, T3!Inv,
-                RecordedIntent, RequestCancelForTarget, Requested, RequestTasks,
-                UnknownTask
+            BY <3>1, LemT3Bridges DEF HaltedTask, Intends, Intent,
+                INTENT_CANCEL, INTENT_PAUSE, INTENT_RUN, IntentChainIds, Inv,
+                T3!Inv, RecordedIntent, RequestCancelForTarget, Requested,
+                RequestTasks, T3!RequestTasks, UnknownTask
         <3>. QED
             BY <3>2, <3>5, <3>7, <3>8, <3>9, <3>10
     (* The task eventually stays uncancelled, not halted, to run, staged. *)
@@ -1887,24 +1959,114 @@ LEMMA LemEventualQuiescence ==
                  \/ x \in UnknownTask \ UnknownTask'
                  \/ x \in UnknownObject \ UnknownObject'
           PROVE  x \in {nextAttemptOf[t] : t \in Task}
-        BY <2>1 DEF AbortObjects, AbortTasks, AssignedTask, AssignTasks,
-            CompleteObjects, CompleteTasks, DiscardedTask, DiscardTasks,
-            FailedTask, HaltedTask, Next, NoUserAction, PausedTask,
-            PauseTasks, ProcessTasks, RegisteredObject, RegisteredTask,
-            RegisterGraph, ReleaseTasks, RequestTasks, ResumeTasks,
-            RetryTasks, SetTaskRetries, StagedTask, StageTasks, SucceededTask,
-            TargetObjects, UnknownObject, UnknownTask, UntargetObjects, vars
+        <3>1. CASE \E G \in DirectedGraphOf(Task \union Object) :
+                        RegisterGraph(G)
+            <4>. PICK G \in DirectedGraphOf(Task \union Object) :
+                    RegisterGraph(G)
+                BY <3>1
+            <4>1. x \in G.node \intersect (UnknownTask \union UnknownObject)
+                BY <2>1, LemO2Bridges, LemT3Bridges DEF RegisterGraph,
+                    O2!RegisterObjects, T3!RegisterTasks, UnknownObject,
+                    UnknownTask
+            <4>2. NoUserAction
+                BY <2>1 DEF UnknownObject, UnknownTask, vars
+            <4>. QED
+                BY <4>1, <4>2 DEF NoUserAction
+        <3>2. CASE ~ \E G \in DirectedGraphOf(Task \union Object) :
+                        RegisterGraph(G)
+            <4>1. ASSUME NEW O \in SUBSET Object,
+                         \/ TargetObjects(O)
+                         \/ UntargetObjects(O)
+                         \/ CompleteObjects(O)
+                         \/ AbortObjects(O)
+                  PROVE  /\ UnknownTask \subseteq UnknownTask'
+                         /\ UnknownObject \subseteq UnknownObject'
+                BY <4>1, LemO2Bridges DEF AbortObjects, O2!AbortObjects,
+                    CompleteObjects, O2!CompleteObjects, RegisteredObject,
+                    TargetObjects, O2!TargetObjects, UnknownObject,
+                    UnknownTask, UntargetObjects, O2!UntargetObjects
+            <4>2. ASSUME NEW T \in SUBSET Task,
+                         \/ \E U \in SUBSET Task : SetTaskRetries(T, U)
+                         \/ StageTasks(T)
+                         \/ DiscardTasks(T)
+                         \/ AssignTasks(T)
+                         \/ ReleaseTasks(T)
+                         \/ ProcessTasks(T)
+                  PROVE  /\ UnknownTask \subseteq UnknownTask'
+                         /\ UnknownObject \subseteq UnknownObject'
+                <5>1. CASE \E U \in SUBSET Task : SetTaskRetries(T, U)
+                    BY <5>1 DEF SetTaskRetries, T3!SetTaskRetries,
+                        UnknownObject, UnknownTask
+                <5>2. CASE StageTasks(T)
+                    BY <5>2, LemT3Bridges DEF RegisteredTask, StageTasks,
+                        T3!StageTasks, UnknownObject, UnknownTask
+                <5>3. CASE DiscardTasks(T)
+                    BY <5>3, LemT3Bridges DEF DiscardTasks, T3!DiscardTasks,
+                        HaltedTask, PausedTask, RegisteredTask, StagedTask,
+                        UnknownObject, UnknownTask
+                <5>4. CASE AssignTasks(T)
+                    BY <5>4, LemT3Bridges DEF AssignTasks, T3!AssignTasks,
+                        StagedTask, UnknownObject, UnknownTask
+                <5>5. CASE ReleaseTasks(T)
+                    BY <5>5, LemT3Bridges DEF AssignedTask, ReleaseTasks,
+                        T3!ReleaseTasks, UnknownObject, UnknownTask
+                <5>6. CASE ProcessTasks(T)
+                    BY <5>6, LemT3Bridges DEF AssignedTask, ProcessTasks,
+                        T3!ProcessTasks, UnknownObject, UnknownTask
+                <5>. QED
+                    BY <4>2, <5>1, <5>2, <5>3, <5>4, <5>5, <5>6
+            <4>3. ASSUME NEW T \in SUBSET Task,
+                         \/ CompleteTasks(T)
+                         \/ AbortTasks(T)
+                         \/ RetryTasks(T)
+                         \/ \E i \in Intent : RequestTasks(T, i)
+                         \/ PauseTasks(T)
+                         \/ ResumeTasks(T)
+                  PROVE  /\ UnknownTask \subseteq UnknownTask'
+                         /\ UnknownObject \subseteq UnknownObject'
+                <5>1. CASE CompleteTasks(T)
+                    BY <5>1, LemT3Bridges DEF CompleteTasks, T3!CompleteTasks,
+                        SucceededTask, UnknownObject, UnknownTask
+                <5>2. CASE AbortTasks(T)
+                    BY <5>2, LemT3Bridges DEF AbortTasks, T3!AbortTasks,
+                        DiscardedTask, UnknownObject, UnknownTask
+                <5>3. CASE RetryTasks(T)
+                    BY <5>3, LemT3Bridges DEF FailedTask, RetryTasks,
+                        T3!RetryTasks, UnknownObject, UnknownTask
+                <5>4. CASE \E i \in Intent : RequestTasks(T, i)
+                    BY <5>4, LemT3Bridges DEF HaltedTask, PausedTask,
+                        RequestTasks, T3!RequestTasks, StagedTask,
+                        UnknownObject, UnknownTask
+                <5>5. CASE PauseTasks(T)
+                    BY <5>5, LemT3Bridges DEF PauseTasks, T3!PauseTasks,
+                        StagedTask, UnknownObject, UnknownTask
+                <5>6. CASE ResumeTasks(T)
+                    BY <5>6, LemT3Bridges DEF HaltedTask, PausedTask,
+                        ResumeTasks, T3!ResumeTasks, UnknownObject, UnknownTask
+                <5>. QED
+                    BY <4>3, <5>1, <5>2, <5>3, <5>4, <5>5, <5>6
+            <4>. QED
+                BY <2>1, <3>2, <4>1, <4>2, <4>3 DEF Next, UnknownObject,
+                    UnknownTask, vars
+        <3>. QED
+            BY <3>1, <3>2
     <2>2. [Next]_vars /\ [NoUserAction]_vars
           => UNCHANGED << intent, objectTargets >>
-        BY DEF AbortObjects, AbortTasks, AssignTasks, CompleteObjects,
-            CompleteTasks, DiscardTasks, Next, NoUserAction, PauseTasks,
-            ProcessTasks, RegisterGraph, ReleaseTasks, ResumeTasks, RetryTasks,
-            SetTaskRetries, StageTasks, vars
+        BY DEF AbortObjects, O2!AbortObjects, AbortTasks, T3!AbortTasks,
+            AssignTasks, T3!AssignTasks, CompleteObjects, O2!CompleteObjects,
+            CompleteTasks, T3!CompleteTasks, DiscardTasks, T3!DiscardTasks,
+            Next, NoUserAction, PauseTasks, T3!PauseTasks, ProcessTasks,
+            T3!ProcessTasks, RegisterGraph, O2!RegisterObjects,
+            T3!RegisterTasks, ReleaseTasks, T3!ReleaseTasks, ResumeTasks,
+            T3!ResumeTasks, RetryTasks, T3!RetryTasks, SetTaskRetries,
+            T3!SetTaskRetries, StageTasks, T3!StageTasks, vars
     <2>. QED
         BY <2>1, <2>2 DEF G2!NoUserAction, T3!NoUserAction, G2!RegisterGraph,
-            T3!RegisterTasks, T3!RequestTasks, G2!TargetObjects, taskStateBar,
-            UnknownObject, G2!UnknownObject, UnknownTask, G2!UnknownTask,
-            T3!UnknownTask, G2!UntargetObjects, G2!vars, T3!vars
+            G2!O2!RegisterObjects, G2!T2!RegisterTasks, T3!RegisterTasks,
+            T3!RequestTasks, G2!O2!TargetObjects, G2!TargetObjects,
+            taskStateBar, UnknownObject, G2!UnknownObject, UnknownTask,
+            G2!UnknownTask, T3!UnknownTask, G2!O2!UntargetObjects,
+            G2!UntargetObjects, G2!vars, T3!vars
 <1>5. [FALSE]_G2!vars /\ [FALSE]_T3!vars => [FALSE]_vars
     BY DEF vars, G2!vars, T3!vars
 <1>. QED
@@ -1981,7 +2143,7 @@ THEOREM ThmRefineTask3 == Spec => RefineTask3
         LemPreserveT3WFSetTaskRetries, LemPreserveT3WFStageTasks,
         LemT3Assumptions DEF Spec
 <1>. QED
-    BY <1>1, LemInitSimulateT3Init, LemNextSimulateT3Next, LemTypeOk, PTL
+    BY <1>1, LemInitSimulateT3Init, LemNextSimulateT3Next, PTL
         DEF RefineTask3, Spec, T3!Spec
 
 THEOREM ThmUnderivableObjectsEventualAbortion ==
