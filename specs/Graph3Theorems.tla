@@ -30,6 +30,16 @@ LEMMA LemG2Bridges ==
     /\ \A t \in Task : G2!PreviousAttempts(t) = PreviousAttempts(t)
 
 (**
+ * Under the instance, the sets of objects of Object2 denote those of Graph3.
+ *)
+LEMMA LemO2Bridges ==
+    /\ O2!UnknownObject = UnknownObject
+    /\ O2!RegisteredObject = RegisteredObject
+    /\ O2!CompletedObject = CompletedObject
+    /\ O2!AbortedObject = AbortedObject
+    /\ \A S : O2!IsFiniteSet(S) <=> IsFiniteSet(S)
+
+(**
  * Under the instance through Graph2, the operators of Task2 denote those of
  * Graph3.
  *)
@@ -55,6 +65,19 @@ LEMMA LemT3Bridges ==
     /\ \A t \in Task : T3!ChainId(t) = ChainId(t)
     /\ \A t \in Task, i \in Intent : T3!Intends(t, i) <=> Intends(t, i)
     /\ \A T \in SUBSET Task, i \in Intent : T3!Requested(T, i) = Requested(T, i)
+    /\ T3!UnknownTask = UnknownTask
+    /\ T3!RegisteredTask = RegisteredTask
+    /\ T3!StagedTask = StagedTask
+    /\ T3!AssignedTask = AssignedTask
+    /\ T3!SucceededTask = SucceededTask
+    /\ T3!FailedTask = FailedTask
+    /\ T3!DiscardedTask = DiscardedTask
+    /\ T3!CompletedTask = CompletedTask
+    /\ T3!RetriedTask = RetriedTask
+    /\ T3!AbortedTask = AbortedTask
+    /\ T3!PausedTask = PausedTask
+    /\ T3!HaltedTask = HaltedTask
+    /\ T3!LinkedTask = LinkedTask
 
 (**
  * The assumptions of Graph3 imply those of Graph2.
@@ -195,13 +218,11 @@ LEMMA LemNextSimulateG2Next == [Next]_vars => [G2!Next]_G2!vars
 LEMMA LemInitSimulateT3Init == Init => T3!Init
 
 (**
- * Registering a graph registers its tasks, or leaves the task states
- * unchanged when it has none.
+ * Registering a graph registers its tasks.
  *)
 LEMMA LemRegisterGraphSimulateT3RegisterTasks ==
     ASSUME NEW G
-    PROVE  TypeOk /\ RegisterGraph(G)
-           => [T3!RegisterTasks(G.node \intersect Task)]_T3!vars
+    PROVE  RegisterGraph(G) => T3!RegisterTasks(G.node \intersect Task)
 
 LEMMA LemTargetObjectsSimulateT3Stuttering ==
     ASSUME NEW O \in SUBSET Object
@@ -267,7 +288,7 @@ LEMMA LemResumeTasksSimulateT3ResumeTasks ==
     ASSUME NEW T \in SUBSET Task
     PROVE  ResumeTasks(T) => T3!ResumeTasks(T)
 
-LEMMA LemNextSimulateT3Next == TypeOk /\ [Next]_vars => [T3!Next]_T3!vars
+LEMMA LemNextSimulateT3Next == [Next]_vars => [T3!Next]_T3!vars
 
 --------------------------------------------------------------------------------
 (******************************************************************************)
@@ -276,22 +297,18 @@ LEMMA LemNextSimulateT3Next == TypeOk /\ [Next]_vars => [T3!Next]_T3!vars
 
 LEMMA LemG2Inv == Init /\ [][Next]_vars => []G2!Inv
 
+LEMMA LemT3Inv == Init /\ [][Next]_vars => []T3!Inv
+
 --------------------------------------------------------------------------------
 (******************************************************************************)
 (*                                 INVARIANTS                                 *)
 (******************************************************************************)
 
 (**
- * Here rather than with the type correctness: its proof needs LemG2Inv, since
- * a request records the first attempt of an attempt chain, which exists as
- * the chain is finite and has no cycle.
+ * Here rather than with the type correctness: its proof lifts the type
+ * correctness of Graph2 and Task3 through LemG2Inv and LemT3Inv.
  *)
 LEMMA LemTypeOk == Init /\ [][Next]_vars => []TypeOk
-
-(**
- * Here rather than with the lifted safety: its proof needs LemTypeOk.
- *)
-LEMMA LemT3Inv == Init /\ [][Next]_vars => []T3!Inv
 
 (**
  * Lifted from Graph2, whose staged tasks are the staged, paused and halted
@@ -380,7 +397,8 @@ EnabledRegisterRetryGraph(t) ==
     LET
         G == RetrySubgraph(deps, t, nextAttemptOf[t])
     IN
-        /\ IsFiniteSet(G.node)
+        /\ IsFiniteSet(G.node \intersect UnknownObject)
+        /\ IsFiniteSet(G.node \intersect Task)
         /\ G.node \intersect Task \subseteq UnknownTask
         /\ \A s \in G.node \intersect Task :
             /\ Successor(G, s) \intersect AbortedObject = {}
