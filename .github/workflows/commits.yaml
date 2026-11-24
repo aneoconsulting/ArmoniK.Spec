@@ -1,7 +1,7 @@
 name: Commits
 
 # Checks that every commit the event introduces -- and, on a pull request, its
-# title -- follows the convention of .docs/conventions.md. Apart from CI so that
+# title -- follows the convention of CONTRIBUTING.md. Apart from CI so that
 # a retitle (`edited`) re-runs this check alone.
 
 on:
