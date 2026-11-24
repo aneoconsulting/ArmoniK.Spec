@@ -78,6 +78,7 @@ def test_kind_of(path, kind):
         ("specs/Task1Theorems_proofs.tla", "Task1"),
         ("specs/Graph1_mc.tla", "Graph1"),
         ("specs/Graph1_mc.cfg", "Graph1"),
+        ("specs/Graph2_large.cfg", "Graph2"),  # a larger local model
         # The three interface modules that drop the plural of their library.
         ("lib/DiGraphTheorems.tla", "DiGraphs"),
         ("lib/DDGraphTheorems_proofs.tla", "DDGraphs"),

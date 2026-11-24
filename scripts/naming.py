@@ -146,7 +146,9 @@ def scope_of(path: str | Path) -> str | None:
         return None
     if path.suffix not in {".tla", ".cfg", ".java"}:
         return None
-    return _scope(path.stem)
+    # A configuration <X>_<variant>.cfg (a larger local model) is about module <X>.
+    stem = path.stem.split("_", 1)[0] if path.suffix == ".cfg" else path.stem
+    return _scope(stem)
 
 
 def scopes_of(paths: Iterable[str | Path]) -> set[str]:
