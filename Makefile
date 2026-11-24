@@ -92,7 +92,7 @@ locate = test -n "$(MODULE)" || { echo "usage: make $@ MODULE=<module>$(1)" >&2;
 help:
 	@echo "targets:"
 	@echo "  install        Install the TLA+ toolchain into $(TOOLS_DIR)/ and the Python env into $(VENV)/"
-	@echo "  install-tlapm-opt  Install only the optimized tlapm build (826 MB download)"
+	@echo "  install-tlapm-opt  Install only the optimized tlapm build (35 MB download)"
 	@echo "  check          Verify the toolchain install is healthy (no downloads)"
 	@echo "  check-commits  Check RANGE=$(RANGE) against the commit convention"
 	@echo "  test           Lint (ruff), type-check (mypy --strict) and test the scripts/ checkers"
