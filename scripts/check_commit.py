@@ -5,19 +5,18 @@ A commit message opens with a header naming the kind of change it carries:
     <type>[(<scope>)][!]: <verb> <what>
 
 The type is the kind of file changed -- spec, lib, proof, model, test, tooling,
-ci, ai, docs, chore -- and a commit changes one kind only, so that each one is
+ci, agent, docs, chore -- and a commit changes one kind only, so that each one is
 reviewable and verifiable on its own. The scope names the module the change is
 about. Both are checked against the paths the commit actually touches, which is
-what makes the convention more than a naming habit. See .docs/conventions.md.
+what makes the convention more than a naming habit. See CONTRIBUTING.md.
 
 Three exceptions to the one-kind rule are accepted, all of them for changes that
 would otherwise be split into a commit that cannot pass CI:
 
   1. a spec or lib commit may carry the .cfg of a model it affects, provided the
      only lines it changes there are the `\\* state-space:` reference;
-  2. a commit marked `!` may cross kinds and modules *within the specs*, its body
-     stating that the diff outside its own kind is a mechanical rename or
-     signature propagation;
+  2. a commit marked `!` may cross kinds and modules *within the specs*, to carry
+     the renames and signature changes it forces on its dependents;
   3. merge commits, recognized by having two parents, and reverts, recognized by
      git's own subject and `This reverts commit` line, are skipped entirely.
 
@@ -51,7 +50,7 @@ HEADER = re.compile(
 )
 # Types whose scope must name a module of specs/ or lib/; the others take a free scope.
 MODULE_TYPES = ("spec", "lib", "proof", "model", "test")
-FREE_TYPES = ("tooling", "ci", "ai", "docs", "chore")
+FREE_TYPES = ("tooling", "ci", "agent", "docs", "chore")
 TYPES = MODULE_TYPES + FREE_TYPES
 FREE_SCOPE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
@@ -268,7 +267,7 @@ def _state_space_only(changes: list[str]) -> bool:
 
 
 def _article(word: str) -> str:
-    """The indefinite article before the type `word`: an ai, a spec."""
+    """The indefinite article before the type `word`: an agent, a spec."""
     return "an" if word[0] in "aeiou" else "a"
 
 
