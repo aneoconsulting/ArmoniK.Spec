@@ -67,7 +67,7 @@ IMPERATIVE = re.compile(r"^[a-z][a-z-]*$")
 LEADING_WORD = re.compile(r"^[A-Za-z][A-Za-z-]*")
 
 MAX_HEADER = 80
-MAX_DESCRIPTION = 60
+MAX_HEADER_LINES = 2
 MAX_BODY_LINE = 72
 
 # Both endpoints spelled out: `..<head>` is a range git reads as HEAD..<head>,
@@ -146,11 +146,17 @@ def _verb_error(type_: str, description: str) -> str | None:
     return None
 
 
-def check_header(header: str, known_scopes: set[str] | None = None) -> list[str]:
-    """Return every violation of the header grammar and vocabulary in `header`."""
+def check_header(
+    header: str, known_scopes: set[str] | None = None, max_length: int | None = MAX_HEADER
+) -> list[str]:
+    """Return every violation of the header grammar and vocabulary in `header`.
+
+    `max_length` bounds a one-line header such as a pull-request title; a commit
+    header wrapped over two lines is bounded line by line by `check_message`.
+    """
     errors: list[str] = []
-    if len(header) > MAX_HEADER:
-        errors.append(f"header is {len(header)} characters, at most {MAX_HEADER} allowed")
+    if max_length is not None and len(header) > max_length:
+        errors.append(f"header is {len(header)} characters, at most {max_length} allowed")
     if header != header.rstrip():
         errors.append("header ends with whitespace")
 
@@ -178,11 +184,6 @@ def check_header(header: str, known_scopes: set[str] | None = None) -> list[str]
         errors.append("a single space follows the colon")
     if (verb_error := _verb_error(parsed.type, parsed.description)) is not None:
         errors.append(verb_error)
-    if len(parsed.description) > MAX_DESCRIPTION:
-        errors.append(
-            f"description is {len(parsed.description)} characters, "
-            f"at most {MAX_DESCRIPTION} allowed"
-        )
     if parsed.description.endswith("."):
         errors.append("description must not end with a period")
     return errors
@@ -247,8 +248,23 @@ def check_message(message: str, known_scopes: set[str] | None = None) -> list[st
     if not lines or not lines[0].strip():
         return ["empty commit message"]
 
-    errors = check_header(lines[0], known_scopes)
-    parsed = parse_header(lines[0])
+    # As for git, the subject is the first paragraph: a header too long for one
+    # line wraps onto a second one, each at most MAX_HEADER characters.
+    count = next((i for i, line in enumerate(lines) if not line.strip()), len(lines))
+    errors: list[str] = []
+    if count > MAX_HEADER_LINES:
+        errors.append(
+            f"header spans {count} lines, at most {MAX_HEADER_LINES}; "
+            "separate it from the body with a blank line"
+        )
+    for line in lines[: min(count, MAX_HEADER_LINES)]:
+        if len(line) > MAX_HEADER:
+            errors.append(f"header line is {len(line)} characters, at most {MAX_HEADER} allowed")
+    header = " ".join(line.strip() for line in lines[: min(count, MAX_HEADER_LINES)])
+    lines = [header] + lines[min(count, MAX_HEADER_LINES) :]
+
+    errors += check_header(header, known_scopes, max_length=None)
+    parsed = parse_header(header)
     if parsed is not None and parsed.type in TYPES:
         errors += check_body(parsed, lines)
     return errors

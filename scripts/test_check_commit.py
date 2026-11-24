@@ -73,6 +73,15 @@ def test_check_message_rejects(message, expected):
     assert any(expected in error for error in errors), errors
 
 
+def test_header_wraps_onto_a_second_line():
+    two = "spec(Task2): restate RetryTasks to wait for the next attempt to be\nregistered before it retries the task\n\nThe body."
+    assert check_message(two, EXAMPLE_SCOPES) == []
+    three = "docs: fix the intro\nof the guide\nand more\n\nThe body."
+    assert any("at most 2" in error for error in check_message(three, EXAMPLE_SCOPES))
+    wide = "docs: " + "word " * 20 + "\n\nThe body."
+    assert any("header line is" in error for error in check_message(wide, EXAMPLE_SCOPES))
+
+
 def test_free_type_accepts_any_imperative():
     assert check_message("docs: clarify the refinement rationale", EXAMPLE_SCOPES) == []
 
