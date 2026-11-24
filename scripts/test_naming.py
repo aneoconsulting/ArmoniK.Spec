@@ -48,13 +48,13 @@ from scripts.naming import (
         ("README.md", "docs"),
         ("specs/README.md", "docs"),  # *.md is docs in the module directories too
         ("lib/README.md", "docs"),
-        (".claude/skills/tlaps-proof/SKILL.md", "ai"),  # .claude/ wins over *.md
-        (".claude/skills/tlaps-proof/prove.py", "ai"),
-        (".claude/settings.json", "ai"),
-        ("CLAUDE.md", "ai"),
-        ("AGENTS.md", "ai"),
-        ("specs/CLAUDE.md", "ai"),  # instruction files are ai wherever they sit
-        ("scripts/CLAUDE.md", "ai"),
+        (".claude/skills/tlaps-proof/SKILL.md", "agent"),  # .claude/ wins over *.md
+        (".claude/skills/tlaps-proof/prove.py", "agent"),
+        (".claude/settings.json", "agent"),
+        ("CLAUDE.md", "agent"),
+        ("AGENTS.md", "agent"),
+        ("specs/CLAUDE.md", "agent"),  # instruction files are agent wherever they sit
+        ("scripts/CLAUDE.md", "agent"),
         (".docs/conventions.md", "docs"),
         (".gitignore", "chore"),
         (".vscode/settings.json.template", "chore"),

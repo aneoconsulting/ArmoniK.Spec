@@ -10,7 +10,7 @@ located by name alone (`module_path`).
 
 This module is the single source of truth for that vocabulary. It maps a path to
 the *kind* of change it carries -- which is the commit type, see
-.docs/conventions.md -- and to the module the path is about, which is the commit
+CONTRIBUTING.md -- and to the module the path is about, which is the commit
 scope.
 
 Standard library only, so that the commit-convention check runs without the
@@ -99,9 +99,9 @@ def kind_of(path: str | Path) -> str | None:
     """
     path = Path(path)
     parts = path.parts
-    # Agent files are of kind ai wherever they sit, even inside scripts/ or specs/.
+    # Agent files are of kind agent wherever they sit, even inside scripts/ or specs/.
     if parts[:1] == (AI_DIR,) or path.name in AI_INSTRUCTIONS:
-        return "ai"
+        return "agent"
     # Documentation is docs in the module directories too.
     if path.suffix == ".md" and parts[:1] in ((SPECS_DIR,), (LIB_DIR,)):
         return "docs"

@@ -72,7 +72,7 @@ JAVA_CLASSES := $(JAVA_SRCS:.java=.class)
 # by running them.
 MYPY_SRCS := $(filter-out $(wildcard scripts/test_*.py),$(wildcard scripts/*.py))
 
-# Commits to check against the convention of .docs/conventions.md.
+# Commits to check against the convention of CONTRIBUTING.md.
 RANGE ?= origin/main..HEAD
 
 # Module the sany / tlc / tlapm targets verify, e.g. `make tlc MODULE=Graph1_mc`
