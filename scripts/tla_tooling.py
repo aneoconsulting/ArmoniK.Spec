@@ -49,21 +49,26 @@ def _walk(node: Node, prune: Callable[[Node], bool] = lambda n: False) -> Iterat
             stack.extend(reversed(n.children))
 
 
-def parse(path: Path) -> tuple[bytes, Node]:
-    """Return (source bytes, module node) for a .tla file.
+def parse_source(src: bytes, origin: str) -> Node:
+    """Return the module node of the TLA+ source `src`; `origin` names it in errors.
 
-    Raises ValueError when the file does not parse cleanly: tree-sitter is
+    Raises ValueError when the source does not parse cleanly: tree-sitter is
     error-tolerant, and a tree carrying ERROR nodes would silently lose the
     declarations a check is supposed to see."""
-    src = Path(path).read_bytes()
     root = Parser(_LANGUAGE).parse(src).root_node
     if root.has_error:
         bad = next((n for n in _walk(root) if n.is_error or n.is_missing), root)
-        raise ValueError(f"{path}: parse error at line {bad.start_point[0] + 1}")
+        raise ValueError(f"{origin}: parse error at line {bad.start_point[0] + 1}")
     for child in root.children:
         if child.type == "module":
-            return src, child
-    raise ValueError(f"{path}: no module found")
+            return child
+    raise ValueError(f"{origin}: no module found")
+
+
+def parse(path: Path) -> tuple[bytes, Node]:
+    """Return (source bytes, module node) for a .tla file, as `parse_source`."""
+    src = Path(path).read_bytes()
+    return src, parse_source(src, str(path))
 
 
 def _comment_body(src: bytes, node: Node) -> str:

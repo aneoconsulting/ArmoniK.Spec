@@ -70,6 +70,13 @@ def test_parse_refuses_a_module_with_syntax_errors(tmp_path):
         tla.parse(path)
 
 
+def test_parse_source_returns_the_module_and_names_its_origin_in_errors():
+    module = tla.parse_source(b"---- MODULE S ----\nX == 1\n====\n", "S.tla")
+    assert module.type == "module"
+    with pytest.raises(ValueError, match=r"^before: parse error at line 2"):
+        tla.parse_source(b"---- MODULE S ----\nX == \\A\\A oops\n====\n", "before")
+
+
 PROPERTIES_BODY = """\
 Init == TRUE
 
