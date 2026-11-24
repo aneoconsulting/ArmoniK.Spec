@@ -1,91 +1,39 @@
 <!--
-Title: <type>[(<scope>)][!]: <verb> <what>, describing the outcome of the series,
-not listing its commits. With several kinds of change, take the type of highest
-precedence: spec > lib > proof > model > test > tooling > ci > ai > docs >
-chore, and keep the scope only if every commit shares it. Commits and title are
-checked by the `Commit convention` job; the rules are in .docs/conventions.md.
+Title: <type>[(<scope>)][!]: <verb> <what>, stating the outcome of the series, not listing its commits. With several kinds of change, take the type of highest precedence (spec > lib > proof > model > test > tooling > ci > agent > docs > chore) and keep the scope only if every commit shares it. The commits and the title are checked by the `Commit convention` job; the rules are in CONTRIBUTING.md.
 
-Fill the sections that apply and delete the others (a tooling PR needs no
-Verification table; a spec PR needs no "how to run it" note).
+Write one line per paragraph and per list item (no hard wraps). Delete the sections and comments that do not apply.
 -->
 
 ## Summary
 
-<!-- Two to four sentences: what changes, and why. Name the modules involved
-     (Graph1, DDGraphTheorems, ...) and, for a spec change, the
-     behaviour or property that motivated it. -->
-
-## Type
-
-What this PR is about -- check every kind of change it carries. Each kind is a
-separate commit; the box you check is the type of that commit.
-
-- [ ] `spec` -- new or updated behaviour of a specification module
-- [ ] `lib` -- new or updated general-purpose theory reused across specifications, or its Java override
-- [ ] `proof` -- new or updated theorem statements, or the proofs that discharge them
-- [ ] `model` -- new or updated finite instance to model-check a specification against
-- [ ] `test` -- new or updated TLC assertions on the operators of a library module
-- [ ] `tooling` -- new or updated automation to build, check and verify the project
-- [ ] `ci` -- new or updated workflow
-- [ ] `ai` -- new or updated skills, settings or instructions for AI coding agents
-- [ ] `docs` -- new or updated documentation of any aspect of the project
-- [ ] `chore` -- repository housekeeping
+<!-- Two to four sentences: what changes and why. Name the modules involved and, for a specification change, the behavior or property that motivated it. -->
 
 ## Changes
 
-<!-- One bullet per change, grouped by module when the PR touches several.
-     Spec:    added / removed / renamed variables, actions, operators, states,
-              assumptions, refinement mappings; new or changed properties.
-     Proofs:  which theorems are now proved, which remain incomplete and why.
-     Model:   constants used, overrides, what the model does and does not cover.
-     Tooling: what the change does, and how to run it locally. -->
+<!-- One ### section per theme, not per module or per commit. Each says what changed and why, naming the identifiers: actions, variables, statuses, properties, theorems, operators. -->
 
--
+### <Theme>
 
-## Verification
+## Checks
 
-<!-- Spec / proof / model PRs: paste the evidence from your local runs. CI runs
-     the same checks per module (SANY parsing, property coverage, TLC and its
-     state-space statistics, interface consistency, strict proof checking,
-     interface/proof pairing). -->
+<!-- CI runs every check on every module (parsing, property coverage, interface and proof consistency, TLC against the state-space line, strict proof checking with the upstream tlapm build, plus the optimized build on the modules it checks in ranges; see CONTRIBUTING.md). Do not repeat them here: discuss what they show. -->
 
-**Model checking (TLC)**
+**Proofs.** <!-- The tlapm build used locally: the upstream build, which CI runs, or the optimized one. How the obligation counts changed and why, with the table below when several modules moved. -->
 
-| MC module | Model | States / Distinct / Depth | Result |
+| Proof module | `main` | This PR | Δ | Why |
+|---|---:|---:|---:|---|
+| `<X>Theorems_proofs` | | | | |
+
+**State spaces.** <!-- Which models' state-space lines moved, from what to what, and why; or "unchanged". -->
+
+**Larger models.** <!-- Only for models too large for CI, checked locally: constants, states / distinct / depth, result. -->
+
+| Model | Constants | States / Distinct / Depth | Result |
 |---|---|---|---|
-| `<X>_mc` | `Task = {t, u}`, `Object = {o, p}` | 4444 / 609 / 10 | No violation |
+| | | | |
 
-<!-- One row per model run. CI only re-runs the minimal models, as a
-     non-regression check against the `\* state-space: states=... distinct=...
-     depth=...` reference line of the model configuration. That line travels with
-     the spec or lib commit that moved the state space -- it is the one thing a
-     spec commit may change in a .cfg -- and the commit body says what moved it.
-     Every other edit to a .cfg is a model commit. Larger models, run locally for
-     deeper verification, are encouraged -- report them here as well, they carry
-     no reference line. -->
-
-**Proof checking (TLAPS)**
-
-| Proof module | Obligations | Omitted | Unproved |
-|---|---|---|---|
-| `<X>Theorems_proofs` | 154 | 0 | 0 |
-
-<!-- Strict proof checking must be clean. If a proof is deliberately left
-     incomplete, name the theorem and state what is missing. -->
+**Not run locally.** <!-- What was left to CI, and anything not checked at all. -->
 
 ## Modeling notes
 
-<!-- Optional. Assumptions, simplifications and abstractions, refinement
-     rationale, alternatives ruled out -- anything a reviewer should not have to
-     rediscover. Promote lasting decisions to the modeling documentation. -->
-
-## Checklist
-
-- [ ] One kind of change per commit
-- [ ] Commit and title conventions
-- [ ] Green CI
-- [ ] Property coverage
-- [ ] Interface / proof consistency
-- [ ] State-space references up to date
-- [ ] No generated artifact committed
-- [ ] Documentation updated
+<!-- Optional. One bullet per decision, opened by a bold lead: assumptions, abstractions, refinement rationale, alternatives ruled out; anything a reviewer should not have to rediscover. -->
